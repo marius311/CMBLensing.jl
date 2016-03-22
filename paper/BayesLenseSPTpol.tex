@@ -1,0 +1,237 @@
+\documentclass[noinfoline]{imsart}
+
+
+\usepackage{bm}
+\usepackage{graphics,epsfig,rotate,lscape,graphicx,amsmath,amsthm,amssymb,float,amsfonts,amsbsy,hyperref,delarray,sectsty,amsfonts,amscd,pifont}
+\usepackage{color,multirow}
+\usepackage{algorithmicx}
+\usepackage{algorithm}
+\usepackage{enumerate}
+\usepackage{microtype}
+\usepackage{wrapfig}
+
+\usepackage{geometry}
+\geometry{letterpaper,left=1.2in,right=1.2in,top=1.2in,bottom=1.1in}
+
+\bibliographystyle{plain}
+
+
+\newtheorem{claim}{Claim}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{conjecture}{Conjecture}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{notation}{Notation}
+\renewcommand{\labelenumi}{(\roman{enumi})}
+\newcommand{\bx}{\boldsymbol x}
+\newcommand{\by}{\boldsymbol y}
+\newcommand{\bl}{\boldsymbol l}
+\newcommand{\bk}{\boldsymbol k}
+\newcommand{\re}{\text{\,\rm re}}
+\newcommand{\im}{\text{\,\rm im}}
+\newcommand{\bs}{\boldsymbol}
+
+
+
+% --------------------------------------
+\begin{document}
+
+
+
+\begin{frontmatter}
+\title{BayesLenseSPTpol}
+\runtitle{BayesLenseSPTpol}
+
+\begin{abstract}
+At this point there is nothing in here but a few derivations.
+\end{abstract}
+
+% \begin{keyword}
+% \kwd{CMB}
+% \kwd{gravitational lensing}
+% \kwd{Bayesian}
+% \kwd{Gibbs sampler}
+% \kwd{Polarization}
+% \end{keyword}
+
+\end{frontmatter}
+
+
+Here is the general polarization lensing setup which includes both a gravitational potential and a rotational potential.
+\begin{align*}
+\widetilde Q(x) &\equiv  Q(x+\nabla \phi(x)+\nabla^\perp \psi(x)) \\
+\widetilde U(x) &\equiv  U(x+\nabla \phi(x)+\nabla^\perp \psi(x))
+\end{align*}
+where $Q, U$ denote the unlensed CMB polarization fields, $\phi$ denotes the lensing potential, $\psi$ denotes a field rotation potential and $\nabla^\perp \equiv(\frac{\partial}{\partial x_2}, -\frac{\partial}{\partial x_1})$.
+We observe $\widetilde Q, \widetilde U$ and try to estimate $\phi$, $\psi$, $Q$ and $U$.
+
+
+\section{Old stuff:}
+Here is a plot of the power spectrums I was using for the simulations
+\begin{center}
+\includegraphics[height = 2.2in]{spectrum1.eps}%
+\includegraphics[height = 2.2in]{spectrum2.eps}
+\end{center}
+\newpage
+Here is a plot of the maximum likelihood estimate of $\phi$ and $\psi$ from $\tilde Q, \tilde U$
+\begin{center}
+\includegraphics[height = 5.2in]{images.eps}
+\end{center}
+Finally, here is a plot of the power of the estimated unlensed primodial $B$ mode. In particular I use the estimates $\hat \phi$ and $\hat \psi$ and unlense the observed $\tilde Q, \tilde U$.
+\begin{center}
+\includegraphics[height = 2.5in]{spectrum3.eps}
+\end{center}
+
+
+%%%%%%%%%%%%%%%%%%%%
+%
+%  appendix
+%
+%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+
+\section{}
+
+
+
+
+If we exclude the zero frequency $l = 0$ we get
+\begin{align*}
+-\log P( \widetilde Q,  \widetilde U| \phi,\psi) - c_1
+&=  \frac{1}{2}\int_{\Bbb R^2}\left[ \frac{\bigl| \widetilde E_k^{\phi\psi}\bigr|^2}{C_k^{EE}}   +  \frac{\bigl| \widetilde B_k^{\phi\psi}\bigr|^2}{C_k^{BB}} \right]dk  \\
+&=  \frac{1}{2}\int_{\Bbb R^2}\left[ \frac{\bigl|-\cos(2\varphi_k) \widetilde Q_k^{\phi\psi} -\sin(2\varphi_k) \widetilde U_k^{\phi\psi} \bigr|^2}{C_k^{EE}}   + \frac{\bigl|\sin(2\varphi_k) \widetilde Q_k^{\phi\psi} -\cos(2\varphi_k) \widetilde U_k^{\phi\psi} \bigr|^2}{C_k^{BB}} \right]dk   \\
+&=  \frac{1}{2}\int_{\Bbb R^2} \left[\frac{\cos^2(2\varphi_k)}{C_k^{EE}} +\frac{\sin^2(2\varphi_k)}{C_k^{BB}} \right]| \widetilde Q_k^{\phi\psi}|^2   dk\\
+&\qquad + \frac{1}{2}\int_{\Bbb R^2}  \left[\frac{\cos^2(2\varphi_k)}{C_k^{BB}} +\frac{\sin^2(2\varphi_k)}{C_k^{EE}}\right] | \widetilde  U_k^{\phi\psi}|^2 dk\\
+&\qquad\quad + \frac{1}{2}\int_{\Bbb R^2}\left[ \frac{2\sin(2\varphi_k)\cos(2\varphi_k)(C_k^{BB} - C_k^{EE})}{C_k^{EE} C_k^{BB}}\right] \widetilde  Q_k^{\phi\psi} ( \widetilde U_k^{\phi\psi})^*  dk
+\end{align*}
+where $c_1$ is a  constant,  $ Y^{\phi\psi}(x)\equiv  Y(x-\nabla \phi(x)-\nabla^\perp \psi(x))$ and $\nabla^\perp \equiv(\frac{\partial}{\partial x_2}, -\frac{\partial}{\partial x_1})$. Notice that in the last term in the above display, I've implicity used the fact that
+\[ \int_{\Bbb R^2}M_k \widetilde  Q_k^{\phi\psi} ( \widetilde U_k^{\phi\psi})^*  dk = \int_{\Bbb R^2}M_k ( \widetilde Q_k^{\phi\psi})^* \widetilde  U_k^{\phi\psi}  dk  \]
+whenever $M_{k} = M_{-k}$.
+
+
+\begin{claim} Let $M_{k}$ real and symmetric in $k$. Let $X(x)$ and $Y(x)$ be real fields. Define $X^{\phi\psi}(x)\equiv X(x - \nabla \phi(x) - \nabla^\perp \psi(x))$ and similarly for $Y^{\phi\psi}$. Then
+\begin{align*}
+&\frac{\partial}{\partial \phi_l}  \int_{\Bbb R^2}   X^{\phi\psi}_k (Y^{\phi\psi}_k)^* M_kdk =
+\phantom{-}il_q 2dk \int_{\Bbb R^2}\Bigl( [(\nabla^q X)^{\phi\psi}]_{k+l} {Y^{\phi\psi}_k}^* \,\,\,\,\,\,+ [(\nabla^q Y)^{\phi\psi}]_{k+l} {X^{\phi\psi}_k}^*\Bigr) M_k \frac{dk}{2\pi} \\
+&\frac{\partial}{\partial \psi_l}  \int_{\Bbb R^2}   X^{\phi\psi}_k (Y^{\phi\psi}_k)^* M_kdk =
+-il_q {2dk} \int_{\Bbb R^2}\Bigl( [(\nabla^{\perp,q} X)^{\phi\psi}]_{k+l} {Y^{\phi\psi}_k}^* + [(\nabla^{\perp,q} Y)^{\phi\psi}]_{k+l} {X^{\phi\psi}_k}^*\Bigr) M_k\frac{dk}{2\pi}
+\end{align*}
+\end{claim}
+
+
+
+
+%%%%%%%%%%%%%%% lemma
+\begin{lemma}
+\label{partialconj}
+\begin{align}
+\frac{\partial  X^{\phi\psi}_k}{\partial \phi_{ l} }  &=  \phantom{-}il_q[(\nabla^q X)^{\phi\psi}]_{k+l}\frac{dk}{\pi}&
+\frac{\partial  X^{\phi\psi}_k}{\partial \phi^*_{ l} } &=  -il_q [(\nabla^q X)^{\phi\psi}]_{k-l}\frac{dk}{\pi} \\
+\frac{\partial  X^{\phi\psi}_k}{\partial \psi_{ l} }  &=  -il_q[(\nabla^{\perp,q} X)^{\phi\psi}]_{k+l}\frac{dk}{\pi}&
+\frac{\partial  X^{\phi\psi}_k}{\partial \psi^*_{ l} } &=  \phantom{-}il_q [(\nabla^{\perp,q} X)^{\phi\psi}]_{k-l}\frac{dk}{\pi}.
+\end{align}
+where $\nabla^q  X\equiv \frac{\partial  X}{\partial x_q}$.
+\end{lemma}
+\begin{proof}
+First notice
+\begin{align}
+\label{partial1}
+\frac{\partial}{\partial \re \phi_{ l}} \nabla^q \phi(x)  &= \int_{\Bbb R^2} i  k_q e^{ix \cdot k} \frac{\partial \phi_k}{\partial \re \phi_l }  \frac{d k}{2\pi}
+=\left[i  l_q e^{ix \cdot  l}  - i  l_q e^{-i x \cdot  l}  \right] \frac{d k}{2\pi}   \\
+\label{partial2}
+\frac{\partial}{\partial \im \phi_{ l}}\nabla^q \phi(x) &= \int_{\Bbb R^2} i  k_q e^{ix \cdot  k} \frac{\partial \phi_ k}{\partial \im \phi_{l} }  \frac{d k}{2\pi}
+=\left[-  l_q e^{ix \cdot  l}  -  l_q e^{-i x \cdot  l}  \right] \frac{d k}{2\pi}.
+\end{align}
+Therefore
+\begin{align}
+\frac{\partial}{\partial \phi_{l}}\nabla^q \phi(x)  &=  - i  l_q e^{-i x \cdot l} \frac{dk}{\pi}   \\
+\frac{\partial}{\partial \phi^*_{ l}}\nabla^q \phi(x) &= \phantom{-} il_q e^{ix \cdot  l}\frac{dk}{\pi}.
+\end{align}
+This implies
+\begin{align}
+\nonumber \frac{\partial X^{\phi\psi}_k}{\partial \phi_{ l} }
+&=  \frac{\partial}{\partial  \phi_{ l} } \int_{\Bbb R^2}  e^{-ix \cdot k} X(x-\nabla \phi(x)-\nabla^\perp \psi(x))\frac{dx}{2\pi} \\
+\nonumber &= \sum_{q=1,2}  \int_{\Bbb R^2} e^{-ix \cdot k} \nabla^q X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[ -\frac{\partial}{\partial \phi_{l}}\nabla^q \phi(x)\right]\frac{dx}{2\pi}\\
+\nonumber &= \sum_{q=1,2}  \int_{\Bbb R^2} e^{-ix \cdot k} \left[(\nabla^q X)^{\phi\psi}(x)\right]\left[  i  l_q e^{-i x \cdot l} \frac{dk}{\pi}\right]\frac{dx}{2\pi}
+\end{align}
+Similarly
+\begin{align}
+\frac{\partial X^{\phi\psi}_k }{\partial \phi^*_l }
+&= \sum_{q=1,2}  \int_{\Bbb R^2} e^{-ix \cdot k} \left[(\nabla^q X)^{\phi\psi}(x)\right]\left[  -i  l_q e^{i x \cdot l}\frac{dk}{\pi} \right]\frac{dx}{2\pi}.
+\end{align}
+Conversely
+\begin{align}
+\nonumber \frac{\partial X^{\phi\psi}_k}{\partial \psi_{ l} }
+&=  \frac{\partial}{\partial  \psi_{ l} } \int_{\Bbb R^2}  e^{-ix \cdot k} X(x-\nabla \phi(x)-\nabla^\perp \psi(x))\frac{dx}{2\pi} \\
+\nonumber &=  \int_{\Bbb R^2} e^{-ix \cdot k} \nabla^1 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[- \frac{\partial}{\partial \psi_{l}}\frac{\partial\psi(x)}{\partial x_2}\right]\frac{dx}{2\pi}\\
+ &\phantom{=}  +\int_{\Bbb R^2} e^{-ix \cdot k} \nabla^2 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[ \frac{\partial}{\partial \psi_{l}}\frac{\partial\psi(x)}{\partial x_1}\right]\frac{dx}{2\pi}\\
+ \nonumber &=  \int_{\Bbb R^2} e^{-ix \cdot k} \nabla^1 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[ i  l_2 e^{-i x \cdot l} \frac{dk}{\pi}\right]\frac{dx}{2\pi}\\
+ &\phantom{=}  +\int_{\Bbb R^2} e^{-ix \cdot k} \nabla^2 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[-  i  l_1 e^{-i x \cdot l} \frac{dk}{\pi}\right]\frac{dx}{2\pi} \\
+ \nonumber &= \sum_{q=1,2}  \int_{\Bbb R^2} e^{-ix \cdot k} \left[(\nabla^{\perp,q} X)^{\phi\psi}(x)\right]\left[ - i  l_q e^{-i x \cdot l} \frac{dk}{\pi}\right]\frac{dx}{2\pi}
+\end{align}
+since $\nabla^{\perp,1}=\nabla^2$ and $\nabla^{\perp,2}=-\nabla^1$. Similary
+\begin{align}
+\nonumber \frac{\partial X^{\phi\psi}_k}{\partial \psi^*_{ l} }
+&=  \frac{\partial}{\partial  \psi_{ l} } \int_{\Bbb R^2}  e^{-ix \cdot k} X(x-\nabla \phi(x)-\nabla^\perp \psi(x))\frac{dx}{2\pi} \\
+\nonumber &=  \int_{\Bbb R^2} e^{-ix \cdot k} \nabla^1 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[- \frac{\partial}{\partial \psi^*_{l}}\frac{\partial\psi(x)}{\partial x_2}\right]\frac{dx}{2\pi}\\
+ &\phantom{=}  +\int_{\Bbb R^2} e^{-ix \cdot k} \nabla^2 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[ \frac{\partial}{\partial \psi^*_{l}}\frac{\partial\psi(x)}{\partial x_1}\right]\frac{dx}{2\pi}\\
+ \nonumber &=  \int_{\Bbb R^2} e^{-ix \cdot k} \nabla^1 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[ -i  l_2 e^{i x \cdot l}\frac{dk}{\pi} \right]\frac{dx}{2\pi}\\
+ &\phantom{=}  +\int_{\Bbb R^2} e^{-ix \cdot k} \nabla^2 X(x-\nabla \phi(x)-\nabla^\perp\psi(x))\left[  i  l_1 e^{i x \cdot l}\frac{dk}{\pi} \right]\frac{dx}{2\pi} \\
+ \nonumber &= \sum_{q=1,2}  \int_{\Bbb R^2} e^{-ix \cdot k} \left[(\nabla^{\perp,q} X)^{\phi\psi}(x)\right]\left[  i  l_q e^{i x \cdot l} \frac{dk}{\pi}\right]\frac{dx}{2\pi}
+\end{align}
+\end{proof}
+
+
+
+
+
+%%%%%%%%%%%% lemma
+\begin{lemma}
+\label{forreal}
+If $A(x)$ and $B(x)$ are real scalar fields then  the two  integrals,  $\int_{\Bbb R^2} i\bigl\{ A_{k-l}  -   A_{k+l}  \bigr\} B^*_k dk$ and  $\int_{\Bbb R^2}\bigl\{  A_{k-l}  +    A_{k+l}   \bigr\} B^*_k dk$, are both real numbers.
+\end{lemma}
+
+
+\begin{proof}
+By a simple change of variables it is clear that
+$\int_{\Bbb R^2} \left(i\bigl\{ A_{k-l}  -   A_{k+l}  \bigr\} B^*_k\right)^* dk = \int_{\Bbb R^2} i\bigl\{ A_{k^\prime-l} - A_{k^\prime+l}  \bigr\} B_{k^\prime}^* dk^\prime$ and $\int_{\Bbb R^2} \left(\bigl\{  A_{k-l}  +    A_{k+l}   \bigr\} B^*_k \right)^* dk  = \int_{\Bbb R^2} \bigl\{ A_{k^\prime-l} + A_{k^\prime+l}  \bigr\} B_{k^\prime}^* dk^\prime$.
+
+% \begin{align*}
+% \int_{\Bbb R^2} \left(i\bigl\{ A_{k-l}  -   A_{k+l}  \bigr\} B^*_k\right)^* dk &= \int_{\Bbb R^2} -i\bigl\{ A_{-k+l}  -   A_{-k-l}  \bigr\} B_{k} dk \\
+% &= \int_{\Bbb R^2} -i\bigl\{ A_{k^\prime+l}  -   A_{k^\prime-l}  \bigr\} B_{-k^\prime} dk^\prime \\
+% &= \int_{\Bbb R^2} i\bigl\{ A_{k^\prime-l} - A_{k^\prime+l}  \bigr\} B_{k^\prime}^* dk^\prime
+% \end{align*}
+
+% \begin{align*}
+% \int_{\Bbb R^2} \left(\bigl\{  A_{k-l}  +    A_{k+l}   \bigr\} B^*_k \right)^* dk &= \int_{\Bbb R^2} \bigl\{ A_{-k+l}  +   A_{-k-l}  \bigr\} B_{k} dk \\
+% &= \int_{\Bbb R^2} \bigl\{ A_{k^\prime+l}  +   A_{k^\prime-l}  \bigr\} B_{-k^\prime} dk^\prime \\
+% &= \int_{\Bbb R^2} \bigl\{ A_{k^\prime-l} + A_{k^\prime+l}  \bigr\} B_{k^\prime}^* dk^\prime
+% \end{align*}
+\end{proof}
+
+
+
+%%%%%%%%%%%% lemma
+The following lemma is equivalent to the so-called Convolution Theorem. We state it here for reference.
+\begin{lemma}
+\label{conv}
+If $A(x)$ and $B(x)$ are real scalar fields then  $\int_{\Bbb R^2} A_{k+l}  B^*_k \frac{dk}{2\pi}= \int_{\Bbb R^2} e^{-ix\cdot l} A(x)B(x)\frac{dx}{2\pi}$.
+\end{lemma}
+
+% \begin{proof}
+% \begin{align*}
+% \int_{\Bbb R^2} A_{k+l}  B^*_k \frac{dk}{2\pi}
+% & = \int_{\Bbb R^2} \int_{\Bbb R^2} e^{-x\cdot (k+l)} A(x) B_{k}^*  \frac{dx}{2\pi}   \frac{dk}{2\pi} \\
+% & = \int_{\Bbb R^2}e^{-ix\cdot l} A(x) \left[\int_{\Bbb R^2} e^{-x\cdot k} B_{k}^*     \frac{dk}{2\pi}\right] \frac{dx}{2\pi}\\
+% & = \int_{\Bbb R^2}e^{-ix\cdot l} A(x) \left[\int_{\Bbb R^2} e^{x\cdot k} B_{k}     \frac{dk}{2\pi}\right]^* \frac{dx}{2\pi}\\
+% &= \int_{\Bbb R^2} e^{-ix\cdot l} A(x)B^*(x)\frac{dx}{2\pi}\\
+% &= \int_{\Bbb R^2} e^{-ix\cdot l} A(x)B(x)\frac{dx}{2\pi},\quad\text{since $B(x)$ is real.}
+% \end{align*}
+% \end{proof}
+
+
+
+
+\end{document}
