@@ -1,32 +1,20 @@
 module BayesLensSPTpol
 
-# package code goes here
-
 using PyCall, Dierckx
 
-export	LensePrm,
-		fftd,
-		ifftd,
-		ifftdr,
-		class
-
-FFTW.set_num_threads(CPU_CORES)
-
-# This source file defines the scaled Fourier transforms used
-include("gridfft.jl")
-
+export FFTgrid, MatrixCls, class, sim_xk, squash, squash!
 
 
 ##########################################################
 #=
-Definition of the LensePrm Type.
+Definition of the FFTgrid Type.
 Holds grid, model and planned FFT parameters for the quadratic estimate.
 Allows easy argument passing.
 =#
 #############################################################
+FFTW.set_num_threads(CPU_CORES)
 
-immutable LensePrm{dm, T1, T2}
-	# grid parameters
+immutable FFTgrid{dm, T}
 	period::Float64
 	nside::Int64
 	deltx::Float64
@@ -35,28 +23,10 @@ immutable LensePrm{dm, T1, T2}
 	x::Array{Array{Float64,dm},1}
 	k::Array{Array{Float64,dm},1}
 	r::Array{Float64,dm}
-	# parameters necessary for simulation
-	cENNk::Array{Float64,dm}
-	cBNNk::Array{Float64,dm}
-	cϕϕk::Array{Float64,dm}
-	cϕψk::Array{Float64,dm}
-	cψψk::Array{Float64,dm}
-	cEEk::Array{Float64,dm}
-	cBBk::Array{Float64,dm}
-	# parameters necessary for the quad est
-	cEEobsk::Array{Float64,dm}
-	cBBobsk::Array{Float64,dm}
-	# saved plans for fast fft
-	FFT::T1
-	IFFT::T2            # this is the unnormalized version
-	FFTconst::Float64   # these hold the normalization constants
-	IFFTconst::Float64
+	FFT::T  # saved plan for fast fft
 end
 
-"""
-`LensePrm(dm, period, nside)` constructor for LensePrm{dm,T1,T2} type
-"""
-function LensePrm(dm, period, nside, cls, σEEarcmin,  σBBarcmin, beamFWHM)
+function FFTgrid(dm, period, nside)
 	dm_nsides = fill(nside,dm)   # [nside,...,nside] <- dm times
 	deltx     = period / nside
 	deltk     = 2π / period
@@ -64,36 +34,17 @@ function LensePrm(dm, period, nside, cls, σEEarcmin,  σBBarcmin, beamFWHM)
 	x         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	r         = fill(NaN, dm_nsides...)
-	cENNk      = fill(NaN, dm_nsides...)
-	cBNNk      = fill(NaN, dm_nsides...)
-	cϕϕk      = fill(NaN, dm_nsides...)
-	cϕψk      = fill(NaN, dm_nsides...)
-	cψψk      = fill(NaN, dm_nsides...)
-	cEEk      = fill(NaN, dm_nsides...)
-	cBBk      = fill(NaN, dm_nsides...)
-	cEEobsk	  = fill(NaN, dm_nsides...)
-	cBBobsk   = fill(NaN, dm_nsides...)
-	FFT       = plan_fft(rand(Complex{Float64},dm_nsides...); flags = FFTW.PATIENT, timelimit = 10)
-	IFFT      = plan_bfft(rand(Complex{Float64},dm_nsides...); flags = FFTW.PATIENT, timelimit = 10)
-	parms     = LensePrm{dm, typeof(FFT), typeof(IFFT)}(period, nside, deltx, deltk, nyq, x, k, r,
-						cENNk, cBNNk, cϕϕk, cϕψk, cψψk,
-						cEEk, cBBk, cEEobsk, cBBobsk,
-						FFT, IFFT, (deltx / √(2π))^dm , (deltk / √(2π))^dm,
-				)
-	parms.x[:], parms.k[:] = getgrid(parms)
-	parms.r[:]  =  √(sum([abs2(kdim) for kdim in parms.k]))
-	parms.cENNk[:]      = cNNkgen(parms.r, parms.deltx; σunit=σEEarcmin, beamFWHM=beamFWHM)
-	parms.cBNNk[:]      = cNNkgen(parms.r, parms.deltx; σunit=σBBarcmin, beamFWHM=beamFWHM)
-	parms.cϕϕk[:]      = cls_to_cXXk(cls[:ell], cls[:ϕϕ], parms.r)
-	parms.cϕψk[:]      = cls_to_cXXk(cls[:ell], cls[:ϕψ], parms.r)
-	parms.cψψk[:]      = cls_to_cXXk(cls[:ell], cls[:ψψ], parms.r)
-	parms.cEEk[:]      = cls_to_cXXk(cls[:ell], cls[:ee], parms.r)
-	parms.cBBk[:]      = cls_to_cXXk(cls[:ell], cls[:bb], parms.r)
-	parms.cEEobsk[:]   = parms.cEEk + parms.cENNk
-	parms.cBBobsk[:]   = parms.cBNNk + parms.cBNNk
-	return parms
+	tmp       = rand(Complex{Float64},dm_nsides...)
+	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 5)
+	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
+	FFT \ tmp  # <---- activate fast ifft
+	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
+	g.x[:], g.k[:] = getgrid(g)
+	g.r[:]  =  √(sum([abs2(kdim) for kdim in g.k]))
+	return g
 end
-function getxkside{dm,T1,T2}(g::LensePrm{dm,T1,T2})
+
+function getxkside{dm,T}(g::FFTgrid{dm,T})
 	deltx    = g.period / g.nside
 	deltk    = 2π / g.period
 	xco_side = zeros(g.nside)
@@ -104,12 +55,14 @@ function getxkside{dm,T1,T2}(g::LensePrm{dm,T1,T2})
 	end
 	xco_side, kco_side
 end
-function getgrid{T1,T2}(g::LensePrm{1,T1,T2})
+
+function getgrid{T}(g::FFTgrid{1,T})
 	xco_side, kco_side = getxkside(g)
 	xco      = Array{Float64,1}[ xco_side ]
 	kco      = Array{Float64,1}[ kco_side ]
 	return xco, kco
 end
+
 function meshgrid(side_x,side_y)
     	nx = length(side_x)
     	ny = length(side_y)
@@ -117,7 +70,8 @@ function meshgrid(side_x,side_y)
     	yt = repmat(vec(side_y)  , 1 , nx)
     	return xt, yt
 end
-function getgrid{T1,T2}(g::LensePrm{2,T1,T2})
+
+function getgrid{T}(g::FFTgrid{2,T})
 	xco_side, kco_side = getxkside(g)
 	kco1, kco2 = meshgrid(kco_side, kco_side)
 	xco1, xco2 = meshgrid(xco_side, xco_side)
@@ -125,18 +79,49 @@ function getgrid{T1,T2}(g::LensePrm{2,T1,T2})
 	xco    = Array{Float64,2}[xco1, xco2]
 	return xco, kco
 end
-function cls_to_cXXk{dm}(ell, cxxls, r::Array{Float64, dm})
-	spl = Spline1D(ell, log(cxxls); k=1, bc="extrapolate", s=0.0)
-	return squash(exp(map(spl, r)))::Array{Float64, dm}
+
+
+
+
+##########################################################
+#=
+Definition of the MatrixCls Type.
+Holds the cls expanded out to the 2 d spectral matrices.
+=#
+#############################################################
+
+
+immutable MatrixCls{dm}
+	cϕϕk::Array{Float64,dm}
+	cϕψk::Array{Float64,dm}
+	cψψk::Array{Float64,dm}
+	cTTk::Array{Float64,dm}
+	cTEk::Array{Float64,dm}
+	cEEk::Array{Float64,dm}
+	cBBk::Array{Float64,dm}
+	cTTnoisek::Array{Float64,dm}
+	cEEnoisek::Array{Float64,dm}
+	cBBnoisek::Array{Float64,dm}
+end
+
+function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0,  σBBarcmin=0.0, beamFWHM=0.0)
+	cϕϕk = cls_to_cXXk(cls[:ell], cls[:ϕϕ], g.r)
+	cϕψk = cls_to_cXXk(cls[:ell], cls[:ϕψ], g.r)
+	cψψk = cls_to_cXXk(cls[:ell], cls[:ψψ], g.r)
+	cTTk = cls_to_cXXk(cls[:ell], cls[:tt], g.r)
+	cTEk = cls_to_cXXk(cls[:ell], cls[:te], g.r)
+	cEEk = cls_to_cXXk(cls[:ell], cls[:ee], g.r)
+	cBBk = cls_to_cXXk(cls[:ell], cls[:bb], g.r)
+	cTTnoisek = cNNkgen(g.r, g.deltx; σunit=σTTarcmin, beamFWHM=beamFWHM)
+	cEEnoisek = cNNkgen(g.r, g.deltx; σunit=σEEarcmin, beamFWHM=beamFWHM)
+	cBBnoisek = cNNkgen(g.r, g.deltx; σunit=σBBarcmin, beamFWHM=beamFWHM)
+	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cTTnoisek, cEEnoisek, cBBnoisek)
 end
 
 
-import Base.show
-function Base.show{dm, T1, T2}(io::IO, parms::LensePrm{dm, T1, T2})
-	for vs in fieldnames(parms)
-		(vs != :FFT) && (vs != :IFFT) && println(io, "$vs => $(getfield(parms,vs))")
-		println("")
-	end
+function cls_to_cXXk{dm}(ell, cxxls, r::Array{Float64, dm})
+	spl = Spline1D(ell, cxxls; k=1, bc="zero", s=0.0)
+	return squash(map(spl, r))::Array{Float64, dm}
 end
 
 
@@ -151,13 +136,19 @@ end
 
 
 # -------- Simulate a mean zero Gaussian random field in the pixel domain given a spectral density.
-function grf_sim_xk{dm, T1, T2}(cXXk::Array{Float64,dm}, p::LensePrm{dm, T1, T2})
-	nsz = size(cXXk)
-	dx  = p.deltx ^ dm
-	zzk = √(cXXk) .* fftd(randn(nsz)./√(dx), p.deltx)
-	return ifftdr(zzk, p.deltk), zzk
+function sim_xk{dm, T}(cXXk::Array{Float64,dm}, g::FFTgrid{dm, T})
+	wx, wk = white_wx_wk(g)
+	zk = √(cXXk) .* wk
+	zx = real(g.FFT \ zk)
+	return zx, zk
 end
 
+function white_wx_wk{dm, T}(g::FFTgrid{dm, T})
+	dx  = g.deltx ^ dm
+	wx = randn(size(g.r)) ./ √(dx)
+	wk = g.FFT * wx
+	return wx, wk
+end
 
 
 ##########################################################
@@ -217,12 +208,12 @@ end
 Miscellaneous functions
 =#
 #############################################################
-function radial_power{dm,T1,T2}(fk, smooth::Number, parms::LensePrm{dm,T1,T2})
+function radial_power{dm,T}(fk, smooth::Number, g::FFTgrid{dm,T})
 	rtnk = Float64[]
-	dk = parms.deltk
-	kbins = collect((smooth*dk):(smooth*dk):(parms.nyq))
+	dk = g.deltk
+	kbins = collect((smooth*dk):(smooth*dk):(g.nyq))
 	for wavenumber in kbins
-		indx = (wavenumber-smooth*dk) .< parms.r .<= (wavenumber+smooth*dk)
+		indx = (wavenumber-smooth*dk) .< g.r .<= (wavenumber+smooth*dk)
 		push!(rtnk, sum(abs2(fk[indx]).* (dk.^dm)) / sum(indx))
 	end
 	return kbins, rtnk
