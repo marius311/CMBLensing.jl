@@ -324,7 +324,7 @@ function update!{T}(len::LenseDecomp, Δϕk, Δψk, g::FFTgrid{2,T})
 	    len.rdisplx[i,j] = len.displx[i,j] - g.deltx * round(Int64, len.displx[i,j]/g.deltx)
 	    len.rdisply[i,j] = len.disply[i,j] - g.deltx * round(Int64, len.disply[i,j]/g.deltx)
 	end
-	return Void
+	return nothing
 end
 
 # takes Qx and Ux in qu and updates all the remaining derivatives to match
@@ -346,7 +346,7 @@ function update!{T}(qu::QUpartials, g::FFTgrid{2, T})
 	qu.bk[:] =   qk .* sin(φ2_l) - uk .* cos(φ2_l)
 	qu.ex[:] = real(g.FFT \ qu.ek)
 	qu.bx[:] = real(g.FFT \ qu.bk)
-	return Void
+	return nothing
 end
 
 
@@ -368,7 +368,7 @@ function replace!(qu_sink::QUpartials, qu_source::QUpartials)
 	qu_sink.bx[:]    = qu_source.bx
 	qu_sink.ek[:]    = qu_source.ek
 	qu_sink.bk[:]    = qu_source.bk
-	return Void
+	return nothing
 end
 
 

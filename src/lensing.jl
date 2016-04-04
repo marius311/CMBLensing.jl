@@ -33,7 +33,7 @@ function rlense!(qu::QUpartials, len::LenseDecomp)
             qu.ux[i,j]   +=       (len.rdisplx[i,j] * qu.∂12ux[i,j] * len.rdisply[i,j])
             qu.ux[i,j]   += 0.5 * (len.rdisply[i,j] * qu.∂22ux[i,j] * len.rdisply[i,j])
     end
-    return Void
+    return nothing
 end
 
 
@@ -62,5 +62,5 @@ function ilense!(qu::QUpartials, len::LenseDecomp, qu_storage::QUpartials)
             qu_storage.∂22ux[i,j] = qu.∂22ux[len.indrow[i,j], len.indcol[i,j]]
     end
 	replace!(qu, qu_storage)
-    return Void
+    return nothing
 end
