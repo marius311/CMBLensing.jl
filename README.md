@@ -87,8 +87,8 @@ git log --graph --full-history --all --color --pretty=format:"%x1b[31m%h%x09%x1b
 
 Create a new local branch.
 ```
-git branch EA/newfeature
-git checkout EA/newfeature
+git branch EA/debug_lensedBmode
+git checkout EA/debug_lensedBmode
 ```
 
 
@@ -101,7 +101,7 @@ git commit -m "commit message"
 
 Push the commits up to github.
 ```
-git push origin EA/newfeature
+git push origin EA/debug_lensedBmode
 ```
 
 
@@ -115,7 +115,7 @@ git checkout another_branch
 
 ### Merger to master when done.
 
-When finished with branch `EA/newfeature` now we want to merge with with local master and update the origin master accordingly.
+When finished with branch `EA/debug_lensedBmode` now we want to merge with with local master and update the origin master accordingly.
 
 
 First switch to master and fetch any recent updates
@@ -125,9 +125,9 @@ git pull
 ```
 
 
-Now merge the branch `EA/newfeature` into `master`
+Now merge the branch `EA/debug_lensedBmode` into `master`
 ```
-git merge EA/newfeature
+git merge EA/debug_lensedBmode
 ```
 
 
@@ -142,13 +142,13 @@ git push origin master
 
 ### Deleting your old branch
 
-Locally delete EA/newfeature after merging
+Locally delete EA/debug_lensedBmode after merging
 ```
-git branch  -d EA/newfeature
+git branch  -d EA/debug_lensedBmode
 ```
 
 
 Now delete the branch on github
 ```
-git push origin :EA/newfeature
+git push origin :EA/debug_lensedBmode
 ```
