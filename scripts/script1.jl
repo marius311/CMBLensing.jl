@@ -73,7 +73,7 @@ Simulate E and B, ϕ, ψ to check it is working
 ex, ek = sim_xk(matrixCls.cEEk, g)
 bx, bk = sim_xk(matrixCls.cBBk, g)
 ϕx, ϕk = sim_xk(matrixCls.cϕϕk, g)
-ψx, ψk = sim_xk(matrixCls.cψψk, g)
+ψx, ψk = sim_xk(0.0.*matrixCls.cψψk, g)
 
 
 # check the B and E simulation have the right power.
