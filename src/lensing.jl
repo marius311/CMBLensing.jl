@@ -22,12 +22,10 @@ Subgridscale lensing. Just updates qu.Qx and qu.Ux.
 function rlense!(qu::QUpartials, len::LenseDecomp)
     row, col = size(len.ϕk)
     @inbounds for j = 1:col, i = 1:row
-            qu.qx[i,j]    = qu.qx[i,j]
             qu.qx[i,j]   += (qu.∂1qx[i,j]  * len.rdisplx[i,j]) + (qu.∂2qx[i,j]  * len.rdisply[i,j])
             qu.qx[i,j]   += 0.5 * (len.rdisplx[i,j] * qu.∂11qx[i,j] * len.rdisplx[i,j])
             qu.qx[i,j]   +=       (len.rdisplx[i,j] * qu.∂12qx[i,j] * len.rdisply[i,j])
             qu.qx[i,j]   += 0.5 * (len.rdisply[i,j] * qu.∂22qx[i,j] * len.rdisply[i,j])
-            qu.ux[i,j]    = qu.ux[i,j]
             qu.ux[i,j]   += (qu.∂1ux[i,j]  * len.rdisplx[i,j]) + (qu.∂2ux[i,j]  * len.rdisply[i,j])
             qu.ux[i,j]   += 0.5 * (len.rdisplx[i,j] * qu.∂11ux[i,j] * len.rdisplx[i,j])
             qu.ux[i,j]   +=       (len.rdisplx[i,j] * qu.∂12ux[i,j] * len.rdisply[i,j])

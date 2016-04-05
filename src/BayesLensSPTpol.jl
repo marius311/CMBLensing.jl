@@ -319,6 +319,7 @@ function update!{T}(len::LenseDecomp, Δϕk, Δψk, g::FFTgrid{2,T})
 	len.disply[:] = real(g.FFT \ (im .* g.k[2] .* len.ϕk) -  g.FFT \ (im .* g.k[1] .* len.ψk))
 	row, col  = size(g.x[1])
 	@inbounds for j = 1:col, i = 1:row
+		# check this !!!!!
 	    len.indcol[i,j]  = indexwrap(j + round(Int64, len.displx[i,j]/g.deltx), col)
 	    len.indrow[i,j]  = indexwrap(i + round(Int64, len.disply[i,j]/g.deltx), row)
 	    len.rdisplx[i,j] = len.displx[i,j] - g.deltx * round(Int64, len.displx[i,j]/g.deltx)
