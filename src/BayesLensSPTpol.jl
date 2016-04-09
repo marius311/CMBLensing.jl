@@ -2,7 +2,17 @@ module BayesLensSPTpol
 
 using PyCall, Dierckx
 
-export FFTgrid, MatrixCls, QUpartials, LenseDecomp, class, sim_xk, squash, squash!
+export 	FFTgrid,
+		MatrixCls,
+		LenseDecomp,
+		lense,
+		class,
+		sim_xk,
+		radial_power,
+		qu2eb,
+		eb2qu,
+		squash,
+		squash!
 
 FFTW.set_num_threads(CPU_CORES)
 
@@ -18,7 +28,6 @@ Custom type Definitions
 
 =##############################################################
 
-
 # ---- Holds grid, model and planned FFT parameters for the quadratic estimate.
 immutable FFTgrid{dm, T}
 	period::Float64
@@ -30,27 +39,6 @@ immutable FFTgrid{dm, T}
 	k::Array{Array{Float64,dm},1}
 	r::Array{Float64,dm}
 	FFT::T  # saved plan for fast fft
-end
-
-
-# --- Hold spatial QU derivatives for Taylor expansion
-immutable QUpartials
-    qx::Array{Float64,2}
-    ux::Array{Float64,2}
-    ∂1qx::Array{Float64,2}
-    ∂2qx::Array{Float64,2}
-    ∂1ux::Array{Float64,2}
-    ∂2ux::Array{Float64,2}
-    ∂11qx::Array{Float64,2}
-    ∂12qx::Array{Float64,2}
-    ∂22qx::Array{Float64,2}
-    ∂11ux::Array{Float64,2}
-    ∂12ux::Array{Float64,2}
-    ∂22ux::Array{Float64,2}
-	ex::Array{Float64,2}
-	bx::Array{Float64,2}
-	ek::Array{Complex{Float64},2}
-	bk::Array{Complex{Float64},2}
 end
 
 
@@ -83,13 +71,12 @@ end
 
 
 
-
-
 #=##########################################################
 
 Type constructors
 
 =##############################################################
+
 function FFTgrid(dm, period, nside)
 	dm_nsides = fill(nside,dm)   # [nside,...,nside] <- dm times
 	deltx     = period / nside
@@ -97,67 +84,16 @@ function FFTgrid(dm, period, nside)
 	nyq       = 2π / (2deltx)
 	x         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
-	r         = fill(NaN, dm_nsides...)
+	r         =  fill(NaN, dm_nsides...)
 	tmp       = rand(Complex{Float64},dm_nsides...)
 	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 5)
 	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
-	FFT \ tmp  # <---- activate fast ifft
+	FFT \ tmp   # <-- initialize fast ifft
 	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
 	g.x[:], g.k[:] = getgrid(g)
 	g.r[:]  =  √(sum([abs2(kdim) for kdim in g.k]))
 	return g
 end
-
-
-function QUpartials{T}(ek::Array{Complex{Float64},2}, bk::Array{Complex{Float64},2}, g::FFTgrid{2, T})
-	φ2_l = 2.0 * angle(g.k[1] + im * g.k[2])
-	qk   = - ek .* cos(φ2_l) + bk .* sin(φ2_l)
-	uk   = - ek .* sin(φ2_l) - bk .* cos(φ2_l)
-    qx   = real(g.FFT \ qk)
-	ux   = real(g.FFT \ uk)
-    return QUpartials(
-        qx,
-        ux,
-    	real(g.FFT \ (im .* g.k[1] .* qk)),
-    	real(g.FFT \ (im .* g.k[2] .* qk)),
-    	real(g.FFT \ (im .* g.k[1] .* uk)),
-    	real(g.FFT \ (im .* g.k[2] .* uk)),
-    	real(g.FFT \ (im .* g.k[1] .* g.k[1] .* qk)),
-    	real(g.FFT \ (im .* g.k[1] .* g.k[2] .* qk)),
-    	real(g.FFT \ (im .* g.k[2] .* g.k[2] .* qk)),
-    	real(g.FFT \ (im .* g.k[1] .* g.k[1] .* uk)),
-    	real(g.FFT \ (im .* g.k[1] .* g.k[2] .* uk)),
-    	real(g.FFT \ (im .* g.k[2] .* g.k[2] .* uk)),
-		real(g.FFT \ ek),
-		real(g.FFT \ bk),
-		copy(ek),
-		copy(bk),
-        )
-end
-
-
-function QUpartials{T}(g::FFTgrid{2,T})
-	row, col = size(g.x[1])
-    return QUpartials(
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-        Array(Float64,row, col),
-		Array(Float64,row, col),
-		Array(Float64,row, col),
-		Array(Complex{Float64},row, col),
-		Array(Complex{Float64},row, col),
-        )
-end
-
 
 
 function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0,  σBBarcmin=0.0, beamFWHM=0.0)
@@ -175,19 +111,22 @@ function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0, 
 end
 
 
-function LenseDecomp(g)
-	row, col = size(g.x[1])
-	indcol   = Array(Int64, row, col)
-	indrow   = Array(Int64, row, col)
-	displx   = Array(Float64, row, col)
-	disply   = Array(Float64, row, col)
-	rdisplx  = Array(Float64, row, col)
-	rdisply  = Array(Float64, row, col)
-	ϕk = zeros(Complex{Float64}, row, col)
-	ψk = zeros(Complex{Float64}, row, col)
+function LenseDecomp(ϕk, ψk, g)
+	displx = real(g.FFT \ (im .* g.k[1] .* ϕk) +  g.FFT \ (im .* g.k[2] .* ψk))
+	disply = real(g.FFT \ (im .* g.k[2] .* ϕk) -  g.FFT \ (im .* g.k[1] .* ψk))
+	row, col  = size(g.x[1])
+	indcol    = Array(Int64, row, col)
+	indrow	  = Array(Int64, row, col)
+	rdisplx   = Array(Float64, row, col)
+	rdisply   = Array(Float64, row, col)
+	@inbounds for j = 1:col, i = 1:row
+	    indcol[i,j]  = indexwrap(j + round(Int64, displx[i,j]/g.deltx), col)
+	    indrow[i,j]  = indexwrap(i + round(Int64, disply[i,j]/g.deltx), row)
+		rdisplx[i,j] = displx[i,j] - g.deltx * round(Int64, displx[i,j]/g.deltx)
+	    rdisply[i,j] = disply[i,j] - g.deltx * round(Int64, disply[i,j]/g.deltx)
+	end
 	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, ϕk, ψk)
 end
-
 
 
 #=##########################################################
@@ -195,6 +134,7 @@ end
 Helper functions for the type constructors
 
 =##############################################################
+
 indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
 
 
@@ -203,6 +143,8 @@ function cls_to_cXXk{dm}(ell, cxxls, r::Array{Float64, dm})
 	return squash(map(spl, r))::Array{Float64, dm}
 end
 
+
+# !!!! check this one...
 function cNNkgen{dm}(r::Array{Float64,dm}; σunit=0.0, beamFWHM=0.0)
 	beamSQ = exp(- (beamFWHM ^ 2) * (abs2(r) .^ 2) ./ (8 * log(2)) )
 	return ones(size(r)) .* σunit .^ 2 ./ beamSQ
@@ -217,6 +159,8 @@ function getgrid{T}(g::FFTgrid{2,T})
 	xco    = Array{Float64,2}[xco1, xco2]
 	return xco, kco
 end
+
+
 function getxkside{dm,T}(g::FFTgrid{dm,T})
 	deltx    = g.period / g.nside
 	deltk    = 2π / g.period
@@ -228,6 +172,8 @@ function getxkside{dm,T}(g::FFTgrid{dm,T})
 	end
 	xco_side, kco_side
 end
+
+
 function meshgrid(side_x,side_y)
     	nx = length(side_x)
     	ny = length(side_y)
@@ -238,15 +184,54 @@ end
 
 
 
+#=##########################################################
+
+Lensing functions
+
+=##############################################################
+
+""" Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order = 2)` """
+function lense(qx, ux, len, g, order = 2)
+	qk   = g.FFT * qx
+	uk   = g.FFT * ux
+	rqx, rux  = intlense(qx, ux, len)  # <--- return values
+	@inbounds for n in 1:order, α₁ in 0:n
+		kα   = im ^ n .* g.k[1] .^ α₁ .* g.k[2] .^ (n - α₁)
+		∂α_qx = real(g.FFT \ (kα .* qk))
+		∂α_ux = real(g.FFT \ (kα .* uk))
+		∂α_qx, ∂α_ux  = intlense(∂α_qx, ∂α_ux, len)
+
+		xα   = len.rdisplx .^ α₁ .* len.rdisply .^ (n - α₁)
+		xα ./= factorial(α₁) * factorial(n - α₁)
+
+		rqx += xα .* ∂α_qx
+		rux += xα .* ∂α_ux
+    end
+    return rqx, rux
+end
+
+
+function intlense(qx, ux, len)
+	rqx  = similar(qx)
+	rux  = similar(ux)
+    @inbounds for i in eachindex(rqx, rux)
+            rqx[i] = qx[len.indrow[i], len.indcol[i]]
+            rux[i] = ux[len.indrow[i], len.indcol[i]]
+    end
+    return rqx, rux
+end
+
 
 
 
 #=##########################################################
 
-wrap class code
+Miscellaneous functions
 
 =##############################################################
+
 @pyimport classy
+
 function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
@@ -255,16 +240,18 @@ function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, 
    		"output"        => "tCl, pCl, lCl",
    		"modes"         => "s,t",
    		"lensing"       => "yes",
-		"l_max_scalars" => 7_500,
-		"l_max_tensors" => 7_500,
+		"l_max_scalars" => lmax + 500,
+		"l_max_tensors" => 3_000, #lmax + 500,
         "omega_b"       => omega_b,
     	"omega_cdm"     => omega_cdm,
         "tau_reio"      => tau_reio,
         "100*theta_s"   => 100*theta_s,
         "ln10^{10}A_s"  => logA_s_1010,
         "n_s"           => n_s,
-        "k_pivot"       => 0.05, ## this is k_star
 		"r"             => r,
+        #"k_pivot"       => 0.05,
+		#"k_step_trans"  => 0.1, # 0.01 for super high resolution
+   		#"l_linstep"     => 10,  # 1 for super high resolution
    		)
 	cosmo[:set](params)
 	cosmo[:compute]()
@@ -290,88 +277,26 @@ function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, 
 end
 
 
-
-
-
-#=##########################################################
-
-Lensing functions
-
-=##############################################################
-include("lensing.jl")
-
-
-
-
-
-#=##########################################################
-
-Miscellaneous functions
-
-=##############################################################
-
-
-# Delta update for len.
-function update!{T}(len::LenseDecomp, Δϕk, Δψk, g::FFTgrid{2,T})
-	len.ϕk[:] = len.ϕk + Δϕk
-	len.ψk[:] = len.ψk + Δψk
-	len.displx[:] = real(g.FFT \ (im .* g.k[1] .* len.ϕk) +  g.FFT \ (im .* g.k[2] .* len.ψk))
-	len.disply[:] = real(g.FFT \ (im .* g.k[2] .* len.ϕk) -  g.FFT \ (im .* g.k[1] .* len.ψk))
-	row, col  = size(g.x[1])
-	@inbounds for j = 1:col, i = 1:row
-		# check this !!!!!
-	    len.indcol[i,j]  = indexwrap(j + round(Int64, len.displx[i,j]/g.deltx), col)
-	    len.indrow[i,j]  = indexwrap(i + round(Int64, len.disply[i,j]/g.deltx), row)
-	    len.rdisplx[i,j] = len.displx[i,j] - g.deltx * round(Int64, len.displx[i,j]/g.deltx)
-	    len.rdisply[i,j] = len.disply[i,j] - g.deltx * round(Int64, len.disply[i,j]/g.deltx)
-	end
-	return nothing
-end
-
-# takes Qx and Ux in qu and updates all the remaining derivatives to match
-function update!{T}(qu::QUpartials, g::FFTgrid{2, T})
-    qk = g.FFT * qu.qx
-	uk = g.FFT * qu.ux
-    qu.∂1qx[:]  = real(g.FFT \ (im .* g.k[1] .* qk))
-    qu.∂2qx[:]  = real(g.FFT \ (im .* g.k[2] .* qk))
-    qu.∂1ux[:]  = real(g.FFT \ (im .* g.k[1] .* uk))
-    qu.∂2ux[:]  = real(g.FFT \ (im .* g.k[2] .* uk))
-    qu.∂11qx[:] = real(g.FFT \ (im .* g.k[1] .* g.k[1] .* qk))
-    qu.∂12qx[:] = real(g.FFT \ (im .* g.k[1] .* g.k[2] .* qk))
-    qu.∂22qx[:] = real(g.FFT \ (im .* g.k[2] .* g.k[2] .* qk))
-    qu.∂11ux[:] = real(g.FFT \ (im .* g.k[1] .* g.k[1] .* uk))
-    qu.∂12ux[:] = real(g.FFT \ (im .* g.k[1] .* g.k[2] .* uk))
-    qu.∂22ux[:] = real(g.FFT \ (im .* g.k[2] .* g.k[2] .* uk))
-	φ2_l     = 2.0 * angle(g.k[1] + im * g.k[2])
-	qu.ek[:] = - qk .* cos(φ2_l) - uk .* sin(φ2_l)
-	qu.bk[:] =   qk .* sin(φ2_l) - uk .* cos(φ2_l)
-	qu.ex[:] = real(g.FFT \ qu.ek)
-	qu.bx[:] = real(g.FFT \ qu.bk)
-	return nothing
+""" Convert qu to eb:  `ek, bk, ex, bx = qu2eb(qk, uk, g)` """
+function qu2eb(qk, uk, g)
+	φ2_l = 2angle(g.k[1] + im * g.k[2])
+	ek   = - qk .* cos(φ2_l) - uk .* sin(φ2_l)
+	bk   =   qk .* sin(φ2_l) - uk .* cos(φ2_l)
+	ex   = real(g.FFT \ ek)
+	bx   = real(g.FFT \ bk)
+	return ek, bk, ex, bx
 end
 
 
-# overwrite qu_sink with qu_source
-function replace!(qu_sink::QUpartials, qu_source::QUpartials)
-    qu_sink.qx[:]    = qu_source.qx
-    qu_sink.ux[:]    = qu_source.ux
-    qu_sink.∂1qx[:]  = qu_source.∂1qx
-    qu_sink.∂2qx[:]  = qu_source.∂2qx
-    qu_sink.∂1ux[:]  = qu_source.∂1ux
-    qu_sink.∂2ux[:]  = qu_source.∂2ux
-    qu_sink.∂11qx[:] = qu_source.∂11qx
-    qu_sink.∂12qx[:] = qu_source.∂12qx
-    qu_sink.∂22qx[:] = qu_source.∂22qx
-    qu_sink.∂11ux[:] = qu_source.∂11ux
-    qu_sink.∂12ux[:] = qu_source.∂12ux
-    qu_sink.∂22ux[:] = qu_source.∂22ux
-	qu_sink.ex[:]    = qu_source.ex
-	qu_sink.bx[:]    = qu_source.bx
-	qu_sink.ek[:]    = qu_source.ek
-	qu_sink.bk[:]    = qu_source.bk
-	return nothing
+""" Convert eb to qu: `qk, uk, qx, ux = eb2qu(ek, bk, g)` """
+function eb2qu(ek, bk, g)
+	φ2_l = 2angle(g.k[1] + im * g.k[2])
+	qk   = - ek .* cos(φ2_l) + bk .* sin(φ2_l)
+	uk   = - ek .* sin(φ2_l) - bk .* cos(φ2_l)
+    qx   = real(g.FFT \ qk)
+	ux   = real(g.FFT \ uk)
+	return qk, uk, qx, ux
 end
-
 
 
 
@@ -408,7 +333,7 @@ function white_wx_wk{dm, T}(g::FFTgrid{dm, T})
 end
 
 
-squash{T<:Number}(x::T)         = isnan(x) ? zero(T) : isfinite(x) ? x : zero(T)
+squash{T<:Number}(x::T)  = isnan(x) ? zero(T) : isfinite(x) ? x : zero(T)
 squash{T<:AbstractArray}(x::T)  = map(squash, x)::T
 squash!{T<:AbstractArray}(x::T) = map!(squash, x)::T
 
