@@ -6,6 +6,8 @@ export 	FFTgrid,
 		MatrixCls,
 		LenseDecomp,
 		lense,
+		gradupdate,
+		loglike,
 		class,
 		sim_xk,
 		radial_power,
@@ -224,6 +226,91 @@ end
 
 
 
+
+################################################
+#
+# Gradient update functions
+#
+################################################
+
+
+
+function gradupdate{dm,T}(
+			len, qx, ux, g::FFTgrid{dm, T}, mCls::MatrixCls{dm};
+			maxitr::Int64 = 20,
+			sg1::Float64 = 1e-8,
+			sg2::Float64 = 1e-10,
+			order::Int64 = 2,
+			pmask::Int64 = 1000,
+			ebmask::Int64 = 4000
+			)
+	φ2_l = 2angle(g.k[1] + im * g.k[2])
+	Mq   = squash(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
+	Mu   = squash(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
+	Mqu  = squash(2 * cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
+	Mqu -= squash(2 * cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
+	Mq[g.r .>= ebmask]  = 0.0
+	Mu[g.r .>= ebmask]  = 0.0
+	Mqu[g.r .>= ebmask] = 0.0
+	ϕcurrk, ψcurrk = copy(len.ϕk), copy(len.ψk)
+    for cntr = 1:maxitr
+        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, g, Mq, Mu, Mqu, mCls, order)
+        ϕcurrk[:] = ϕcurrk + ϕgradk .* sg1 .* mCls.cϕϕk .* (g.r .< pmask )
+        ψcurrk[:] = ψcurrk + ψgradk .* sg2 .* mCls.cψψk .* (g.r .< pmask )
+    end
+	return LenseDecomp(ϕcurrk, ψcurrk, g)
+end
+
+
+function ϕψgrad(len, qx, ux, g, Mq, Mu, Mqu, mCls, order = 2)
+	∂1ux = real(g.FFT \ (im * g.k[1] .* (g.FFT * ux)))
+	∂2ux = real(g.FFT \ (im * g.k[2] .* (g.FFT * ux)))
+	∂1qx = real(g.FFT \ (im * g.k[1] .* (g.FFT * qx)))
+	∂2qx = real(g.FFT \ (im * g.k[2] .* (g.FFT * qx)))
+
+	lqx, lux     = lense(qx, ux, len, g, order)
+	l∂1qx, l∂1ux = lense(∂1qx, ∂1ux, len, g, order)
+	l∂2qx, l∂2ux = lense(∂2qx, ∂2ux, len, g, order)
+
+	lqk, luk     =  g.FFT*lqx, g.FFT*lux
+	l∂1qk, l∂1uk =  g.FFT*l∂1qx, g.FFT*l∂1ux
+	l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
+
+	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qk, l∂1qk, l∂2qk, l∂2qk, Mq, g)
+    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1uk, l∂1uk, l∂2uk, l∂2uk, Mu, g)
+    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qk, l∂1uk, l∂2qk, l∂2uk, Mqu, g)
+
+	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash(len.ϕk ./ mCls.cϕϕk)
+	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash(len.ψk ./ mCls.cψψk)
+    return  rtnϕk, rtnψk
+end
+
+
+function ϕψgrad_terms(xk, yk, ∂1xk, ∂1yk, ∂2xk, ∂2yk, M, g)
+    X₁YMx = (g.FFT \ ∂1xk) .* (g.FFT \ (yk .* M))
+    X₂YMx = (g.FFT \ ∂2xk) .* (g.FFT \ (yk .* M))
+    Y₁XMx = (g.FFT \ ∂1yk) .* (g.FFT \ (xk .* M))
+    Y₂XMx = (g.FFT \ ∂2yk) .* (g.FFT \ (xk .* M))
+
+	ϕgradk  = g.k[1] .* (g.FFT * X₁YMx)
+	ϕgradk += g.k[2] .* (g.FFT * X₂YMx)
+	ϕgradk += g.k[1] .* (g.FFT * Y₁XMx)
+	ϕgradk += g.k[2] .* (g.FFT * Y₂XMx)
+	ϕgradk *= im * 2 * g.deltk ^ 2
+
+	ψgradk  = g.k[1] .* (g.FFT * Y₂XMx)
+	ψgradk -= g.k[2] .* (g.FFT * Y₁XMx)
+	ψgradk  = g.k[1] .* (g.FFT * X₂YMx)
+	ψgradk -= g.k[2] .* (g.FFT * X₁YMx)
+	ψgradk *= -im * 2 * g.deltk ^ 2
+
+    return ϕgradk, ψgradk
+end
+
+
+
+
+
 #=##########################################################
 
 Miscellaneous functions
@@ -271,9 +358,22 @@ function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, 
 			:tϕ 	=> cls["tp"] * (10^6 * cosmo[:T_cmb]()),
 			:ϕϕ     => cls["pp"],
 			:ϕψ     => 0.0.*cls["pp"],
-			:ψψ     => 0.01.*cls["pp"],
+			:ψψ     => 0.1.*cls["pp"],
 		)
 	return rtn
+end
+
+
+# --- compute loglike
+function loglike(len, qx, ux, g, mCls; order::Int64 = 2, pmask::Int64 = 1000, ebmask::Int64 = 4000)
+	ln_qx, ln_ux = lense(qx, ux, len, g, order)
+	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
+	rloglike   = - 0.5 * sum(squash( abs2(ln_ek .* (g.r .<= ebmask)) ./ mCls.cEEk ))
+	rloglike  += - 0.5 * sum(squash( abs2(ln_bk .* (g.r .<= ebmask)) ./ mCls.cBBk ))
+	rloglike  += - 0.5 * sum(squash( abs2(len.ϕk .* (g.r .<= pmask)) ./ mCls.cϕϕk ))
+	rloglike  += - 0.5 * sum(squash( abs2(len.ψk .* (g.r .<= pmask)) ./ mCls.cψψk ))
+	rloglike  *= (g.deltk^2)
+	return rloglike
 end
 
 

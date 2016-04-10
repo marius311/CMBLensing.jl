@@ -1,5 +1,5 @@
 # Fdb version 3
-["pdflatex"] 1458672769 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1459286467
+["pdflatex"] 1458672769 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1460284335
   "./BayesLenseSPTpol.out" 1458672770 91 c4480768779f805a9ad455b2d17ce4fb ""
   "./images-eps-converted-to.pdf" 1414082643 207882 028baa57a9652f0d61bdb5d9d247e4ab ""
   "./images.eps" 1414080521 3001471 77e0198721bc835fa5a64748f3c79044 ""
@@ -132,7 +132,7 @@
   "spectrum2.eps" 1414080930 24329 580c58363625fe15a3c5cfbe88df96af ""
   "spectrum3.eps" 1414080948 31236 bece14eb57ae38e8a30862b38a786d33 ""
   (generated)
-  "BayesLenseSPTpol.log"
-  "BayesLenseSPTpol.aux"
-  "BayesLenseSPTpol.pdf"
   "BayesLenseSPTpol.out"
+  "BayesLenseSPTpol.pdf"
+  "BayesLenseSPTpol.aux"
+  "BayesLenseSPTpol.log"
