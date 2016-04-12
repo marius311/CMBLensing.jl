@@ -231,6 +231,34 @@ If $A(x)$ and $B(x)$ are real scalar fields then  $\int_{\Bbb R^2} A_{k+l}  B^*_
 % \end{align*}
 % \end{proof}
 
+\section{}
+\begin{align}
+\tilde X_\ell
+&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} X_{m} \\
+\frac{\partial \tilde X_\ell}{\partial X_{\ell'}}
+&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} \delta(m-\ell')\\
+&= \int d^2 m \ \delta^2(\ell - m - \mathcal P) \delta(\ell'-m)
+\exp\left\{-\int \frac{d^2k}{(2\pi)^2} (k\cdot m)\phi_k \right\}\\
+&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
+-\int \frac{d^2k}{(2\pi)^2}(k\cdot m)\phi_k\delta(\ell - m-k) \delta(\ell'-m)\\
+&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
+\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
+&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
+- \frac{(\ell -m)\cdot m}{(2\pi)^2}\phi_{\ell-m} \delta(\ell'-m)\\
+&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
+\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
+&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
+&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k_1\cdot \ell')(k_2\cdot \ell')\phi_{k_1}\phi_{k_2}
+\delta(\ell - \ell'-k_1-k_2) \\
+?&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
+&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2}
+(k_1\cdot \ell')(k_2\cdot \ell')(2\pi)^2\delta(k_1+k_2) C_k^{\phi\phi}
+\delta(\ell - \ell'-k_1-k_2) \\
+&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
+-\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} (k_1\cdot \ell')^2 C_k^{\phi\phi} \delta(\ell - \ell')\\
+&= \delta(\ell - \ell')\left(1- \frac{\ell^2}{8\pi}\int  k^3 C_k^{\phi\phi} dk\right)
+- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
+\end{align}
 
 
 

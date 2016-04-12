@@ -1,6 +1,6 @@
 # Fdb version 3
-["pdflatex"] 1458672769 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1460284335
-  "./BayesLenseSPTpol.out" 1458672770 91 c4480768779f805a9ad455b2d17ce4fb ""
+["pdflatex"] 1460440347 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1460440347
+  "./BayesLenseSPTpol.out" 1460440347 137 f1061a5389c238bb2774b650c9bb1e88 ""
   "./images-eps-converted-to.pdf" 1414082643 207882 028baa57a9652f0d61bdb5d9d247e4ab ""
   "./images.eps" 1414080521 3001471 77e0198721bc835fa5a64748f3c79044 ""
   "./spectrum1-eps-converted-to.pdf" 1414082316 21987 e1aad9aee765149b6cefe1ec22828c88 ""
@@ -120,9 +120,9 @@
   "/usr/local/texlive/2015/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1432479641 1764542 91654ba72bdb667e84ea24f076ae16d8 ""
   "/usr/local/texlive/2015/texmf-var/web2c/pdftex/pdflatex.fmt" 1432479681 3849859 39a7d258195bde2394e244961601fbc5 ""
   "/usr/local/texlive/2015/texmf.cnf" 1432479636 577 0d611272082f3cdb8e80e09a3c69cf07 ""
-  "BayesLenseSPTpol.aux" 1458672770 1226 69a2597bf0e6ae945aa0331dbb562558 ""
-  "BayesLenseSPTpol.out" 1458672770 91 c4480768779f805a9ad455b2d17ce4fb ""
-  "BayesLenseSPTpol.tex" 1458672804 12269 1614b4d2d9f3aca74e2843cdc5dd442f ""
+  "BayesLenseSPTpol.aux" 1460440347 1311 c876b13f0e9b6b3b859e6be03f47e791 ""
+  "BayesLenseSPTpol.out" 1460440347 137 f1061a5389c238bb2774b650c9bb1e88 ""
+  "BayesLenseSPTpol.tex" 1460440343 14005 eaed3e17b76ec6d468fb912f8bf9078d ""
   "images.eps" 1414080521 3001471 77e0198721bc835fa5a64748f3c79044 ""
   "imsart-generic.cnf" 0 -1 0 ""
   "imsart.cls" 1400608237 5669 1be259565a85a1f70ef82b287b469aee ""
@@ -132,7 +132,7 @@
   "spectrum2.eps" 1414080930 24329 580c58363625fe15a3c5cfbe88df96af ""
   "spectrum3.eps" 1414080948 31236 bece14eb57ae38e8a30862b38a786d33 ""
   (generated)
-  "BayesLenseSPTpol.out"
   "BayesLenseSPTpol.pdf"
-  "BayesLenseSPTpol.aux"
+  "BayesLenseSPTpol.out"
   "BayesLenseSPTpol.log"
+  "BayesLenseSPTpol.aux"
