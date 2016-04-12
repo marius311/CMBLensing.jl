@@ -88,7 +88,7 @@ function FFTgrid(dm, period, nside)
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	r         =  fill(NaN, dm_nsides...)
 	tmp       = rand(Complex{Float64},dm_nsides...)
-	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 5)
+	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 1)
 	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
 	FFT \ tmp   # <-- initialize fast ifft
 	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
@@ -114,6 +114,7 @@ end
 
 
 function LenseDecomp(ϕk, ψk, g)
+	# the following is probably in the wrong order for the updates...
 	displx = real(g.FFT \ (im .* g.k[1] .* ϕk) +  g.FFT \ (im .* g.k[2] .* ψk))
 	disply = real(g.FFT \ (im .* g.k[2] .* ϕk) -  g.FFT \ (im .* g.k[1] .* ψk))
 	row, col  = size(g.x[1])
@@ -129,6 +130,7 @@ function LenseDecomp(ϕk, ψk, g)
 	end
 	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, ϕk, ψk)
 end
+
 
 
 #=##########################################################
@@ -237,7 +239,7 @@ end
 
 function gradupdate{dm,T}(
 			len, qx, ux, g::FFTgrid{dm, T}, mCls::MatrixCls{dm};
-			maxitr::Int64 = 20,
+			maxitr::Int64 = 1,
 			sg1::Float64 = 1e-8,
 			sg2::Float64 = 1e-10,
 			order::Int64 = 2,
@@ -245,10 +247,10 @@ function gradupdate{dm,T}(
 			ebmask::Int64 = 4000
 			)
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
-	Mq   = squash(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
-	Mu   = squash(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
-	Mqu  = squash(2 * cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
-	Mqu -= squash(2 * cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
+	Mq   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
+	Mu   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
+	Mqu  = -0.5squash(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
+	Mqu -= -0.5squash(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
 	Mq[g.r .>= ebmask]  = 0.0
 	Mu[g.r .>= ebmask]  = 0.0
 	Mqu[g.r .>= ebmask] = 0.0
@@ -296,13 +298,13 @@ function ϕψgrad_terms(xk, yk, ∂1xk, ∂1yk, ∂2xk, ∂2yk, M, g)
 	ϕgradk += g.k[2] .* (g.FFT * X₂YMx)
 	ϕgradk += g.k[1] .* (g.FFT * Y₁XMx)
 	ϕgradk += g.k[2] .* (g.FFT * Y₂XMx)
-	ϕgradk *= im * 2 * g.deltk ^ 2
+	ϕgradk *= - im * g.deltk ^ 2
 
 	ψgradk  = g.k[1] .* (g.FFT * Y₂XMx)
 	ψgradk -= g.k[2] .* (g.FFT * Y₁XMx)
-	ψgradk  = g.k[1] .* (g.FFT * X₂YMx)
+	ψgradk += g.k[1] .* (g.FFT * X₂YMx)
 	ψgradk -= g.k[2] .* (g.FFT * X₁YMx)
-	ψgradk *= -im * 2 * g.deltk ^ 2
+	ψgradk *= im * g.deltk ^ 2
 
     return ϕgradk, ψgradk
 end
@@ -319,7 +321,7 @@ Miscellaneous functions
 
 @pyimport classy
 
-function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602)
+function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
@@ -356,9 +358,9 @@ function class(;lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, 
 			:bb 	=> cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2,
 			:te 	=> cls["te"] * (10^6 * cosmo[:T_cmb]()) ^ 2,
 			:tϕ 	=> cls["tp"] * (10^6 * cosmo[:T_cmb]()),
-			:ϕϕ     => cls["pp"],
+			:ϕϕ     => ϕscale.*cls["pp"],
 			:ϕψ     => 0.0.*cls["pp"],
-			:ψψ     => 0.1.*cls["pp"],
+			:ψψ     => ψscale.*cls["pp"],
 		)
 	return rtn
 end
