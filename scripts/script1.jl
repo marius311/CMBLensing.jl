@@ -14,7 +14,7 @@ srand(seedstart)
 
 # --- set grid geometry
 dm     = 2
-period = 0.4 # radians
+period = 0.15 # radians
 nside  = nextprod([2,3,5,7], 400)
 g      = FFTgrid(dm, period, nside)
 
@@ -25,7 +25,7 @@ g      = FFTgrid(dm, period, nside)
 beamFWHM   = 0.0
 
 # --- Taylor series lensing order
-order = 4
+order = 2
 
 
 #=###########################################
