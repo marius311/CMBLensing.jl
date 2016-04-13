@@ -195,9 +195,15 @@ Lensing functions
 =##############################################################
 
 """ Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order = 2)` """
-function lense(qx, ux, len, g, order = 2)
-	qk   = g.FFT * qx
-	uk   = g.FFT * ux
+function lense{T}(
+			qx::Matrix{Float64},
+			ux::Matrix{Float64},
+			len,
+			g::FFTgrid{2,T},
+			order::Int64 = 2,
+			qk::Matrix{Complex{Float64}} = g.FFT * qx,
+			uk::Matrix{Complex{Float64}} = g.FFT * ux
+	)
 	rqx, rux  = intlense(qx, ux, len)  # <--- return values
 	@inbounds for n in 1:order, α₁ in 0:n
 		kα   = im ^ n .* g.k[1] .^ α₁ .* g.k[2] .^ (n - α₁)

@@ -14,7 +14,7 @@ srand(seedstart)
 
 # --- set grid geometry
 dm     = 2
-period = 0.25 # radians
+period = 0.2 # radians
 nside  = nextprod([2,3,5,7], 400)
 g      = FFTgrid(dm, period, nside)
 
@@ -102,6 +102,7 @@ len = LenseDecomp(ϕk, ψk, g)
 
 # --- lense qx and ux fields
 @time ln_qx, ln_ux = lense(qx, ux, len, g, order)
+# @time ln_qx, ln_ux = lense(qx, ux, len, g, order, qk, uk) # this one is a bit quicker
 
 
 #= --- Plot: check the lensed fields have the right power.
@@ -152,13 +153,13 @@ Impliment likelihood gradient ascent for `invlen`
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = round(Int, g.nyq * 1.0) # round(Int, 100 * g.deltk)
-ebmask = round(Int, g.nyq * 1.0)
+pmask  = round(Int, g.nyq * 0.5) # round(Int, 100 * g.deltk)
+ebmask = round(Int, g.nyq * 0.95)
 sg1    = 2e-10 # 2e-10  # <--- size of gradient step for ϕ
 sg2    = 2e-10 # 2e-10  # <--- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:500
-    len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=4, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+for cntr = 1:10
+    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=4, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
