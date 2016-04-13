@@ -14,7 +14,7 @@ srand(seedstart)
 
 # --- set grid geometry
 dm     = 2
-period = 0.15 # radians
+period = 0.25 # radians
 nside  = nextprod([2,3,5,7], 400)
 g      = FFTgrid(dm, period, nside)
 
@@ -25,7 +25,7 @@ g      = FFTgrid(dm, period, nside)
 beamFWHM   = 0.0
 
 # --- Taylor series lensing order
-order = 2
+order = 3
 
 
 #=###########################################
@@ -39,7 +39,7 @@ cls = class(
     ψscale      = 0.1,    # <-- cψψk = ψscale * baseline_cϕϕk
     ϕscale      = 1.0,  # <-- cϕϕk = ϕscale * baseline_cϕϕk
     lmax        = 6_000,
-    r           = 0.2,
+    r           = 0.3,
     omega_b     = 0.0224567,
     omega_cdm   = 0.118489,
     tau_reio    = 0.128312,
@@ -120,6 +120,31 @@ legend(loc = 3)
 
 #=###########################################
 
+Experiment!! See how noise behaves under this lensing operation
+
+=##########################################################
+
+ntx, _  = sim_xk(mCls.cTTnoisek, g)
+nbx, _  = sim_xk(mCls.cBBnoisek, g)
+ln_ntx, ln_nbx = lense(ntx, nbx, len, g, order)
+
+#= --- Plot: look at the lensed and unlensed noise band powers
+kbins, ln_nb_bndpwr_k = radial_power(g.FFT*ln_nbx, 1, g)
+kbins,    nb_bndpwr_k = radial_power(g.FFT*   nbx, 1, g)
+kbins, ln_nt_bndpwr_k = radial_power(g.FFT*ln_ntx, 1, g)
+kbins,    nt_bndpwr_k = radial_power(g.FFT*   ntx, 1, g)
+figure()
+plot(kbins, ln_nb_bndpwr_k, ".", label = "lensed b noise")
+plot(kbins,   nb_bndpwr_k, ".", label = "b noise")
+plot(kbins, ln_nt_bndpwr_k, ".", label = "lensed t noise")
+plot(kbins,   nt_bndpwr_k, ".", label = "t noise")
+legend()
+=#
+
+
+
+#=###########################################
+
 Impliment likelihood gradient ascent for `invlen`
 
 =##########################################################
@@ -127,12 +152,12 @@ Impliment likelihood gradient ascent for `invlen`
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = round(Int, g.nyq * 0.5) # round(Int, 100 * g.deltk)
-ebmask = round(Int, g.nyq * 0.9)
-sg1    = 2e-10  # <--- size of gradient step for ϕ
-sg2    = 2e-10  # <--- size of gradient step for ψ
+pmask  = round(Int, g.nyq * 1.0) # round(Int, 100 * g.deltk)
+ebmask = round(Int, g.nyq * 1.0)
+sg1    = 2e-10 # 2e-10  # <--- size of gradient step for ϕ
+sg2    = 2e-10 # 2e-10  # <--- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:50
+for cntr = 1:500
     len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=4, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
@@ -141,23 +166,27 @@ end
 #= --- Plot: the estimated lensing potentials
 figure()
 subplot(2,2,1)
-imshow(real(g.FFT \ (len_curr.ϕk.*(g.r .< Inf))))
+imshow(real(g.FFT \ (len_curr.ϕk.*(g.r .< Inf))), vmin = minimum(-ϕx), vmax = maximum(-ϕx) )
+title("estimated curl free potential: phi")
 colorbar()
 subplot(2,2,2)
-imshow(real(g.FFT \ (-ϕk)))
+imshow(-ϕx, vmin = minimum(-ϕx), vmax = maximum(-ϕx) )
+title("simulation truth curl free potential: phi")
 colorbar()
 subplot(2,2,3)
-imshow(real(g.FFT \ (len_curr.ψk.*(g.r .< Inf))))
+imshow(real(g.FFT \ (len_curr.ψk.*(g.r .< Inf))), vmin = minimum(-ψx), vmax = maximum(-ψx) )
+title("estimated div free potential: psi")
 colorbar()
 subplot(2,2,4)
-imshow(real(g.FFT \ (-ψk)))
+imshow(-ψx, vmin = minimum(-ψx), vmax = maximum(-ψx) )
+title("simulation truth div free potential: psi")
 colorbar()
 =#
 
 
 
 #= --- Plot: compare lensed and unlensed B-power
-delensed_qx, delensed_ux = lense(qx, ux, len_curr, g, 3) # last arg is the order of lensing
+delensed_qx, delensed_ux = lense(qx, ux, len_curr, g, order) # last arg is the order of lensing
 ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 delensed_ek, delensed_bk, delensed_ex, delensed_bx = qu2eb(g.FFT*delensed_qx, g.FFT*delensed_ux, g)
 kbins, est_ln_cbbk = radial_power(ln_bk, 1, g)
