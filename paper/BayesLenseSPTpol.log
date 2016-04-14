@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  13 APR 2016 18:24
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  14 APR 2016 11:05
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -579,24 +579,19 @@ Overfull \hbox (19.82397pt too wide) in paragraph at lines 108--108
  []
 
 [2 <./images-eps-converted-to.pdf> <./spectrum3-eps-converted-to.pdf>] [3] [4]
-Overfull \hbox (18.72658pt too wide) in paragraph at lines 286--286
-[] 
- []
-
-[5]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 299.
- [6]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 299.
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 279.
+ [5]
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 279.
  (./BayesLenseSPTpol.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 299.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 299.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 279.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 279.
 Package rerunfilecheck Info: File `BayesLenseSPTpol.out' has not changed.
-(rerunfilecheck)             Checksum: F1061A5389C238BB2774B650C9BB1E88;137.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 299.
+(rerunfilecheck)             Checksum: C2058F3B5C68EBB6983322846F066A44;138.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 279.
  ) 
 Here is how much of TeX's memory you used:
- 9568 strings out of 493304
- 139951 string characters out of 6139871
+ 9564 strings out of 493304
+ 139906 string characters out of 6139871
  283844 words of memory out of 5000000
  12809 multiletter control sequences out of 15000+600000
  12102 words of font info for 52 fonts, out of 8000000 for 9000
@@ -604,10 +599,10 @@ Here is how much of TeX's memory you used:
  30i,14n,35p,384b,400s stack positions out of 5000i,500n,10000p,200000b,80000s
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/c
 m/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
-Output written on BayesLenseSPTpol.pdf (6 pages, 446883 bytes).
+Output written on BayesLenseSPTpol.pdf (5 pages, 444933 bytes).
 PDF statistics:
- 268 PDF objects out of 1000 (max. 8388607)
- 134 compressed objects within 2 object streams
- 34 named destinations out of 1000 (max. 500000)
+ 260 PDF objects out of 1000 (max. 8388607)
+ 127 compressed objects within 2 object streams
+ 30 named destinations out of 1000 (max. 500000)
  13357 words of extra memory for PDF output out of 14400 (max. 10000000)
 
