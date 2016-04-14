@@ -39,7 +39,7 @@ cls = class(
     ψscale      = 0.1,    # <-- cψψk = ψscale * baseline_cϕϕk
     ϕscale      = 1.0,  # <-- cϕϕk = ϕscale * baseline_cϕϕk
     lmax        = 6_000,
-    r           = 0.3,
+    r           = 0.2,
     omega_b     = 0.0224567,
     omega_cdm   = 0.118489,
     tau_reio    = 0.128312,
@@ -153,13 +153,13 @@ Impliment likelihood gradient ascent for `invlen`
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = round(Int, g.nyq * 0.5) # round(Int, 100 * g.deltk)
-ebmask = round(Int, g.nyq * 0.95)
-sg1    = 2e-10 # 2e-10  # <--- size of gradient step for ϕ
-sg2    = 2e-10 # 2e-10  # <--- size of gradient step for ψ
+pmask  = round(Int, g.nyq * 1.0) # round(Int, 100 * g.deltk)
+ebmask = round(Int, g.nyq * 1.0)
+sg1    = 1e-10 # 2e-10  # <--- size of gradient step for ϕ
+sg2    = 1e-10 # 2e-10  # <--- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:10
-    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=10, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+for cntr = 1:20
+    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=25, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 

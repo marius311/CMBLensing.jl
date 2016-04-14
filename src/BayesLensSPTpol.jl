@@ -88,7 +88,7 @@ function FFTgrid(dm, period, nside)
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	r         =  fill(NaN, dm_nsides...)
 	tmp       = rand(Complex{Float64},dm_nsides...)
-	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 1)
+	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 10)
 	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
 	FFT \ tmp   # <-- initialize fast ifft
 	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
@@ -194,7 +194,7 @@ Lensing functions
 
 =##############################################################
 
-""" Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order = 2)` """
+""" Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order=2, qk=g.FFT*qx, uk=g.FFT*ux)` """
 function lense{T}(
 			qx::Matrix{Float64},
 			ux::Matrix{Float64},
@@ -206,19 +206,38 @@ function lense{T}(
 	)
 	rqx, rux  = intlense(qx, ux, len)  # <--- return values
 	@inbounds for n in 1:order, α₁ in 0:n
-		kα   = im ^ n .* g.k[1] .^ α₁ .* g.k[2] .^ (n - α₁)
+		# kα   = im ^ n .* g.k[1] .^ α₁ .* g.k[2] .^ (n - α₁)
+		kα  = intlense_helper1(n, α₁, g.k[1], g.k[2])
+
 		∂α_qx = real(g.FFT \ (kα .* qk))
 		∂α_ux = real(g.FFT \ (kα .* uk))
 		∂α_qx, ∂α_ux  = intlense(∂α_qx, ∂α_ux, len)
 
-		xα   = len.rdisplx .^ α₁ .* len.rdisply .^ (n - α₁)
-		xα ./= factorial(α₁) * factorial(n - α₁)
-
-		rqx += xα .* ∂α_qx
-		rux += xα .* ∂α_ux
+		# xα   = len.rdisplx .^ α₁ .* len.rdisply .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
+		# rqx += xα .* ∂α_qx
+		# rux += xα .* ∂α_ux
+		intlense_helper2!(rqx, rux, n, α₁, len.rdisplx, len.rdisply, ∂α_qx, ∂α_ux)
     end
     return rqx, rux
 end
+function intlense_helper1(n, α₁, k1, k2)
+	rtn  = Array(Complex{Float64}, size(k1))
+	imn, nmα₁  = im ^ n, n - α₁
+	@inbounds @simd for i in eachindex(rtn)
+		rtn[i] = complex(imn * k1[i] ^ α₁ * k2[i] ^ nmα₁)
+	end
+	return rtn
+end
+function intlense_helper2!(rqx, rux, n, α₁, rx, ry, ∂qx, ∂ux)
+	fα₁, fnmα₁, nmα₁ = factorial(α₁), factorial(n - α₁), n - α₁
+	@inbounds @simd for i in eachindex(rqx, rux)
+		xα      = rx[i] ^ α₁ * ry[i] ^ nmα₁ / fα₁ / fnmα₁
+		rqx[i] += xα * ∂qx[i]
+		rux[i] += xα * ∂ux[i]
+	end
+	return nothing
+end
+
 
 
 function intlense(qx, ux, len)
@@ -261,10 +280,10 @@ function gradupdate{T}(
 			)
 
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
-	Mq   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
-	Mu   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
-	Mqu  = -0.5squash(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
-	Mqu -= -0.5squash(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
+	Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
+	Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
+	Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
+	Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
 	Mq[g.r .>= ebmask]  = 0.0
 	Mu[g.r .>= ebmask]  = 0.0
 	Mqu[g.r .>= ebmask] = 0.0
@@ -278,11 +297,15 @@ function gradupdate{T}(
 	∂2ux = real(g.FFT \ ∂2uk)
 	∂1qx = real(g.FFT \ ∂1qk)
 	∂2qx = real(g.FFT \ ∂2qk)
+
+	ϵ1 = sg1 .* mCls.cϕϕk .* (g.r .< pmask)
+	ϵ2 = sg2 .* mCls.cψψk .* (g.r .< pmask)
 	ϕcurrk, ψcurrk = copy(len.ϕk), copy(len.ψk)
-    for cntr = 1:maxitr
+
+    @inbounds for cntr = 1:maxitr
         ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, ∂1uk, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-        ϕcurrk[:] = ϕcurrk + ϕgradk .* sg1 .* mCls.cϕϕk .* (g.r .< pmask )
-        ψcurrk[:] = ψcurrk + ψgradk .* sg2 .* mCls.cψψk .* (g.r .< pmask )
+        ϕcurrk[:] = ϕcurrk + ϕgradk .* ϵ1
+        ψcurrk[:] = ψcurrk + ψgradk .* ϵ2
     end
 	return LenseDecomp(ϕcurrk, ψcurrk, g)
 end
@@ -301,8 +324,8 @@ function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, �
     ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, l∂1uk, l∂1uk, l∂2uk, l∂2uk, Mu, g)
     ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, l∂1qk, l∂1uk, l∂2qk, l∂2uk, Mqu, g)
 
-	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash(len.ϕk ./ mCls.cϕϕk)
-	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash(len.ψk ./ mCls.cψψk)
+	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash!(len.ϕk ./ mCls.cϕϕk)
+	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash!(len.ψk ./ mCls.cψψk)
     return  rtnϕk, rtnψk
 end
 
@@ -389,10 +412,10 @@ end
 function loglike(len, qx, ux, g, mCls; order::Int64 = 2, pmask::Int64 = 1000, ebmask::Int64 = 4000)
 	ln_qx, ln_ux = lense(qx, ux, len, g, order)
 	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
-	rloglike   = - 0.5 * sum(squash( abs2(ln_ek .* (g.r .<= ebmask)) ./ mCls.cEEk ))
-	rloglike  += - 0.5 * sum(squash( abs2(ln_bk .* (g.r .<= ebmask)) ./ mCls.cBBk ))
-	rloglike  += - 0.5 * sum(squash( abs2(len.ϕk .* (g.r .<= pmask)) ./ mCls.cϕϕk ))
-	rloglike  += - 0.5 * sum(squash( abs2(len.ψk .* (g.r .<= pmask)) ./ mCls.cψψk ))
+	rloglike   = - 0.5 * sum(squash!( abs2(ln_ek .* (g.r .<= ebmask)) ./ mCls.cEEk ))
+	rloglike  += - 0.5 * sum(squash!( abs2(ln_bk .* (g.r .<= ebmask)) ./ mCls.cBBk ))
+	rloglike  += - 0.5 * sum(squash!( abs2(len.ϕk .* (g.r .<= pmask)) ./ mCls.cϕϕk ))
+	rloglike  += - 0.5 * sum(squash!( abs2(len.ψk .* (g.r .<= pmask)) ./ mCls.cψψk ))
 	rloglike  *= (g.deltk^2)
 	return rloglike
 end
@@ -455,9 +478,18 @@ end
 
 
 squash{T<:Number}(x::T)  = isnan(x) ? zero(T) : isfinite(x) ? x : zero(T)
-squash{T<:AbstractArray}(x::T)  = map(squash, x)::T
-squash!{T<:AbstractArray}(x::T) = map!(squash, x)::T
-
+function squash!{dm,T}(x::Array{T,dm})
+	@inbounds @simd for i in eachindex(x)
+		if isnan(x[i]) | !isfinite(x[i])
+			x[i] = zero(T)
+		end
+	end
+	return x
+end
+function squash{dm,T}(x::Array{T,dm})
+	y = copy(x)
+	return squash!(y)
+end
 
 
 end # module
