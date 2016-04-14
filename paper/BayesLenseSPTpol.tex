@@ -232,34 +232,68 @@ If $A(x)$ and $B(x)$ are real scalar fields then  $\int_{\Bbb R^2} A_{k+l}  B^*_
 % \end{proof}
 
 \section{}
+
+Eq.(4.9) of Lewis 2006
 \begin{align}
-\tilde X_\ell
-&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} X_{m} \\
-\frac{\partial \tilde X_\ell}{\partial X_{\ell'}}
-&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} \delta(m-\ell')\\
-&= \int d^2 m \ \delta^2(\ell - m - \mathcal P) \delta(\ell'-m)
-\exp\left\{-\int \frac{d^2k}{(2\pi)^2} (k\cdot m)\phi_k \right\}\\
-&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
--\int \frac{d^2k}{(2\pi)^2}(k\cdot m)\phi_k\delta(\ell - m-k) \delta(\ell'-m)\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
-\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
-&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
-- \frac{(\ell -m)\cdot m}{(2\pi)^2}\phi_{\ell-m} \delta(\ell'-m)\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
-\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
-&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k_1\cdot \ell')(k_2\cdot \ell')\phi_{k_1}\phi_{k_2}
-\delta(\ell - \ell'-k_1-k_2) \\
-?&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2}
-(k_1\cdot \ell')(k_2\cdot \ell')(2\pi)^2\delta(k_1+k_2) C_k^{\phi\phi}
-\delta(\ell - \ell'-k_1-k_2) \\
-&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
--\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} (k_1\cdot \ell')^2 C_k^{\phi\phi} \delta(\ell - \ell')\\
-&= \delta(\ell - \ell')\left(1- \frac{\ell^2}{8\pi}\int  k^3 C_k^{\phi\phi} dk\right)
-- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
+\tilde T_\ell
+&= T_\ell -\int \frac{d^2\ell'}{2\pi} \ell'\cdot(\ell-\ell')\phi_{\ell-\ell'} T_{\ell'}\\
+& -\frac{1}{2}\int \frac{d^2\ell_1}{2\pi}\frac{d^2\ell_2}{2\pi} \ell_1\cdot(\ell_1+\ell_2-\ell)\ (\ell_1\cdot\ell_2)
+T_{\ell_1} \phi_{\ell_1}\phi_{\ell-\ell_1-\ell_2} \nonumber
 \end{align}
 
+\begin{align}
+\langle \phi_\ell \phi_{\ell'}^* \rangle = \delta(\ell-\ell') C_\ell
+= \frac{\delta_{\ell,\ell'}}{(\Delta \ell)^2} C_\ell \equiv \delta_{\ell,\ell'}\delta_0 C_\ell
+\end{align}
+
+\begin{align}
+A_{\ell k}\equiv\frac{\partial \tilde T_\ell}{\partial T_k}
+=& \delta_{\ell,k} + \sum_{\ell'}\frac{(\Delta\ell')^2}{2\pi} \ell'\cdot(\ell-\ell')\phi_{\ell-\ell'} \delta_{\ell',k}\\
+& -\frac{1}{2}\sum_{\ell_1,\ell_2} \frac{(\Delta\ell_1)^2}{2\pi}\frac{(\Delta \ell_2)^2}{2\pi} \ell_1\cdot(\ell_1+\ell_2-\ell)\ (\ell_1\cdot\ell_2)
+\delta_{\ell_1,k} \phi_{\ell_1}\phi_{\ell-\ell_1-\ell_2} \nonumber\\
+=& \delta_{\ell,k} + \frac{1}{2\pi} k\cdot(\ell-k)\ (\Delta\ell')^2\phi_{\ell-k} \nonumber\\
+& -\frac{1}{2}\frac{(\Delta\ell_1)^2}{2\pi}\frac{(\Delta \ell_2)^2}{2\pi} \sum_{\ell_2}  k\cdot(k+\ell_2-\ell)\ (k\cdot\ell_2)
+\phi_{k}\phi_{\ell-k-\ell_2}
+\end{align}
+
+\begin{align}
+  \frac{\partial \log \det(A)}{\partial \phi} = \frac{1}{\det(A)}   \frac{\partial}{\partial \phi}\det (A)
+\end{align}
+Keep $O(\phi)$ for off-diagnal terms and $O(\phi^2)$ for diagnal terms, and accurate to $O(\phi^2)$ for $\det (A)$
+
+\begin{align}
+A_{\ell k}
+&= \delta_{\ell,k} \left(1-\frac{(\Delta\ell)^4}{8\pi^2}\sum_{\ell_2}   (k\cdot\ell_2)^2
+  \phi_{k}\phi_{-\ell_2} \right) + \frac{ (\Delta\ell)^2}{2\pi} k\cdot(\ell-k)\phi_{\ell-k}\\
+\det A
+&=1-\frac{(\Delta\ell)^4}{8\pi^2}\sum_k\sum_{\ell_2}   (k\cdot\ell_2)^2 \phi_{k}\phi_{-\ell_2}
++ \frac{ (\Delta\ell)^4}{4\pi^2} \sum_\ell \sum_{k\neq\ell} k\cdot(\ell-k)\ \ell\cdot(k-\ell)\phi_{\ell-k}\phi_{k-\ell}\nonumber
+\end{align}
+
+Note that $\frac{\partial}{\partial \phi_l}
+\equiv \frac{\partial}{\partial{\rm re} \phi_l} +i\frac{\partial}{\partial{\rm Im} \phi_l} $, then
+$\frac{\partial}{\partial \phi_l} \phi_{k} = 2 \delta_{k,-l}$
+
+\begin{align}
+\frac{\partial}{2\partial \phi_i}\det (A)
+&=-\frac{(\Delta\ell)^4}{8\pi^2} \left(\sum_{\ell_2}   (i\cdot\ell_2)^2 \phi_{-\ell_2}
++\sum_{k}   (i\cdot k)^2 \phi_{k}\right)
++\frac{ (\Delta\ell)^4}{4\pi^2} \sum_{\ell-k=-i}+\sum_{k-\ell=-i} k\cdot(\ell-k)\ \ell\cdot(k-\ell)\phi_{i}\nonumber\\
+&=-\frac{(\Delta\ell)^4}{8\pi^2} \sum_{k} (i\cdot k)^2 \left(\phi_{-k}+\phi_{k}\right)
+-\frac{ (\Delta\ell)^4}{2\pi^2}\phi_{i} \sum_\ell \ell\cdot i \ i^2 + (\ell\cdot i)^2\nonumber\\
+&=-\frac{(\Delta\ell)^4}{4\pi^2} \sum_{k} (i\cdot k)^2 \phi_{k}
+-\frac{ (\Delta\ell)^4}{2\pi^2}\phi_{i} \sum_\ell  (\ell\cdot i)^2 \leftarrow {\rm diverging} ?
+\end{align}
+
+\begin{align}
+\langle \det A \rangle_{\phi}
+&= 1-\frac{(\Delta\ell)^2}{8\pi^2}\sum_k  k^4 C_k^{\phi\phi}+0 = 1 -\frac{1}{4\pi} \int dk\ k^5  C_k^{\phi\phi}
+\end{align}
+$\det A$ is not directly used in the Hamiltonian Markov chain.
+
+\begin{align}
+  \frac{\partial \log \det(A)}{\partial \phi} = \mathrm{Tr}(A^{-1}   \frac{\partial A}{\partial \phi} )\ {\rm seems \ useless}
+\end{align}
 
 
 \end{document}
