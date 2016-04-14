@@ -1,18 +1,18 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.16 (TeX Live 2015) (preloaded format=pdflatex 2015.5.24)  11 APR 2016 22:52
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  14 APR 2016 11:05
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
 **BayesLenseSPTpol.tex
 (./BayesLenseSPTpol.tex
-LaTeX2e <2015/01/01>
-Babel <3.9l> and hyphenation patterns for 79 languages loaded.
+LaTeX2e <2011/06/27>
+Babel <3.9h> and hyphenation patterns for 78 languages loaded.
 (./imsart.cls
 Document Class: imsart 2010/04/27 driver class for package imsart.sty
-(/usr/local/texlive/2015/texmf-dist/tex/latex/base/article.cls
-Document Class: article 2014/09/29 v1.4h Standard LaTeX document class
-(/usr/local/texlive/2015/texmf-dist/tex/latex/base/size10.clo
-File: size10.clo 2014/09/29 v1.4h Standard LaTeX file (size option)
+(/usr/share/texlive/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2007/10/19 v1.4h Standard LaTeX document class
+(/usr/share/texlive/texmf-dist/tex/latex/base/size10.clo
+File: size10.clo 2007/10/19 v1.4h Standard LaTeX file (size option)
 )
 \c@part=\count79
 \c@section=\count80
@@ -33,8 +33,8 @@ No file imsart.cnf.
 \c@lastpage=\count88
 \c@thanks=\count89
 \c@addressref=\count90
-(/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/keyval.sty
-Package: keyval 2014/10/28 v1.15 key=value parser (DPC)
+(/usr/share/texlive/texmf-dist/tex/latex/graphics/keyval.sty
+Package: keyval 1999/03/16 v1.13 key=value parser (DPC)
 \KV@toks@=\toks14
 )
 \c@emailref=\count91
@@ -52,59 +52,59 @@ Package: keyval 2014/10/28 v1.15 key=value parser (DPC)
 \keywords@list=\toks16
 
 No file imsart-generic.cnf.
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/tools/bm.sty
-Package: bm 2014/10/28 v1.1c Bold Symbol Support (DPC/FMi)
+)) (/usr/share/texlive/texmf-dist/tex/latex/tools/bm.sty
+Package: bm 2004/02/26 v1.1c Bold Symbol Support (DPC/FMi)
 \symboldoperators=\mathgroup4
 \symboldletters=\mathgroup5
 \symboldsymbols=\mathgroup6
-LaTeX Font Info:    Redeclaring math alphabet \mathbf on input line 141.
-LaTeX Info: Redefining \bm on input line 207.
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/graphics.sty
-Package: graphics 2014/10/28 v1.0p Standard LaTeX Graphics (DPC,SPQR)
- (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/trig.sty
+LaTeX Font Info:    Redeclaring math alphabet \mathbf on input line 138.
+LaTeX Info: Redefining \bm on input line 204.
+) (/usr/share/texlive/texmf-dist/tex/latex/graphics/graphics.sty
+Package: graphics 2009/02/05 v1.0o Standard LaTeX Graphics (DPC,SPQR)
+ (/usr/share/texlive/texmf-dist/tex/latex/graphics/trig.sty
 Package: trig 1999/03/16 v1.09 sin cos tan (DPC)
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/latexconfig/graphics.cfg
+) (/usr/share/texlive/texmf-dist/tex/latex/latexconfig/graphics.cfg
 File: graphics.cfg 2010/04/23 v1.9 graphics configuration of TeX Live
 )
-Package graphics Info: Driver file: pdftex.def on input line 94.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/pdftex-def/pdftex.def
+Package graphics Info: Driver file: pdftex.def on input line 91.
+ (/usr/share/texlive/texmf-dist/tex/latex/pdftex-def/pdftex.def
 File: pdftex.def 2011/05/27 v0.06d Graphics/color for pdfTeX
- (/usr/local/texlive/2015/texmf-dist/tex/generic/oberdiek/infwarerr.sty
+ (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/infwarerr.sty
 Package: infwarerr 2010/04/08 v1.3 Providing info/warning/error messages (HO)
-) (/usr/local/texlive/2015/texmf-dist/tex/generic/oberdiek/ltxcmds.sty
+) (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/ltxcmds.sty
 Package: ltxcmds 2011/11/09 v1.22 LaTeX kernel commands for general use (HO)
 )
 \Gread@gobject=\count94
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/epsfig.sty
+)) (/usr/share/texlive/texmf-dist/tex/latex/graphics/epsfig.sty
 Package: epsfig 1999/02/16 v1.7a (e)psfig emulation (SPQR)
- (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/graphicx.sty
-Package: graphicx 2014/10/28 v1.0g Enhanced LaTeX Graphics (DPC,SPQR)
+ (/usr/share/texlive/texmf-dist/tex/latex/graphics/graphicx.sty
+Package: graphicx 1999/02/16 v1.0f Enhanced LaTeX Graphics (DPC,SPQR)
 \Gin@req@height=\dimen108
 \Gin@req@width=\dimen109
 )
 \epsfxsize=\dimen110
 \epsfysize=\dimen111
-) (/usr/local/texlive/2015/texmf-dist/tex/generic/dvips/rotate.sty
+) (/usr/share/texlive/texmf-dist/tex/generic/dvips/rotate.sty
 \@rotdimen=\dimen112
 \@rotbox=\box29
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/lscape.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/graphics/lscape.sty
 Package: lscape 2000/10/22 v3.01 Landscape Pages (DPC)
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amsmath.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsmath.sty
 Package: amsmath 2013/01/14 v2.14 AMS math features
 \@mathmargin=\skip43
 
 For additional information on amsmath, use the `?' option.
-(/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amstext.sty
 Package: amstext 2000/06/29 v2.01
- (/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amsgen.sty
+ (/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsgen.sty
 File: amsgen.sty 1999/11/30 v2.0
 \@emptytoks=\toks17
 \ex@=\dimen113
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amsbsy.sty
+)) (/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsbsy.sty
 Package: amsbsy 1999/11/29 v1.2d
 LaTeX Info: Redefining \boldsymbol on input line 39.
 \pmbraise@=\dimen114
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amsopn.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsopn.sty
 Package: amsopn 1999/12/14 v2.01 operator names
 )
 \inf@bad=\count95
@@ -144,8 +144,8 @@ LaTeX Font Info:    Redeclaring font encoding OMS on input line 567.
 \mathdisplay@stack=\toks21
 LaTeX Info: Redefining \[ on input line 2665.
 LaTeX Info: Redefining \] on input line 2666.
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/amscls/amsthm.sty
-Package: amsthm 2015/03/04 v2.20.2
+) (/usr/share/texlive/texmf-dist/tex/latex/amscls/amsthm.sty
+Package: amsthm 2004/08/06 v2.20
 \thm@style=\toks22
 \thm@bodyfont=\toks23
 \thm@headfont=\toks24
@@ -155,9 +155,9 @@ Package: amsthm 2015/03/04 v2.20.2
 \thm@postskip=\skip47
 \thm@headsep=\skip48
 \dth@everypar=\toks27
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/amsfonts/amssymb.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/amssymb.sty
 Package: amssymb 2013/01/14 v3.01 AMS font symbols
- (/usr/local/texlive/2015/texmf-dist/tex/latex/amsfonts/amsfonts.sty
+ (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/amsfonts.sty
 Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
 
 
@@ -167,18 +167,18 @@ Package amsfonts Warning: The 'psamsfonts' option is obsolete in AMSFonts v3.
 \symAMSb=\mathgroup8
 LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
 (Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/float/float.sty
+)) (/usr/share/texlive/texmf-dist/tex/latex/float/float.sty
 Package: float 2001/11/08 v1.3d Float enhancements (AL)
 \c@float@type=\count107
 \float@exts=\toks28
 \float@box=\box32
 \@float@everytoks=\toks29
 \@floatcapt=\box33
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/hyperref/hyperref.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/hyperref/hyperref.sty
 Package: hyperref 2012/11/06 v6.83m Hypertext links for LaTeX
- (/usr/local/texlive/2015/texmf-dist/tex/generic/oberdiek/hobsub-hyperref.sty
+ (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/hobsub-hyperref.sty
 Package: hobsub-hyperref 2012/05/28 v1.13 Bundle oberdiek, subset hyperref (HO)
- (/usr/local/texlive/2015/texmf-dist/tex/generic/oberdiek/hobsub-generic.sty
+ (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/hobsub-generic.sty
 Package: hobsub-generic 2012/05/28 v1.13 Bundle oberdiek, subset generic (HO)
 Package: hobsub 2012/05/28 v1.13 Construct package bundles (HO)
 Package hobsub Info: Skipping package `infwarerr' (already loaded).
@@ -216,21 +216,21 @@ Package atveryend Info: \enddocument detected (standard20110627).
 Package: atbegshi 2011/10/05 v1.16 At begin shipout hook (HO)
 Package: refcount 2011/10/16 v3.4 Data extraction from label references (HO)
 Package: hycolor 2011/01/30 v1.7 Color options for hyperref/bookmark (HO)
-) (/usr/local/texlive/2015/texmf-dist/tex/generic/ifxetex/ifxetex.sty
+) (/usr/share/texlive/texmf-dist/tex/generic/ifxetex/ifxetex.sty
 Package: ifxetex 2010/09/12 v0.6 Provides ifxetex conditional
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/oberdiek/auxhook.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/oberdiek/auxhook.sty
 Package: auxhook 2011/03/04 v1.3 Hooks for auxiliary files (HO)
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/oberdiek/kvoptions.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/oberdiek/kvoptions.sty
 Package: kvoptions 2011/06/30 v3.11 Key value format for package options (HO)
 )
 \@linkdim=\dimen122
 \Hy@linkcounter=\count108
 \Hy@pagecounter=\count109
- (/usr/local/texlive/2015/texmf-dist/tex/latex/hyperref/pd1enc.def
+ (/usr/share/texlive/texmf-dist/tex/latex/hyperref/pd1enc.def
 File: pd1enc.def 2012/11/06 v6.83m Hyperref: PDFDocEncoding definition (HO)
 )
 \Hy@SavedSpaceFactor=\count110
- (/usr/local/texlive/2015/texmf-dist/tex/latex/latexconfig/hyperref.cfg
+ (/usr/share/texlive/texmf-dist/tex/latex/latexconfig/hyperref.cfg
 File: hyperref.cfg 2002/06/06 v1.2 hyperref configuration of TeXLive
 )
 Package hyperref Info: Option `colorlinks' set `true' on input line 4319.
@@ -247,7 +247,7 @@ Package hyperref Info: Backreferencing OFF on input line 4463.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4688.
 \c@Hy@tempcnt=\count111
-(/usr/local/texlive/2015/texmf-dist/tex/latex/url/url.sty
+(/usr/share/texlive/texmf-dist/tex/latex/url/url.sty
 \Urlmuskip=\muskip11
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
@@ -272,53 +272,53 @@ LaTeX Info: Redefining \pageref on input line 6369.
 
 Package hyperref Message: Driver (autodetected): hpdftex.
 
-(/usr/local/texlive/2015/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/hpdftex.def
 File: hpdftex.def 2012/11/06 v6.83m Hyperref driver for pdfTeX
 \Fld@listcount=\count116
 \c@bookmark@seq@number=\count117
- (/usr/local/texlive/2015/texmf-dist/tex/latex/oberdiek/rerunfilecheck.sty
+ (/usr/share/texlive/texmf-dist/tex/latex/oberdiek/rerunfilecheck.sty
 Package: rerunfilecheck 2011/04/15 v1.7 Rerun checks for auxiliary files (HO)
 Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 282.
 )
 \Hy@SectionHShift=\skip49
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/tools/delarray.sty
-Package: delarray 2014/10/28 v1.01 array delimiter package (DPC)
- (/usr/local/texlive/2015/texmf-dist/tex/latex/tools/array.sty
-Package: array 2014/10/28 v2.4c Tabular extension package (FMi)
+) (/usr/share/texlive/texmf-dist/tex/latex/tools/delarray.sty
+Package: delarray 1994/03/14 v1.01 array delimiter package (DPC)
+ (/usr/share/texlive/texmf-dist/tex/latex/tools/array.sty
+Package: array 2008/09/09 v2.4c Tabular extension package (FMi)
 \col@sep=\dimen126
 \extrarowheight=\dimen127
 \NC@list=\toks30
 \extratabsurround=\skip50
 \backup@length=\skip51
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/sectsty/sectsty.sty
+)) (/usr/share/texlive/texmf-dist/tex/latex/sectsty/sectsty.sty
 Package: sectsty 2002/02/25 v2.0.2 Commands to change all sectional heading styles
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/amsmath/amscd.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/amsmath/amscd.sty
 Package: amscd 1999/11/29 v2.0
 \athelp@=\toks31
 \minaw@=\dimen128
 \bigaw@=\dimen129
 \minCDarrowwidth=\dimen130
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/psnfss/pifont.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/psnfss/pifont.sty
 Package: pifont 2005/04/12 PSNFSS-v9.2a Pi font support (SPQR) 
 LaTeX Font Info:    Try loading font information for U+pzd on input line 63.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/psnfss/upzd.fd
+ (/usr/share/texlive/texmf-dist/tex/latex/psnfss/upzd.fd
 File: upzd.fd 2001/06/04 font definitions for U/pzd.
 )
 LaTeX Font Info:    Try loading font information for U+psy on input line 64.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/psnfss/upsy.fd
+ (/usr/share/texlive/texmf-dist/tex/latex/psnfss/upsy.fd
 File: upsy.fd 2001/06/04 font definitions for U/psy.
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/graphics/color.sty
-Package: color 2014/10/28 v1.1a Standard LaTeX Color (DPC)
- (/usr/local/texlive/2015/texmf-dist/tex/latex/latexconfig/color.cfg
+)) (/usr/share/texlive/texmf-dist/tex/latex/graphics/color.sty
+Package: color 2005/11/14 v1.0j Standard LaTeX Color (DPC)
+ (/usr/share/texlive/texmf-dist/tex/latex/latexconfig/color.cfg
 File: color.cfg 2007/01/18 v1.5 color configuration of teTeX/TeXLive
 )
-Package color Info: Driver file: pdftex.def on input line 142.
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/multirow/multirow.sty
+Package color Info: Driver file: pdftex.def on input line 130.
+) (/usr/share/texlive/texmf-dist/tex/latex/multirow/multirow.sty
 \bigstrutjot=\dimen131
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/algorithmicx/algorithmicx.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/algorithmicx/algorithmicx.sty
 Package: algorithmicx 2005/04/27 v1.2 Algorithmicx
- (/usr/local/texlive/2015/texmf-dist/tex/latex/base/ifthen.sty
-Package: ifthen 2014/09/29 v1.1c Standard LaTeX ifthen package (DPC)
+ (/usr/share/texlive/texmf-dist/tex/latex/base/ifthen.sty
+Package: ifthen 2001/05/26 v1.1c Standard LaTeX ifthen package (DPC)
 )
 Document Style algorithmicx 1.2 - a greatly improved `algorithmic' style
 \c@ALG@line=\count118
@@ -331,14 +331,14 @@ Document Style algorithmicx 1.2 - a greatly improved `algorithmic' style
 \c@ALG@storecount=\count123
 \c@ALG@tmpcounter=\count124
 \ALG@tmplength=\skip54
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/algorithms/algorithm.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/algorithms/algorithm.sty
 Package: algorithm 2009/08/24 v0.1 Document Style `algorithm' - floating environment
 \@float@every@algorithm=\toks32
 \c@algorithm=\count125
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/tools/enumerate.sty
-Package: enumerate 2014/10/28 v3.00 enumerate extensions (DPC)
+) (/usr/share/texlive/texmf-dist/tex/latex/tools/enumerate.sty
+Package: enumerate 1999/03/05 v3.00 enumerate extensions (DPC)
 \@enLab=\toks33
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/microtype.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype.sty
 Package: microtype 2013/05/23 v2.5a Micro-typographical refinements (RS)
 \MT@toks=\toks34
 \MT@count=\count126
@@ -346,23 +346,23 @@ LaTeX Info: Redefining \textls on input line 766.
 \MT@outer@kern=\dimen132
 LaTeX Info: Redefining \textmicrotypecontext on input line 1285.
 \MT@listname@count=\count127
- (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/microtype-pdftex.def
+ (/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype-pdftex.def
 File: microtype-pdftex.def 2013/05/23 v2.5a Definitions specific to pdftex (RS)
 LaTeX Info: Redefining \lsstyle on input line 915.
 LaTeX Info: Redefining \lslig on input line 915.
 \MT@outer@space=\skip55
 )
 Package microtype Info: Loading configuration file microtype.cfg.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/microtype.cfg
+ (/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype.cfg
 File: microtype.cfg 2013/05/23 v2.5a microtype main configuration file (RS)
-)) (/usr/local/texlive/2015/texmf-dist/tex/latex/wrapfig/wrapfig.sty
+)) (/usr/share/texlive/texmf-dist/tex/latex/wrapfig/wrapfig.sty
 \wrapoverhang=\dimen133
 \WF@size=\dimen134
 \c@WF@wrappedlines=\count128
 \WF@box=\box34
 \WF@everypar=\toks35
 Package: wrapfig 2003/01/31  v 3.6
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/geometry/geometry.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/geometry/geometry.sty
 Package: geometry 2010/09/12 v5.6 Page Geometry
 \Gm@cnth=\count129
 \Gm@cntv=\count130
@@ -401,7 +401,7 @@ LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 39.
 LaTeX Font Info:    ... okay on input line 39.
 LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 39.
 LaTeX Font Info:    ... okay on input line 39.
- (/usr/local/texlive/2015/texmf-dist/tex/context/base/supp-pdf.mkii
+ (/usr/share/texlive/texmf-dist/tex/context/base/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
 \scratchcounter=\count139
 \scratchdimen=\dimen143
@@ -414,22 +414,22 @@ LaTeX Font Info:    ... okay on input line 39.
 \MPnumerator=\count143
 \makeMPintoPDFobject=\count144
 \everyMPtoPDFconversion=\toks38
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/oberdiek/epstopdf-base.sty
+) (/usr/share/texlive/texmf-dist/tex/latex/oberdiek/epstopdf-base.sty
 Package: epstopdf-base 2010/02/09 v2.5 Base part for package epstopdf
- (/usr/local/texlive/2015/texmf-dist/tex/latex/oberdiek/grfext.sty
+ (/usr/share/texlive/texmf-dist/tex/latex/oberdiek/grfext.sty
 Package: grfext 2010/08/19 v1.1 Manage graphics extensions (HO)
 )
 Package grfext Info: Graphics extension search list:
 (grfext)             [.png,.pdf,.jpg,.mps,.jpeg,.jbig2,.jb2,.PNG,.PDF,.JPG,.JPEG,.JBIG2,.JB2,.eps]
 (grfext)             \AppendGraphicsExtensions on input line 452.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
+ (/usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 \AtBeginShipoutBox=\box36
 Package hyperref Info: Link coloring ON on input line 39.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/hyperref/nameref.sty
+ (/usr/share/texlive/texmf-dist/tex/latex/hyperref/nameref.sty
 Package: nameref 2012/10/27 v2.43 Cross-referencing by name of section
- (/usr/local/texlive/2015/texmf-dist/tex/generic/oberdiek/gettitlestring.sty
+ (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/gettitlestring.sty
 Package: gettitlestring 2010/12/03 v1.4 Cleanup title references (HO)
 )
 \c@section@level=\count145
@@ -451,7 +451,7 @@ Package microtype Info: Using default expansion set `basictext'.
 Package microtype Info: No adjustment of tracking.
 Package microtype Info: No adjustment of interword spacing.
 Package microtype Info: No adjustment of character kerning.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/mt-cmr.cfg
+ (/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-cmr.cfg
 File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman (RS)
 )
 *geometry* driver: auto-detecting
@@ -489,22 +489,22 @@ File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman (
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
 LaTeX Font Info:    Try loading font information for U+msa on input line 63.
-(/usr/local/texlive/2015/texmf-dist/tex/latex/amsfonts/umsa.fd
+(/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/mt-msa.cfg
+) (/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 )
 LaTeX Font Info:    Try loading font information for U+msb on input line 63.
- (/usr/local/texlive/2015/texmf-dist/tex/latex/amsfonts/umsb.fd
+ (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-) (/usr/local/texlive/2015/texmf-dist/tex/latex/microtype/mt-msb.cfg
+) (/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msb.cfg
 File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
 Package epstopdf Info: Source file: <spectrum1.eps>
-(epstopdf)                    date: 2014-10-23 09:14:03
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 58112 bytes
 (epstopdf)             Output file: <spectrum1-eps-converted-to.pdf>
-(epstopdf)                    date: 2014-10-23 09:38:36
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 21987 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum1-eps-converted-to.pdf spectrum1.eps>
 (epstopdf)             \includegraphics on input line 74.
@@ -515,10 +515,10 @@ File: spectrum1-eps-converted-to.pdf Graphic file (type pdf)
 Package pdftex.def Info: spectrum1-eps-converted-to.pdf used on input line 74.
 (pdftex.def)             Requested size: 211.99265pt x 158.99377pt.
 Package epstopdf Info: Source file: <spectrum2.eps>
-(epstopdf)                    date: 2014-10-23 09:15:30
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 24329 bytes
 (epstopdf)             Output file: <spectrum2-eps-converted-to.pdf>
-(epstopdf)                    date: 2014-10-23 09:41:14
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 15935 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum2-eps-converted-to.pdf spectrum2.eps>
 (epstopdf)             \includegraphics on input line 75.
@@ -535,12 +535,12 @@ Underfull \hbox (badness 10000) has occurred while \output is active
 
 [1
 
-{/usr/local/texlive/2015/texmf-var/fonts/map/pdftex/updmap/pdftex.map} <./spectrum1-eps-converted-to.pdf> <./spectrum2-eps-converted-to.pdf>]
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map} <./spectrum1-eps-converted-to.pdf> <./spectrum2-eps-converted-to.pdf>]
 Package epstopdf Info: Source file: <images.eps>
-(epstopdf)                    date: 2014-10-23 09:08:41
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 3001471 bytes
 (epstopdf)             Output file: <images-eps-converted-to.pdf>
-(epstopdf)                    date: 2014-10-23 09:44:03
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 207882 bytes
 (epstopdf)             Command: <repstopdf --outfile=images-eps-converted-to.pdf images.eps>
 (epstopdf)             \includegraphics on input line 80.
@@ -556,10 +556,10 @@ Overfull \hbox (31.25984pt too wide) in paragraph at lines 80--81
  []
 
 Package epstopdf Info: Source file: <spectrum3.eps>
-(epstopdf)                    date: 2014-10-23 09:15:48
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 31236 bytes
 (epstopdf)             Output file: <spectrum3-eps-converted-to.pdf>
-(epstopdf)                    date: 2014-10-23 09:44:04
+(epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 23991 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum3-eps-converted-to.pdf spectrum3.eps>
 (epstopdf)             \includegraphics on input line 84.
@@ -579,30 +579,30 @@ Overfull \hbox (19.82397pt too wide) in paragraph at lines 108--108
  []
 
 [2 <./images-eps-converted-to.pdf> <./spectrum3-eps-converted-to.pdf>] [3] [4]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 265.
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 279.
  [5]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 265.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 279.
  (./BayesLenseSPTpol.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 265.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 265.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 279.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 279.
 Package rerunfilecheck Info: File `BayesLenseSPTpol.out' has not changed.
-(rerunfilecheck)             Checksum: F1061A5389C238BB2774B650C9BB1E88;137.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 265.
+(rerunfilecheck)             Checksum: C2058F3B5C68EBB6983322846F066A44;138.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 279.
  ) 
 Here is how much of TeX's memory you used:
- 9568 strings out of 493089
- 140724 string characters out of 6134842
- 284661 words of memory out of 5000000
- 12832 multiletter control sequences out of 15000+600000
+ 9564 strings out of 493304
+ 139906 string characters out of 6139871
+ 283844 words of memory out of 5000000
+ 12809 multiletter control sequences out of 15000+600000
  12102 words of font info for 52 fonts, out of 8000000 for 9000
- 1141 hyphenation exceptions out of 8191
+ 957 hyphenation exceptions out of 8191
  30i,14n,35p,384b,400s stack positions out of 5000i,500n,10000p,200000b,80000s
-</usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5
-.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/local/texlive/2015/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
-Output written on BayesLenseSPTpol.pdf (5 pages, 442454 bytes).
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/c
+m/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
+Output written on BayesLenseSPTpol.pdf (5 pages, 444933 bytes).
 PDF statistics:
- 271 PDF objects out of 1000 (max. 8388607)
- 138 compressed objects within 2 object streams
- 37 named destinations out of 1000 (max. 500000)
+ 260 PDF objects out of 1000 (max. 8388607)
+ 127 compressed objects within 2 object streams
+ 30 named destinations out of 1000 (max. 500000)
  13357 words of extra memory for PDF output out of 14400 (max. 10000000)
 

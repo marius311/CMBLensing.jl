@@ -231,35 +231,49 @@ If $A(x)$ and $B(x)$ are real scalar fields then  $\int_{\Bbb R^2} A_{k+l}  B^*_
 % \end{align*}
 % \end{proof}
 
-\section{}
+\section{Determinant}
+
+Eq.(4.9) of Lewis 2006
 \begin{align}
-\tilde X_\ell
-&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} X_{m} \\
-\frac{\partial \tilde X_\ell}{\partial X_{\ell'}}
-&= \int \frac{d^2 m}{(2\pi)^2} D_{\ell m} \delta(m-\ell')\\
-&= \int d^2 m \ \delta^2(\ell - m - \mathcal P) \delta(\ell'-m)
-\exp\left\{-\int \frac{d^2k}{(2\pi)^2} (k\cdot m)\phi_k \right\}\\
-&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
--\int \frac{d^2k}{(2\pi)^2}(k\cdot m)\phi_k\delta(\ell - m-k) \delta(\ell'-m)\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
-\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
-&= \int d^2 m \Bigg[ \delta(\ell - m) \delta(\ell'-m)
-- \frac{(\ell -m)\cdot m}{(2\pi)^2}\phi_{\ell-m} \delta(\ell'-m)\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k\cdot m)(k\cdot m)\phi_{k_1}\phi_{k_2}
-\delta(\ell - m-k_1-k_2) \delta(\ell'-m) \Bigg] \\
-&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2} (k_1\cdot \ell')(k_2\cdot \ell')\phi_{k_1}\phi_{k_2}
-\delta(\ell - \ell'-k_1-k_2) \\
-?&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}\\
-&+\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} \frac{d^2k_2}{(2\pi)^2}
-(k_1\cdot \ell')(k_2\cdot \ell')(2\pi)^2\delta(k_1+k_2) C_k^{\phi\phi}
-\delta(\ell - \ell'-k_1-k_2) \\
-&= \delta(\ell - \ell')- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
--\frac{1}{2}\int \frac{d^2k_1}{(2\pi)^2} (k_1\cdot \ell')^2 C_k^{\phi\phi} \delta(\ell - \ell')\\
-&= \delta(\ell - \ell')\left(1- \frac{\ell^2}{8\pi}\int  k^3 C_k^{\phi\phi} dk\right)
-- \frac{(\ell -\ell')\cdot \ell'}{(2\pi)^2}\phi_{\ell-\ell'}
+\tilde T_\ell
+&= T_\ell -\int \frac{d^2\ell'}{2\pi} \ell'\cdot(\ell-\ell')\phi_{\ell-\ell'} T_{\ell'}\\
+& -\frac{1}{2}\int \frac{d^2\ell_1}{2\pi}\frac{d^2\ell_2}{2\pi} \ell_1\cdot(\ell_1+\ell_2-\ell)\ (\ell_1\cdot\ell_2)
+T_{\ell_1}\  \phi_{\ell_2}\phi_{\ell-\ell_1-\ell_2} \nonumber
 \end{align}
 
+\begin{align}
+\langle \phi_\ell \phi_{-\ell'} \rangle=\langle \phi_\ell \phi_{\ell'}^* \rangle = \delta(\ell-\ell') C_\ell
+= \frac{\delta_{\ell,\ell'}}{dl} C_\ell
+\end{align}
+
+\begin{align}
+A_{\ell k}\equiv\frac{\partial \tilde T_\ell}{\partial T_k}
+=& \delta_{\ell,k} + \sum_{\ell'}\frac{dl}{2\pi} \ell'\cdot(\ell-\ell')\phi_{\ell-\ell'} \delta_{\ell',k}\\
+& -\frac{1}{2}\sum_{\ell_1,\ell_2} \frac{dl}{2\pi}\frac{dl}{2\pi} \ell_1\cdot(\ell_1+\ell_2-\ell)\ (\ell_1\cdot\ell_2)
+\delta_{\ell_1,k} \phi_{\ell_2}\phi_{\ell-\ell_1-\ell_2} \nonumber\\
+=& \delta_{\ell,k} + \frac{dl}{2\pi} k\cdot(\ell-k) \phi_{\ell-k}
+-\frac{1}{2}\frac{dl}{2\pi}\frac{dl}{2\pi} \sum_{\ell_2}  k\cdot(k+\ell_2-\ell)\ (k\cdot\ell_2)
+\phi_{\ell_2}\phi_{\ell-k-\ell_2}
+\end{align}
+
+Keep $O(\phi)$ for off-diagnal terms and $O(\phi^2)$ for diagnal terms, and accurate to $O(\phi^2)$ for $\det (A)$
+
+\begin{align}
+A_{\ell k}
+&= \delta_{\ell,k} \left(1-\frac{dl^2}{8\pi^2}\sum_{\ell_2}   (k\cdot\ell_2)^2
+  \phi_{\ell_2}\phi_{-\ell_2} \right) + \frac{dl}{2\pi} k\cdot(\ell-k)\phi_{\ell-k}\\
+\det A
+&=1-\frac{dl^2}{8\pi^2}\sum_k\sum_{\ell_2}   (k\cdot\ell_2)^2 \phi_{\ell_2}\phi_{-\ell_2}
+-\frac{1}{2} \frac{dl^2}{4\pi^2} \sum_\ell \sum_{k\neq\ell} k\cdot(\ell-k)\ \ell\cdot(k-\ell)\phi_{\ell-k}\phi_{k-\ell}\nonumber\\
+&=1-\frac{dl^2}{8\pi^2}\sum_k\sum_{\ell_2}   (k\cdot\ell_2)^2 \phi_{\ell_2}\phi_{-\ell_2}
++\frac{dl^2}{8\pi^2} \sum_k \sum_{\ell'}  (k\cdot\ell')\ (k+\ell')\cdot\ell'\phi_{\ell'}\phi_{-\ell'}\nonumber\\
+&=1+\frac{dl^2}{8\pi^2} \sum_k \sum_{\ell'} (k\cdot\ell') {\ell'}^2 \phi_{\ell'}\phi_{-\ell'} \nonumber\\
+&=1
+\end{align}
+
+Note that $\frac{\partial}{\partial \phi_l}
+\equiv \frac{\partial}{\partial{\rm re} \phi_l} +i\frac{\partial}{\partial{\rm Im} \phi_l} $, then
+$\frac{\partial}{\partial \phi_i} \phi_{l} = 2 \delta_{i,-l}$
 
 
 \end{document}
