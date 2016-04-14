@@ -25,7 +25,7 @@ g      = FFTgrid(dm, period, nside)
 beamFWHM   = 0.0
 
 # --- Taylor series lensing order
-order = 3
+order = 2
 
 
 #=###########################################
@@ -153,13 +153,13 @@ Impliment likelihood gradient ascent for `invlen`
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = round(Int, g.nyq * 1.0) # round(Int, 100 * g.deltk)
-ebmask = round(Int, g.nyq * 1.0)
-sg1    = 1e-10 # 2e-10  # <--- size of gradient step for ϕ
-sg2    = 1e-10 # 2e-10  # <--- size of gradient step for ψ
+pmask  = trues(size(g.r))   # g.r .< round(Int, g.nyq * 0.5)
+ebmask = trues(size(g.r))   # g.r .< round(Int, g.nyq * 0.99)
+sg1    = 1e-10               # <-- size of gradient step for ϕ
+sg2    = 1e-10               # <-- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:20
-    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=25, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+for cntr = 1:25
+    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
@@ -167,7 +167,7 @@ end
 #= --- Plot: the estimated lensing potentials
 figure()
 subplot(2,2,1)
-imshow(real(g.FFT \ (len_curr.ϕk.*(g.r .< Inf))), vmin = minimum(-ϕx), vmax = maximum(-ϕx) )
+imshow(real(g.FFT \ (len_curr.ϕk.*(g.r .< Inf))) )#, vmin = minimum(-ϕx), vmax = maximum(-ϕx) )
 title("estimated curl free potential: phi")
 colorbar()
 subplot(2,2,2)
@@ -175,7 +175,7 @@ imshow(-ϕx, vmin = minimum(-ϕx), vmax = maximum(-ϕx) )
 title("simulation truth curl free potential: phi")
 colorbar()
 subplot(2,2,3)
-imshow(real(g.FFT \ (len_curr.ψk.*(g.r .< Inf))), vmin = minimum(-ψx), vmax = maximum(-ψx) )
+imshow(real(g.FFT \ (len_curr.ψk.*(g.r .< Inf))) )#, vmin = minimum(-ψx), vmax = maximum(-ψx) )
 title("estimated div free potential: psi")
 colorbar()
 subplot(2,2,4)
@@ -187,7 +187,7 @@ colorbar()
 
 
 #= --- Plot: compare lensed and unlensed B-power
-delensed_qx, delensed_ux = lense(qx, ux, len_curr, g, order) # last arg is the order of lensing
+delensed_qx, delensed_ux = lense(ln_qx, ln_ux, len_curr, g, order) # last arg is the order of lensing
 ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 delensed_ek, delensed_bk, delensed_ex, delensed_bx = qu2eb(g.FFT*delensed_qx, g.FFT*delensed_ux, g)
 kbins, est_ln_cbbk = radial_power(ln_bk, 1, g)

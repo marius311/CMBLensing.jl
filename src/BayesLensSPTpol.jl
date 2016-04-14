@@ -114,22 +114,38 @@ end
 
 
 function LenseDecomp(ϕk, ψk, g)
-	# the following is probably in the wrong order for the updates...
-	displx = real(g.FFT \ (im .* g.k[1] .* ϕk) +  g.FFT \ (im .* g.k[2] .* ψk))
-	disply = real(g.FFT \ (im .* g.k[2] .* ϕk) -  g.FFT \ (im .* g.k[1] .* ψk))
+	#displx = real(g.FFT \ (im .* g.k[1] .* ϕk) +  g.FFT \ (im .* g.k[2] .* ψk))
+	#disply = real(g.FFT \ (im .* g.k[2] .* ϕk) -  g.FFT \ (im .* g.k[1] .* ψk))
+	displx, disply = LenseDecomp_helper1(ϕk, ψk, g)
+
 	row, col  = size(g.x[1])
 	indcol    = Array(Int64, row, col)
 	indrow	  = Array(Int64, row, col)
 	rdisplx   = Array(Float64, row, col)
 	rdisply   = Array(Float64, row, col)
 	@inbounds for j = 1:col, i = 1:row
-	    indcol[i,j]  = indexwrap(j + round(Int64, displx[i,j]/g.deltx), col)
-	    indrow[i,j]  = indexwrap(i + round(Int64, disply[i,j]/g.deltx), row)
-		rdisplx[i,j] = displx[i,j] - g.deltx * round(Int64, displx[i,j]/g.deltx)
-	    rdisply[i,j] = disply[i,j] - g.deltx * round(Int64, disply[i,j]/g.deltx)
+		round_displx_deltx = round(Int64, displx[i,j]/g.deltx)
+		round_disply_deltx = round(Int64, disply[i,j]/g.deltx)
+	    indcol[i,j]  = indexwrap(j + round_displx_deltx, col)
+	    indrow[i,j]  = indexwrap(i + round_disply_deltx, row)
+		rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
+	    rdisply[i,j] = disply[i,j] - g.deltx * round_disply_deltx
 	end
 	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, ϕk, ψk)
 end
+function LenseDecomp_helper1(ϕk, ψk, g)
+	tmpdxk = Array(Complex{Float64}, size(g.r))
+	tmpdyk = Array(Complex{Float64}, size(g.r))
+	@inbounds @simd for i in eachindex(tmpdxk, tmpdyk)
+		tmpdxk[i] = complex(im * g.k[1][i] * ϕk[i] + im * g.k[2][i] * ψk[i])
+		tmpdyk[i] = complex(im * g.k[2][i] * ϕk[i] - im * g.k[1][i] * ψk[i])
+	end
+	displx = real(g.FFT \ tmpdxk)
+	disply = real(g.FFT \ tmpdyk)
+	return displx, disply
+end
+
+
 
 
 
@@ -275,54 +291,52 @@ function gradupdate{T}(
 			sg1::Float64 = 1e-8,
 			sg2::Float64 = 1e-10,
 			order::Int64 = 2,
-			pmask::Int64 = 1000,
-			ebmask::Int64 = 4000,
+			pmask::BitArray{2}  = trues(size(g.r)),
+			ebmask::BitArray{2} = trues(size(g.r)),
 			)
 
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
-	Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
-	Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
-	Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk)
-	Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk)
-	Mq[g.r .>= ebmask]  = 0.0
-	Mu[g.r .>= ebmask]  = 0.0
-	Mqu[g.r .>= ebmask] = 0.0
+	Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk, ebmask)
+	Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
+	Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
+	Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk, ebmask)
 
 	∂1uk = im * g.k[1] .* uk
-	∂2uk = im * g.k[2] .* uk
 	∂1qk = im * g.k[1] .* qk
+	∂2uk = im * g.k[2] .* uk
 	∂2qk = im * g.k[2] .* qk
 
 	∂1ux = real(g.FFT \ ∂1uk)
-	∂2ux = real(g.FFT \ ∂2uk)
 	∂1qx = real(g.FFT \ ∂1qk)
+	∂2ux = real(g.FFT \ ∂2uk)
 	∂2qx = real(g.FFT \ ∂2qk)
 
-	ϵ1 = sg1 .* mCls.cϕϕk .* (g.r .< pmask)
-	ϵ2 = sg2 .* mCls.cψψk .* (g.r .< pmask)
+	ϵ1 = squash!(sg1 .* mCls.cϕϕk, pmask)
+	ϵ2 = squash!(sg2 .* mCls.cψψk, pmask)
 	ϕcurrk, ψcurrk = copy(len.ϕk), copy(len.ψk)
 
     @inbounds for cntr = 1:maxitr
-        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, ∂1uk, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
+        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
         ϕcurrk[:] = ϕcurrk + ϕgradk .* ϵ1
         ψcurrk[:] = ψcurrk + ψgradk .* ϵ2
+		len = LenseDecomp(ϕcurrk, ψcurrk, g)
     end
-	return LenseDecomp(ϕcurrk, ψcurrk, g)
+	return len
 end
 
 
-function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, ∂1uk, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order = 2)
+function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order = 2)
 	lqx, lux     = lense(qx, ux, len, g, order, qk, uk)
 	l∂1qx, l∂1ux = lense(∂1qx, ∂1ux, len, g, order, ∂1qk, ∂1uk)
 	l∂2qx, l∂2ux = lense(∂2qx, ∂2ux, len, g, order, ∂2qk, ∂2uk)
 
 	lqk, luk     =  g.FFT*lqx, g.FFT*lux
-	l∂1qk, l∂1uk =  g.FFT*l∂1qx, g.FFT*l∂1ux
-	l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
+	# l∂1qk, l∂1uk =  g.FFT*l∂1qx, g.FFT*l∂1ux
+	# l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
 
-	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qx, l∂1qx, l∂2qx, l∂2qx, l∂1qk, l∂1qk, l∂2qk, l∂2qk, Mq, g)
-    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, l∂1uk, l∂1uk, l∂2uk, l∂2uk, Mu, g)
-    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, l∂1qk, l∂1uk, l∂2qk, l∂2uk, Mqu, g)
+	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qx, l∂1qx, l∂2qx, l∂2qx, Mq, g)
+    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, Mu, g)
+    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, Mqu, g)
 
 	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash!(len.ϕk ./ mCls.cϕϕk)
 	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash!(len.ψk ./ mCls.cψψk)
@@ -330,7 +344,7 @@ function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, �
 end
 
 
-function ϕψgrad_terms(xk, yk, ∂1xx, ∂1yx, ∂2xx, ∂2yx, ∂1xk, ∂1yk, ∂2xk, ∂2yk, M, g)
+function ϕψgrad_terms(xk, yk, ∂1xx, ∂1yx, ∂2xx, ∂2yx, M, g)
     X₁YMx = ∂1xx .* (g.FFT \ (yk .* M))
     X₂YMx = ∂2xx .* (g.FFT \ (yk .* M))
     Y₁XMx = ∂1yx .* (g.FFT \ (xk .* M))
@@ -409,13 +423,13 @@ end
 
 
 # --- compute loglike
-function loglike(len, qx, ux, g, mCls; order::Int64 = 2, pmask::Int64 = 1000, ebmask::Int64 = 4000)
+function loglike(len, qx, ux, g, mCls; order::Int64=2, pmask::BitArray{2}=trues(size(g.r)), ebmask::BitArray{2}=trues(size(g.r)) )
 	ln_qx, ln_ux = lense(qx, ux, len, g, order)
 	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
-	rloglike   = - 0.5 * sum(squash!( abs2(ln_ek .* (g.r .<= ebmask)) ./ mCls.cEEk ))
-	rloglike  += - 0.5 * sum(squash!( abs2(ln_bk .* (g.r .<= ebmask)) ./ mCls.cBBk ))
-	rloglike  += - 0.5 * sum(squash!( abs2(len.ϕk .* (g.r .<= pmask)) ./ mCls.cϕϕk ))
-	rloglike  += - 0.5 * sum(squash!( abs2(len.ψk .* (g.r .<= pmask)) ./ mCls.cψψk ))
+	rloglike   = - 0.5 * sum( squash!( abs2(ln_ek)  ./ mCls.cEEk, ebmask) )
+	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk, ebmask) )
+	rloglike  += - 0.5 * sum( squash!( abs2(len.ϕk) ./ mCls.cϕϕk, pmask) )
+	rloglike  += - 0.5 * sum( squash!( abs2(len.ψk) ./ mCls.cψψk, pmask) )
 	rloglike  *= (g.deltk^2)
 	return rloglike
 end
@@ -478,18 +492,20 @@ end
 
 
 squash{T<:Number}(x::T)  = isnan(x) ? zero(T) : isfinite(x) ? x : zero(T)
-function squash!{dm,T}(x::Array{T,dm})
+function squash!{dm,T}(x::Array{T,dm}, mask::BitArray{dm}=trues(size(x)))
 	@inbounds @simd for i in eachindex(x)
-		if isnan(x[i]) | !isfinite(x[i])
+		if !mask[i] || !isfinite(x[i]) || isnan(x[i])
 			x[i] = zero(T)
 		end
 	end
 	return x
 end
-function squash{dm,T}(x::Array{T,dm})
+function squash{dm,T}(x::Array{T,dm}, mask::BitArray{dm}=trues(size(x)))
 	y = copy(x)
-	return squash!(y)
+	return squash!(y, mask)
 end
+
+
 
 
 end # module
