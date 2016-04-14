@@ -243,15 +243,23 @@ end
 
 
 
-function gradupdate{dm,T}(
-			len, qx, ux, g::FFTgrid{dm, T}, mCls::MatrixCls{dm};
+function gradupdate{T}(
+			len,
+			qx::Matrix{Float64},
+			ux::Matrix{Float64},
+			g::FFTgrid{2,T},
+			mCls::MatrixCls{2},
+			qk::Matrix{Complex{Float64}} = g.FFT * qx,
+			uk::Matrix{Complex{Float64}} = g.FFT * ux
+			;
 			maxitr::Int64 = 1,
 			sg1::Float64 = 1e-8,
 			sg2::Float64 = 1e-10,
 			order::Int64 = 2,
 			pmask::Int64 = 1000,
-			ebmask::Int64 = 4000
+			ebmask::Int64 = 4000,
 			)
+
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
 	Mq   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk )
 	Mu   = -0.5squash(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk )
@@ -260,9 +268,19 @@ function gradupdate{dm,T}(
 	Mq[g.r .>= ebmask]  = 0.0
 	Mu[g.r .>= ebmask]  = 0.0
 	Mqu[g.r .>= ebmask] = 0.0
+
+	∂1uk = im * g.k[1] .* uk
+	∂2uk = im * g.k[2] .* uk
+	∂1qk = im * g.k[1] .* qk
+	∂2qk = im * g.k[2] .* qk
+
+	∂1ux = real(g.FFT \ ∂1uk)
+	∂2ux = real(g.FFT \ ∂2uk)
+	∂1qx = real(g.FFT \ ∂1qk)
+	∂2qx = real(g.FFT \ ∂2qk)
 	ϕcurrk, ψcurrk = copy(len.ϕk), copy(len.ψk)
     for cntr = 1:maxitr
-        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, g, Mq, Mu, Mqu, mCls, order)
+        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, ∂1uk, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
         ϕcurrk[:] = ϕcurrk + ϕgradk .* sg1 .* mCls.cϕϕk .* (g.r .< pmask )
         ψcurrk[:] = ψcurrk + ψgradk .* sg2 .* mCls.cψψk .* (g.r .< pmask )
     end
@@ -270,23 +288,18 @@ function gradupdate{dm,T}(
 end
 
 
-function ϕψgrad(len, qx, ux, g, Mq, Mu, Mqu, mCls, order = 2)
-	∂1ux = real(g.FFT \ (im * g.k[1] .* (g.FFT * ux)))
-	∂2ux = real(g.FFT \ (im * g.k[2] .* (g.FFT * ux)))
-	∂1qx = real(g.FFT \ (im * g.k[1] .* (g.FFT * qx)))
-	∂2qx = real(g.FFT \ (im * g.k[2] .* (g.FFT * qx)))
-
-	lqx, lux     = lense(qx, ux, len, g, order)
-	l∂1qx, l∂1ux = lense(∂1qx, ∂1ux, len, g, order)
-	l∂2qx, l∂2ux = lense(∂2qx, ∂2ux, len, g, order)
+function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂2qx, ∂2ux, ∂1qk, ∂1uk, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order = 2)
+	lqx, lux     = lense(qx, ux, len, g, order, qk, uk)
+	l∂1qx, l∂1ux = lense(∂1qx, ∂1ux, len, g, order, ∂1qk, ∂1uk)
+	l∂2qx, l∂2ux = lense(∂2qx, ∂2ux, len, g, order, ∂2qk, ∂2uk)
 
 	lqk, luk     =  g.FFT*lqx, g.FFT*lux
 	l∂1qk, l∂1uk =  g.FFT*l∂1qx, g.FFT*l∂1ux
 	l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
 
-	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qk, l∂1qk, l∂2qk, l∂2qk, Mq, g)
-    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1uk, l∂1uk, l∂2uk, l∂2uk, Mu, g)
-    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qk, l∂1uk, l∂2qk, l∂2uk, Mqu, g)
+	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qx, l∂1qx, l∂2qx, l∂2qx, l∂1qk, l∂1qk, l∂2qk, l∂2qk, Mq, g)
+    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, l∂1uk, l∂1uk, l∂2uk, l∂2uk, Mu, g)
+    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, l∂1qk, l∂1uk, l∂2qk, l∂2uk, Mqu, g)
 
 	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash(len.ϕk ./ mCls.cϕϕk)
 	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash(len.ψk ./ mCls.cψψk)
@@ -294,11 +307,11 @@ function ϕψgrad(len, qx, ux, g, Mq, Mu, Mqu, mCls, order = 2)
 end
 
 
-function ϕψgrad_terms(xk, yk, ∂1xk, ∂1yk, ∂2xk, ∂2yk, M, g)
-    X₁YMx = (g.FFT \ ∂1xk) .* (g.FFT \ (yk .* M))
-    X₂YMx = (g.FFT \ ∂2xk) .* (g.FFT \ (yk .* M))
-    Y₁XMx = (g.FFT \ ∂1yk) .* (g.FFT \ (xk .* M))
-    Y₂XMx = (g.FFT \ ∂2yk) .* (g.FFT \ (xk .* M))
+function ϕψgrad_terms(xk, yk, ∂1xx, ∂1yx, ∂2xx, ∂2yx, ∂1xk, ∂1yk, ∂2xk, ∂2yk, M, g)
+    X₁YMx = ∂1xx .* (g.FFT \ (yk .* M))
+    X₂YMx = ∂2xx .* (g.FFT \ (yk .* M))
+    Y₁XMx = ∂1yx .* (g.FFT \ (xk .* M))
+    Y₂XMx = ∂2yx .* (g.FFT \ (xk .* M))
 
 	ϕgradk  = g.k[1] .* (g.FFT * X₁YMx)
 	ϕgradk += g.k[2] .* (g.FFT * X₂YMx)

@@ -159,7 +159,7 @@ sg1    = 2e-10 # 2e-10  # <--- size of gradient step for ϕ
 sg2    = 2e-10 # 2e-10  # <--- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
 for cntr = 1:10
-    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=4, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=10, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
