@@ -104,7 +104,6 @@ len = LenseDecomp(ϕk, ψk, g)
 # @time ln_qx, ln_ux = lense(qx, ux, len, g, order, qk, uk) # this one is a bit quicker
 
 
-
 #= --- Plot: check the lensed fields have the right power.
 ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 kbins, est_ln_cbbk = radial_power(ln_bk, 1, g)
@@ -124,17 +123,16 @@ Impliment likelihood gradient ascent for `invlen`
 
 =##########################################################
 
-
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = trues(size(g.r))   # pmask  =  g.r .< round(Int, g.nyq * 0.5)
+pmask  = g.r .< round(Int, g.nyq * 0.15)   # pmask = trues(size(g.r))
 ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
-sg1    = 1e-10               # <-- size of gradient step for ϕ
-sg2    = 1e-10               # <-- size of gradient step for ψ
+sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
+sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
 for cntr = 1:20
-    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=10, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
