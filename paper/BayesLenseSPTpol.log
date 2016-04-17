@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  14 APR 2016 11:05
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  17 APR 2016 16:26
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -387,20 +387,20 @@ Package: geometry 2010/09/12 v5.6 Page Geometry
  (./BayesLenseSPTpol.aux)
 \openout1 = `BayesLenseSPTpol.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 39.
-LaTeX Font Info:    ... okay on input line 39.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 42.
+LaTeX Font Info:    ... okay on input line 42.
  (/usr/share/texlive/texmf-dist/tex/context/base/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
 \scratchcounter=\count139
@@ -426,7 +426,7 @@ Package grfext Info: Graphics extension search list:
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 \AtBeginShipoutBox=\box36
-Package hyperref Info: Link coloring ON on input line 39.
+Package hyperref Info: Link coloring ON on input line 42.
  (/usr/share/texlive/texmf-dist/tex/latex/hyperref/nameref.sty
 Package: nameref 2012/10/27 v2.43 Cross-referencing by name of section
  (/usr/share/texlive/texmf-dist/tex/generic/oberdiek/gettitlestring.sty
@@ -434,14 +434,14 @@ Package: gettitlestring 2010/12/03 v1.4 Cleanup title references (HO)
 )
 \c@section@level=\count145
 )
-LaTeX Info: Redefining \ref on input line 39.
-LaTeX Info: Redefining \pageref on input line 39.
-LaTeX Info: Redefining \nameref on input line 39.
+LaTeX Info: Redefining \ref on input line 42.
+LaTeX Info: Redefining \pageref on input line 42.
+LaTeX Info: Redefining \nameref on input line 42.
  (./BayesLenseSPTpol.out) (./BayesLenseSPTpol.out)
 \@outlinefile=\write3
 \openout3 = `BayesLenseSPTpol.out'.
 
-LaTeX Info: Redefining \microtypecontext on input line 39.
+LaTeX Info: Redefining \microtypecontext on input line 42.
 Package microtype Info: Generating PDF output.
 Package microtype Info: Character protrusion enabled (level 2).
 Package microtype Info: Using default protrusion set `alltext'.
@@ -488,13 +488,13 @@ File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman (
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-LaTeX Font Info:    Try loading font information for U+msa on input line 63.
+LaTeX Font Info:    Try loading font information for U+msa on input line 66.
 (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 ) (/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 )
-LaTeX Font Info:    Try loading font information for U+msb on input line 63.
+LaTeX Font Info:    Try loading font information for U+msb on input line 66.
  (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 ) (/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msb.cfg
@@ -507,12 +507,12 @@ Package epstopdf Info: Source file: <spectrum1.eps>
 (epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 21987 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum1-eps-converted-to.pdf spectrum1.eps>
-(epstopdf)             \includegraphics on input line 74.
+(epstopdf)             \includegraphics on input line 77.
 Package epstopdf Info: Output file is already uptodate.
- <spectrum1-eps-converted-to.pdf, id=16, 578.16pt x 433.62pt>
+ <spectrum1-eps-converted-to.pdf, id=20, 578.16pt x 433.62pt>
 File: spectrum1-eps-converted-to.pdf Graphic file (type pdf)
  <use spectrum1-eps-converted-to.pdf>
-Package pdftex.def Info: spectrum1-eps-converted-to.pdf used on input line 74.
+Package pdftex.def Info: spectrum1-eps-converted-to.pdf used on input line 77.
 (pdftex.def)             Requested size: 211.99265pt x 158.99377pt.
 Package epstopdf Info: Source file: <spectrum2.eps>
 (epstopdf)                    date: 2016-03-22 14:46:33
@@ -521,12 +521,12 @@ Package epstopdf Info: Source file: <spectrum2.eps>
 (epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 15935 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum2-eps-converted-to.pdf spectrum2.eps>
-(epstopdf)             \includegraphics on input line 75.
+(epstopdf)             \includegraphics on input line 78.
 Package epstopdf Info: Output file is already uptodate.
- <spectrum2-eps-converted-to.pdf, id=17, 578.16pt x 433.62pt>
+ <spectrum2-eps-converted-to.pdf, id=21, 578.16pt x 433.62pt>
 File: spectrum2-eps-converted-to.pdf Graphic file (type pdf)
  <use spectrum2-eps-converted-to.pdf>
-Package pdftex.def Info: spectrum2-eps-converted-to.pdf used on input line 75.
+Package pdftex.def Info: spectrum2-eps-converted-to.pdf used on input line 78.
 (pdftex.def)             Requested size: 211.99265pt x 158.99377pt.
 
 Underfull \hbox (badness 10000) has occurred while \output is active
@@ -543,15 +543,15 @@ Package epstopdf Info: Source file: <images.eps>
 (epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 207882 bytes
 (epstopdf)             Command: <repstopdf --outfile=images-eps-converted-to.pdf images.eps>
-(epstopdf)             \includegraphics on input line 80.
+(epstopdf)             \includegraphics on input line 83.
 Package epstopdf Info: Output file is already uptodate.
- <images-eps-converted-to.pdf, id=89, 861.2175pt x 685.56125pt>
+ <images-eps-converted-to.pdf, id=93, 861.2175pt x 685.56125pt>
 File: images-eps-converted-to.pdf Graphic file (type pdf)
  <use images-eps-converted-to.pdf>
-Package pdftex.def Info: images-eps-converted-to.pdf used on input line 80.
+Package pdftex.def Info: images-eps-converted-to.pdf used on input line 83.
 (pdftex.def)             Requested size: 472.1073pt x 375.80377pt.
 
-Overfull \hbox (31.25984pt too wide) in paragraph at lines 80--81
+Overfull \hbox (31.25984pt too wide) in paragraph at lines 83--84
  [] 
  []
 
@@ -562,47 +562,104 @@ Package epstopdf Info: Source file: <spectrum3.eps>
 (epstopdf)                    date: 2016-03-22 14:46:33
 (epstopdf)                    size: 23991 bytes
 (epstopdf)             Command: <repstopdf --outfile=spectrum3-eps-converted-to.pdf spectrum3.eps>
-(epstopdf)             \includegraphics on input line 84.
+(epstopdf)             \includegraphics on input line 87.
 Package epstopdf Info: Output file is already uptodate.
-<spectrum3-eps-converted-to.pdf, id=90, 578.16pt x 433.62pt>
+<spectrum3-eps-converted-to.pdf, id=94, 578.16pt x 433.62pt>
 File: spectrum3-eps-converted-to.pdf Graphic file (type pdf)
  <use spectrum3-eps-converted-to.pdf>
-Package pdftex.def Info: spectrum3-eps-converted-to.pdf used on input line 84.
+Package pdftex.def Info: spectrum3-eps-converted-to.pdf used on input line 87.
 (pdftex.def)             Requested size: 240.90234pt x 180.67499pt.
 
 
-Package amsfonts Warning: Obsolete command \Bbb; \mathbb should be used instead on input line 108.
+Package amsfonts Warning: Obsolete command \Bbb; \mathbb should be used instead on input line 111.
 
 
-Overfull \hbox (19.82397pt too wide) in paragraph at lines 108--108
+Overfull \hbox (19.82397pt too wide) in paragraph at lines 111--111
 [] 
  []
 
 [2 <./images-eps-converted-to.pdf> <./spectrum3-eps-converted-to.pdf>] [3] [4]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 279.
- [5]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 279.
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `math shift' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `subscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `superscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `subscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `superscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `subscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `superscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `math shift' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `math shift' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `subscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `superscript' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `\phi' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `\phi' on input line 281.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
+(hyperref)                removing `math shift' on input line 281.
+
+[5]
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 316.
+ [6]
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 316.
  (./BayesLenseSPTpol.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 279.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 279.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 316.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 316.
 Package rerunfilecheck Info: File `BayesLenseSPTpol.out' has not changed.
-(rerunfilecheck)             Checksum: C2058F3B5C68EBB6983322846F066A44;138.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 279.
+(rerunfilecheck)             Checksum: 36F901BE940A9C917777CB4BE33BBE93;191.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 316.
  ) 
 Here is how much of TeX's memory you used:
- 9564 strings out of 493304
- 139906 string characters out of 6139871
- 283844 words of memory out of 5000000
- 12809 multiletter control sequences out of 15000+600000
- 12102 words of font info for 52 fonts, out of 8000000 for 9000
+ 9588 strings out of 493304
+ 140289 string characters out of 6139871
+ 283852 words of memory out of 5000000
+ 12826 multiletter control sequences out of 15000+600000
+ 13962 words of font info for 59 fonts, out of 8000000 for 9000
  957 hyphenation exceptions out of 8191
  30i,14n,35p,384b,400s stack positions out of 5000i,500n,10000p,200000b,80000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/c
-m/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
-Output written on BayesLenseSPTpol.pdf (5 pages, 444933 bytes).
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/
+cm/cmsy5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
+Output written on BayesLenseSPTpol.pdf (6 pages, 455934 bytes).
 PDF statistics:
- 260 PDF objects out of 1000 (max. 8388607)
- 127 compressed objects within 2 object streams
- 30 named destinations out of 1000 (max. 500000)
- 13357 words of extra memory for PDF output out of 14400 (max. 10000000)
+ 277 PDF objects out of 1000 (max. 8388607)
+ 142 compressed objects within 2 object streams
+ 36 named destinations out of 1000 (max. 500000)
+ 13365 words of extra memory for PDF output out of 14400 (max. 10000000)
 

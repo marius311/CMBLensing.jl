@@ -33,6 +33,9 @@
 \newcommand{\im}{\text{\,\rm im}}
 \newcommand{\bs}{\boldsymbol}
 
+\newcommand{\pinv}{\hat\phi}
+\newcommand{\sinv}{\hat\psi}
+
 
 
 % --------------------------------------
@@ -274,6 +277,40 @@ A_{\ell k}
 Note that $\frac{\partial}{\partial \phi_l}
 \equiv \frac{\partial}{\partial{\rm re} \phi_l} +i\frac{\partial}{\partial{\rm Im} \phi_l} $, then
 $\frac{\partial}{\partial \phi_i} \phi_{l} = 2 \delta_{i,-l}$
+
+\section{$C_l^{\pinv\pinv}, C_l^{\pinv\sinv}, C_l^{\sinv\sinv}$ and $C_l^{\phi\phi}$}
+
+using $f(x) = x + \nabla\phi(x)$, $\nabla\phi(f^{-1}(x)) = \nabla\pinv + \nabla^\perp \sinv$ and  $ f^{-1}(x)\simeq x -\nabla\phi(x),$
+\begin{align}
+  \nabla^2\pinv &= \nabla^2\phi(x-\nabla\phi(x)) \nonumber\\
+  (\nabla^{\perp})^2\sinv &= \nabla^\perp \cdot \nabla \phi(f^{-1}(x)) = 0 {\rm\ from \ Taylor\ expansion}?
+\end{align}
+
+\begin{align}
+  \nabla^2\pinv
+  &= \nabla^2\phi(x-\nabla\phi)\nonumber\\
+  &\simeq \nabla^2 \phi(x)- \nabla\phi(x)\cdot \nabla\nabla^2 \phi(x)
+\end{align}
+
+
+\begin{align}
+  -l^2\pinv_l&=-l^2\phi_l - \int (k_1+l_1) k_1 k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi} - \int (k_2+l_2) k_2 k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi}\nonumber\\
+  l^2\pinv_l &= l^2\phi_l + \int (k^2+k\cdot l) k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi}
+\end{align}
+
+\begin{align}
+   l^4 C_l^{\pinv\pinv} \delta(l-l')
+   &= l^4 C_l^{\phi\phi} \delta(l-l')
+   + \int\frac{d^2k}{2\pi}\frac{d^2k'}{2\pi} (k^2+k\cdot l)(k'^2+k'\cdot l') k^2 k'^2
+   \langle \phi_{k+l}\phi_k^*\phi_{k'+l'}^*\phi_{k'} \rangle \nonumber\\
+   &=l^4 C_l^{\phi\phi} \delta(l-l')
+   + \int\frac{d^2k}{2\pi}\frac{d^2k'}{2\pi} (k^2+k\cdot l)(k'^2+k'\cdot l') k^2 k'^2\nonumber\\
+   &\left( C_k C_{k+l} \delta(k-k')\delta(l-l') + C_k C_{k'} \delta(k+l+k')\delta(l-l') \right)\nonumber\\
+  l^4 C_l^{\pinv\pinv} &=l^4 C_l^{\phi\phi}  + 2 \int\frac{d^2k}{(2\pi)^2}(k^2+k\cdot l)^2 k^4 C_k C_{k+l}
+\end{align}
+
+
+
 
 
 \end{document}
