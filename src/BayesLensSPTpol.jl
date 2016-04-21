@@ -6,8 +6,10 @@ export 	FFTgrid,
 		MatrixCls,
 		LenseDecomp,
 		lense,
+		hmc!,
 		gradupdate,
 		loglike,
+		ϕψgrad,
 		class,
 		sim_xk,
 		radial_power,
@@ -128,7 +130,7 @@ function LenseDecomp(ϕk, ψk, g)
 		round_disply_deltx = round(Int64, disply[i,j]/g.deltx)
 	    indcol[i,j]  = indexwrap(j + round_displx_deltx, col)
 	    indrow[i,j]  = indexwrap(i + round_disply_deltx, row)
-		rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
+			rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
 	    rdisply[i,j] = disply[i,j] - g.deltx * round_disply_deltx
 	end
 	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, ϕk, ψk)
@@ -266,16 +268,89 @@ function intlense(qx, ux, len)
     return rqx, rux
 end
 
+###############################################
+#Hamiltonian Markov Chain
+###############################################
 
+function hmc!{T}(
+			len,
+			qx::Matrix{Float64},
+			ux::Matrix{Float64},
+			g::FFTgrid{2,T},
+			mCls::MatrixCls{2},
+			qk::Matrix{Complex{Float64}} = g.FFT * qx,
+			uk::Matrix{Complex{Float64}} = g.FFT * ux
+			;
+			order::Int64 = 2,
+			pmask::BitArray{2}  = trues(size(g.r)),
+			ebmask::BitArray{2} = trues(size(g.r)),
+			)
 
+			maxitr =  30
+	    ϵ  = 1.0e-4*rand()
+			mk = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
+	    pk = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .*sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
+	    loglk	= loglike(len, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+	    h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
+			println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")
 
+			len_curr = LenseDecomp(len.ϕk, len.ψk, g)
+      loglk, len_curr = lfrog!(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
+			h_at_end 	= 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
+			println("h_at_end = $(round(h_at_end)), loglk = $(round(loglk)), kinetic = $(round(h_at_end+loglk))")
+
+			prob_accept = minimum([1, exp(h_at_zero - h_at_end)])
+		  if rand() < prob_accept
+					len = LenseDecomp(len_curr.ϕk, len_curr.ψk, g)
+	        println("Accept: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	        return 1
+	    else
+	        println("Reject: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	        return 0
+	    end
+end
+
+function lfrog!(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
+		φ2_l = 2angle(g.k[1] + im * g.k[2])
+		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk, ebmask)
+		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
+		Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
+		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk, ebmask)
+
+		∂1uk = im * g.k[1] .* uk
+		∂1qk = im * g.k[1] .* qk
+		∂2uk = im * g.k[2] .* uk
+		∂2qk = im * g.k[2] .* qk
+
+		∂1ux = real(g.FFT \ ∂1uk)
+		∂1qx = real(g.FFT \ ∂1qk)
+		∂2ux = real(g.FFT \ ∂2uk)
+		∂2qx = real(g.FFT \ ∂2qk)
+
+		inv_mk = squash(1./ (mk ./ 2.0), pmask)
+
+		for i = 1:maxitr
+			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
+    	pk_halfstep 	 = pk +  ϵ .* ϕgradk ./ 2.0
+			ϕcurrk = len_curr.ϕk + ϵ .* inv_mk .* pk_halfstep
+			ψcurrk = len_curr.ψk
+			len_curr = LenseDecomp(ϕcurrk, ψcurrk, g)
+			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
+			pk[:] = pk_halfstep + ϵ .* ϕgradk ./ 2.0
+			loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+			kintc = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) )
+			println("h_at_$i = $(round(kintc-loglk)), loglk = $(round(loglk)), kinetic = $(round(kintc))")
+		end
+
+		loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+		return loglk, len_curr
+end
 
 ################################################
 #
 # Gradient update functions
 #
 ################################################
-
 
 
 function gradupdate{T}(
@@ -317,12 +392,14 @@ function gradupdate{T}(
 
     @inbounds for cntr = 1:maxitr
         ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-        ϕcurrk[:] = ϕcurrk + ϕgradk .* ϵ1
+				ϕcurrk[:] = ϕcurrk + ϕgradk .* ϵ1
         ψcurrk[:] = ψcurrk + ψgradk .* ϵ2
-		len = LenseDecomp(ϕcurrk, ψcurrk, g)
+				len = LenseDecomp(ϕcurrk, ψcurrk, g)
     end
 	return len
 end
+
+
 
 
 function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order = 2)
@@ -335,8 +412,8 @@ function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, �
 	# l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
 
 	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qx, l∂1qx, l∂2qx, l∂2qx, Mq, g)
-    ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, Mu, g)
-    ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, Mqu, g)
+  ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, Mu, g)
+  ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, Mqu, g)
 
 	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash!(len.ϕk ./ mCls.cϕϕk)
 	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash!(len.ψk ./ mCls.cψψk)
