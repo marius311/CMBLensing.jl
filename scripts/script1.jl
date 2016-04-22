@@ -25,7 +25,7 @@ g      = FFTgrid(dm, period, nside)
 beamFWHM   = 0.0
 
 # --- Taylor series lensing order
-order = 4
+order = 2
 
 
 #=###########################################
@@ -126,12 +126,12 @@ Impliment likelihood gradient ascent for `invlen`
 # --- initialize zero lense (actually this will estimate the inverse lense)
 len_curr = LenseDecomp(zeros(ϕk), zeros(ψk), g)
 
-pmask  = g.r .< round(Int, g.nyq * 0.15)   # pmask = trues(size(g.r))
+pmask  = trues(size(g.r))  #   g.r .< round(Int, g.nyq * 0.15)
 ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
 sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
 sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:20
+for cntr = 1:5
     @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
     @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
