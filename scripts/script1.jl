@@ -131,10 +131,13 @@ ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
 sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
 sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-for cntr = 1:5
-    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
-    @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-end
+
+# for cntr = 1:5
+#    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
+#    @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+# end
+
+hmc!(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 
 
 
