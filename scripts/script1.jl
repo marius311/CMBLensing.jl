@@ -137,8 +137,9 @@ sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 #    @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 # end
 
-hmc!(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-
+for cntr = 1:25
+    @time len_curr = hmc(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+end
 
 
 #= --- Plot: the estimated lensing potentials

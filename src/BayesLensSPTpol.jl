@@ -6,7 +6,7 @@ export 	FFTgrid,
 		MatrixCls,
 		LenseDecomp,
 		lense,
-		hmc!,
+		hmc,
 		gradupdate,
 		loglike,
 		ϕψgrad,
@@ -272,8 +272,8 @@ end
 #Hamiltonian Markov Chain
 ###############################################
 
-function hmc!{T}(
-			len,
+function hmc{T}(
+			len_curr,
 			qx::Matrix{Float64},
 			ux::Matrix{Float64},
 			g::FFTgrid{2,T},
@@ -285,32 +285,29 @@ function hmc!{T}(
 			pmask::BitArray{2}  = trues(size(g.r)),
 			ebmask::BitArray{2} = trues(size(g.r)),
 			)
-
-			maxitr    = 30
-	    	ϵ         = 1.0e-4*rand()
+			maxitr    = 20
+	    	ϵ         = 2.0e-4*rand()
 			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
-	    	pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .*sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
-	    	loglk	  = loglike(len, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+	    	pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
+	    	loglk	  = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 	    	h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
 			println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")
 
-			len_curr        = LenseDecomp(len.ϕk, len.ψk, g)
-      		loglk, len_curr = lfrog!(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
-			h_at_end 	    = 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
+      		loglk, len_prop, pk = lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
+			h_at_end 	        = 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
 			println("h_at_end = $(round(h_at_end)), loglk = $(round(loglk)), kinetic = $(round(h_at_end+loglk))")
 
 			prob_accept = minimum([1, exp(h_at_zero - h_at_end)])
-		  if rand() < prob_accept
-					len = LenseDecomp(len_curr.ϕk, len_curr.ψk, g)
-	        println("Accept: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
-	        return 1
-	    else
-	        println("Reject: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
-	        return 0
-	    end
+		  	if rand() < prob_accept
+	        	println("Accept: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	        	return len_prop
+	    	else
+	        	println("Reject: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	        	return len_curr
+	    	end
 end
 
-function lfrog!(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
+function lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
 		φ2_l = 2angle(g.k[1] + im * g.k[2])
 		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk, ebmask)
 		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
@@ -327,23 +324,23 @@ function lfrog!(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pm
 		∂2ux = real(g.FFT \ ∂2uk)
 		∂2qx = real(g.FFT \ ∂2qk)
 
-		inv_mk = squash(1./ (mk ./ 2.0), pmask)
+		inv_mk = squash!(1./ (mk ./ 2.0), pmask)
 
 		for i = 1:maxitr
 			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-    	pk_halfstep 	 = pk +  ϵ .* ϕgradk ./ 2.0
-			ϕcurrk = len_curr.ϕk + ϵ .* inv_mk .* pk_halfstep
-			ψcurrk = len_curr.ψk
-			len_curr = LenseDecomp(ϕcurrk, ψcurrk, g)
+    		pk_halfstep = pk + ϵ .* ϕgradk ./ 2.0
+			ϕcurrk      = len_curr.ϕk + ϵ .* inv_mk .* pk_halfstep
+			ψcurrk      = len_curr.ψk
+			len_curr    = LenseDecomp(ϕcurrk, ψcurrk, g)
 			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-			pk[:] = pk_halfstep + ϵ .* ϕgradk ./ 2.0
+			pk    = pk_halfstep + ϵ .* ϕgradk ./ 2.0
 			loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 			kintc = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) )
 			println("h_at_$i = $(round(kintc-loglk)), loglk = $(round(loglk)), kinetic = $(round(kintc))")
 		end
 
 		loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-		return loglk, len_curr
+		return loglk, len_curr, pk
 end
 
 ################################################
