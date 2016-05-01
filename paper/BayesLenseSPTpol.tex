@@ -280,37 +280,43 @@ $\frac{\partial}{\partial \phi_i} \phi_{l} = 2 \delta_{i,-l}$
 
 \section{$C_l^{\pinv\pinv}, C_l^{\pinv\sinv}, C_l^{\sinv\sinv}$ and $C_l^{\phi\phi}$}
 
-using $f(x) = x + \nabla\phi(x)$, $\nabla\phi(f^{-1}(x)) = \nabla\pinv + \nabla^\perp \sinv$ and  $ f^{-1}(x)\simeq x -\nabla\phi(x),$
+Using $f(x) = x + \nabla\phi(x)$,
+$\nabla\pinv + \nabla^\perp \sinv = \nabla\phi(f^{-1}(x)) = \nabla\phi(x-\nabla\pinv-\nabla^\perp\sinv)$
+and  $ f^{-1}(x)\simeq x -\nabla\phi(x) + (\nabla\phi\cdot\nabla)\nabla\phi,$
 \begin{align}
-  \nabla^2\pinv &= \nabla^2\phi(x-\nabla\phi(x)) \nonumber\\
-  (\nabla^{\perp})^2\sinv &= \nabla^\perp \cdot \nabla \phi(f^{-1}(x)) = 0 {\rm\ from \ Taylor\ expansion}?
+  \nabla^2\pinv &= \nabla\cdot \left(\nabla\phi|_{x-\nabla\phi(x)+(\nabla\phi\cdot\nabla)\nabla\phi}\right)
 \end{align}
 
 \begin{align}
   \nabla^2\pinv
-  &= \nabla^2\phi(x-\nabla\phi)\nonumber\\
-  &\simeq \nabla^2 \phi(x)- \nabla\phi(x)\cdot \nabla\nabla^2 \phi(x)
+  &= \nabla\cdot \left(d|_{x-d+(d\cdot\nabla)d}\right)\nonumber\\
+  &\simeq \nabla\cdot \left[d  - (d \cdot \nabla)d + [(d \cdot \nabla)d\cdot \nabla] d
+  + \frac{1}{2}(d  \cdot \nabla)^2 d\right]\nonumber\\
+  &=\nabla^2\phi - \partial_1(\vec d\cdot \nabla) d_1 - \partial_2(\vec d\cdot \nabla) d_2
+  +\nabla\cdot [(d \cdot \nabla)d\cdot \nabla] d
+  + \frac{1}{2}\partial_1(\vec d\cdot \nabla)^2d_1 + \frac{1}{2}\partial_2(\vec d\cdot \nabla)^2d_2
 \end{align}
 
 
 \begin{align}
-  -l^2\pinv_l&=-l^2\phi_l - \int (k_1+l_1) k_1 k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi} - \int (k_2+l_2) k_2 k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi}\nonumber\\
-  l^2\pinv_l &= l^2\phi_l + \int (k^2+k\cdot l) k^2\phi_{k+l}\phi_k^* \frac{d^2k}{2\pi}
+  -l^2\pinv_l
+  &= -l^2\phi_l - \int (k\cdot l)(k\cdot (k + l)) \phi_{k+l}\phi_k^*  \frac{d^2k}{2\pi}\nonumber\\
+  & +\frac{1}{2}\int (m+k+l)\cdot k\  m\cdot k \ (k+2m)\cdot k\ \phi_{m+k+l}\phi_{m}^*\phi_{k}^*\frac{d^2k}{2\pi}\frac{d^2m}{2\pi}
 \end{align}
 
 \begin{align}
-   l^4 C_l^{\pinv\pinv} \delta(l-l')
-   &= l^4 C_l^{\phi\phi} \delta(l-l')
-   + \int\frac{d^2k}{2\pi}\frac{d^2k'}{2\pi} (k^2+k\cdot l)(k'^2+k'\cdot l') k^2 k'^2
-   \langle \phi_{k+l}\phi_k^*\phi_{k'+l'}^*\phi_{k'} \rangle \nonumber\\
-   &=l^4 C_l^{\phi\phi} \delta(l-l')
-   + \int\frac{d^2k}{2\pi}\frac{d^2k'}{2\pi} (k^2+k\cdot l)(k'^2+k'\cdot l') k^2 k'^2\nonumber\\
-   &\left( C_k C_{k+l} \delta(k-k')\delta(l-l') + C_k C_{k'} \delta(k+l+k')\delta(l-l') \right)\nonumber\\
-  l^4 C_l^{\pinv\pinv} &=l^4 C_l^{\phi\phi}  + 2 \int\frac{d^2k}{(2\pi)^2}(k^2+k\cdot l)^2 k^4 C_k C_{k+l}
+  l^4 C_l^{\pinv\pinv}
+  &=l^4 C_l^{\phi\phi}  - l^2\int\frac{d^2k}{(2\pi)^2} (k\cdot l)(k^2+k\cdot l)^2 C_k C_{k+l}\nonumber\\
+  &-l^2C_l^{\phi\phi}\int \frac{d^2k}{(2\pi)^2} (k\cdot l)^2 (l^2-k\cdot l -2 k^2) C_k
 \end{align}
 
-
-
-
+\begin{align}
+(\nabla^{\perp})^2\sinv
+  &= \nabla^\perp \cdot \left(\nabla \phi|_{x-\nabla\pinv-\nabla^\perp\sinv}\right)\nonumber\\
+  &\simeq \nabla^\perp\cdot  \left[\nabla\phi  - (\nabla\phi  \cdot \nabla)\nabla\phi\right]\nonumber\\
+  &= \partial_2 (\vec d \cdot \nabla)d_1 - \partial_1 (\vec d \cdot \nabla)d_2  \nonumber\\
+  &=d_1\partial_{12}d_1 + d_2\partial_{22}d_1 -d_1\partial_{11}d_2 - d_2\partial_{12}d_2 \nonumber \\
+  &= 0 \leftarrow(\vec d = \nabla \phi)
+\end{align}
 
 \end{document}

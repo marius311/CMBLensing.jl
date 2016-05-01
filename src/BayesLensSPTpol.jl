@@ -286,16 +286,16 @@ function hmc{T}(
 			ebmask::BitArray{2} = trues(size(g.r)),
 			)
 			maxitr    = 20
-	    	ϵ         = 2.0e-4*rand()
+	    ϵ         = 2.0e-4*rand()
 			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
-	    	pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
-	    	loglk	  = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-	    	h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
-			println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")
+	    pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
+	    loglk	    = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+	    h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
+			#println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")
 
-      		loglk, len_prop, pk = lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
-			h_at_end 	        = 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
-			println("h_at_end = $(round(h_at_end)), loglk = $(round(loglk)), kinetic = $(round(h_at_end+loglk))")
+      loglk, len_prop, pk = lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
+			h_at_end = 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
+		#	println("h_at_end = $(round(h_at_end)), loglk = $(round(loglk)), kinetic = $(round(h_at_end+loglk))")
 
 			prob_accept = minimum([1, exp(h_at_zero - h_at_end)])
 		  	if rand() < prob_accept
@@ -328,7 +328,7 @@ function lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pma
 
 		for i = 1:maxitr
 			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-    		pk_halfstep = pk + ϵ .* ϕgradk ./ 2.0
+    	pk_halfstep =  pk + ϵ .* ϕgradk ./ 2.0
 			ϕcurrk      = len_curr.ϕk + ϵ .* inv_mk .* pk_halfstep
 			ψcurrk      = len_curr.ψk
 			len_curr    = LenseDecomp(ϕcurrk, ψcurrk, g)
@@ -459,15 +459,15 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
    		"output"        => "tCl, pCl, lCl",
    		"modes"         => "s,t",
    		"lensing"       => "yes",
-		"l_max_scalars" => lmax + 500,
-		"l_max_tensors" => 3_000, #lmax + 500,
-        "omega_b"       => omega_b,
+			"l_max_scalars" => lmax + 500,
+			"l_max_tensors" => 3_000, #lmax + 500,
+      "omega_b"       => omega_b,
     	"omega_cdm"     => omega_cdm,
-        "tau_reio"      => tau_reio,
-        "100*theta_s"   => 100*theta_s,
-        "ln10^{10}A_s"  => logA_s_1010,
-        "n_s"           => n_s,
-		"r"             => r,
+      "tau_reio"      => tau_reio,
+      "100*theta_s"   => 100*theta_s,
+      "ln10^{10}A_s"  => logA_s_1010,
+      "n_s"           => n_s,
+			"r"             => r,
         #"k_pivot"       => 0.05,
 		#"k_step_trans"  => 0.1, # 0.01 for super high resolution
    		#"l_linstep"     => 10,  # 1 for super high resolution

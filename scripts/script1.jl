@@ -36,7 +36,7 @@ Generate the cls
 
 # --- cls
 cls = class(
-    ψscale      = 0.1,    # <-- cψψk = ψscale * baseline_cϕϕk
+    ψscale      = 0.01,    # <-- cψψk = ψscale * baseline_cϕϕk
     ϕscale      = 1.0,  # <-- cϕϕk = ϕscale * baseline_cϕϕk
     lmax        = 6_000,
     r           = 0.2,
