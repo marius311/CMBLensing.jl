@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  29 APR 2016 18:02
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2016.1.26)  1 MAY 2016 10:40
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -636,30 +636,35 @@ Package hyperref Warning: Token not allowed in a PDF string (PDFDocEncoding):
 (hyperref)                removing `math shift' on input line 281.
 
 [5]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 322.
- [6]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 322.
+Overfull \hbox (7.10158pt too wide) in paragraph at lines 335--335
+[] 
+ []
+
+[6]
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 357.
+ [7]
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 357.
  (./BayesLenseSPTpol.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 322.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 322.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 357.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 357.
 Package rerunfilecheck Info: File `BayesLenseSPTpol.out' has not changed.
 (rerunfilecheck)             Checksum: 36F901BE940A9C917777CB4BE33BBE93;191.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 322.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 357.
  ) 
 Here is how much of TeX's memory you used:
- 9589 strings out of 493304
- 140302 string characters out of 6139871
- 283852 words of memory out of 5000000
+ 9591 strings out of 493304
+ 140321 string characters out of 6139871
+ 285852 words of memory out of 5000000
  12826 multiletter control sequences out of 15000+600000
  13962 words of font info for 59 fonts, out of 8000000 for 9000
  957 hyphenation exceptions out of 8191
  30i,14n,35p,384b,400s stack positions out of 5000i,500n,10000p,200000b,80000s
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/
 cm/cmsy5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm7.pfb>
-Output written on BayesLenseSPTpol.pdf (6 pages, 458212 bytes).
+Output written on BayesLenseSPTpol.pdf (7 pages, 462307 bytes).
 PDF statistics:
- 281 PDF objects out of 1000 (max. 8388607)
- 146 compressed objects within 2 object streams
- 37 named destinations out of 1000 (max. 500000)
+ 288 PDF objects out of 1000 (max. 8388607)
+ 152 compressed objects within 2 object streams
+ 39 named destinations out of 1000 (max. 500000)
  13365 words of extra memory for PDF output out of 14400 (max. 10000000)
 

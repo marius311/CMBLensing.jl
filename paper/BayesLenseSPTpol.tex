@@ -282,41 +282,76 @@ $\frac{\partial}{\partial \phi_i} \phi_{l} = 2 \delta_{i,-l}$
 
 Using $f(x) = x + \nabla\phi(x)$,
 $\nabla\pinv + \nabla^\perp \sinv = \nabla\phi(f^{-1}(x)) = \nabla\phi(x-\nabla\pinv-\nabla^\perp\sinv)$
-and  $ f^{-1}(x)\simeq x -\nabla\phi(x) + (\nabla\phi\cdot\nabla)\nabla\phi,$
-\begin{align}
-  \nabla^2\pinv &= \nabla\cdot \left(\nabla\phi|_{x-\nabla\phi(x)+(\nabla\phi\cdot\nabla)\nabla\phi}\right)
-\end{align}
-
+%and  $ f^{-1}(x)\simeq x -\nabla\phi(x) + (\nabla\phi\cdot\nabla)\nabla\phi,$
 \begin{align}
   \nabla^2\pinv
-  &= \nabla\cdot \left(d|_{x-d+(d\cdot\nabla)d}\right)\nonumber\\
-  &\simeq \nabla\cdot \left[d  - (d \cdot \nabla)d + [(d \cdot \nabla)d\cdot \nabla] d
-  + \frac{1}{2}(d  \cdot \nabla)^2 d\right]\nonumber\\
-  &=\nabla^2\phi - \partial_1(\vec d\cdot \nabla) d_1 - \partial_2(\vec d\cdot \nabla) d_2
-  +\nabla\cdot [(d \cdot \nabla)d\cdot \nabla] d
-  + \frac{1}{2}\partial_1(\vec d\cdot \nabla)^2d_1 + \frac{1}{2}\partial_2(\vec d\cdot \nabla)^2d_2
+  &= \nabla\cdot \left(\nabla\phi|_{x-\nabla\pinv(x)-\nabla^\perp\sinv}\right)\nonumber\\
+  &= \nabla\cdot \left(\nabla\phi|_{x-\nabla\pinv(x)}\right) \nonumber\\
+  &\simeq \nabla\cdot \left(\nabla\phi|_{x-\nabla\phi(x)}\right) \nonumber\\
+  &\simeq \nabla\cdot \left(\nabla\phi-(\nabla\phi\cdot\nabla)\nabla\phi + \frac{1}{2}(\nabla\phi\cdot\nabla)^2\nabla\phi\right)\nonumber\\
+  &=\nabla^2\phi - \Big[ \partial_1(d\cdot\nabla)d_1 + \partial_2(d\cdot\nabla)d_2 \Big]
+  +\frac{1}{2}\Big[ \partial_1(d\cdot\nabla)^2d_1 + \partial_2(d\cdot\nabla)^2d_2 \Big]
 \end{align}
-
 
 \begin{align}
   -l^2\pinv_l
-  &= -l^2\phi_l - \int (k\cdot l)(k\cdot (k + l)) \phi_{k+l}\phi_k^*  \frac{d^2k}{2\pi}\nonumber\\
+  &= -l^2\phi_l - \int (k\cdot l)\ k\cdot (k + l) \phi_{k+l}\phi_k^*  \frac{d^2k}{2\pi}\nonumber\\
   & +\frac{1}{2}\int (m+k+l)\cdot k\  m\cdot k \ (k+2m)\cdot k\ \phi_{m+k+l}\phi_{m}^*\phi_{k}^*\frac{d^2k}{2\pi}\frac{d^2m}{2\pi}
 \end{align}
 
+Assuming $\pinv$ is Gaussian, we have
 \begin{align}
   l^4 C_l^{\pinv\pinv}
-  &=l^4 C_l^{\phi\phi}  - l^2\int\frac{d^2k}{(2\pi)^2} (k\cdot l)(k^2+k\cdot l)^2 C_k C_{k+l}\nonumber\\
-  &-l^2C_l^{\phi\phi}\int \frac{d^2k}{(2\pi)^2} (k\cdot l)^2 (l^2-k\cdot l -2 k^2) C_k
+  &=l^4 C_l^{\phi\phi}  + l^2\int\frac{d^2k}{(2\pi)^2} (k\cdot l)(k^2+k\cdot l)^2 C_k C_{k+l}\nonumber\\
+  &-l^2C_l^{\phi\phi}\int \frac{d^2k}{(2\pi)^2} (k\cdot l)^2 (l^2-k\cdot l -2 k^2) C_k \nonumber \\
+  &=l^4 C_l^{\phi\phi} \left(1-\int \frac{dk}{2\pi} k^2(l^2-2k^2) C_k^{\phi\phi} \right)\nonumber\\
+  &+ l^2\int\frac{d^2k}{(2\pi)^2} (k\cdot l)(k^2+k\cdot l)^2 C_k C_{k+l}\
 \end{align}
 
 \begin{align}
 (\nabla^{\perp})^2\sinv
   &= \nabla^\perp \cdot \left(\nabla \phi|_{x-\nabla\pinv-\nabla^\perp\sinv}\right)\nonumber\\
-  &\simeq \nabla^\perp\cdot  \left[\nabla\phi  - (\nabla\phi  \cdot \nabla)\nabla\phi\right]\nonumber\\
-  &= \partial_2 (\vec d \cdot \nabla)d_1 - \partial_1 (\vec d \cdot \nabla)d_2  \nonumber\\
-  &=d_1\partial_{12}d_1 + d_2\partial_{22}d_1 -d_1\partial_{11}d_2 - d_2\partial_{12}d_2 \nonumber \\
-  &= 0 \leftarrow(\vec d = \nabla \phi)
+  &\simeq \nabla^\perp\cdot  \left[\nabla\phi  - (\nabla\phi  \cdot \nabla)\nabla\phi- (\nabla\phi  \cdot \nabla)\nabla^\perp\sinv\right]\nonumber\\
+  &= - \nabla^\perp\cdot \left[(d  \cdot \nabla)\nabla^\perp\sinv \right]
+  +\frac{1}{2} \nabla^\perp\cdot \left[(d  \cdot \nabla)^2\nabla^\perp\sinv \right]\nonumber\\
+  &= - \nabla \cdot \left[(d  \cdot \nabla)\nabla \sinv \right]
+  +\frac{1}{2} \nabla \cdot \left[(d  \cdot \nabla)^2\nabla \sinv \right]\nonumber\\
+  -l^2\sinv_l
+    &= -\int (k\cdot l) \ k\cdot(k+l)\ \phi_{k+l} \sinv_k^* \frac{dk}{2\pi}\nonumber \\
+    & +\frac{1}{2}\int (m+k+l)\cdot k\  m\cdot k \ (k+2m)\cdot k\ \phi_{m+k+l}\phi_{m}^*\sinv_{k}^*\frac{d^2k}{2\pi}\frac{d^2m}{2\pi}
 \end{align}
+Assuming $\sinv$ is also Gaussian, we have
+\begin{align}
+  l^4 C_l^{\sinv\sinv} \delta(l-l')
+  &= \int \frac{d^2k}{2\pi} \frac{d^2k'}{2\pi}
+  \ k\cdot(k+l)\ k'\cdot(k'+l')\ \langle \phi_{k+l} \sinv_k^* \phi_{k'+l'}^* \sinv_{k'} \rangle \nonumber\\
+  &=\delta(l-l') \int \frac{dk}{2\pi} \frac{dk'}{2\pi}
+  \ k\cdot(k+l)\ k'\cdot(k'+l') \ \left(C_l^{\phi\phi} C_k^{\sinv\sinv}\delta(k-k')
+  + C_{k+l}^{\phi\sinv}C_k^{\phi\sinv}\delta(k+l+k')\right)\nonumber\\
+  l^4 C_l^{\sinv\sinv}
+  &=\int \frac{d^2k}{4\pi^2}
+  \ [k\cdot(k+l)]^2\ \left(C_l^{\phi\phi} C_k^{\sinv\sinv}
+  + C_{k+l}^{\phi\sinv}C_k^{\phi\sinv}\right)\nonumber\\
+\end{align}
+
+OR
+\begin{align}
+    l^2 \langle \sinv_l \sinv_{l'}^* \rangle
+  &= \int (k\cdot l) \ k\cdot(k+l)\
+  \langle \phi_{k+l} \sinv_k^* \sinv_{l'}^* \rangle \frac{dk}{2\pi}  \nonumber\\
+  & -\frac{1}{2}\int (m+k+l)\cdot k\  m\cdot k \ (k+2m)\cdot k\
+  \langle \phi_{m+k+l}\phi_{m}^*\sinv_{k}^* \sinv_{l'}^*\rangle\frac{d^2k}{2\pi}\frac{d^2m}{2\pi}\nonumber \\
+  l^2 C_l^{\sinv\sinv}
+  &= -\frac{1}{2}\int \frac{d^2k}{2\pi}\frac{d^2m}{2\pi} (m+k+l)\cdot k\  m\cdot k \ (k+2m)\cdot k\nonumber\\
+  &\left[C_m^{\phi\phi} C_l^{\sinv\sinv} \delta(k+l) + C_k^{\phi\sinv}C_m^{\phi\sinv} \delta(m+l)
+  + C_l^{\phi\sinv}C_m^{\phi\sinv} \delta(m+k)\right] \nonumber \\
+  &= -\frac{1}{2}\int \frac{d^2m}{4\pi^2} (m\cdot l)^2 \ (l-2m)\cdot l \ C_m^{\phi\phi} C_l^{\sinv\sinv}\nonumber\\
+  &-\frac{1}{2}\int \frac{d^2k}{4\pi^2}\left[ k^2 \ k\cdot l \ (2l-k)\cdot k \ C_k^{\phi\sinv}C_l^{\phi\sinv}
+  +  k\cdot l \ k^4 C_l^{\phi\sinv}C_k^{\phi\sinv} \right] \nonumber\\
+  &= -\frac{1}{2}\int \frac{d^2m}{4\pi^2} (m\cdot l)^2 \ l^2  \ C_m^{\phi\phi} C_l^{\sinv\sinv}
+  - \int \frac{d^2k}{4\pi^2}  k^2 \ (k\cdot l)^2  \ C_k^{\phi\sinv}C_l^{\phi\sinv}  
+\end{align}
+
+
 
 \end{document}
