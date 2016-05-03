@@ -27,6 +27,8 @@ beamFWHM   = 0.0
 # --- Taylor series lensing order
 order = 2
 
+# --- rescale the primodial BB power as BB_fid
+r_scale = 1000.
 
 #=###########################################
 
@@ -36,16 +38,17 @@ Generate the cls
 
 # --- cls
 cls = class(
-    ψscale      = 0.01,    # <-- cψψk = ψscale * baseline_cϕϕk
+    ψscale      = 0.0,    # <-- cψψk = ψscale * baseline_cϕϕk
     ϕscale      = 1.0,  # <-- cϕϕk = ϕscale * baseline_cϕϕk
     lmax        = 6_000,
-    r           = 0.2,
+    r           = 0.1,
     omega_b     = 0.0224567,
     omega_cdm   = 0.118489,
     tau_reio    = 0.128312,
     theta_s     = 0.0104098,
     logA_s_1010 = 3.29056,
-    n_s         = 0.968602
+    n_s         = 0.968602,
+    r_scale     = r_scale
 )
 
 # ---- matrix form of the cls
@@ -100,8 +103,11 @@ Lense
 len = LenseDecomp(ϕk, ψk, g)
 
 # --- lense qx and ux fields
-@time ln_qx, ln_ux = lense(qx, ux, len, g, order)
+#@time ln_qx, ln_ux = lense(qx, ux, len, g, order)
 # @time ln_qx, ln_ux = lense(qx, ux, len, g, order, qk, uk) # this one is a bit quicker
+
+# --- SE, CE, SB, CB
+@time SE, CE, SB, CB = lense_sc(ek, bk, len, g, order)
 
 
 #= --- Plot: check the lensed fields have the right power.
@@ -113,6 +119,7 @@ loglog(kbins, kbins .* (kbins + 1) .* est_ln_cbbk / 2π, ".", label = L"est lens
 loglog(kbins, kbins .* (kbins + 1) .* est_ln_ceek / 2π, ".", label = L"est lense $C_l^{EE}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_bb] / 2π, label = L"lense $C_l^{BB}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_ee] / 2π, label = L"lense $C_l^{EE}$")
+loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"primordial $C_l^{BB}$")
 legend(loc = 3)
 =#
 
@@ -130,6 +137,9 @@ pmask  = trues(size(g.r))  #   g.r .< round(Int, g.nyq * 0.15)
 ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
 sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
 sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
+
+#prepare input for hmc, SB * √r_scale and CB * √r_scale  here are fiducial values, with r = r_fid
+ln_qx, ln_ux = sceb2qu(SE, CE, SB * √r_scale, CB * √r_scale, g)
 @show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
 
 # for cntr = 1:5
@@ -169,11 +179,15 @@ ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 delensed_ek, delensed_bk, delensed_ex, delensed_bx = qu2eb(g.FFT*delensed_qx, g.FFT*delensed_ux, g)
 kbins, est_ln_cbbk = radial_power(ln_bk, 1, g)
 kbins, est_delensed_cbbk = radial_power(delensed_bk, 1, g)
+kbins, est_delensed_ceek = radial_power(delensed_ek, 1, g)
 figure()
 loglog(kbins, kbins .* (kbins + 1) .* est_ln_cbbk / 2π, ".", label = "lensed band power")
 loglog(kbins, kbins .* (kbins + 1) .* est_delensed_cbbk / 2π, ".", label = "delensed band power")
+loglog(kbins, kbins .* (kbins + 1) .* est_delensed_ceek / 2π, ".", label = "delensed band power")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_bb] / 2π, label = L"lense $C_l^{BB}$")
-loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"unlensed $C_l^{BB}$")
+#loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"unlensed $C_l^{BB}$")
+loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb_fid] / 2π, label = L"unlensed $C_l^{BB,{\rm fid}} (r=100)$")
+loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ee] / 2π, label = L"unlensed $C_l^{EE}$")
 legend(loc = 3)
 =#
 

@@ -1,5 +1,5 @@
 # Fdb version 3
-["pdflatex"] 1462124452 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1462124453
+["pdflatex"] 1462124452 "BayesLenseSPTpol.tex" "BayesLenseSPTpol.pdf" "BayesLenseSPTpol" 1462203883
   "/etc/texmf/web2c/texmf.cnf" 1453832662 1101 af7716885e081ab43982cab7b4672c1a ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1272929888 3287 e6b82fe08f5336d4d5ebc73fb1152e87 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/symbol/psyr.tfm" 1136768653 1408 5937f58aa508ea2cea4901c07d10f5fe ""
@@ -132,7 +132,7 @@
   "spectrum3-eps-converted-to.pdf" 1458683193 23991 0b022771e23515efc036e4e2412fdefc ""
   "spectrum3.eps" 1458683193 31236 bece14eb57ae38e8a30862b38a786d33 ""
   (generated)
-  "BayesLenseSPTpol.aux"
   "BayesLenseSPTpol.pdf"
-  "BayesLenseSPTpol.out"
+  "BayesLenseSPTpol.aux"
   "BayesLenseSPTpol.log"
+  "BayesLenseSPTpol.out"

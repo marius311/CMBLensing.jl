@@ -15,6 +15,8 @@ export 	FFTgrid,
 		radial_power,
 		qu2eb,
 		eb2qu,
+		lense_sc,
+		sceb2qu,
 		squash,
 		squash!
 
@@ -55,6 +57,7 @@ immutable MatrixCls{dm}
 	cTEk::Array{Float64,dm}
 	cEEk::Array{Float64,dm}
 	cBBk::Array{Float64,dm}
+	cBBk_fid::Array{Float64,dm}
 	cTTnoisek::Array{Float64,dm}
 	cEEnoisek::Array{Float64,dm}
 	cBBnoisek::Array{Float64,dm}
@@ -108,10 +111,11 @@ function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0, 
 	cTEk = cls_to_cXXk(cls[:ell], cls[:te], g.r)
 	cEEk = cls_to_cXXk(cls[:ell], cls[:ee], g.r)
 	cBBk = cls_to_cXXk(cls[:ell], cls[:bb], g.r)
+	cBBk_fid  = cls_to_cXXk(cls[:ell], cls[:bb_fid], g.r)
 	cTTnoisek = cNNkgen(g.r; σunit=σTTarcmin, beamFWHM=beamFWHM)
 	cEEnoisek = cNNkgen(g.r; σunit=σEEarcmin, beamFWHM=beamFWHM)
 	cBBnoisek = cNNkgen(g.r; σunit=σBBarcmin, beamFWHM=beamFWHM)
-	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cTTnoisek, cEEnoisek, cBBnoisek)
+	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBBk_fid, cTTnoisek, cEEnoisek, cBBnoisek)
 end
 
 
@@ -212,6 +216,7 @@ Lensing functions
 
 =##############################################################
 
+
 """ Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order=2, qk=g.FFT*qx, uk=g.FFT*ux)` """
 function lense{T}(
 			qx::Matrix{Float64},
@@ -286,7 +291,7 @@ function hmc{T}(
 			ebmask::BitArray{2} = trues(size(g.r)),
 			)
 			maxitr    = 20
-	    ϵ         = 2.0e-4*rand()
+	    ϵ         = 1.0e-3*rand()
 			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
 	    pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
 	    loglk	    = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
@@ -309,10 +314,10 @@ end
 
 function lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
 		φ2_l = 2angle(g.k[1] + im * g.k[2])
-		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk, ebmask)
-		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
+		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk_fid, ebmask)
+		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk_fid  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
 		Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
-		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk, ebmask)
+		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk_fid, ebmask)
 
 		∂1uk = im * g.k[1] .* uk
 		∂1qk = im * g.k[1] .* qk
@@ -451,7 +456,7 @@ Miscellaneous functions
 
 @pyimport classy
 
-function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602)
+function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r_scale = 10.)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
@@ -488,9 +493,10 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
 			:bb 	=> cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2,
 			:te 	=> cls["te"] * (10^6 * cosmo[:T_cmb]()) ^ 2,
 			:tϕ 	=> cls["tp"] * (10^6 * cosmo[:T_cmb]()),
-			:ϕϕ     => ϕscale.*cls["pp"],
-			:ϕψ     => 0.0.*cls["pp"],
-			:ψψ     => ψscale.*cls["pp"],
+			:ϕϕ   => ϕscale.*cls["pp"],
+			:ϕψ   => 0.0.*cls["pp"],
+			:ψψ   => ψscale.*cls["pp"],
+			:bb_fid => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r_scale,
 		)
 	return rtn
 end
@@ -501,7 +507,7 @@ function loglike(len, qx, ux, g, mCls; order::Int64=2, pmask::BitArray{2}=trues(
 	ln_qx, ln_ux = lense(qx, ux, len, g, order)
 	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 	rloglike   = - 0.5 * sum( squash!( abs2(ln_ek)  ./ mCls.cEEk, ebmask) )
-	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk, ebmask) )
+	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk_fid, ebmask) )
 	rloglike  += - 0.5 * sum( squash!( abs2(len.ϕk) ./ mCls.cϕϕk, pmask) )
 	rloglike  += - 0.5 * sum( squash!( abs2(len.ψk) ./ mCls.cψψk, pmask) )
 	rloglike  *= (g.deltk^2)
@@ -525,12 +531,41 @@ function eb2qu(ek, bk, g)
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
 	qk   = - ek .* cos(φ2_l) + bk .* sin(φ2_l)
 	uk   = - ek .* sin(φ2_l) - bk .* cos(φ2_l)
-    qx   = real(g.FFT \ qk)
+  qx   = real(g.FFT \ qk)
 	ux   = real(g.FFT \ uk)
 	return qk, uk, qx, ux
 end
 
 
+""" 'SE, CE, SB, CB  = lense_sc(ek, bk, len, g, order)' """
+
+function lense_sc{T}(
+			ek::Matrix{Complex{Float64}},
+			bk::Matrix{Complex{Float64}},
+			len,
+			g::FFTgrid{2,T},
+			order::Int64 = 2
+	)
+		qk_ee, uk_ee, qx_ee, ux_ee = eb2qu(ek, zeros(size(bk)), g)
+		qk_bb, uk_bb, qx_bb, ux_bb = eb2qu(zeros(size(bk)), bk, g)
+		ln_qx_ee, ln_ux_ee = lense(qx_ee, ux_ee, len, g, order)
+		ln_qx_bb, ln_ux_bb = lense(qx_bb, ux_bb, len, g, order)
+
+		SE = -ln_ux_ee
+		CE = -ln_qx_ee
+		SB =  ln_qx_bb
+		CB = -ln_ux_bb
+		return SE, CE, SB, CB
+end
+
+""" Convert SE, CE, SB, CB to 'qx, ux = sceb2qu(SE, CE, SB, CB, g)' """
+function sceb2qu(SE, CE, SB, CB, g)
+	qx = - CE + SB
+	ux = - SE	- CB
+	qk = 	 g.FFT * qx
+	uk = 	 g.FFT * ux
+	return qx, ux
+end
 
 function radial_power{dm,T}(fk, smooth::Number, g::FFTgrid{dm,T})
 	rtnk = Float64[]
