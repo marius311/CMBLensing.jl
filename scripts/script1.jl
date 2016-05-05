@@ -18,8 +18,8 @@ period = 0.2 # radians
 nside  = nextprod([2,3,5,7], 400)
 g      = FFTgrid(dm, period, nside)
 
-# --- noise parameters
-σTTarcmin  = 0.02
+# --- noise parameters μk×arcmin
+σTTarcmin  = 5.
 σEEarcmin  = √2 * σTTarcmin
 σBBarcmin  = √2 * σTTarcmin
 beamFWHM   = 0.0
@@ -28,7 +28,8 @@ beamFWHM   = 0.0
 order = 2
 
 # --- rescale the primodial BB power as BB_fid
-r_scale = 1000.
+r_fid = 0.1
+r_sim = 0.1
 
 #=###########################################
 
@@ -41,14 +42,14 @@ cls = class(
     ψscale      = 0.0,    # <-- cψψk = ψscale * baseline_cϕϕk
     ϕscale      = 1.0,  # <-- cϕϕk = ϕscale * baseline_cϕϕk
     lmax        = 6_000,
-    r           = 0.1,
+    r           = r_sim, #0.1,
     omega_b     = 0.0224567,
     omega_cdm   = 0.118489,
     tau_reio    = 0.128312,
     theta_s     = 0.0104098,
     logA_s_1010 = 3.29056,
     n_s         = 0.968602,
-    r_scale     = r_scale
+    r_fid       = r_fid
 )
 
 # ---- matrix form of the cls
@@ -73,6 +74,13 @@ qk, uk, qx, ux = eb2qu(ek, bk, g)
 ϕx, ϕk         = sim_xk(mCls.cϕϕk, g)
 ψx, ψk         = sim_xk(mCls.cψψk, g)
 
+#=#####################################
+Simulate Noise of Q and U
+=######################################
+
+nex, nek           = sim_xk(mCls.cEEnoisek, g)
+nbx, nbk           = sim_xk(mCls.cBBnoisek, g)
+nqk, nuk, nqx, nux = eb2qu(nek, nbk, g)
 
 #= --- Plot: check the ex and bx maps
 figure(figsize = (12,5))
@@ -103,11 +111,17 @@ Lense
 len = LenseDecomp(ϕk, ψk, g)
 
 # --- lense qx and ux fields
-#@time ln_qx, ln_ux = lense(qx, ux, len, g, order)
+@time ln_qx, ln_ux = lense(qx, ux, len, g, order)
 # @time ln_qx, ln_ux = lense(qx, ux, len, g, order, qk, uk) # this one is a bit quicker
+
+# --- generate Q U observations
+qx_obs = ln_qx + nqx
+ux_obs = ln_ux + nux
 
 # --- SE, CE, SB, CB
 @time SE, CE, SB, CB = lense_sc(ek, bk, len, g, order)
+SB_fid = SB * sqrt(r_fid/r_sim)
+CB_fid = CB * sqrt(r_fid/r_sim)
 
 
 #= --- Plot: check the lensed fields have the right power.
@@ -138,17 +152,22 @@ ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
 sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
 sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 
-#prepare input for hmc, SB * √r_scale and CB * √r_scale  here are fiducial values, with r = r_fid
-ln_qx, ln_ux = sceb2qu(SE, CE, SB * √r_scale, CB * √r_scale, g)
-@show loglike(len_curr, ln_qx, ln_ux, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
+#prepare input for hmc
+ln_qx_fid, ln_ux_fid = sceb2qu(SE, CE, SB_fid, CB_fid, g)
+@show loglike(len_curr, ln_qx_fid, ln_ux_fid, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
 
 # for cntr = 1:5
 #    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
 #    @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 # end
 
+for cntr = 1:20
+    @time r_curr = rsampler(SE, CE, SB_fid, CB_fid, r_fid,g, qx_obs, ux_obs, σEEarcmin)
+    println("r = $r_curr")
+end
+
 for cntr = 1:25
-    @time len_curr = hmc(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+    @time len_curr = hmc(len_curr, ln_qx_fid, ln_ux_fid, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
 
@@ -185,7 +204,7 @@ loglog(kbins, kbins .* (kbins + 1) .* est_ln_cbbk / 2π, ".", label = "lensed ba
 loglog(kbins, kbins .* (kbins + 1) .* est_delensed_cbbk / 2π, ".", label = "delensed band power")
 loglog(kbins, kbins .* (kbins + 1) .* est_delensed_ceek / 2π, ".", label = "delensed band power")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_bb] / 2π, label = L"lense $C_l^{BB}$")
-#loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"unlensed $C_l^{BB}$")
+loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"unlensed $C_l^{BB}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb_fid] / 2π, label = L"unlensed $C_l^{BB,{\rm fid}} (r=100)$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ee] / 2π, label = L"unlensed $C_l^{EE}$")
 legend(loc = 3)

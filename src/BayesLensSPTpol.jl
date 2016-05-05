@@ -1,12 +1,13 @@
 module BayesLensSPTpol
 
-using PyCall, Dierckx
+using PyCall, Dierckx, StatsBase
 
 export 	FFTgrid,
 		MatrixCls,
 		LenseDecomp,
 		lense,
 		hmc,
+		rsampler,
 		gradupdate,
 		loglike,
 		ϕψgrad,
@@ -173,7 +174,7 @@ end
 # !!!! check this one...
 function cNNkgen{dm}(r::Array{Float64,dm}; σunit=0.0, beamFWHM=0.0)
 	beamSQ = exp(- (beamFWHM ^ 2) * (abs2(r) .^ 2) ./ (8 * log(2)) )
-	return ones(size(r)) .* σunit .^ 2 ./ beamSQ
+	return ones(size(r)) .* (σunit/60./57.4) .^ 2 ./ beamSQ
 end
 
 
@@ -274,7 +275,7 @@ function intlense(qx, ux, len)
 end
 
 ###############################################
-#Hamiltonian Markov Chain
+# Hamiltonian Markov Chain
 ###############################################
 
 function hmc{T}(
@@ -291,7 +292,7 @@ function hmc{T}(
 			ebmask::BitArray{2} = trues(size(g.r)),
 			)
 			maxitr    = 20
-	    ϵ         = 1.0e-3*rand()
+	    ϵ         = 1.0e-4*rand()
 			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
 	    pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
 	    loglk	    = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
@@ -445,6 +446,39 @@ function ϕψgrad_terms(xk, yk, ∂1xx, ∂1yx, ∂2xx, ∂2yx, M, g)
 end
 
 
+#=###########################################
+
+rsampler
+
+=############################################
+
+function rsampler(
+			SE::Matrix{Float64},
+			CE::Matrix{Float64},
+			SB_fid::Matrix{Float64},
+			CB_fid::Matrix{Float64},
+			r_fid,
+			g::FFTgrid,
+			qx_obs::Matrix{Float64},
+			ux_obs::Matrix{Float64},
+			σEEarcmin
+	)
+
+	Nsmp	 = 500
+	σpixel = (σEEarcmin/60./57.4)/g.deltx
+	r_prop = linspace(0.0, 0.5, Nsmp)
+	chi2   = zeros(size(r_prop))
+
+	for i = 1:Nsmp
+			qx_rsd = qx_obs + CE - sqrt(r_prop[i]/r_fid) .* SB_fid
+			ux_rsd = ux_obs + SE + sqrt(r_prop[i]/r_fid) .* CB_fid
+			chi2[i]= (sum(qx_rsd .^2) + sum(ux_rsd .^2)) / σpixel^2
+	end
+
+	prob = exp(minimum(chi2) - chi2)
+	wv   = WeightVec(prob[:])
+	return sample(r_prop, wv)
+end
 
 
 
@@ -456,7 +490,7 @@ Miscellaneous functions
 
 @pyimport classy
 
-function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r_scale = 10.)
+function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r_fid = 100.)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
@@ -496,7 +530,7 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
 			:ϕϕ   => ϕscale.*cls["pp"],
 			:ϕψ   => 0.0.*cls["pp"],
 			:ψψ   => ψscale.*cls["pp"],
-			:bb_fid => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r_scale,
+			:bb_fid => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r_fid/r,
 		)
 	return rtn
 end
