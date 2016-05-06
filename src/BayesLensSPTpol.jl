@@ -58,7 +58,7 @@ immutable MatrixCls{dm}
 	cTEk::Array{Float64,dm}
 	cEEk::Array{Float64,dm}
 	cBBk::Array{Float64,dm}
-	cBBk_fid::Array{Float64,dm}
+	cBBk0::Array{Float64,dm}
 	cTTnoisek::Array{Float64,dm}
 	cEEnoisek::Array{Float64,dm}
 	cBBnoisek::Array{Float64,dm}
@@ -112,11 +112,11 @@ function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0, 
 	cTEk = cls_to_cXXk(cls[:ell], cls[:te], g.r)
 	cEEk = cls_to_cXXk(cls[:ell], cls[:ee], g.r)
 	cBBk = cls_to_cXXk(cls[:ell], cls[:bb], g.r)
-	cBBk_fid  = cls_to_cXXk(cls[:ell], cls[:bb_fid], g.r)
+	cBBk0= cls_to_cXXk(cls[:ell], cls[:bb0], g.r)
 	cTTnoisek = cNNkgen(g.r; σunit=σTTarcmin, beamFWHM=beamFWHM)
 	cEEnoisek = cNNkgen(g.r; σunit=σEEarcmin, beamFWHM=beamFWHM)
 	cBBnoisek = cNNkgen(g.r; σunit=σBBarcmin, beamFWHM=beamFWHM)
-	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBBk_fid, cTTnoisek, cEEnoisek, cBBnoisek)
+	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBBk0, cTTnoisek, cEEnoisek, cBBnoisek)
 end
 
 
@@ -292,7 +292,7 @@ function hmc{T}(
 			ebmask::BitArray{2} = trues(size(g.r)),
 			)
 			maxitr    = 20
-	    ϵ         = 1.0e-4*rand()
+	    ϵ         = 8.0e-4*rand()
 			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
 	    pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
 	    loglk	    = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
@@ -315,10 +315,10 @@ end
 
 function lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
 		φ2_l = 2angle(g.k[1] + im * g.k[2])
-		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk_fid, ebmask)
-		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk_fid  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
+		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk0, ebmask)
+		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk0  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
 		Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
-		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk_fid, ebmask)
+		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk0, ebmask)
 
 		∂1uk = im * g.k[1] .* uk
 		∂1qk = im * g.k[1] .* qk
@@ -453,11 +453,11 @@ rsampler
 =############################################
 
 function rsampler(
-			SE::Matrix{Float64},
-			CE::Matrix{Float64},
-			SB_fid::Matrix{Float64},
-			CB_fid::Matrix{Float64},
-			r_fid,
+			ln_SE::Matrix{Float64},
+			ln_CE::Matrix{Float64},
+			ln_SB0::Matrix{Float64},
+			ln_CB0::Matrix{Float64},
+			r0,
 			g::FFTgrid,
 			qx_obs::Matrix{Float64},
 			ux_obs::Matrix{Float64},
@@ -470,12 +470,12 @@ function rsampler(
 	chi2   = zeros(size(r_prop))
 
 	for i = 1:Nsmp
-			qx_rsd = qx_obs + CE - sqrt(r_prop[i]/r_fid) .* SB_fid
-			ux_rsd = ux_obs + SE + sqrt(r_prop[i]/r_fid) .* CB_fid
+			qx_rsd = qx_obs + ln_CE - sqrt(r_prop[i]/r0) .* ln_SB0
+			ux_rsd = ux_obs + ln_SE + sqrt(r_prop[i]/r0) .* ln_CB0
 			chi2[i]= (sum(qx_rsd .^2) + sum(ux_rsd .^2)) / σpixel^2
 	end
 
-	prob = exp(minimum(chi2) - chi2)
+	prob = exp( (minimum(chi2) - chi2) / 2.)
 	wv   = WeightVec(prob[:])
 	return sample(r_prop, wv)
 end
@@ -490,7 +490,7 @@ Miscellaneous functions
 
 @pyimport classy
 
-function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r_fid = 100.)
+function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r0 = 100.)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
@@ -530,7 +530,7 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
 			:ϕϕ   => ϕscale.*cls["pp"],
 			:ϕψ   => 0.0.*cls["pp"],
 			:ψψ   => ψscale.*cls["pp"],
-			:bb_fid => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r_fid/r,
+			:bb0  => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r0/r,
 		)
 	return rtn
 end
@@ -541,7 +541,7 @@ function loglike(len, qx, ux, g, mCls; order::Int64=2, pmask::BitArray{2}=trues(
 	ln_qx, ln_ux = lense(qx, ux, len, g, order)
 	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
 	rloglike   = - 0.5 * sum( squash!( abs2(ln_ek)  ./ mCls.cEEk, ebmask) )
-	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk_fid, ebmask) )
+	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk0, ebmask) )
 	rloglike  += - 0.5 * sum( squash!( abs2(len.ϕk) ./ mCls.cϕϕk, pmask) )
 	rloglike  += - 0.5 * sum( squash!( abs2(len.ψk) ./ mCls.cψψk, pmask) )
 	rloglike  *= (g.deltk^2)

@@ -19,7 +19,7 @@ nside  = nextprod([2,3,5,7], 400)
 g      = FFTgrid(dm, period, nside)
 
 # --- noise parameters μk×arcmin
-σTTarcmin  = 5.
+σTTarcmin  = 8.0
 σEEarcmin  = √2 * σTTarcmin
 σBBarcmin  = √2 * σTTarcmin
 beamFWHM   = 0.0
@@ -27,8 +27,8 @@ beamFWHM   = 0.0
 # --- Taylor series lensing order
 order = 2
 
-# --- rescale the primodial BB power as BB_fid
-r_fid = 0.1
+# --- rescale the primodial BB power as BB0
+r0    = 10.
 r_sim = 0.1
 
 #=###########################################
@@ -49,7 +49,7 @@ cls = class(
     theta_s     = 0.0104098,
     logA_s_1010 = 3.29056,
     n_s         = 0.968602,
-    r_fid       = r_fid
+    r0          = r0
 )
 
 # ---- matrix form of the cls
@@ -119,9 +119,9 @@ qx_obs = ln_qx + nqx
 ux_obs = ln_ux + nux
 
 # --- SE, CE, SB, CB
-@time SE, CE, SB, CB = lense_sc(ek, bk, len, g, order)
-SB_fid = SB * sqrt(r_fid/r_sim)
-CB_fid = CB * sqrt(r_fid/r_sim)
+@time ln_SE, ln_CE, ln_SB, ln_CB = lense_sc(ek, bk, len, g, order)
+ln_SB0 = ln_SB * sqrt(r0/r_sim)
+ln_CB0 = ln_CB * sqrt(r0/r_sim)
 
 
 #= --- Plot: check the lensed fields have the right power.
@@ -152,22 +152,22 @@ ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
 sg1    = 1e-10              # sg1    = 1e-10  # <-- size of gradient step for ϕ
 sg2    = 1e-10              # sg2    = 1e-10  # <-- size of gradient step for ψ
 
-#prepare input for hmc
-ln_qx_fid, ln_ux_fid = sceb2qu(SE, CE, SB_fid, CB_fid, g)
-@show loglike(len_curr, ln_qx_fid, ln_ux_fid, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
-
 # for cntr = 1:5
 #    @time len_curr = gradupdate(len_curr, ln_qx, ln_ux, g, mCls; maxitr=100, sg1=sg1,sg2=sg2,order=order,pmask=pmask,ebmask=ebmask)
 #    @show loglike(len_curr, ln_qx, ln_ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 # end
 
 for cntr = 1:20
-    @time r_curr = rsampler(SE, CE, SB_fid, CB_fid, r_fid,g, qx_obs, ux_obs, σEEarcmin)
+    @time r_curr = rsampler(ln_SE, ln_CE, ln_SB0, ln_CB0, r0, g, qx_obs, ux_obs, σEEarcmin)
     println("r = $r_curr")
 end
 
+#prepare input for hmc
+ln_qx0, ln_ux0 = sceb2qu(ln_SE, ln_CE, ln_SB0, ln_CB0, g)
+@show loglike(len_curr, ln_qx0, ln_ux0, g,  mCls, order=order, pmask=pmask, ebmask=ebmask)
+
 for cntr = 1:25
-    @time len_curr = hmc(len_curr, ln_qx_fid, ln_ux_fid, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+    @time len_curr = hmc(len_curr, ln_qx0, ln_ux0, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 end
 
 
@@ -205,7 +205,7 @@ loglog(kbins, kbins .* (kbins + 1) .* est_delensed_cbbk / 2π, ".", label = "del
 loglog(kbins, kbins .* (kbins + 1) .* est_delensed_ceek / 2π, ".", label = "delensed band power")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_bb] / 2π, label = L"lense $C_l^{BB}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"unlensed $C_l^{BB}$")
-loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb_fid] / 2π, label = L"unlensed $C_l^{BB,{\rm fid}} (r=100)$")
+loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb0] / 2π, label = L"unlensed $C_l^{BB,0}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ee] / 2π, label = L"unlensed $C_l^{EE}$")
 legend(loc = 3)
 =#
