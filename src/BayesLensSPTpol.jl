@@ -2,27 +2,31 @@ module BayesLensSPTpol
 
 using PyCall, Dierckx, StatsBase
 
-export 	FFTgrid,
-		MatrixCls,
-		LenseDecomp,
-		lense,
-		hmc,
-		rsampler,
-		gradupdate,
-		loglike,
-		ϕψgrad,
-		class,
-		sim_xk,
-		radial_power,
-		qu2eb,
-		eb2qu,
-		lense_sc,
-		sceb2qu,
-		squash,
-		squash!
+export
+	# Custom types
+	FFTgrid,
+	MatrixCls,
+	LenseDecomp,
+	GibbsVariables,
 
+	# Samplers
+	hmc, rsampler, wf, gradupdate,
+
+	# Lensing operations
+	lense, invlense, lense_sc,
+
+	# Other methods
+	class,
+	sim_xk,
+	radial_power,
+	qu2eb, eb2qu, sceb2qu,
+	squash, squash!
+
+
+####### src code
+
+# Question: does it help to run this outside of the module?
 FFTW.set_num_threads(CPU_CORES)
-
 
 #=  To lint this file run:
 using Lint
@@ -50,6 +54,7 @@ end
 
 
 #---- Holds the cls expanded out to the 2 d spectral matrices.
+# ToDo: It might also be nice to hold σEEarcmin and σBBarcmin as well.
 immutable MatrixCls{dm}
 	cϕϕk::Array{Float64,dm}
 	cϕψk::Array{Float64,dm}
@@ -58,7 +63,7 @@ immutable MatrixCls{dm}
 	cTEk::Array{Float64,dm}
 	cEEk::Array{Float64,dm}
 	cBBk::Array{Float64,dm}
-	cBBk0::Array{Float64,dm}
+	cBB0k::Array{Float64,dm}
 	cTTnoisek::Array{Float64,dm}
 	cEEnoisek::Array{Float64,dm}
 	cBBnoisek::Array{Float64,dm}
@@ -79,11 +84,24 @@ end
 
 
 
-#=##########################################################
+# ----- Holds the gibbs variables
+type GibbsVariables
+	ln_cex::Array{Float64,2}
+	ln_sex::Array{Float64,2}
+	ln_cb0x::Array{Float64,2}
+	ln_sb0x::Array{Float64,2}
+	invlen::LenseDecomp
+	r::Float64
+	r0::Float64  # this is fixed and doesn't change in each gibbs pass
+end
 
-Type constructors
 
-=##############################################################
+
+##########################################################
+
+# Type constructors
+
+##############################################################
 
 function FFTgrid(dm, period, nside)
 	dm_nsides = fill(nside,dm)   # [nside,...,nside] <- dm times
@@ -112,11 +130,11 @@ function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0, 
 	cTEk = cls_to_cXXk(cls[:ell], cls[:te], g.r)
 	cEEk = cls_to_cXXk(cls[:ell], cls[:ee], g.r)
 	cBBk = cls_to_cXXk(cls[:ell], cls[:bb], g.r)
-	cBBk0= cls_to_cXXk(cls[:ell], cls[:bb0], g.r)
+	cBB0k= cls_to_cXXk(cls[:ell], cls[:bb0], g.r)
 	cTTnoisek = cNNkgen(g.r; σunit=σTTarcmin, beamFWHM=beamFWHM)
 	cEEnoisek = cNNkgen(g.r; σunit=σEEarcmin, beamFWHM=beamFWHM)
 	cBBnoisek = cNNkgen(g.r; σunit=σBBarcmin, beamFWHM=beamFWHM)
-	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBBk0, cTTnoisek, cEEnoisek, cBBnoisek)
+	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBB0k, cTTnoisek, cEEnoisek, cBBnoisek)
 end
 
 
@@ -135,10 +153,10 @@ function LenseDecomp(ϕk, ψk, g)
 		round_disply_deltx = round(Int64, disply[i,j]/g.deltx)
 	    indcol[i,j]  = indexwrap(j + round_displx_deltx, col)
 	    indrow[i,j]  = indexwrap(i + round_disply_deltx, row)
-			rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
+		rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
 	    rdisply[i,j] = disply[i,j] - g.deltx * round_disply_deltx
 	end
-	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, ϕk, ψk)
+	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, copy(ϕk), copy(ψk))
 end
 function LenseDecomp_helper1(ϕk, ψk, g)
 	tmpdxk = Array(Complex{Float64}, size(g.r))
@@ -152,15 +170,25 @@ function LenseDecomp_helper1(ϕk, ψk, g)
 	return displx, disply
 end
 
+LenseDecomp(len::LenseDecomp, g) = LenseDecomp(copy(len.ϕk), copy(len.ψk), g)
+
+function GibbsVariables(g, r0,  r)
+	n, m    = size(g.r)
+	ln_cex  = zeros(Float64, n, m)
+	ln_sex  = zeros(Float64, n, m)
+	ln_cb0x = zeros(Float64, n, m)
+	ln_sb0x = zeros(Float64, n, m)
+	invlen  = LenseDecomp(zeros(Complex{Float64}, n, m), zeros(Complex{Float64}, n, m), g)
+	return GibbsVariables(ln_cex, ln_sex, ln_cb0x, ln_sb0x, invlen, r, r0)
+end
 
 
 
+##########################################################
 
-#=##########################################################
+# Helper functions for the type constructors
 
-Helper functions for the type constructors
-
-=##############################################################
+##############################################################
 
 indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
 
@@ -211,11 +239,11 @@ end
 
 
 
-#=##########################################################
+##########################################################
 
-Lensing functions
+# Lensing functions
 
-=##############################################################
+##############################################################
 
 
 """ Lense qx, ux:  `rqx, rux = lense(qx, ux, len, g, order=2, qk=g.FFT*qx, uk=g.FFT*ux)` """
@@ -226,7 +254,7 @@ function lense{T}(
 			g::FFTgrid{2,T},
 			order::Int64 = 2,
 			qk::Matrix{Complex{Float64}} = g.FFT * qx,
-			uk::Matrix{Complex{Float64}} = g.FFT * ux
+			uk::Matrix{Complex{Float64}} = g.FFT * ux,
 	)
 	rqx, rux  = intlense(qx, ux, len)  # <--- return values
 	@inbounds for n in 1:order, α₁ in 0:n
@@ -274,223 +302,53 @@ function intlense(qx, ux, len)
     return rqx, rux
 end
 
-###############################################
-# Hamiltonian Markov Chain
-###############################################
+function invlense(len, g, order)
+    # invϕx, _ = lense(real(g.FFT\(-len.ϕk)), zeros(len.displx), len, g, order)
+    # invlen   = LenseDecomp(g.FFT * invϕx, zeros(len.displx), g)
 
-function hmc{T}(
-			len_curr,
-			qx::Matrix{Float64},
-			ux::Matrix{Float64},
-			g::FFTgrid{2,T},
-			mCls::MatrixCls{2},
-			qk::Matrix{Complex{Float64}} = g.FFT * qx,
-			uk::Matrix{Complex{Float64}} = g.FFT * ux
-			;
-			order::Int64 = 2,
-			pmask::BitArray{2}  = trues(size(g.r)),
-			ebmask::BitArray{2} = trues(size(g.r)),
-			)
-			maxitr    = 20
-	    ϵ         = 8.0e-4*rand()
-			mk        = squash!(1.0e-2 ./ mCls.cϕϕk .* g.deltk^2, pmask)
-	    pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
-	    loglk	    = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-	    h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
-			#println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")
-
-      loglk, len_prop, pk = lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
-			h_at_end = 0.5 * sum( squash!(abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
-		#	println("h_at_end = $(round(h_at_end)), loglk = $(round(loglk)), kinetic = $(round(h_at_end+loglk))")
-
-			prob_accept = minimum([1, exp(h_at_zero - h_at_end)])
-		  	if rand() < prob_accept
-	        	println("Accept: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
-	        	return len_prop
-	    	else
-	        	println("Reject: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
-	        	return len_curr
-	    	end
+	# the following just uses AntiLensing which appears to work better that the above
+    invlen   = LenseDecomp(-len.ϕk, zeros(Complex{Float64}, size(len.displx)), g)
+	return invlen
 end
 
-function lfrog(pk, ϵ, mk, maxitr, len_curr, g, qx, ux, qk, uk, mCls, order, pmask, ebmask)
-		φ2_l = 2angle(g.k[1] + im * g.k[2])
-		Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk0, ebmask)
-		Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk0  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
-		Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
-		Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk0, ebmask)
-
-		∂1uk = im * g.k[1] .* uk
-		∂1qk = im * g.k[1] .* qk
-		∂2uk = im * g.k[2] .* uk
-		∂2qk = im * g.k[2] .* qk
-
-		∂1ux = real(g.FFT \ ∂1uk)
-		∂1qx = real(g.FFT \ ∂1qk)
-		∂2ux = real(g.FFT \ ∂2uk)
-		∂2qx = real(g.FFT \ ∂2qk)
-
-		inv_mk = squash!(1./ (mk ./ 2.0), pmask)
-
-		for i = 1:maxitr
-			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-    	pk_halfstep =  pk + ϵ .* ϕgradk ./ 2.0
-			ϕcurrk      = len_curr.ϕk + ϵ .* inv_mk .* pk_halfstep
-			ψcurrk      = len_curr.ψk
-			len_curr    = LenseDecomp(ϕcurrk, ψcurrk, g)
-			ϕgradk, ψgradk = ϕψgrad(len_curr, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-			pk    = pk_halfstep + ϵ .* ϕgradk ./ 2.0
-			loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-			kintc = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) )
-			println("h_at_$i = $(round(kintc-loglk)), loglk = $(round(loglk)), kinetic = $(round(kintc))")
-		end
-
-		loglk = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-		return loglk, len_curr, pk
-end
-
-################################################
-#
-# Gradient update functions
-#
-################################################
 
 
-function gradupdate{T}(
-			len,
-			qx::Matrix{Float64},
-			ux::Matrix{Float64},
-			g::FFTgrid{2,T},
-			mCls::MatrixCls{2},
-			qk::Matrix{Complex{Float64}} = g.FFT * qx,
-			uk::Matrix{Complex{Float64}} = g.FFT * ux
-			;
-			maxitr::Int64 = 1,
-			sg1::Float64 = 1e-8,
-			sg2::Float64 = 1e-10,
-			order::Int64 = 2,
-			pmask::BitArray{2}  = trues(size(g.r)),
-			ebmask::BitArray{2} = trues(size(g.r)),
-			)
-
-	φ2_l = 2angle(g.k[1] + im * g.k[2])
-	Mq   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cEEk  + abs2(sin(φ2_l)) ./ mCls.cBBk, ebmask)
-	Mu   = -0.5squash!(abs2(cos(φ2_l)) ./ mCls.cBBk  + abs2(sin(φ2_l)) ./ mCls.cEEk, ebmask)
-	Mqu  = -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cEEk, ebmask)
-	Mqu -= -0.5squash!(2cos(φ2_l) .* sin(φ2_l) ./ mCls.cBBk, ebmask)
-
-	∂1uk = im * g.k[1] .* uk
-	∂1qk = im * g.k[1] .* qk
-	∂2uk = im * g.k[2] .* uk
-	∂2qk = im * g.k[2] .* qk
-
-	∂1ux = real(g.FFT \ ∂1uk)
-	∂1qx = real(g.FFT \ ∂1qk)
-	∂2ux = real(g.FFT \ ∂2uk)
-	∂2qx = real(g.FFT \ ∂2qk)
-
-	ϵ1 = squash!(sg1 .* mCls.cϕϕk, pmask)
-	ϵ2 = squash!(sg2 .* mCls.cψψk, pmask)
-	ϕcurrk, ψcurrk = copy(len.ϕk), copy(len.ψk)
-
-    @inbounds for cntr = 1:maxitr
-        ϕgradk, ψgradk = ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order)
-				ϕcurrk[:] = ϕcurrk + ϕgradk .* ϵ1
-        ψcurrk[:] = ψcurrk + ψgradk .* ϵ2
-				len = LenseDecomp(ϕcurrk, ψcurrk, g)
-    end
-	return len
+""" 'cex, sex, cbx, sbx  = lense_sc(ek, bk, len, g, order)' """
+function lense_sc{T}(ek, bk, len, g::FFTgrid{2,T}, order::Int64 = 2)
+		qk_ee, uk_ee, qx_ee, ux_ee = eb2qu(ek, zeros(size(bk)), g)
+		qk_bb, uk_bb, qx_bb, ux_bb = eb2qu(zeros(size(bk)), bk, g)
+		ln_qx_ee, ln_ux_ee = lense(qx_ee, ux_ee, len, g, order)
+		ln_qx_bb, ln_ux_bb = lense(qx_bb, ux_bb, len, g, order)
+		cex = -ln_qx_ee
+		sex = -ln_ux_ee
+		cbx = -ln_ux_bb
+		sbx =  ln_qx_bb
+		return cex, sex, cbx, sbx
 end
 
 
 
 
-function ϕψgrad(len, qx, ux, qk, uk, ∂1qx, ∂1ux, ∂1qk, ∂1uk, ∂2qx, ∂2ux, ∂2qk, ∂2uk, g, Mq, Mu, Mqu, mCls, order = 2)
-	lqx, lux     = lense(qx, ux, len, g, order, qk, uk)
-	l∂1qx, l∂1ux = lense(∂1qx, ∂1ux, len, g, order, ∂1qk, ∂1uk)
-	l∂2qx, l∂2ux = lense(∂2qx, ∂2ux, len, g, order, ∂2qk, ∂2uk)
+##########################################################
 
-	lqk, luk     =  g.FFT*lqx, g.FFT*lux
-	# l∂1qk, l∂1uk =  g.FFT*l∂1qx, g.FFT*l∂1ux
-	# l∂2qk, l∂2uk =  g.FFT*l∂2qx, g.FFT*l∂2ux
+# gibbs conditional samplers
 
-	ϕ∇qqk, ψ∇qqk = ϕψgrad_terms(lqk, lqk, l∂1qx, l∂1qx, l∂2qx, l∂2qx, Mq, g)
-  ϕ∇uuk, ψ∇uuk = ϕψgrad_terms(luk, luk, l∂1ux, l∂1ux, l∂2ux, l∂2ux, Mu, g)
-  ϕ∇quk, ψ∇quk = ϕψgrad_terms(lqk, luk, l∂1qx, l∂1ux, l∂2qx, l∂2ux, Mqu, g)
+##############################################################
 
-	rtnϕk = ϕ∇qqk + ϕ∇uuk + ϕ∇quk - 2 * g.deltk ^ 2 * squash!(len.ϕk ./ mCls.cϕϕk)
-	rtnψk = ψ∇qqk + ψ∇uuk + ψ∇quk - 2 * g.deltk ^ 2 * squash!(len.ψk ./ mCls.cψψk)
-    return  rtnϕk, rtnψk
-end
-
-
-function ϕψgrad_terms(xk, yk, ∂1xx, ∂1yx, ∂2xx, ∂2yx, M, g)
-    X₁YMx = ∂1xx .* (g.FFT \ (yk .* M))
-    X₂YMx = ∂2xx .* (g.FFT \ (yk .* M))
-    Y₁XMx = ∂1yx .* (g.FFT \ (xk .* M))
-    Y₂XMx = ∂2yx .* (g.FFT \ (xk .* M))
-
-	ϕgradk  = g.k[1] .* (g.FFT * X₁YMx)
-	ϕgradk += g.k[2] .* (g.FFT * X₂YMx)
-	ϕgradk += g.k[1] .* (g.FFT * Y₁XMx)
-	ϕgradk += g.k[2] .* (g.FFT * Y₂XMx)
-	ϕgradk *= - im * g.deltk ^ 2
-
-	ψgradk  = g.k[1] .* (g.FFT * Y₂XMx)
-	ψgradk -= g.k[2] .* (g.FFT * Y₁XMx)
-	ψgradk += g.k[1] .* (g.FFT * X₂YMx)
-	ψgradk -= g.k[2] .* (g.FFT * X₁YMx)
-	ψgradk *= im * g.deltk ^ 2
-
-    return ϕgradk, ψgradk
-end
-
-
-#=###########################################
-
-rsampler
-
-=############################################
-
-function rsampler(
-			ln_SE::Matrix{Float64},
-			ln_CE::Matrix{Float64},
-			ln_SB0::Matrix{Float64},
-			ln_CB0::Matrix{Float64},
-			r0,
-			g::FFTgrid,
-			qx_obs::Matrix{Float64},
-			ux_obs::Matrix{Float64},
-			σEEarcmin
-	)
-
-	Nsmp	 = 500
-	σpixel = (σEEarcmin/60./57.4)/g.deltx
-	r_prop = linspace(0.0, 0.5, Nsmp)
-	chi2   = zeros(size(r_prop))
-
-	for i = 1:Nsmp
-			qx_rsd = qx_obs + ln_CE - sqrt(r_prop[i]/r0) .* ln_SB0
-			ux_rsd = ux_obs + ln_SE + sqrt(r_prop[i]/r0) .* ln_CB0
-			chi2[i]= (sum(qx_rsd .^2) + sum(ux_rsd .^2)) / σpixel^2
-	end
-
-	prob = exp( (minimum(chi2) - chi2) / 2.)
-	wv   = WeightVec(prob[:])
-	return sample(r_prop, wv)
-end
+include("gibbs_conditional_samplers.jl")
 
 
 
-#=##########################################################
 
-Miscellaneous functions
+##########################################################
 
-=##############################################################
+# Miscellaneous functions
+
+##############################################################
 
 @pyimport classy
 
-function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602, r0 = 100.)
+function class(;ϕscale = 1.0, ψscale = 0.0, lmax = 6_000, r = 0.2, r0 = 100.0, omega_b = 0.0224567, omega_cdm=0.118489, tau_reio = 0.128312, theta_s = 0.0104098, logA_s_1010 = 3.29056, n_s =  0.968602)
 	cosmo = classy.Class()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
@@ -498,18 +356,18 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
    		"output"        => "tCl, pCl, lCl",
    		"modes"         => "s,t",
    		"lensing"       => "yes",
-			"l_max_scalars" => lmax + 500,
-			"l_max_tensors" => 3_000, #lmax + 500,
-      "omega_b"       => omega_b,
+		"l_max_scalars" => lmax + 500,
+		"l_max_tensors" => 3_000, #lmax + 500,
+      	"omega_b"       => omega_b,
     	"omega_cdm"     => omega_cdm,
-      "tau_reio"      => tau_reio,
-      "100*theta_s"   => 100*theta_s,
-      "ln10^{10}A_s"  => logA_s_1010,
-      "n_s"           => n_s,
-			"r"             => r,
-        #"k_pivot"       => 0.05,
-		#"k_step_trans"  => 0.1, # 0.01 for super high resolution
-   		#"l_linstep"     => 10,  # 1 for super high resolution
+      	"tau_reio"      => tau_reio,
+      	"100*theta_s"   => 100*theta_s,
+      	"ln10^{10}A_s"  => logA_s_1010,
+      	"n_s"           => n_s,
+		"r"             => r,
+        #"k_pivot"      => 0.05,
+		#"k_step_trans" => 0.1, # 0.01 for super high resolution
+   		#"l_linstep"    => 10, # 1 for super high resolution
    		)
 	cosmo[:set](params)
 	cosmo[:compute]()
@@ -530,23 +388,11 @@ function class(;ϕscale = 0.1, ψscale = 0.1, lmax = 6_000, r = 1.0, omega_b = 0
 			:ϕϕ   => ϕscale.*cls["pp"],
 			:ϕψ   => 0.0.*cls["pp"],
 			:ψψ   => ψscale.*cls["pp"],
-			:bb0  => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * r0/r,
+			:bb0  => cls["bb"] * (10^6 * cosmo[:T_cmb]()) ^ 2 * (r0 / r),
 		)
 	return rtn
 end
 
-
-# --- compute loglike
-function loglike(len, qx, ux, g, mCls; order::Int64=2, pmask::BitArray{2}=trues(size(g.r)), ebmask::BitArray{2}=trues(size(g.r)) )
-	ln_qx, ln_ux = lense(qx, ux, len, g, order)
-	ln_ek, ln_bk, ln_ex, ln_bx = qu2eb(g.FFT*ln_qx, g.FFT*ln_ux, g)
-	rloglike   = - 0.5 * sum( squash!( abs2(ln_ek)  ./ mCls.cEEk, ebmask) )
-	rloglike  += - 0.5 * sum( squash!( abs2(ln_bk)   ./ mCls.cBBk0, ebmask) )
-	rloglike  += - 0.5 * sum( squash!( abs2(len.ϕk) ./ mCls.cϕϕk, pmask) )
-	rloglike  += - 0.5 * sum( squash!( abs2(len.ψk) ./ mCls.cψψk, pmask) )
-	rloglike  *= (g.deltk^2)
-	return rloglike
-end
 
 
 """ Convert qu to eb:  `ek, bk, ex, bx = qu2eb(qk, uk, g)` """
@@ -565,42 +411,22 @@ function eb2qu(ek, bk, g)
 	φ2_l = 2angle(g.k[1] + im * g.k[2])
 	qk   = - ek .* cos(φ2_l) + bk .* sin(φ2_l)
 	uk   = - ek .* sin(φ2_l) - bk .* cos(φ2_l)
-  qx   = real(g.FFT \ qk)
+    qx   = real(g.FFT \ qk)
 	ux   = real(g.FFT \ uk)
 	return qk, uk, qx, ux
 end
 
 
-""" 'SE, CE, SB, CB  = lense_sc(ek, bk, len, g, order)' """
-
-function lense_sc{T}(
-			ek::Matrix{Complex{Float64}},
-			bk::Matrix{Complex{Float64}},
-			len,
-			g::FFTgrid{2,T},
-			order::Int64 = 2
-	)
-		qk_ee, uk_ee, qx_ee, ux_ee = eb2qu(ek, zeros(size(bk)), g)
-		qk_bb, uk_bb, qx_bb, ux_bb = eb2qu(zeros(size(bk)), bk, g)
-		ln_qx_ee, ln_ux_ee = lense(qx_ee, ux_ee, len, g, order)
-		ln_qx_bb, ln_ux_bb = lense(qx_bb, ux_bb, len, g, order)
-
-		SE = -ln_ux_ee
-		CE = -ln_qx_ee
-		SB =  ln_qx_bb
-		CB = -ln_ux_bb
-		return SE, CE, SB, CB
-end
-
 """ Convert SE, CE, SB, CB to 'qx, ux = sceb2qu(SE, CE, SB, CB, g)' """
-function sceb2qu(SE, CE, SB, CB, g)
-	qx = - CE + SB
-	ux = - SE	- CB
-	qk = 	 g.FFT * qx
-	uk = 	 g.FFT * ux
-	return qx, ux
+function sceb2qu(cex, sex, cbx, sbx, g)
+	qx = - cex + sbx
+	ux = - sex - cbx
+	qk = g.FFT * qx
+	uk = g.FFT * ux
+	return qx, ux, qk, uk
 end
 
+""" kbins, rtnk  = radial_power(fk, smooth, g) """
 function radial_power{dm,T}(fk, smooth::Number, g::FFTgrid{dm,T})
 	rtnk = Float64[]
 	dk = g.deltk
@@ -647,6 +473,7 @@ function squash{dm,T}(x::Array{T,dm}, mask::BitArray{dm}=trues(size(x)))
 	y = copy(x)
 	return squash!(y, mask)
 end
+
 
 
 
