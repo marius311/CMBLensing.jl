@@ -84,7 +84,7 @@ function rsampler(gv, g, mCls, r0, dqx, dux, ebmask)
 	dek   = - dqk .* cos(φ2_l) - duk .* sin(φ2_l)
 	dbk   =   dqk .* sin(φ2_l) - duk .* cos(φ2_l)
 	Nsmp	 = 500
-	r_prop = linspace(0.00001, 0.6, Nsmp)
+	r_prop = linspace(0.00001, 0.5, Nsmp)
 	chi2   = zeros(size(r_prop))
 	@inbounds for i = 1:Nsmp
 			residqk = dqk + ln_cek - √(r_prop[i]/r0) .* ln_sb0k
@@ -94,7 +94,8 @@ function rsampler(gv, g, mCls, r0, dqx, dux, ebmask)
             chi2[i] =  0.5 * sumabs2(squash!(residek./√(mCls.cEEnoisek), ebmask)) * (g.deltk)^2
             chi2[i] += 0.5 * sumabs2(squash!(residbk./√(mCls.cBBnoisek), ebmask)) * (g.deltk)^2
 	end
-	prob = exp(minimum(chi2) - chi2)
+	prob =  exp(minimum(chi2) - chi2)
+    prob .*= 1./r_prop # <--- added a Jeffreys prior
 	wv   = WeightVec(prob[:])
 	return sample(r_prop, wv)
 end
@@ -110,10 +111,10 @@ end
 ###############################################
 
 
-function hmc(gv::GibbsVariables, g, mCls, order, pmask, ebmask)
+function hmc(gv::GibbsVariables, g, mCls, order, pmask, ebmask; maxitr::Int64 = 25, ϵ::Float64 = 1.0e-5)
 	#ln_qx0, ln_ux0 = sceb2qu(gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x, g)
     #invlen_update = hmc(gv.invlen, ln_qx0, ln_ux0, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
-    invlen_update = hmc(gv.invlen, - gv.ln_cex + gv.ln_sb0x, - gv.ln_sex - gv.ln_cb0x, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+    invlen_update = hmc(gv.invlen, - gv.ln_cex + gv.ln_sb0x, - gv.ln_sex - gv.ln_cb0x, g, mCls, order=order, pmask=pmask, ebmask=ebmask, maxitr=maxitr, ϵ=ϵ)
     return invlen_update
 end
 
@@ -128,17 +129,20 @@ function hmc{T}(
 			qk::Matrix{Complex{Float64}} = g.FFT * qx,
 			uk::Matrix{Complex{Float64}} = g.FFT * ux
 			;
+            maxitr::Int64 = 25,
+            ϵ::Float64   = 1.0e-5,
 			order::Int64 = 2,
 			pmask::BitArray{2}  = trues(size(g.r)),
 			ebmask::BitArray{2} = trues(size(g.r)),
 	)
-	maxitr    = 25
-	ϵ         = 1.0e-6*rand()
+	#ϵ         = 1.0e-5*rand()
 
     # !!!! mk needs tuning
-	mk        = squash!(1.0e-2 ./ (mCls.cϕϕk) .* g.deltk^2, pmask)
+	# mk = g.deltk^2 * 1.0e-2 ./ mCls.cϕϕk
+    mk  = g.deltk^2 * 1.0e-2 ./ mCls.cϕϕk ./ (0.75 + 0.25 * tanh((g.r-1500)./200))
+    squash!(mk, pmask)
 
-	pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* sqrt(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
+	pk        = (g.deltk / g.deltx) * (g.FFT * randn(size(g.r))) .* √(mk) # note that the variance of real(pk_init) and imag(pk_init) is mk/2
 	loglk	  = loglike(len_curr, qx, ux, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
 	h_at_zero = 0.5 * sum( squash!( abs2(pk)./(2*mk/2), pmask) ) - loglk # the 0.5 is out front since only half the sum is unique
 	# println("h_at_zero = $(round(h_at_zero)), loglk = $(round(loglk)), kinetic = $(round(h_at_zero+loglk))")

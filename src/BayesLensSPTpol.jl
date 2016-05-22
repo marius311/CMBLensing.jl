@@ -25,7 +25,6 @@ export
 
 ####### src code
 
-# Question: does it help to run this outside of the module?
 FFTW.set_num_threads(CPU_CORES)
 
 #=  To lint this file run:

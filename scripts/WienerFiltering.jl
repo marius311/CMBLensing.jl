@@ -13,7 +13,7 @@ ToDo:
 
 # --- load modules
 using BayesLensSPTpol
-using PyPlot, Dierckx
+using PyPlot
 
 # ----  set the seed
 seedstart = rand(UInt64)
@@ -22,7 +22,7 @@ srand(seedstart)
 
 # --- set grid geometry and cls
 dm     = 2
-nside  = nextprod([2,3,5,7], 512/2)
+nside  = nextprod([2,3,5,7], 256)
 period = 1*nside*pi/(180*60) # nside*pi/(180*60) = 1 arcmin pixels
 g      = FFTgrid(dm, period, nside)
 
@@ -43,61 +43,6 @@ order  = 3 # Taylor lensing order
 ϕx, ϕk = sim_xk(mCls.cϕϕk, g)
 len    = LenseDecomp(ϕk, zeros(ϕk), g)
 invlen = invlense(len, g, order)
-# ToDo: test out len and invlen
-
-# # ---- simulate the data
-# ex, ek             = sim_xk(mCls.cEEk, g)
-# bx, bk             = sim_xk(mCls.cBBk, g)
-# qk, uk, qx, ux     = eb2qu(ek, bk, g)
-#
-# nex, nek           = sim_xk(mCls.cEEnoisek, g)
-# nbx, nbk           = sim_xk(mCls.cBBnoisek, g)
-# nqk, nuk, nqx, nux = eb2qu(nek, nbk, g)
-#
-# ln_cex, ln_sex, ln_cbx, ln_sbx = lense_sc(ek, bk, len, g, order)
-# ln_sb0x = √r0 * (ln_sbx / √r)
-# ln_cb0x = √r0 * (ln_cbx / √r)
-#
-# dqx = - ln_cex + √(r/r0) * ln_sb0x + nqx
-# dux = - ln_sex - √(r/r0) * ln_cb0x + nux
-#
-#
-# #############################
-#
-# # do a full Gibbs pass
-#
-# #############################
-#
-# pmask  = trues(size(g.r))  #   g.r .< round(Int, g.nyq * 0.15)
-# ebmask = trues(size(g.r))   # ebmask =  g.r .< round(Int, g.nyq * 0.99)
-#
-# # --- initialize
-# gv_curr = GibbsVariables(g, r0, 0.2)
-#
-# function gibbs(iterations, dqx, dux, gv_curr, g, mCls, order, pmask, ebmask, σEEarcmin)
-#     gv_prop = deepcopy(gv_curr)
-#     for i = 1:iterations
-#         gv_prop.ln_cex, gv_prop.ln_sex, gv_prop.ln_cb0x, gv_prop.ln_sb0x = wf(dqx, dux, gv_prop, g, mCls, order)
-#         gv_prop.r      = rsampler(gv_prop, g, dqx, dux, σEEarcmin)
-#         @show gv_prop.r
-#         gv_prop.invlen = hmc(gv_prop, g, mCls, order, pmask, ebmask)
-#     end
-#     return deepcopy(gv_prop)
-# end
-# # --- run the gibbs chain
-# gv_curr = gibbs(10, dqx, dux, gv_curr, g, mCls, order, pmask, ebmask, σEEarcmin);
-# # --- plot the results
-# subplot(1,3,1)
-# imshow(real(g.FFT \ gv_curr.invlen.ϕk))
-# colorbar()
-# subplot(1,3,2)
-# imshow(-real(g.FFT \ len.ϕk))
-# colorbar()
-# subplot(1,3,3)
-# imshow(real(g.FFT \ invlen.ϕk))
-#
-
-
 
 
 
@@ -123,50 +68,53 @@ nqk, nuk, nqx, nux = eb2qu(nek, nbk, g)
 dqx = - ln_cex + √(r/r0) * ln_sb0x + nqx
 dux = - ln_sex - √(r/r0) * ln_cb0x + nux
 
-gv    = GibbsVariables(g, r0,  1.2r)
-#gv.ln_cex  = copy(ln_cex)
-#gv.ln_sex  = copy(ln_sex)
-#gv.ln_cb0x = copy(ln_cb0x)
-#gv.ln_sb0x = copy(ln_sb0x)
-#gv.invlen  = LenseDecomp(invlen)
+# initialize gibbs variables
+gv    = GibbsVariables(g, r0,  0.5r)
 
-gvtru = GibbsVariables(g, r0,  r) # all true values except r
+# set to all the simulation truth values
+gvtru = GibbsVariables(g, r0,  r)
 gvtru.ln_cex  = copy(ln_cex)
 gvtru.ln_sex  = copy(ln_sex)
 gvtru.ln_cb0x = copy(ln_cb0x)
 gvtru.ln_sb0x = copy(ln_sb0x)
 gvtru.invlen  = LenseDecomp(invlen)
 
-pmask  = g.r .< round(Int, g.nyq * 0.5)
-ebmask = g.r .< round(Int, g.nyq * 0.5)
 rs = Float64[]
 for i = 1:25
-    gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gvtru, g, mCls, order) #<-- true invlen
-    # gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gv, g, mCls, order)
+    # ---- wf ----
+    #gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gvtru, g, mCls, order) # <-- true invlen
+    gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gv, g, mCls, order)
     # Would it help to do an exact Sherman-Woodbury wf of the low-ell stuff?
     # Can you attempt to make a symetric proposal to update this with the previous wf result?
     # How about using wf to do a MH proposal?
     # Are you getting the right correlation among cek, sek, cb0k, sb0k?
     # Is it possible that HMC will work here?
+    # make sure this works when len=id and invlen = id.
 
-    # gv.invlen  = gradupdate(gv, g, mCls, order, pmask, ebmask; maxitr=10, sg1=1e-8)
-    gv.invlen  = hmc(gv, g, mCls, order, pmask, ebmask)
+    # --- hmc ---
+    pmask  = g.r .< round(Int, g.nyq * 0.3)
+    ebmask = g.r .< round(Int, g.nyq * 0.9)
+    # if i=1; gv.invlen  = gradupdate(gv, g, mCls, order, pmask, ebmask; maxitr=10, sg1=1e-8); end
+    gv.invlen  = hmc(gv, g, mCls, order, pmask, ebmask, maxitr = 25, ϵ  = 2.0e-5)
     # Experiment with the mass vector (m1, m2, ...) (maybe it is proposing too large low ell modes?)
     # Program the β version with momentum flips
     # Program the look ahead version
 
+    # --- r ---
     # @show gvtru.r = gv.r = rsampler(gv, g, dqx, dux, σEEarcmin)
-    @show gvtru.r = gv.r = rsampler(gv, g, mCls, r0, dqx, dux, ebmask)
+    ebmask_r = g.r .< 1000
+    @show gvtru.r = gv.r = rsampler(gv, g, mCls, r0, dqx, dux, ebmask_r)
     push!(rs, gv.r)
 end
 
-figure(figsize = (15,5))
+figure(figsize = (17,4))
 subplot(1,3,1)
-imshow(real(g.FFT \ gv.invlen.ϕk));colorbar()
+imshow(real(g.FFT \ gv.invlen.ϕk));colorbar(format="%.0e")
 subplot(1,3,2)
-imshow(real(g.FFT \ invlen.ϕk));colorbar()
+imshow(real(g.FFT \ invlen.ϕk));colorbar(format="%.0e")
 subplot(1,3,3)
-plt[:hist](rs, 25)
+plt[:hist](rs, 25, normed = true)
+axis([0,.7, 0, 1])
 
 
 #figure()
