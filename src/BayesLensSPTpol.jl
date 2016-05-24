@@ -11,6 +11,7 @@ export
 
 	# Samplers
 	hmc, rsampler, wf, gradupdate,
+	wf_given_b, wf_given_e,
 
 	# Lensing operations
 	lense, invlense, lense_sc,
@@ -19,7 +20,7 @@ export
 	class,
 	sim_xk,
 	radial_power,
-	qu2eb, eb2qu, sceb2qu,
+	qu2eb, eb2qu, sceb2qu, sceb2eb
 	squash, squash!
 
 
@@ -423,6 +424,16 @@ function sceb2qu(cex, sex, cbx, sbx, g)
 	qk = g.FFT * qx
 	uk = g.FFT * ux
 	return qx, ux, qk, uk
+end
+
+
+function sceb2eb(cex, sex, cbx, sbx, g)
+	qx = - cex + sbx
+	ux = - sex - cbx
+	qk = g.FFT * qx
+	uk = g.FFT * ux
+	ek, bk, ex, bx = qu2eb(qk, uk, g)
+	return ex, bx, ek, bk
 end
 
 """ kbins, rtnk  = radial_power(fk, smooth, g) """

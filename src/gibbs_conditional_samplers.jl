@@ -25,8 +25,6 @@ function wf(dqx, dux, r0, r_curr, invlen_curr, g, mCls, order)
 
     # now re-lense by generating fwdlen inverting invlen
     fwdlen = invlense(invlen_curr, g, order)
-    #fwdlen = LenseDecomp(-invlen_curr.ϕk, zeros(invlen_curr.ϕk), g)
-	# ToDo: test which one of the above I want to use??
     simln_cex, simln_sex,  simln_cbx, simln_sbx = lense_sc(eksim, bksim, fwdlen, g, order)
     simln_cb0x = √(r0/r_curr) * simln_cbx
     simln_sb0x = √(r0/r_curr) * simln_sbx
@@ -34,9 +32,45 @@ function wf(dqx, dux, r0, r_curr, invlen_curr, g, mCls, order)
 end
 
 wf(dqx, dux, gv::GibbsVariables, g, mCls, order) = wf(dqx, dux, gv.r0, gv.r, gv.invlen, g, mCls, order)
-# ToDo: try to do the above to pure noise and see if there is any residual lensing signal
 
 
+
+function wf_given_e(dqx, dux, r0, r, ln_cex, ln_sex, invlen, g, mCls, order)
+    # delense dqx, dux after subtracting out ex
+    invdqx, invdux  = lense(dqx + ln_cex, dux + ln_sex , invlen, g, order)
+    invdek, invdbk, = qu2eb(g.FFT * invdqx, g.FFT * invdux, g)
+
+    # conditionally simulate bksim
+    cBBk = (r / r0) * mCls.cBB0k
+    bksim  = invdbk .* cBBk ./ (cBBk + mCls.cBBnoisek)
+    bksim += BayesLensSPTpol.white_wx_wk(g)[2] ./ √(1 ./ cBBk + 1 ./ mCls.cBBnoisek)
+    squash!(bksim)
+
+    # now re-lense by generating fwdlen inverting invlen
+    fwdlen = invlense(invlen, g, order)
+    tmp1, tmp2,  simln_cbx, simln_sbx = lense_sc(zeros(bksim), bksim, fwdlen, g, order)
+    simln_cb0x = √(r0/r) * simln_cbx
+    simln_sb0x = √(r0/r) * simln_sbx
+    return simln_cb0x, simln_sb0x
+end
+
+
+function wf_given_b(dqx, dux, r0, r, ln_cb0x, ln_sb0x, invlen, g, mCls, order)
+    # delense dqx, dux after subtracting out bx
+    invdqx, invdux  = lense(dqx - √(r/r0) .* ln_sb0x,
+                            dux + √(r/r0) .* ln_cb0x, invlen, g, order)
+    invdek, invdbk, = qu2eb(g.FFT * invdqx, g.FFT * invdux, g)
+
+    # conditionally simulate eksim
+    eksim  = invdek .* mCls.cEEk ./ (mCls.cEEk + mCls.cEEnoisek)
+    eksim += BayesLensSPTpol.white_wx_wk(g)[2] ./ √(1 ./ mCls.cEEk + 1 ./ mCls.cEEnoisek)
+    squash!(eksim)
+
+    # now re-lense by generating fwdlen inverting invlen
+    fwdlen = invlense(invlen, g, order)
+    simln_cex, simln_sex, = lense_sc(eksim, zeros(eksim), fwdlen, g, order)
+    return simln_cex, simln_sex
+end
 
 
 #=###########################################
@@ -121,7 +155,7 @@ end
 
 
 function hmc{T}(
-			len_curr,
+			len_curr::LenseDecomp,
 			qx::Matrix{Float64},
 			ux::Matrix{Float64},
 			g::FFTgrid{2,T},
@@ -203,14 +237,15 @@ end
 # --- Gradient computations
 
 
-function gradupdate(gv::GibbsVariables, g, mCls, order, pmask, ebmask; maxitr::Int64 = 1, sg1::Float64 = 1e-8, sg2::Float64 = 1e-10)
-    invlen_update = gradupdate(gv.invlen, - gv.ln_cex + gv.ln_sb0x, - gv.ln_sex - gv.ln_cb0x, g, mCls, order=order, pmask=pmask, ebmask=ebmask)
+function gradupdate(gv::GibbsVariables, g, mCls, order, pmask, ebmask; maxitr::Int64 = 1, ϵϕ::Float64 = 1e-8, ϵψ::Float64 = 1e-10)
+    invlen_update = gradupdate(gv.invlen, - gv.ln_cex + gv.ln_sb0x, - gv.ln_sex - gv.ln_cb0x, g, mCls,
+            order=order, pmask=pmask, ebmask=ebmask, maxitr=maxitr, sg1=ϵϕ, sg2=ϵψ)
     return invlen_update
 end
 
 
 function gradupdate{T}(
-			len,
+			len::LenseDecomp,
 			qx::Matrix{Float64},
 			ux::Matrix{Float64},
 			g::FFTgrid{2,T},
