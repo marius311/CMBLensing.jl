@@ -20,7 +20,7 @@ export
 	class,
 	sim_xk,
 	radial_power,
-	qu2eb, eb2qu, sceb2qu, sceb2eb
+	qu2eb, eb2qu, sceb2qu, sceb2eb,
 	squash, squash!
 
 

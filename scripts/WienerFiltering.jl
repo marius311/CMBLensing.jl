@@ -80,7 +80,7 @@ gvtru.ln_sb0x = copy(ln_sb0x)
 gvtru.invlen  = LenseDecomp(invlen)
 
 rs = Float64[gv.r]
-for i = 1:50
+for i = 1:500
     # ---- wf ----
     #gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gvtru, g, mCls, order) # <-- true invlen
     # gv.ln_cex, gv.ln_sex, gv.ln_cb0x, gv.ln_sb0x = wf(dqx, dux, gv, g, mCls, order)
@@ -93,11 +93,12 @@ for i = 1:50
     # Take a look at the spectral densities of E and B and see where the problem is
     # what if you break this into two steps... CEx, SEx | CB0x, lnSB0x...
 
-    gv.ln_cb0x, gv.ln_sb0x = wf_given_e(dqx, dux, gv.r0, gv.r, gv.ln_cex, gv.ln_sex, gv.invlen, g, mCls, order)
-    #gv.ln_cb0x, gv.ln_sb0x = wf_given_e(dqx, dux, gv.r0, gv.r, ln_cex, ln_sex, gv.invlen, g, mCls, order) #<-- true ln_cex, ln_sex
+    #gv.ln_cb0x, gv.ln_sb0x = wf_given_e(dqx, dux, gv.r0, gv.r, gv.ln_cex, gv.ln_sex, gv.invlen, g, mCls, order)
+    gv.ln_cb0x, gv.ln_sb0x = wf_given_e(dqx, dux, gv.r0, gv.r, ln_cex, ln_sex, gv.invlen, g, mCls, order) #<-- true ln_cex, ln_sex
     #gv.ln_cb0x, gv.ln_sb0x = wf_given_e(dqx, dux, gv.r0, gv.r, ln_cex, ln_sex, invlen, g, mCls, order) #<-- true invlen, ln_cex, ln_sex
 
-    gv.ln_cex, gv.ln_sex   = wf_given_b(dqx, dux, gv.r0, gv.r, gv.ln_cb0x, gv.ln_sb0x, gv.invlen, g, mCls, order)
+    #gv.ln_cex, gv.ln_sex   = wf_given_b(dqx, dux, gv.r0, gv.r, gv.ln_cb0x, gv.ln_sb0x, gv.invlen, g, mCls, order)
+    gv.ln_cex, gv.ln_sex   = wf_given_b(dqx, dux, gv.r0, gv.r, gv.ln_cb0x, gv.ln_sb0x, invlen, g, mCls, order)
     #gv.ln_cex, gv.ln_sex   = wf_given_b(dqx, dux, gv.r0, gv.r, ln_cb0x, ln_sb0x, gv.invlen, g, mCls, order) #<-- true ln_cb0x, ln_sb0x
 
 
@@ -109,15 +110,15 @@ for i = 1:50
     # --- hmc ---
     pmask  = g.r .< round(Int, g.nyq * 0.3)
     ebmask = g.r .< round(Int, g.nyq * 0.9)
-    i<=50 && (@time gv.invlen = gradupdate(gv, g, mCls, order, pmask, ebmask; maxitr=25, ϵϕ=5e-8, ϵψ=0.0)) # initialize with a few gradient updates
-    i>=51 && (@time gv.invlen  = hmc(gv, g, mCls, order, pmask, ebmask, maxitr=5, ϵ=2.0e-5))
+    i<=40 && (gv.invlen = gradupdate(gv, g, mCls, order, pmask, ebmask; maxitr=25, ϵϕ=20e-8, ϵψ=0.0)) # initialize with a few gradient updates
+    i>=41 && (gv.invlen  = hmc(gv, g, mCls, order, pmask, ebmask, maxitr=5, ϵ=2.0e-5))
     # Experiment with the mass vector (m1, m2, ...) (maybe it is proposing too large low ell modes?)
     # Program the β version with momentum flips
     # Program the look ahead version
     # Try a joint hmc on E, B, ϕ for the ancillary chain.
 
     # --- r ---
-    ebmask_r = g.r .< 1500
+    ebmask_r = g.r .< 300
     @show gvtru.r = gv.r = rsampler(gv, g, mCls, r0, dqx, dux, ebmask_r)
     push!(rs, gv.r)
     # Take a detailed look at the spectrums to see if you can spot where the excess r is coming from
@@ -157,18 +158,6 @@ loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_bb] / 2π, label = L"l
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ln_ee] / 2π, label = L"lense $C_l^{EE}$")
 loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:bb] / 2π, label = L"primordial $C_l^{BB}$")
 legend(loc = 3)
-
-# --- look at the estimated lensing potential spectrum
-
-#kbins, est_cϕϕk = radial_power(gv.invlen.ϕk, 1, g)
-kbins, est_cϕϕk = radial_power(, 1, g)
-kbins, cϕϕk = radial_power(ϕk, 1, g)
-figure()
-loglog(kbins, kbins .* (kbins + 1) .* est_cϕϕk / 2π, ".")
-loglog(kbins, kbins .* (kbins + 1) .* cϕϕk / 2π, ".")
-loglog(cls[:ell], cls[:ell] .* (cls[:ell] + 1) .* cls[:ϕϕ] / 2π)
-legend(loc = 3)
-
 
 
 #
