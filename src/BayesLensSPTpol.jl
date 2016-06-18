@@ -112,7 +112,7 @@ function FFTgrid(dm, period, nside)
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	r         =  fill(NaN, dm_nsides...)
 	tmp       = rand(Complex{Float64},dm_nsides...)
-	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 10)
+	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 5)
 	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
 	FFT \ tmp   # <-- initialize fast ifft
 	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
@@ -122,7 +122,7 @@ function FFTgrid(dm, period, nside)
 end
 
 
-function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0,  σBBarcmin=0.0, beamFWHM=0.0)
+function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTrad=0.0, σEErad=0.0,  σBBrad=0.0, beamFWHM=0.0)
 	cϕϕk = cls_to_cXXk(cls[:ell], cls[:ϕϕ], g.r)
 	cϕψk = cls_to_cXXk(cls[:ell], cls[:ϕψ], g.r)
 	cψψk = cls_to_cXXk(cls[:ell], cls[:ψψ], g.r)
@@ -131,11 +131,12 @@ function MatrixCls{dm,T}(g::FFTgrid{dm,T}, cls; σTTarcmin=0.0, σEEarcmin=0.0, 
 	cEEk = cls_to_cXXk(cls[:ell], cls[:ee], g.r)
 	cBBk = cls_to_cXXk(cls[:ell], cls[:bb], g.r)
 	cBB0k= cls_to_cXXk(cls[:ell], cls[:bb0], g.r)
-	cTTnoisek = cNNkgen(g.r; σunit=σTTarcmin, beamFWHM=beamFWHM)
-	cEEnoisek = cNNkgen(g.r; σunit=σEEarcmin, beamFWHM=beamFWHM)
-	cBBnoisek = cNNkgen(g.r; σunit=σBBarcmin, beamFWHM=beamFWHM)
+	cTTnoisek = cNNkgen(g.r; σrad=σTTrad, beamFWHM=beamFWHM)
+	cEEnoisek = cNNkgen(g.r; σrad=σEErad, beamFWHM=beamFWHM)
+	cBBnoisek = cNNkgen(g.r; σrad=σBBrad, beamFWHM=beamFWHM)
 	MatrixCls{dm}(cϕϕk, cϕψk, cψψk, cTTk, cTEk, cEEk, cBBk, cBB0k, cTTnoisek, cEEnoisek, cBBnoisek)
 end
+
 
 
 function LenseDecomp(ϕk, ψk, g)
@@ -194,16 +195,18 @@ indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
 
 
 function cls_to_cXXk{dm}(ell, cxxls, r::Array{Float64, dm})
-	spl = Spline1D(ell, cxxls; k=1, bc="zero", s=0.0)
-	return squash(map(spl, r))::Array{Float64, dm}
+		spl = Dierckx.Spline1D(ell, cxxls; k=1, bc="zero", s=0.0)
+		rtn = squash(map(spl, r))::Array{Float64, dm}
+		rtn[r.==0.0] = 0.0
+		return squash(map(spl, r))::Array{Float64, dm}
 end
 
 
-# !!!! check this one...
-function cNNkgen{dm}(r::Array{Float64,dm}; σunit=0.0, beamFWHM=0.0)
-	beamSQ = exp(- (beamFWHM ^ 2) * (abs2(r) .^ 2) ./ (8 * log(2)) )
-	return ones(size(r)) .* (σunit/60./57.4) .^ 2 ./ beamSQ
+function cNNkgen{dm}(r::Array{Float64,dm}; σrad=0.0, beamFWHM=0.0)
+	beamSQ = exp(- (beamFWHM ^ 2) * abs2(r) ./ (8 * log(2)) )
+	return ones(size(r)) .* abs2(σrad) ./ beamSQ
 end
+
 
 
 function getgrid{T}(g::FFTgrid{2,T})

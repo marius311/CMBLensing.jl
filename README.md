@@ -3,13 +3,10 @@
 [![Build Status](https://travis-ci.org/EthanAnderes/BayesLensSPTpol.jl.svg?branch=master)](https://travis-ci.org/EthanAnderes/BayesLensSPTpol.jl)
 
 
-# Hi Zhen and Lloyd.
+# Hi Zhen and Lloyd (and now Marius).
 
 I've started a github repo for all the future Julia code we will write for the Bayesian CMB polarization lensing project we are thinking about. This repo is currently in "private mode" so we are the only ones who can see it. If the work eventually becomes publishable, we can switch to "public mode" and add instructions on how to reproduce all the results in the paper. I've actually organized it as a Julia package to make it easy for others to eventually load in the library and run the result.
 
-# Using git for collaboration
-
-Here are a few tips on how to use git for collaboration in small groups.
 
 ## Downloading and running the code
 
@@ -19,24 +16,21 @@ I've assigned you both as collaborators to this repo so it should already be acc
 $ git clone https://github.com/EthanAnderes/BayesLensSPTpol.git
 ```
 
-Now, to make sure Julia can find the library, add the following command to your Julia startup file `~/.juliarc.jl`
+
+The directory `scripts/` holds the scripts to run the code and produce figures. From the Bash terminal, navigate to the directory `BayesLensSPTpol/`, lanuch a Julia REPL and run the command
 
 ```julia
-push!(LOAD_PATH, "<path to the directory containing BayesLensSPTpol directory>")
+julia> include("scripts/runGibbs_v0.1.jl")
 ```
 
-If you don't want to add this to your Julia startup file, you will need to run the above command at the Julia command line each time you start up Julia and want to run this code.
+## Dependencies
 
-Now you should be able to run the following commands from within Julia.
-
-```julia
-julia> using BayesLensSPTpol   # loads the package
-julia> cd("<path to BayesLensSPTpol/figures/>")
-julia> include("make_figure_1.jl")
-```
+    - Runs on Julia 0.4.5
+    - Julia Packages: PyPlot, ProgressMeter, PyCall, Dierckx, StatsBase
+    - Class code module in python
 
 
-## Workflow for using git and Github.
+## Workflow for using git and Github
 
 
 I use a basic workflow for using git in a collaboration. It seems to work well. The basic idea is this: there is a version of the code called `master`. This version holds the most up to date version of the code and the paper. When you sit down to make some changes, you need to create a `branch`, which copies the current `master` into something you can edit without initially changing master. Now you can edit what ever you want on your `branch`. When your done editing just switch to `master`, update `master` to incorporate any changes that have been made since you created your `branch`, merge your `branch` into `master`, then upload the new `master` to github and delete the `branch` you just merged.

@@ -187,10 +187,10 @@ function hmc{T}(
 
 	prob_accept = minimum([1, exp(h_at_zero - h_at_end)])
 	if rand() < prob_accept
-	    println("Accept: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	    println("\n*HMC accept: prob_accept = $(round(prob_accept,4)), h_at_zero = $(round(h_at_zero)), h_at_end = $(round(h_at_end)).")  # loglike = $(round(loglk))
 	    return LenseDecomp(len_prop, g) # ensures a copy is made
 	else
-	    println("Reject: prob_accept = $(round(prob_accept,4)), h_at_end = $(round(h_at_end)), h_at_zero = $(round(h_at_zero)), loglike = $(round(loglk))")
+	    println("\n*HMC reject: prob_accept = $(round(prob_accept,4)), h_at_zero = $(round(h_at_zero)), h_at_end = $(round(h_at_end)).") # loglike = $(round(loglk))
 	    return LenseDecomp(len_curr, g) # ensures a copy is made
 	end
 	return nothing
