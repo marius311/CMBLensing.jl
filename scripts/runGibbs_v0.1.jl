@@ -28,7 +28,7 @@ srand(seedstart)
 
 # --- set grid geometry and cls
 dm     = 2
-nside  = nextprod([2,3,5,7], 512/2)
+nside  = nextprod([2,3,5,7], 512/4)
 period = 2*nside*pi/(180*60)   # nside*pi/(180*60) = 1 arcmin pixels
 g      = FFTgrid(dm, period, nside)
 
@@ -55,7 +55,7 @@ mCls = MatrixCls(g, cls; σEErad = σEErad, σBBrad = σBBrad) # holds the cls i
 #################################
 
 # --- lense
-order  = 4 # Taylor lensing order
+order  = 7 # Taylor lensing order
 ϕx, ϕk = sim_xk(mCls.cϕϕk, g)
 len    = LenseDecomp(ϕk, zeros(ϕk), g)
 invlen = invlense(len, g, order)
