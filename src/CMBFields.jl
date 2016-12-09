@@ -1,8 +1,9 @@
 module CMBFields
 
 using BayesLensSPTpol
+using BayesLensSPTpol: LenseDecomp_helper1, indexwrap
 using DataArrays: @swappable
-import Base: +, -, *, \, /, ^, ~, getindex, size, eltype
+import Base: +, -, *, \, /, ^, ~, .*, ./, getindex, size, eltype
 
 
 export Cℓ_to_cov, Field, FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov, Map, simulate
@@ -66,13 +67,13 @@ abstract ℱ
 
 """ A flat sky spin-0 map (like T or ϕ) """
 immutable FlatS0Map{T<:Real} <: Field{Flat,S0,Map}
-    Tx::Array{T,2}
+    Tx::Matrix{T}
     g::FFTgrid
 end
 
 """ The fourier transform of a flat sky spin-0 map """
 immutable FlatS0Fourier{T<:Real} <: Field{Flat,S0,Fourier}
-    Tl::Array{Complex{T},2}
+    Tl::Matrix{Complex{T}}
     g::FFTgrid
 end
 
@@ -85,7 +86,7 @@ iℱ(f::FlatS0Fourier) = FlatS0Map(real(f.g.FFT \ f.Tl), meta(f)...)
 
 """ A covariance which is diagonal in pixel space of a spin-0 flat sky map """
 immutable FlatS0MapDiagCov{T<:Real} <: FieldCov{Flat,S0,Map}
-    Cx::Array{T,2}
+    Cx::Matrix{T}
     g::FFTgrid
 end
 meta(Σ::FlatS0MapDiagCov) = (Σ.g,)
@@ -96,7 +97,7 @@ simulate(Σ::FlatS0MapDiagCov) = FlatS0Map(randn(Σ.g.nside,Σ.g.nside) .* √Σ
 
 """ A covariance which is diagonal in pixel space of a spin-0 flat sky map """
 immutable FlatS0FourierDiagCov{T<:Real} <: FieldCov{Flat,S0,Fourier}
-    Cl::Array{Complex{T},2}
+    Cl::Matrix{Complex{T}}
     g::FFTgrid
 end
 meta(Σ::FlatS0FourierDiagCov) = (Σ.g,)
@@ -122,15 +123,78 @@ eltype{T}(::Type{FlatS0Fourier{T}}) = Complex{T}
 size(f::Union{FlatS0MapDiagCov,FlatS0FourierDiagCov}) = (f.g.nside^2, f.g.nside^2)
 
 
+immutable FlatS0LensingOp{T<:Real} <: LinearFieldOp{Flat,S0,Map}
+    # pixel remapping
+    i::Matrix{Int}
+    j::Matrix{Int}
+    
+    # residual displacement
+    rx::Matrix{T}
+    ry::Matrix{T}
+    
+    # precomputed quantities
+    kα::Dict{Any,Matrix{Complex{T}}}
+    xα::Dict{Any,Matrix{T}}
+    
+    order::Int
+end
+
+function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4)
+    g = ϕ.g
+    nside = g.nside
+    
+    # total displacement
+    dx, dy = LenseDecomp_helper1(ϕ[:Tl], zeros(ϕ[:Tl]), g);
+    
+    # nearest pixel displacement
+    di, dj = (round(Int,d/g.deltx) for d=(dx,dy))
+    i = indexwrap.(di .+ (1:nside)', nside)
+    j = indexwrap.(dj .+ (1:nside) , nside)
+    
+    # residual displacement
+    rx, ry = ((d - i.*g.deltx) for (d,i)=[(dx,di),(dy,dj)])
+            
+    # precomputation
+    T = eltype(ϕ[:Tx])
+    kα = Dict{Any,Matrix{Complex{T}}}()
+    xα = Dict{Any,Matrix{T}}()
+    for n in 1:order, α₁ in 0:n
+        kα[n,α₁] = im ^ n .* g.k[1] .^ α₁ .* g.k[2] .^ (n - α₁)
+        xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
+    end
+            
+    FlatS0LensingOp(i,j,rx,ry,kα,xα,order)
+end
+
+# our implementation of Taylens
+function *{T<:Field{Flat,S0,Map}}(lens::FlatS0LensingOp, f::T)
+    
+    intlense(fx) = reshape(broadcast_getindex(fx, lens.j[:], lens.i[:]),(g.nside,g.nside))
+    fl = f[:Tl]
+    g = f.g
+    
+    # lens to the nearest whole pixel
+    fx˜ = intlense(f[:Tx])
+
+    # add in Taylor series correction
+    for n in 1:lens.order, α₁ in 0:n
+        fx˜ += lens.xα[n,α₁] .* intlense(real(g.FFT \ (lens.kα[n,α₁] .* fl)))
+    end
+
+    T(fx˜,meta(f)...)
+end
+
+
+
 # ---------------
 # Flat sky spin-2 
 # ---------------
 
 """ A flat sky spin-2 map (like E/B) """
 immutable FlatS2Map{T<:Real} <: Field{Flat,S2,Map}
-    Tx::Array{T,2}
-    Ex::Array{T,2}
-    Bx::Array{T,2}
+    Tx::Matrix{T}
+    Ex::Matrix{T}
+    Bx::Matrix{T}
     g::FFTgrid
 end
 
@@ -151,6 +215,11 @@ for op in (:+, :-)
     for F in (Field,FieldCov)
         @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...) 
     end
+end
+
+# element-wise multiplication or division of two Fields
+for op in (:.*, :./) 
+    @eval ($op){T<:Field}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...) 
 end
 
 # ops with a Field or FieldCov and a scalar
