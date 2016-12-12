@@ -137,9 +137,10 @@ immutable FlatS0LensingOp{T<:Real} <: LinearFieldOp{Flat,S0,Map}
     xα::Dict{Any,Matrix{T}}
     
     order::Int
+    taylens::Bool
 end
 
-function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4)
+function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4, taylens=true)
     g = ϕ.g
     nside = g.nside
     
@@ -147,9 +148,13 @@ function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4)
     dx, dy = LenseDecomp_helper1(ϕ[:Tl], zeros(ϕ[:Tl]), g);
     
     # nearest pixel displacement
-    di, dj = (round(Int,d/g.deltx) for d=(dx,dy))
-    i = indexwrap.(di .+ (1:nside)', nside)
-    j = indexwrap.(dj .+ (1:nside) , nside)
+    if taylens
+        di, dj = (round(Int,d/g.deltx) for d=(dx,dy))
+        i = indexwrap.(di .+ (1:nside)', nside)
+        j = indexwrap.(dj .+ (1:nside) , nside)
+    else
+        di = dj = i = j = zeros(Int,nside,nside)
+    end
     
     # residual displacement
     rx, ry = ((d - i.*g.deltx) for (d,i)=[(dx,di),(dy,dj)])
@@ -163,13 +168,13 @@ function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4)
         xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
     end
             
-    FlatS0LensingOp(i,j,rx,ry,kα,xα,order)
+    FlatS0LensingOp(i,j,rx,ry,kα,xα,order,taylens)
 end
 
 # our implementation of Taylens
 function *{T<:Field{Flat,S0,Map}}(lens::FlatS0LensingOp, f::T)
     
-    intlense(fx) = reshape(broadcast_getindex(fx, lens.j[:], lens.i[:]),(g.nside,g.nside))
+    intlense(fx) = lens.taylens ? broadcast_getindex(fx, lens.j, lens.i) : fx
     fl = f[:Tl]
     g = f.g
     
@@ -178,7 +183,7 @@ function *{T<:Field{Flat,S0,Map}}(lens::FlatS0LensingOp, f::T)
 
     # add in Taylor series correction
     for n in 1:lens.order, α₁ in 0:n
-        fx˜ += lens.xα[n,α₁] .* intlense(real(g.FFT \ (lens.kα[n,α₁] .* fl)))
+        fx˜ .+= lens.xα[n,α₁] .* intlense(real(g.FFT \ (lens.kα[n,α₁] .* fl)))
     end
 
     T(fx˜,meta(f)...)
@@ -252,7 +257,7 @@ immutable LazyBinaryOp{Op} <: LinearFieldOp
     a::Union{LinearFieldOp,Number}
     b::Union{LinearFieldOp,Number}
     function LazyBinaryOp(a::LinearFieldOp,b::LinearFieldOp)
-        @assert meta(a)==meta(b) "Can't '$Op' two operators with different metadata"
+        # @assert meta(a)==meta(b) "Can't '$Op' two operators with different metadata"
         new(a,b)
     end
     @swappable LazyBinaryOp(op::LinearFieldOp, n::Number) = new(op,n)
