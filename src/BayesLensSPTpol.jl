@@ -26,7 +26,7 @@ export
 
 ####### src code
 
-FFTW.set_num_threads(CPU_CORES)
+FFTW.set_num_threads(Sys.CPU_CORES)
 
 #=  To lint this file run:
 using Lint
@@ -103,7 +103,7 @@ end
 
 ##############################################################
 
-function FFTgrid(dm, period, nside)
+function FFTgrid(dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
 	dm_nsides = fill(nside,dm)   # [nside,...,nside] <- dm times
 	deltx     = period / nside
 	deltk     = 2π / period
@@ -112,7 +112,7 @@ function FFTgrid(dm, period, nside)
 	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
 	r         =  fill(NaN, dm_nsides...)
 	tmp       = rand(Complex{Float64},dm_nsides...)
-	unnormalized_FFT = plan_fft(tmp; flags = FFTW.PATIENT, timelimit = 5)
+	unnormalized_FFT = plan_fft(tmp; flags=flags, timelimit=timelimit)
 	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
 	FFT \ tmp   # <-- initialize fast ifft
 	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
