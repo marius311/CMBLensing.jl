@@ -33,6 +33,7 @@ abstract Healpix <: Pix
 
 abstract Spin
 abstract S0 <: Spin
+abstract S1 <: Spin
 abstract S2 <: Spin
 abstract S02 <: Spin
 
@@ -47,6 +48,9 @@ abstract Fourier <: Basis
 (mostly this is done automatically so you don't ever use this explicitly)
 """
 abstract ℱ
+
+""" Gradient of a S0 field gives you an S1 field """
+abstract ∇
 
 
 # """
@@ -140,12 +144,14 @@ immutable FlatS0LensingOp{T<:Real} <: LinearFieldOp{Flat,S0,Map}
     taylens::Bool
 end
 
-function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4, taylens=true)
+FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; kwargs...) = FlatS0LensingOp(∇(ϕ); kwargs...)
+
+function FlatS0LensingOp{B}(d::FlatS1Map; order=4, taylens=true)
     g = ϕ.g
     nside = g.nside
     
     # total displacement
-    dx, dy = LenseDecomp_helper1(ϕ[:Tl], zeros(ϕ[:Tl]), g);
+    dx, dy = d.Tx1, d.Tx2
     
     # nearest pixel displacement
     if taylens
@@ -204,6 +210,26 @@ immutable FlatS2Map{T<:Real} <: Field{Flat,S2,Map}
 end
 
 # etc...
+
+
+# ------------------------------
+# Flat sky spin-1 (vector) field 
+# ------------------------------
+
+immutable FlatS1Map{T<:Real} <: Field{Flat,S1,Map}
+    Tx1::Matrix{T}
+    Tx2::Matrix{T}
+    g::FFTgrid
+end
+data(f::FlatS1Map) = (f.Tx1,f.Tx2)
+meta(f::FlatS1Map) = (f.g,)
+(::Type{∇})(f::FlatS0Fourier) = FlatS1Map((real(f.g.FFT \ (im * f.g.k[i] .* f.Tl)) for i=1:2)..., f.g)
+(::Type{∇})(f::FlatS0Map) = ∇(Fourier(f))
+*(op::FlatS0LensingOp, f::FlatS1Map) = FlatS1Map((op*FlatS0Map(f.Tx1,g))[:Tx], (op*FlatS0Map(f.Tx2,g))[:Tx], f.g)
+
+
+
+
 
 
 
