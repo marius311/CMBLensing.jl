@@ -58,12 +58,12 @@ abstract ℱ
 
 # by default, Field objects have no metadata and all of their fields are "data"
 # which is operated on by various operators, +,-,*,...  
-# this can, of course, be overriden for any particular field
-meta(::Field) = tuple()
-data{T<:Field}(f::T) = fieldvalues(f)
+# this can, of course, be overriden _for any particular Field
+meta(::Union{Field,LinearFieldOp}) = tuple()
+data{T<:Union{Field,LinearFieldOp}}(f::T) = fieldvalues(f)
 
 
-# Use generated functions to get planned FFT's only once for any given (Ωpix,
+# Use generated functions to get planned FFT's only once _for any given (Ωpix,
 # Nside) combination
 @generated function FFTgrid{T<:Flat}(::Type{T})
     Ωpix, Nside = T.parameters
@@ -85,6 +85,9 @@ end
 immutable FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
     Tl::Matrix{Complex{T}}
 end
+
+typealias FlatS0{T,P} Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
+
 *{T,P}(::Type{ℱ}, f::FlatS0Map{T,P}) = FlatS0Fourier{T,P}(ℱ(P) * f.Tx)
 \{T,P}(::Type{ℱ}, f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(real(ℱ(P) \ f.Tl))
 
@@ -106,8 +109,8 @@ simulate{T,P}(Σ::FlatS0FourierDiagCov{T,P}) = FlatS0Fourier{T,P}(ℱ(P) * randn
 
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
-function Cℓ_to_cov{P<:Flat}(::Type{FlatS0FourierDiagCov}, ℓ, CℓTT, ::Type{P})
-    FlatS0FourierDiagCov{Float64,P}(complex(BayesLensSPTpol.cls_to_cXXk(ℓ, CℓTT, FFTgrid(P).r)))
+function Cℓ_to_cov{T,P}(::Type{FlatS0FourierDiagCov{T,P}}, ℓ, CℓTT)
+    FlatS0FourierDiagCov{T,P}(complex(BayesLensSPTpol.cls_to_cXXk(ℓ, CℓTT, FFTgrid(P).r)))
 end
 
 # Can raise these guys to powers explicitly since they're diagonal
@@ -116,13 +119,13 @@ end
 # how to convert to and from vectors (when needing to feed into other algorithms)
 tovec(f::FlatS0Map) = f.Tx[:]
 tovec(f::FlatS0Fourier) = f.Tl[:]
-fromvec{T<:Union{FlatS0Map,FlatS0Fourier}}(::Type{T}, vec::AbstractVector, g) = T(reshape(vec,(g.Nside,g.Nside)),g)
+fromvec{T<:Union{FlatS0Map,FlatS0Fourier}}(::Type{T}, vec::AbstractVector) = T(reshape(vec,(g.Nside,g.Nside)),g)
 eltype{T}(::Type{FlatS0Map{T}}) = T
 eltype{T}(::Type{FlatS0Fourier{T}}) = Complex{T}
 size(f::Union{FlatS0MapDiagCov,FlatS0FourierDiagCov}) = (f.g.Nside^2, f.g.Nside^2)
 
 
-immutable FlatS0LensingOp{T<:Real} <: LinearFieldOp{Flat,S0,Map}
+immutable FlatS0LensingOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
     # pixel remapping
     i::Matrix{Int}
     j::Matrix{Int}
@@ -139,16 +142,17 @@ immutable FlatS0LensingOp{T<:Real} <: LinearFieldOp{Flat,S0,Map}
     taylens::Bool
 end
 
-function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4, taylens=true)
-    g = ϕ.g
-    Nside = g.Nside
+function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
 
+    g = FFTgrid(P)
+    Nside = g.nside
+    
     # total displacement
-    dx, dy = LenseDecomp_helper1(ϕ[:Tl], zeros(ϕ[:Tl]), g);
+    dx, dy = LenseDecomp_helper1(Fourier(ϕ).Tl, zeros(Complex{T},(Nside,Nside)), g);
 
     # nearest pixel displacement
     if taylens
-        di, dj = (round(Int,d/g.deltx) for d=(dx,dy))
+        di, dj = (round(Int,d/g.deltx) for d=(dx,dy)) # end
         i = indexwrap.(di .+ (1:Nside)', Nside)
         j = indexwrap.(dj .+ (1:Nside) , Nside)
     else
@@ -156,10 +160,9 @@ function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4, taylens=true)
     end
 
     # residual displacement
-    rx, ry = ((d - i.*g.deltx) for (d,i)=[(dx,di),(dy,dj)])
+    rx, ry = ((d - i.*g.deltx) for (d,i)=[(dx,di),(dy,dj)]) # end
 
     # precomputation
-    T = eltype(ϕ[:Tx])
     kα = Dict{Any,Matrix{Complex{T}}}()
     xα = Dict{Any,Matrix{T}}()
     for n in 1:order, α₁ in 0:n
@@ -167,25 +170,24 @@ function FlatS0LensingOp{B}(ϕ::Field{Flat,S0,B}; order=4, taylens=true)
         xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
     end
 
-    FlatS0LensingOp(i,j,rx,ry,kα,xα,order,taylens)
+    FlatS0LensingOp{T,P}(i,j,rx,ry,kα,xα,order,taylens)
 end
 
 # our implementation of Taylens
-function *{T<:Field{Flat,S0,Map}}(lens::FlatS0LensingOp, f::T)
+function *{T,P}(lens::FlatS0LensingOp, f::FlatS0Map{T,P})
 
     intlense(fx) = lens.taylens ? broadcast_getindex(fx, lens.j, lens.i) : fx
     fl = f[:Tl]
-    g = f.g
 
     # lens to the nearest whole pixel
-    fx˜ = intlense(f[:Tx])
+    Lfx = intlense(f.Tx)
 
     # add in Taylor series correction
     for n in 1:lens.order, α₁ in 0:n
-        fx˜ .+= lens.xα[n,α₁] .* intlense(real(g.FFT \ (lens.kα[n,α₁] .* fl)))
+        Lfx .+= lens.xα[n,α₁] .* intlense(real(ℱ(P) \ (lens.kα[n,α₁] .* fl)))
     end
 
-    T(fx˜,meta(f)...)
+    FlatS0Map{T,P}(Lfx,meta(f)...)
 end
 
 
