@@ -7,13 +7,15 @@
 		- [Type parameters naming convention](#type-parameters-naming-convention)
 	- [Generated Planned FFT](#generated-planned-fft)
 	- [Handling the underlying data](#handling-the-underlying-data)
+	- [Interface](#interface)
+		- [Field](#field)
 
 <!-- /TOC -->
+
 
 # Design Docs
 
 This document contains some explanation for the design choices made in CMBFields.jl. 
-
 The main goals of CMBFields.jl are, 
 
 1. Provide a convenient way to manipulate CMB fields (like T,E,B,ϕ,..) and linear operators on those fields where the user never has to worry about what basis something is represented in and can perform linear algebra on fields and linear operators using normal notation.
@@ -165,3 +167,44 @@ Different field types store their underlying data in one or more matrices or vec
     ```
 
 The two options are really not much different, but mine (Marius) is slightly more flexible since it lets you lay out the data however you'd like (reasons to do so might be e.g. so that you don't have remember the index of Q/U into an array). Mine doesn't actually lead to needing more boilerplate code since I provide a default `data()` which just assumes everything is data. Thus I'd favor my way, but I don't feel too strongly about it.
+
+
+## Interface
+
+### Field
+
+To create a new `Field` type, first create a new pair of Map/Fourier types,
+```julia
+type MyFieldMap <: Field{P,S,Map}
+	# ...
+end
+type MyFieldFourier <: Field{P,S,Fourier}
+	# ...
+end
+```
+(where `P` and `S` are replaced by the appropriate `Pix` and `Spin` types which your field is implementing).
+
+Then you only need to define two methods for how to transform these two fields between bases, 
+
+```julia
+""" Transform to Fourier basis """
+*{T,P}(::Type{ℱ}, f::MyFieldMap) = ...  # should return a MyFieldFourier
+
+""" Transform to map basis """
+\{T,P}(::Type{ℱ}, f::MyFieldFourier) = ...  #should return a MyFieldMap
+```
+
+and all arithmetic with these fields will work, as well as `getindex` functionality.
+
+If you want to be able to use to automatic vector to/from conversion, you also need to define,
+
+```julia
+""" Return vector representation """
+tovec(f::F) = ... # should return an AbstractVector
+
+""" Convert vector representation back to Field """
+fromvec{T<:F}(::Type{T}, vec::AbstractVector) = ... # should return a type T
+```
+for `F` of both `MyFieldMap` and `MyFieldFourier` (`Union` might handly to combine function definitions). 
+
+For 
