@@ -73,15 +73,15 @@ For you (Ethan), each set of (pixelization, spin, basis) is a concrete type (eg 
 	promote_rule{p,n}(::Type{NewTypePix{p,n}}, ::Type{NewTypeFreq{p,n}})  = NewTypePix{p,n}
 	```
     
-	but I need nothing extra. 
+	but I only need the `promote_rule`. 
     
-    A consequence of my using the abstract types is that I can't use `promote_rules` to handle arithmetic like you do. This is basically because there's no way to do something like,
+    ~~A consequence of my using the abstract types is that I can't use `promote_rules` to handle arithmetic like you do. This is basically because there's no way to do something like,~~
 
-	```julia
+	~~`````julia
 	promote_rule{P,S,B1,B2,F1<:Field{P,S,B1}, F2<:Field{P,S,B2}}(::Type{F1}, Type{F2}) = ...
-	```
+	```~~
 
-	I do like your way more since its more "Julian", but at least like you mention in your code comment, this should be possible in 0.6. For now I do things by hand with `@swappable`, and we could switch to `promote_rules` once 0.6 comes out with minimal impact elsewhere. 
+	~~I do like your way more since its more "Julian", but at least like you mention in your code comment, this should be possible in 0.6. For now I do things by hand with `@swappable`, and we could switch to `promote_rules` once 0.6 comes out with minimal impact elsewhere.~~
 	
 	**Update**: Actually, I've got a way which uses `promote` working in 0.5 which works by adding `promote_type` methods for Field types, rather than `promote_rule`. Its very slightly hacky, and can be made entirely not-hacky on 0.6. 
 	
