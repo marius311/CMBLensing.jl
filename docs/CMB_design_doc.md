@@ -236,7 +236,7 @@ Then you need to define,
 2. A set of rules for which bases the result is in when you operate on mixed-bases objects via, 
 
 	```julia
-	@swappable promote_type(::Type{FlatS0Map}, ::Type{FlatS0Fourier}) = FlatS0Map
+	@swappable promote_type(::Type{MyFieldMap}, ::Type{MyFieldFourier}) = MyFieldMap
 	```
 
 	In this case we've said that e.g. Map+Fourier results in a Map. If instead two bases you have N bases, you would need N(N-1)/2 such definitions to specify all possible cases. 
