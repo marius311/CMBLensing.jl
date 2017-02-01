@@ -39,17 +39,17 @@ Custom type Definitions
 
 =##############################################################
 
-# ---- Holds grid, model and planned FFT parameters for the quadratic estimate.
 immutable FFTgrid{dm, T}
-	period::Float64
+	period::T
 	nside::Int64
-	deltx::Float64
-	deltk::Float64
-	nyq::Float64
-	x::Array{Array{Float64,dm},1}
-	k::Array{Array{Float64,dm},1}
-	r::Array{Float64,dm}
-	FFT::T  # saved plan for fast fft
+	Δx::T
+	Δk::T
+	nyq::T
+	x::Array{T,1}
+	k::Array{T,1}
+	r::Array{T,dm}
+	sincosϕ::Tuple{Array{T,dm},Array{T,dm}}
+	FFT::FFTW.rFFTWPlan{T,-1,false,dm}  # saved plan _for fast fft
 end
 
 
@@ -103,22 +103,16 @@ end
 
 ##############################################################
 
-function FFTgrid(dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
-	dm_nsides = fill(nside,dm)   # [nside,...,nside] <- dm times
-	deltx     = period / nside
-	deltk     = 2π / period
-	nyq       = 2π / (2deltx)
-	x         = [fill(NaN, dm_nsides...) for i = 1:dm]
-	k         = [fill(NaN, dm_nsides...) for i = 1:dm]
-	r         =  fill(NaN, dm_nsides...)
-	tmp       = rand(Complex{Float64},dm_nsides...)
-	unnormalized_FFT = plan_fft(tmp; flags=flags, timelimit=timelimit)
-	FFT = complex( (deltx / √(2π))^dm ) * unnormalized_FFT
-	FFT \ tmp   # <-- initialize fast ifft
-	g = FFTgrid{dm, typeof(FFT)}(period, nside, deltx, deltk, nyq, x, k, r, FFT)
-	g.x[:], g.k[:] = getgrid(g)
-	g.r[:]  =  √(sum([abs2(kdim) for kdim in g.k]))
-	return g
+function FFTgrid{T<:Real}(::Type{T}, dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
+	Δx  = period/nside
+	Δk  = 2π/period
+	nyq = 2π/(2Δx)
+	x,k = getxkside(Δx,Δk,period,nside)
+	r = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...)) # end
+	ϕ2_l   = 2angle.(k .+ im*k')
+	sincosϕ = sin(ϕ2_l), cos(ϕ2_l)
+	FFT = (Δx/√(2π))^dm * plan_fft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
+	FFTgrid{dm,T}(period, nside, Δx, Δk, nyq, x, k, r, sincosϕ, FFT)
 end
 
 
@@ -150,12 +144,12 @@ function LenseDecomp(ϕk, ψk, g)
 	rdisplx   = Array(Float64, row, col)
 	rdisply   = Array(Float64, row, col)
 	@inbounds for j = 1:col, i = 1:row
-		round_displx_deltx = round(Int64, displx[i,j]/g.deltx)
-		round_disply_deltx = round(Int64, disply[i,j]/g.deltx)
+		round_displx_deltx = round(Int64, displx[i,j]/g.Δx)
+		round_disply_deltx = round(Int64, disply[i,j]/g.Δx)
 	    indcol[i,j]  = indexwrap(j + round_displx_deltx, col)
 	    indrow[i,j]  = indexwrap(i + round_disply_deltx, row)
-		rdisplx[i,j] = displx[i,j] - g.deltx * round_displx_deltx
-	    rdisply[i,j] = disply[i,j] - g.deltx * round_disply_deltx
+		rdisplx[i,j] = displx[i,j] - g.Δx * round_displx_deltx
+	    rdisply[i,j] = disply[i,j] - g.Δx * round_disply_deltx
 	end
 	return LenseDecomp(indcol, indrow, rdisplx, rdisply, displx, disply, copy(ϕk), copy(ψk))
 end
@@ -187,7 +181,7 @@ end
 
 ##########################################################
 
-# Helper functions for the type constructors
+# Helper functions _for the _type constructors
 
 ##############################################################
 
@@ -219,25 +213,22 @@ function getgrid{T}(g::FFTgrid{2,T})
 end
 
 
-function getxkside{dm,T}(g::FFTgrid{dm,T})
-	deltx    = g.period / g.nside
-	deltk    = 2π / g.period
-	xco_side = zeros(g.nside)
-	kco_side = zeros(g.nside)
-	for j in 0:(g.nside-1)
-		xco_side[j+1] = (j < g.nside/2) ? (j*deltx) : (j*deltx - g.period)
-		kco_side[j+1] = (j < g.nside/2) ? (j*deltk) : (j*deltk - 2*π*g.nside/g.period)
+function getxkside(Δx,Δk,period,nside)
+	xco_side, kco_side = zeros(nside), zeros(nside)
+	for j in 0:(nside-1)
+		xco_side[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
+		kco_side[j+1] = (j < nside/2) ? (j*Δk) : (j*Δk - 2π*nside/period)
 	end
 	xco_side, kco_side
 end
 
 
 function meshgrid(side_x,side_y)
-    	nx = length(side_x)
-    	ny = length(side_y)
-    	xt = repmat(vec(side_x).', ny, 1)
-    	yt = repmat(vec(side_y)  , 1 , nx)
-    	return xt, yt
+	nx = length(side_x)
+	ny = length(side_y)
+	xt = repmat(vec(side_x).', ny, 1)
+	yt = repmat(vec(side_y)  , 1 , nx)
+	return xt, yt
 end
 
 
@@ -369,8 +360,8 @@ function class(;ϕscale = 1.0, ψscale = 0.0, lmax = 6_000, r = 0.2, r0 = 100.0,
       	"n_s"           => n_s,
 		"r"             => r,
         #"k_pivot"      => 0.05,
-		#"k_step_trans" => 0.1, # 0.01 for super high resolution
-   		#"l_linstep"    => 10, # 1 for super high resolution
+		#"k_step_trans" => 0.1, # 0.01 _for super high resolution
+   		#"l_linstep"    => 10, # 1 _for super high resolution
    		)
 	cosmo[:set](params)
 	cosmo[:compute]()
@@ -442,7 +433,7 @@ end
 """ kbins, rtnk  = radial_power(fk, smooth, g) """
 function radial_power{dm,T}(fk, smooth::Number, g::FFTgrid{dm,T})
 	rtnk = Float64[]
-	dk = g.deltk
+	dk = g.Δk
 	kbins = collect((smooth*dk):(smooth*dk):(g.nyq))
 	for wavenumber in kbins
 		indx = (wavenumber-smooth*dk) .< g.r .<= (wavenumber+smooth*dk)
@@ -453,8 +444,8 @@ end
 
 
 # -------- converting from pixel noise std to noise per-unit pixel
-σunit_to_σpixl(σunit, deltx, dm) = σunit / √(deltx ^ dm)
-σpixl_to_σunit(σpixl, deltx, dm) = σpixl * √(deltx ^ dm)
+σunit_to_σpixl(σunit, Δx, dm) = σunit / √(Δx ^ dm)
+σpixl_to_σunit(σpixl, Δx, dm) = σpixl * √(Δx ^ dm)
 
 # -------- Simulate a mean zero Gaussian random field in the pixel domain given a spectral density.
 function sim_xk{dm, T}(cXXk::Array{Float64,dm}, g::FFTgrid{dm, T})
@@ -466,7 +457,7 @@ end
 
 # ----- white noise
 function white_wx_wk{dm, T}(g::FFTgrid{dm, T})
-	dx  = g.deltx ^ dm
+	dx  = g.Δx ^ dm
 	wx = randn(size(g.r)) ./ √(dx)
 	wk = g.FFT * wx
 	return wx, wk
@@ -491,4 +482,4 @@ end
 
 
 
-end # module
+end

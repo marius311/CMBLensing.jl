@@ -7,6 +7,7 @@
 		- [Type parameters naming convention](#type-parameters-naming-convention)
 	- [Generated Planned FFT](#generated-planned-fft)
 	- [Handling the underlying data](#handling-the-underlying-data)
+	- [`getindex` convenience functions](#getindex-convenience-functions)
 	- [Interface](#interface)
 		- [Field](#field)
 
@@ -37,6 +38,9 @@ and for an operator that can act on a field,
 abstract LinearFieldOp{P<:Pix, S<:Spin, B<:Basis}
 ```
 
+The meaning of the basis `B` for an operator is that, by default, fields will automatically be converted to that basis before being fed into the operator, therefore you only need to define the action of an operator in one basis. Of course, if you have a more efficient way to act with the operator in multiple bases, you could just add methods working in those bases which would supercede the default behavior. 
+
+
 Intended possibilities are,
 
 * `Pix` 
@@ -47,10 +51,10 @@ Intended possibilities are,
     * `S2` (spin 2, i.e. Q&U)
     * `S02` (i.e. a spin0 and a spin2 component, so T/Q/U)
 * `Basis`
-    * `Map` (real space)
-    * `Fourier` (Fourier space)
-    * *TODO: Q&U and E&B should be different bases for `spin2`*
-
+    * For `S0`, we have `Map` (real space) and`Fourier` (Fourier space)
+    * For `S2` we have `EBMap`, `EBFourier`, `QUMap`, and `QUFourier`. 
+	
+	
 although the framework should be general enough to allow adding more we haven't thought of.
 
 As much as possible of the behavior is defined in terms of this abstract type, so concrete types implementing this inherit as much behavior as possible and require minimal amount of extra code.
@@ -79,6 +83,9 @@ For you (Ethan), each set of (pixelization, spin, basis) is a concrete type (eg 
 
 	I do like your way more since its more "Julian", but at least like you mention in your code comment, this should be possible in 0.6. For now I do things by hand with `@swappable`, and we could switch to `promote_rules` once 0.6 comes out with minimal impact elsewhere. 
 	
+	**Update**: Actually, I've got a way which uses `promote` working in 0.5 which works by adding `promote_type` methods for Field types, rather than `promote_rule`. Its very slightly hacky, and can be made entirely not-hacky on 0.6. 
+	
+	
 2. The second reason is that its more flexible. For example, one might imagine two implementations of `Field{Flat,S0,Map}`, the default one I currently have coded up, and maybe one where we use the GPU, or ArrayFire. In that case, the new type (say `GPUFlatS0Map`) still inherits from `Field{Flat,S0,Map}`, so it gets all of the behavior from that, then maybe I have one or two functions to change. With your option, `GPUSpin0Pix` is completely independent of `Spin0Pix` and a bunch of the code needs to be copied.
 
 One of your concerns was remembering names of things. Hopefully the naming conventions below help that (remembering `FlatS0Map` should in theory be just as easy to remember as `Field{Flat,S0,Map}`).
@@ -102,6 +109,10 @@ If the `Pix`, `Spin`, and `Basis` parameters appear in a parametric function def
 foo{P,S,B}(f::Field{P,S,B}) = ...
 ```
 
+## Converting bases
+
+The bases types like `Map` or `QUFourier` are used not just to specify the type but also to convert bases. E.g., `Map(x)` where `x::FlatS0Fourier` would return a `FlatS0Map`. 
+
 ## Generated Planned FFT
 
 For flat sky pixelization (and possibly others in the future), we carry around information about the number of pixels and pixel area in the type via,
@@ -110,13 +121,11 @@ For flat sky pixelization (and possibly others in the future), we carry around i
 abstract Flat{Θpix,Nside} <: Pix
 ```
 
-Then the `ℱ` function acting on a `Flat` type gets us the planned FFT,
+These parameters, along with the elementy type of the matrix (like Float64), uniquely define an FFTgrid object, which has in it info about the FFT (like Δx and Δy) and the FFT operator itself. You can get an FFTgrid via `FFTgrid(T,P)` where T is the matrix type and P is a `Flat` type. 
 
-```julia
-ℱ(Flat{1,1024}) # <-- returns an FFT object
-```
+Computing the FFT of a matrix `x` would thus look like `FFTgrid(T,P).FFT * x`. As an additional convenience, one can use instead `ℱ(P)*x`, which infers the `T` type automatically and doesn't require typing the `.FFT` field. 
 
-This allows us to make `ℱ` a `@generated` function so its only ever called once for a given `{Θpix,Nside}`.
+Note `FFTgrid(T,P)` only does the precomputation the first time its called, so its very fast after that. 
 
 ## Handling the underlying data
 
@@ -168,33 +177,72 @@ Different field types store their underlying data in one or more matrices or vec
 
 The two options are really not much different, but mine (Marius) is slightly more flexible since it lets you lay out the data however you'd like (reasons to do so might be e.g. so that you don't have remember the index of Q/U into an array). Mine doesn't actually lead to needing more boilerplate code since I provide a default `data()` which just assumes everything is data. Thus I'd favor my way, but I don't feel too strongly about it.
 
+## `getindex` convenience functions
+
+We give a convenient way to access the underlying data when needed. Accessing the data using the method described below adds some overhead as compared to just performing algebra on the Field objects, so it may not be suited for speed-critical sections of code, but can be quite handy for interactive work. 
+
+Essentially, one can use `[]` to get a desired data field, and if the Field object needs to be converted it will be done automatically. That is, if we have two types,
+
+```julia
+immutable FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
+    Tx::Matrix{T}
+end
+
+immutable FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
+    Tl::Matrix{Complex{T}}
+end
+```
+
+and an object of type `x::FlatS0Map`, then `x[:Tx]` gets the `Tx` field, and `x[:Tl]` *converts* it to a Fourier basis `FlatS0Fourier` object and then gets the `:Tl`. 
+
+This is implemented in our custom `getindex(f::Field,x::Symbol)
+` function, which works by
+
+1. Finding all the defined types which share the same supertype as `f`
+2. Searching through them for one with a field `x`
+3. `convert`-ing `f` to that type (the `convert` function for this obviously needs to be defined)
+4. Getting the field
+
+
 
 ## Interface
 
 ### Field
 
-To create a new `Field` type, first create a new pair of Map/Fourier types,
+To create a new `Field` type, first create a set of types with different bases, 
+
 ```julia
 type MyFieldMap <: Field{P,S,Map}
 	# ...
 end
+
 type MyFieldFourier <: Field{P,S,Fourier}
 	# ...
 end
 ```
-(where `P` and `S` are replaced by the appropriate `Pix` and `Spin` types which your field is implementing).
+(where `P` and `S` are replaced by whatever `Pix` and `Spin` types your field is implementing).
 
-Then you only need to define two methods for how to transform these two fields between bases, 
+Then you need to define,
 
-```julia
-""" Transform to Fourier basis """
-*{T,P}(::Type{ℱ}, f::MyFieldMap) = ...  # should return a MyFieldFourier
+1. Methods for how to transform these two fields between bases, 
 
-""" Transform to map basis """
-\{T,P}(::Type{ℱ}, f::MyFieldFourier) = ...  #should return a MyFieldMap
-```
+	```julia
+	Fourier(f::MyFieldMap) = ...  # should return a MyFieldFourier
+	Map(f::MyFieldFourier) = ...  # should return a MyFieldMap
+	```
 
-and all arithmetic with these fields will work, as well as `getindex` functionality.
+	(the bases types which appear here must be the same ones as in the type definition)
+	
+2. A set of rules for which bases the result is in when you operate on mixed-bases objects via, 
+
+	```julia
+	@swappable promote_type(::Type{FlatS0Map}, ::Type{FlatS0Fourier}) = FlatS0Map
+	```
+
+	In this case we've said that e.g. Map+Fourier results in a Map. If instead two bases you have N bases, you would need N(N-1)/2 such definitions to specify all possible cases. 
+
+
+With these definitions, all arithmetic with these fields will work, as will the `getindex` functionality.
 
 If you want to be able to use to automatic vector to/from conversion, you also need to define,
 
@@ -206,5 +254,3 @@ tovec(f::F) = ... # should return an AbstractVector
 fromvec{T<:F}(::Type{T}, vec::AbstractVector) = ... # should return a type T
 ```
 for `F` of both `MyFieldMap` and `MyFieldFourier` (`Union` might handly to combine function definitions). 
-
-For 
