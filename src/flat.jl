@@ -31,8 +31,8 @@ end
 function getxkside(Δx,Δk,period,nside)
     x, k = zeros(nside), zeros(nside)
     for j in 0:(nside-1)
-    x[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
-    k[j+1] = (j < nside/2) ? (j*Δk) : (j*Δk - 2π*nside/period)
+        x[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
+        k[j+1] = (j < nside/2) ? (j*Δk) : (j*Δk - 2π*nside/period)
     end
     x, k
 end
