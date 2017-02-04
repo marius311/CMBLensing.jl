@@ -2,33 +2,43 @@
 # algebra with Fields and LinearFieldOps
 
 
-# addition and subtraction of two Fields or FieldCovs
+# addition and subtraction of two Fields or LinearFieldDiagOps
 for op in (:+, :-)
     @eval ($op)(a::Field, b::Field) = ($op)(promote(a,b)...)
-    for F in (Field,FieldCov)
+    for F in (Field,LinearFieldDiagOp)
         @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
     end
 end
 
 # element-wise multiplication or division of two Fields
-for op in (:.*, :./)
-    @eval ($op){T<:Field}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
+# no promotion should be done here since a.*b isn't linear alegrbra 
+# (i.e. it's not independent of which basis its done in)
+for op in (:*, :/)
+    for F in (Field,LinearFieldDiagOp)
+        @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
+    end
 end
 
-# ops with a Field or FieldCov and a scalar
-for op in (:+, :-, :*, :/), F in (Field,FieldCov)
+# ops with a Field or LinearFieldDiagOp and a scalar
+for op in (:+, :-, :.+, :.-, :.*, :./), F in (Field,LinearFieldDiagOp)
     @eval ($op){T<:($F)}(f::T, n::Number) = T(map($op,data(f),repeated(n))..., meta(f)...)
     @eval ($op){T<:($F)}(n::Number, f::T) = T(map($op,repeated(n),data(f))..., meta(f)...)
 end
 
+# Can raise these guys to powers explicitly since they're diagonal
+^(f::LinearFieldDiagOp, n::Number) = T(map(.^,data(f),repeated(n))..., meta(f)...)
 
-# B(f) where B is a basis converts f to that basis (each field )
+
+# B(f) where B is a basis converts f to that basis
 (::Type{B}){P,S,B}(f::Field{P,S,B}) = f
-# (::Type{T}){T<:Basis}(f::Field) = T(f)
 function convert{T<:Field,P1,S1,B1}(::Type{T}, f::Field{P1,S1,B1})
-    P2,S2,B2 = supertype(T).parameters
-    @assert P1==P2 && S1==S2
-    B2(f)
+    if T.abstract
+        f::T
+    else
+        P2,S2,B2 = supertype(T).parameters
+        @assert P1==P2 && S1==S2
+        B2(f)
+    end
 end
 
 
@@ -36,32 +46,50 @@ end
 *{P,S,B1,B2}(op::LinearFieldOp{P,S,B1}, f::Field{P,S,B2}) = op * B1(f)
 
 
-# allow composition of LinearFieldOps
+# type for allowing composition of LinearFieldOps
 immutable LazyBinaryOp{Op} <: LinearFieldOp
     a::Union{LinearFieldOp,Number}
     b::Union{LinearFieldOp,Number}
-    # function LazyBinaryOp(a::LinearFieldOp,b::LinearFieldOp)
-    #     # @assert meta(a)==meta(b) "Can't '$Op' two operators with different metadata"
-    #     new(a,b)
-    # end
-    # @swappable LazyBinaryOp(op::LinearFieldOp, n::Number) = new(op,n)
+    # maybe assert metadata is the same here? 
 end
 
-## construct them with operators
+# do these ops lazily in these cases
 for op in (:+, :-, :*)
     @eval ($op)(a::LinearFieldOp, b::LinearFieldOp) = LazyBinaryOp{$op}(a,b)
     @eval @swappable ($op)(a::LinearFieldOp, b::Number) = LazyBinaryOp{$op}(a,b)
 end
 /(op::LinearFieldOp, n::Number) = LazyBinaryOp{/}(op,n)
 
-## evaluation rules when applying them
+# evaluation rules when finally applying a lazy op to a field
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
 
-## getting metadata
+# getting metadata
 linop(lz::LazyBinaryOp) = isa(lz.a, LinearFieldOp) ? lz.a : lz.b
 meta(lz::LazyBinaryOp) = meta(linop(lz))
 size(lz::LazyBinaryOp) = size(linop(lz))
+
+
+import Base: inv
+function inv{T<:Field}(m::Matrix{T})
+    n,n = size(m)
+    @assert n==2
+    a,b,c,d = m[:]
+    invdet = 1./(a*d-b*c)
+    [invdet*d -1*invdet*b; -1*invdet*c invdet*a] :: Matrix{T}
+end
+
+
+# linear algebra of Vector{T} and Matrix{T} where T<:Union{Field,LinearFieldOp}
+import Base: Ac_mul_B, A_mul_Bc
+function *{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2})
+    @assert size(a,2)==size(b,1) "Dimension mismatch"
+    ans = [sum(a[i,j]*b[j,k] for j=1:size(b,1)) for i=1:size(a,1), k=1:size(b,2)]
+    size(ans)==(1,1) ? ans[1,1] : ans
+end
+Ac_mul_B{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (at=a'; at*b)
+A_mul_Bc{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
+*{T<:LinearFieldOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])

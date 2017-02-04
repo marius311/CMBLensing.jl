@@ -35,7 +35,7 @@ end
 QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
 QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
 function QUFourier{T,P}(f::FlatS2EBFourier{T,P})
-    sinϕ, cosϕ = FFTgrid(T,P).sincosϕ
+    sinϕ, cosϕ = FFTgrid(T,P).sincos2ϕ
     Ql = - El.*cosϕ + Bl.* sinϕ
     Ul = - El.*sinϕ - Bl.* cosϕ
     (Ql,Ul)
@@ -48,7 +48,7 @@ QUMap{T,P}(f::FlatS2EBFourier{T,P}) = f |> QUFourier |> QUMap
 EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f.Bx)
 EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
 function EBFourier{T,P}(f::FlatS2QUFourier{T,P}) 
-    sinϕ, cosϕ = FFTgrid(T,P).sincosϕ
+    sinϕ, cosϕ = FFTgrid(T,P).sincos2ϕ
     El = - Ql.*cosϕ - Ul.*sinϕ
     Bl =   Ql.*sinϕ - Ul.*cosϕ
     (El,Bl)
@@ -72,3 +72,10 @@ rules = Dict(
 for ((F1,F2),Tout) in rules
     @eval @swappable promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
 end
+
+
+
+# # define derivative operators
+# ∂ops{P<:Flat,S<:S2}(::Type{P},::Type{S}) = ∂Op{:x,P,S,QUFourier}(), ∂Op{:y,P,S,QUFourier}()
+# *{T,P,S}(∂x::∂Op{:x,P,S}, f::FlatS2QUFourier{T,P}) = FlatS0Fourier{T,P}(im .* FFTgrid(T,P).k' .* f.Tl)
+# *{T,P,S}(∂y::∂Op{:y,P,S}, f::FlatS2QUFourier{T,P}) = FlatS0Fourier{T,P}(im .* FFTgrid(T,P).k[1:round(Int,Nside(P)/2+1)] .* f.Tl)

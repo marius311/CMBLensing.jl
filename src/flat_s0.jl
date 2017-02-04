@@ -23,21 +23,25 @@ Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
 @swappable promote_type{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
 
+
 """ A covariance of a spin-0 flat sky map which is diagonal in pixel space"""
-immutable FlatS0MapDiagCov{T<:Real,P<:Flat} <: FieldCov{P,S0,Map}
+immutable FlatS0MapDiagCov{T<:Real,P<:Flat} <: LinearFieldDiagOp{P,S0,Map}
     Cx::Matrix{T}
 end
-*{T,P}(Σ::FlatS0MapDiagCov{T,P}, f::FlatS0Map{T,P}) = FlatS0Map{T,P}(f.Tx .* Σ.Cx)
+*{T,P}(Σ::FlatS0MapDiagCov{T,P}, f::FlatS0Map{T,P}) = FlatS0Map{T,P}(Σ.Cx .* f.Tx)
 simulate{T,P}(Σ::FlatS0MapDiagCov{T,P}) = FlatS0Map{T,P}(randn(Nside(P),Nside(P)) .* √Σ.Cx)
 
 
 """ A covariance of a spin-0 flat sky map which is diagonal in pixel space"""
-immutable FlatS0FourierDiagCov{T<:Real,P<:Flat} <: FieldCov{P,S0,Fourier}
+immutable FlatS0FourierDiagCov{T<:Real,P<:Flat} <: LinearFieldDiagOp{P,S0,Fourier}
     Cl::Matrix{Complex{T}}
 end
-*{T,P}(Σ::FlatS0FourierDiagCov{T,P}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(f.Tl .* Σ.Cl)
+*{T,P}(Σ::FlatS0FourierDiagCov{T,P}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(Σ.Cl .* f.Tl)
 simulate{T,P}(Σ::FlatS0FourierDiagCov{T,P}) = FlatS0Fourier{T,P}(ℱ{P} * randn(Nside(P),Nside(P)) .* √Σ.Cl / FFTgrid(T,P).Δx)
 
+# define derivates
+*{T,P}(::∂Op{:x}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* f[:Tl])
+*{T,P}(::∂Op{:y}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:round(Int,Nside(P)/2+1)] .* f[:Tl])
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{FlatS0FourierDiagCov{T,P}}, ℓ, CℓTT)
@@ -45,17 +49,12 @@ function Cℓ_to_cov{T,P}(::Type{FlatS0FourierDiagCov{T,P}}, ℓ, CℓTT)
     FlatS0FourierDiagCov{T,P}(complex(cls_to_cXXk(ℓ, CℓTT, g.r))[1:round(Int,g.nside/2)+1,:])
 end
 
-# Can raise these guys to powers explicitly since they're diagonal
-^{T<:Union{FlatS0MapDiagCov,FlatS0FourierDiagCov}}(f::T, n::Number) = T(map(.^,data(f),repeated(n))..., meta(f)...)
 
 # how to convert to and from vectors (when needing to feed into other algorithms)
 tovec(f::FlatS0Map) = f.Tx[:]
 tovec(f::FlatS0Fourier) = f.Tl[:]
 fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(round(Int,Nside(P)/2+1),Nside(P))))
-
-# size{T,P}(f::FlatS0MapDiagCov{T,P}) = (Nside(P)^2,Nside(P)^2)
-# size{T,P}(f::FlatS0FourierDiagCov{T,P}) = fill(,2)
 
 
 immutable FlatS0LensingOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
@@ -75,6 +74,9 @@ immutable FlatS0LensingOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
     taylens::Bool
 end
 
+
+using BayesLensSPTpol: LenseDecomp_helper1
+
 function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
 
     g = FFTgrid(T,P)
@@ -85,7 +87,7 @@ function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
 
     # nearest pixel displacement
     if taylens
-        di, dj = (round(Int,d/g.deltx) for d=(dx,dy)) # end
+        di, dj = (round(Int,d/g.Δx) for d=(dx,dy)) # end
         i = indexwrap.(di .+ (1:Nside)', Nside)
         j = indexwrap.(dj .+ (1:Nside) , Nside)
     else
@@ -93,7 +95,7 @@ function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
     end
 
     # residual displacement
-    rx, ry = ((d - i.*g.deltx) for (d,i)=[(dx,di),(dy,dj)]) # end
+    rx, ry = ((d - i.*g.Δx) for (d,i)=[(dx,di),(dy,dj)]) # end
 
     # precomputation
     kα = Dict{Any,Matrix{Complex{T}}}()

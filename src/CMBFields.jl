@@ -2,7 +2,7 @@ module CMBFields
 
 using Util
 using DataArrays: @swappable
-import Base: +, -, *, \, /, ^, ~, .*, ./, getindex, size, eltype
+import Base: +, -, .+, .-, *, \, /, ^, ~, .*, ./, getindex, size, eltype
 import Base: promote_type, convert
 
 
@@ -11,18 +11,16 @@ export
     Flat, Map, Fourier, FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov    
 
 
+# a _type of (Pix,Spin,Basis) defines the generic behavior of our fields
 abstract Pix
-
-# Healpix pixelization with particular `Nside` value
-abstract Healpix{Nside<:Int} <: Pix
-
 abstract Spin
+abstract Basis
+
+
+# spin types (pix/spin types are defined in corresponding files included below)
 abstract S0 <: Spin
 abstract S2 <: Spin
 abstract S02 <: Spin
-
-
-abstract Basis
 
 
 """
@@ -37,11 +35,9 @@ which is by default applied to a field in a given basis (i.e. the one in which i
 abstract LinearFieldOp{P<:Pix, S<:Spin, B<:Basis}
 
 """
-Covariances are linear operators on the fields, and are special because some
-algebra (like adding or subtracting two of them in the same basis) can be done
-explicitly.
+Diagonal operators are special because some math can be done on them expclitly. 
 """
-abstract FieldCov{P<:Pix, S<:Spin, B<:Basis} <: LinearFieldOp{P,S,B}
+abstract LinearFieldDiagOp{P,S,B} <: LinearFieldOp{P,S,B}
 
 
 # by default, Field objects have no metadata and all of their fields are "data"
@@ -51,30 +47,20 @@ meta(::Union{Field,LinearFieldOp}) = tuple()
 data{T<:Union{Field,LinearFieldOp}}(f::T) = fieldvalues(f)
 
 
+"""
+Operator used to take derivatives
+"""
+immutable ∂Op{s} <: LinearFieldOp end
+∂x, ∂y = ∂Op{:x}(),∂Op{:y}()
+∇ = [∂x, ∂y]
+
+
 include("flat.jl")
 include("flat_s0.jl")
 include("flat_s2.jl")
 include("algebra.jl")
-
-
-# allow converting Fields and LinearFieldOp to/from vectors
-getindex(f::Field, i::Colon) = tovec(f)
-function getindex{P,S,B}(op::LinearFieldOp, f::Tuple{Field{P,S,B}})
-    v = f[1][:]
-    LazyVecApply{typeof(f[1]),B}(op,eltype(v),tuple(fill(length(v),2)...))
-end
-immutable LazyVecApply{F,B}
-    op::LinearFieldOp
-    eltype::Type
-    size::Tuple
-end
-*{F,B}(lazy::LazyVecApply{F,B}, vec::AbstractVector) = tovec(B(lazy.op*fromvec(F,vec,meta(lazy.op)...)))
-~(f::Field) = (f,)
-
-eltype(lz::LazyVecApply) = lz.eltype
-size(lz::LazyVecApply) = lz.size
-size(lz::LazyVecApply, d) = d<=2 ? lz.size[d] : 1
-getindex{P,S,B}(vec::AbstractVector, s::Tuple{Field{P,S,B}}) = fromvec(typeof(s[1]),vec,meta(s[1])...)
+include("vec_conv.jl")
+include("healpix.jl")
 
 
 function getindex(f::Field,x::Symbol)

@@ -12,20 +12,20 @@ immutable FFTgrid{dm, T}
     x::Array{T,1}
     k::Array{T,1}
     r::Array{T,dm}
-    sincosϕ::Tuple{Array{T,dm},Array{T,dm}}
+    sincos2ϕ::Tuple{Array{T,dm},Array{T,dm}}
     FFT::FFTW.ScaledPlan{T,FFTW.rFFTWPlan{T,-1,false,dm},T}
 end
 
 function FFTgrid{T<:Real}(::Type{T}, dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
     Δx  = period/nside
+    FFT = (Δx/√(2π))^dm * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δk  = 2π/period
     nyq = 2π/(2Δx)
     x,k = getxkside(Δx,Δk,period,nside)
-    r = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...)) # end
-    ϕ2_l   = 2angle.(k .+ im*k')
-    sincosϕ = sin(ϕ2_l), cos(ϕ2_l)
-    FFT = (Δx/√(2π))^dm * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
-    FFTgrid{dm,T}(period, nside, Δx, Δk, nyq, x, k, r, sincosϕ, FFT)
+    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...)) # end
+    ϕ   = angle.(k .+ im*k')
+    sincos2ϕ = sin(2ϕ), cos(2ϕ)
+    FFTgrid{dm,T}(period, nside, Δx, Δk, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
 function getxkside(Δx,Δk,period,nside)
