@@ -7,6 +7,7 @@ for op in (:+, :-)
     @eval ($op)(a::Field, b::Field) = ($op)(promote(a,b)...)
     for F in (Field,LinearFieldDiagOp)
         @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
+        @eval ($op){T<:($F)}(a::T) = T(map($op,data(a))..., meta(a)...)
     end
 end
 
@@ -15,9 +16,10 @@ end
 # (i.e. it's not independent of which basis its done in)
 for op in (:*, :/)
     for F in (Field,LinearFieldDiagOp)
-        @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
+        @eval ($op){T<:($F)}(a::T, b::T) = T(map($(symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
     end
 end
+
 
 # ops with a Field or LinearFieldDiagOp and a scalar
 for op in (:+, :-, :.+, :.-, :.*, :./), F in (Field,LinearFieldDiagOp)
@@ -79,12 +81,12 @@ function inv{T<:Field}(m::Matrix{T})
     @assert n==2
     a,b,c,d = m[:]
     invdet = 1./(a*d-b*c)
-    [invdet*d -1*invdet*b; -1*invdet*c invdet*a] :: Matrix{T}
+    [invdet*d -invdet*b; -invdet*c invdet*a] :: Matrix{T}
 end
 
 
 # linear algebra of Vector{T} and Matrix{T} where T<:Union{Field,LinearFieldOp}
-import Base: Ac_mul_B, A_mul_Bc
+import Base: Ac_mul_B, A_mul_Bc, broadcast
 function *{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2})
     @assert size(a,2)==size(b,1) "Dimension mismatch"
     ans = [sum(a[i,j]*b[j,k] for j=1:size(b,1)) for i=1:size(a,1), k=1:size(b,2)]
@@ -93,3 +95,4 @@ end
 Ac_mul_B{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (at=a'; at*b)
 A_mul_Bc{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
 *{T<:LinearFieldOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
+(::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)

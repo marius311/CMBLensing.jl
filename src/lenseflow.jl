@@ -1,18 +1,19 @@
 
-immutable LenseFlowOp{P,F<:Field} <: LinearFieldOp
-    ϕ::Field{P,S0}
+immutable LenseFlowOp{F<:Field} <: LinearFieldOp
+    ϕ::F
     steps::Int
     d::Vector{F}
     Jac::Matrix{F}
 end
 
-LenseFlowOp(ϕ::Field, steps::Int) = (d = ∇*ϕ; LenseFlowOp(ϕ, steps, d, ∇*d'))
+LenseFlowOp{F<:Field}(ϕ::F, steps::Int) = (d = ∇*ϕ; LenseFlowOp{F}(ϕ, steps, d, ∇*d'))
     
 function lense_flow(L::LenseFlowOp, f::Field, forward=true)
     Δt = 1/L.steps * (forward ? 1 : -1)
     t = forward ? 0 : 1
+    f = Map(f)
     for i=1:L.steps
-        f = f + Δt * d'*inv(1+t*L.Jac)*(∇*f)
+        f = f + Δt * L.d'*inv(eye(2)+t*L.Jac)*Map(∇*f)
         t += Δt
     end
     f
