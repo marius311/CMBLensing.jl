@@ -1,5 +1,8 @@
-using BayesLensSPTpol
+push!(LOAD_PATH, pwd()*"/../src")
+
+using CMBFields
 using Base.Test
 
-# write your own tests here
-@test 1 == 1
+macro test_noerror(ex) :(@test ($(esc(ex)); true)) end
+
+include("algebra.jl")
