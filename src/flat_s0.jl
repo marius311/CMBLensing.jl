@@ -40,8 +40,8 @@ end
 simulate{T,P}(Σ::FlatS0FourierDiagCov{T,P}) = FlatS0Fourier{T,P}(ℱ{P} * randn(Nside(P),Nside(P)) .* √Σ.Cl / FFTgrid(T,P).Δx)
 
 # define derivates
-*{T,P}(::∂Op{:x}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* f[:Tl])
-*{T,P}(::∂Op{:y}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:round(Int,Nside(P)/2+1)] .* f[:Tl])
+*{T,P}(::∂Op{:x}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* Fourier(f).Tl)
+*{T,P}(::∂Op{:y}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:round(Int,Nside(P)/2+1)] .* Fourier(f).Tl)
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{FlatS0FourierDiagCov{T,P}}, ℓ, CℓTT)

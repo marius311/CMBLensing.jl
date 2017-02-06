@@ -8,7 +8,8 @@ import Base: promote_type, convert
 
 export 
     Field, simulate, Cℓ_to_cov,
-    Flat, Map, Fourier, FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov    
+    Flat, Map, Fourier, FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov,
+    ∂x, ∂y, ∇
 
 
 # a _type of (Pix,Spin,Basis) defines the generic behavior of our fields

@@ -13,11 +13,13 @@ function lense_flow(L::LenseFlowOp, f::Field, forward=true)
     t = forward ? 0 : 1
     f = Map(f)
     for i=1:L.steps
-        f = f + Δt * L.d'*inv(eye(2)+t*L.Jac)*Map(∇*f)
+        f = f + Δt * velocity(L,f,t)
         t += Δt
     end
     f
 end
+
+velocity(L::LenseFlowOp, f::Field, t::Real) = L.d'*inv(eye(2)+t*L.Jac)*Map(∇*f)
 
 *(L::LenseFlowOp, f::Field) = lense_flow(L,f,true)
 \(L::LenseFlowOp, f::Field) = lense_flow(L,f,false)

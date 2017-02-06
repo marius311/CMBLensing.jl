@@ -14,15 +14,13 @@ end
 # element-wise multiplication or division of two Fields
 # no promotion should be done here since a.*b isn't linear alegrbra 
 # (i.e. it's not independent of which basis its done in)
-for op in (:*, :/)
-    for F in (Field,LinearFieldDiagOp)
-        @eval ($op){T<:($F)}(a::T, b::T) = T(map($(symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
-    end
+for op in (:*, :/), F in (Field,LinearFieldDiagOp)
+    @eval ($op){T<:($F)}(a::T, b::T) = T(map($(Symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
 end
 
 
 # ops with a Field or LinearFieldDiagOp and a scalar
-for op in (:+, :-, :.+, :.-, :.*, :./), F in (Field,LinearFieldDiagOp)
+for op in (:+, :-, :.+, :.-, :*, :/, :.*, :./), F in (Field,LinearFieldDiagOp)
     @eval ($op){T<:($F)}(f::T, n::Number) = T(map($op,data(f),repeated(n))..., meta(f)...)
     @eval ($op){T<:($F)}(n::Number, f::T) = T(map($op,repeated(n),data(f))..., meta(f)...)
 end
@@ -86,7 +84,7 @@ end
 
 
 # linear algebra of Vector{T} and Matrix{T} where T<:Union{Field,LinearFieldOp}
-import Base: Ac_mul_B, A_mul_Bc, broadcast
+import Base: Ac_mul_B, A_mul_Bc, broadcast, transpose
 function *{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2})
     @assert size(a,2)==size(b,1) "Dimension mismatch"
     ans = [sum(a[i,j]*b[j,k] for j=1:size(b,1)) for i=1:size(a,1), k=1:size(b,2)]
@@ -96,3 +94,4 @@ Ac_mul_B{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::Abstr
 A_mul_Bc{T1<:Union{Field,LinearFieldOp},T2<:Union{Field,LinearFieldOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
 *{T<:LinearFieldOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
 (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
+transpose(f::Union{Field,LinearFieldOp}) = f
