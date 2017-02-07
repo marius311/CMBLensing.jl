@@ -3,9 +3,9 @@ using ODE
 
 
 abstract ODESolver
-immutable Euler{nsteps} <: ODESolver end
-immutable CVODE{reltol,abstol} <: ODESolver end # doesn't work very well...
-immutable ode45{reltol,abstol} <: ODESolver end
+abstract Euler{nsteps} <: ODESolver 
+abstract CVODE{reltol,abstol} <: ODESolver  # doesn't work very well...
+abstract ode45{reltol,abstol} <: ODESolver 
 
 
 immutable LenseFlowOp{F<:Field,I<:ODESolver} <: LinearFieldOp
@@ -14,7 +14,7 @@ immutable LenseFlowOp{F<:Field,I<:ODESolver} <: LinearFieldOp
     Jac::Matrix{F}
 end
 
-function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::I=ode45{1e-3,1e-3}())
+function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::Type{I}=ode45{1e-3,1e-3})
     d = ∇*ϕ
     ϕ = Map(ϕ)
     LenseFlowOp{typeof(ϕ),I}(ϕ, d, ∇*d')
@@ -34,7 +34,7 @@ function lense_flow{F,nsteps}(L::LenseFlowOp{F,Euler{nsteps}}, f::Field, ts)
     f
 end
 
-function lense_flow{F,reltol,abstol}(L::LenseFlowOp{F,CVODE{reltol}}, f::Field, ts)
+function lense_flow{F,reltol,abstol}(L::LenseFlowOp{F,CVODE{reltol,abstol}}, f::Field, ts)
     Sundials.cvode((t,y,ẏ)->(ẏ .= velocity(L,y[~f],t)[:]), f[:], ts; reltol=reltol, abstol=abstol)[2,:][~f]
 end
 
