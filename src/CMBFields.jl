@@ -62,6 +62,7 @@ include("flat_s2.jl")
 include("algebra.jl")
 include("vec_conv.jl")
 include("healpix.jl")
+include("lenseflow.jl")
 
 
 function getindex(f::Field,x::Symbol)

@@ -1,25 +1,46 @@
+using Sundials
+using ODE
 
-immutable LenseFlowOp{F<:Field} <: LinearFieldOp
+
+abstract ODESolver
+immutable Euler{nsteps} <: ODESolver end
+immutable CVODE{reltol,abstol} <: ODESolver end # doesn't work very well...
+immutable ode45{reltol,abstol} <: ODESolver end
+
+
+immutable LenseFlowOp{F<:Field,I<:ODESolver} <: LinearFieldOp
     ϕ::F
-    steps::Int
     d::Vector{F}
     Jac::Matrix{F}
 end
 
-LenseFlowOp{F<:Field}(ϕ::F, steps::Int) = (d = ∇*ϕ; LenseFlowOp{F}(ϕ, steps, d, ∇*d'))
-    
-function lense_flow(L::LenseFlowOp, f::Field, forward=true)
-    Δt = 1/L.steps * (forward ? 1 : -1)
-    t = forward ? 0 : 1
+function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::I=ode45{1e-3,1e-3}())
+    d = ∇*ϕ
+    ϕ = Map(ϕ)
+    LenseFlowOp{typeof(ϕ),I}(ϕ, d, ∇*d')
+end
+
+velocity(L::LenseFlowOp, f::Field, t::Real) = L.d'*inv(eye(2)+t*L.Jac)*Map(∇*f)
+
+
+function lense_flow{F,nsteps}(L::LenseFlowOp{F,Euler{nsteps}}, f::Field, ts)
+    Δt = 1/nsteps * (ts[2]-ts[1])
+    t = ts[1]
     f = Map(f)
-    for i=1:L.steps
+    for i=1:nsteps
         f = f + Δt * velocity(L,f,t)
         t += Δt
     end
     f
 end
 
-velocity(L::LenseFlowOp, f::Field, t::Real) = L.d'*inv(eye(2)+t*L.Jac)*Map(∇*f)
+function lense_flow{F,reltol,abstol}(L::LenseFlowOp{F,CVODE{reltol}}, f::Field, ts)
+    Sundials.cvode((t,y,ẏ)->(ẏ .= velocity(L,y[~f],t)[:]), f[:], ts; reltol=reltol, abstol=abstol)[2,:][~f]
+end
 
-*(L::LenseFlowOp, f::Field) = lense_flow(L,f,true)
-\(L::LenseFlowOp, f::Field) = lense_flow(L,f,false)
+function lense_flow{F,reltol,abstol}(L::LenseFlowOp{F,ode45{reltol,abstol}}, f::Field, ts)
+    ODE.ode45((t,y)->velocity(L,y[~f],t)[:], f[:], ts; reltol=reltol, abstol=abstol, points=:specified)[2][end][~f]
+end
+
+*(L::LenseFlowOp, f::Field) = lense_flow(L,f,[0.,1])
+\(L::LenseFlowOp, f::Field) = lense_flow(L,f,[1.,0])
