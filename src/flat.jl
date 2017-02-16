@@ -1,3 +1,4 @@
+export Flat, FFTgrid
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
 abstract Flat{Θpix,Nside} <: Pix

@@ -1,6 +1,7 @@
 using Sundials
 using ODE
 
+export LenseFlowOp, ode45, Euler, CVODE
 
 abstract ODESolver
 abstract Euler{nsteps} <: ODESolver 

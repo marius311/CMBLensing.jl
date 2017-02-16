@@ -84,7 +84,7 @@ for ((F1,F2),Tout) in rules
     @eval @swappable promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
 end
 
-""" A covariance of a spin-0 flat sky map which is diagonal in pixel space"""
+""" A covariance of a spin-2 flat sky map which is diagonal in pixel space"""
 immutable FlatS2EBFourierDiagCov{T<:Real,P<:Flat} <: LinearFieldDiagOp{P,S2,EBFourier}
     CEEl::Matrix{Complex{T}}
     CBBl::Matrix{Complex{T}}

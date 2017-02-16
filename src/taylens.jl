@@ -1,5 +1,6 @@
 using BayesLensSPTpol: indexwrap
 
+export FlatS0TaylensOp
 
 immutable FlatS0TaylensOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
     # pixel remapping

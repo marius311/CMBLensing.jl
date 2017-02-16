@@ -7,8 +7,8 @@ import Base: promote_type, convert
 
 
 export 
-    Field, simulate, Cℓ_to_cov,
-    Flat, Map, Fourier, FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov,
+    Field, LinearFieldOp, simulate, Cℓ_to_cov,
+    Map, Fourier,
     ∂x, ∂y, ∇
 
 

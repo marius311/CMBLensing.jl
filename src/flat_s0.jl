@@ -4,6 +4,8 @@
 
 using BayesLensSPTpol: cls_to_cXXk
 
+export FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov
+
 abstract Map <: Basis
 abstract Fourier <: Basis
 
