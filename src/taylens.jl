@@ -1,7 +1,7 @@
 using BayesLensSPTpol: indexwrap
 
 
-immutable FlatS0LensingOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
+immutable FlatS0TaylensOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
     # pixel remapping
     i::Matrix{Int}
     j::Matrix{Int}
@@ -18,7 +18,7 @@ immutable FlatS0LensingOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
     taylens::Bool
 end
 
-function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
+function FlatS0TaylensOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
 
     g = FFTgrid(T,P)
     Nside = g.nside
@@ -46,11 +46,11 @@ function FlatS0LensingOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
         xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
     end
 
-    FlatS0LensingOp{T,P}(i,j,rx,ry,kα,xα,order,taylens)
+    FlatS0TaylensOp{T,P}(i,j,rx,ry,kα,xα,order,taylens)
 end
 
 # our implementation of Taylens
-function *{T,P}(lens::FlatS0LensingOp, f::FlatS0Map{T,P})
+function *{T,P}(lens::FlatS0TaylensOp, f::FlatS0Map{T,P})
 
     intlense(fx) = lens.taylens ? broadcast_getindex(fx, lens.j, lens.i) : fx
     fl = f[:Tl]

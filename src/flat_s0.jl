@@ -46,7 +46,7 @@ simulate{T,P}(Σ::FlatS0FourierDiagCov{T,P}) = FlatS0Fourier{T,P}(ℱ{P} * randn
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{FlatS0FourierDiagCov{T,P}}, ℓ, CℓTT)
     g = FFTgrid(T,P)
-    FlatS0FourierDiagCov{T,P}(complex(cls_to_cXXk(ℓ, CℓTT, g.r))[1:round(Int,g.nside/2)+1,:])
+    FlatS0FourierDiagCov{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:round(Int,g.nside/2)+1,:])
 end
 
 

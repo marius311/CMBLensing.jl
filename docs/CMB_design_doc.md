@@ -99,7 +99,7 @@ If we add different implementations for the same concrete type, then the default
 
 Similarly, the entire name should appear in its entirely for operators too. A diagonal covariance of flat spin-0 map is `FlatS0MapDiagCov`.
 
-If operators only make sense implemented in one particular basis, the basis part can be omitted. E.g., it makes sense to store covariances in map and fourier basis, hence `FlatS0MapDiagCov` and `FlatS0FourierDiagCov`, however it doesn't make sense to code up the lensing operator both in map and fourier space, hence we just have `FlatS0LensingOp` (which we have chosen to implement assuming the input is in map space; of course `FlatS0LensingOp` can be applied to a `Fourier` object, which will be converted automatically). 
+If operators only make sense implemented in one particular basis, the basis part can be omitted. E.g., it makes sense to store covariances in map and fourier basis, hence `FlatS0MapDiagCov` and `FlatS0FourierDiagCov`, however it doesn't make sense to code up the lensing operator both in map and fourier space, hence we just have `FlatS0TaylensOp` (which we have chosen to implement assuming the input is in map space; of course `FlatS0TaylensOp` can be applied to a `Fourier` object, which will be converted automatically). 
 
 ### Type parameters naming convention
 
