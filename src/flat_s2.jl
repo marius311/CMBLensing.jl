@@ -1,5 +1,5 @@
 
-# this file defines a flat-sky pixelized spin-2 map (like  a polarization Q&U map)
+# this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
 # and operators on this map
 
 abstract QUMap <: Basis
@@ -29,7 +29,9 @@ immutable FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
 end
 
 typealias FlatS2{T,P} Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+typealias FlatS2QU{T,P} Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
 
+LenseBasis{F<:FlatS2}(::Type{F}) = QUMap
 
 QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
 QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
@@ -83,3 +85,30 @@ function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{
     n = g.nside÷2+1
     LinearDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
 end
+
+
+# define derivatives
+∂Basis{F<:FlatS2QU}(::Type{F}) = QUFourier
+function *{T,P}(::∂Op{:x}, f::FlatS2QUFourier{T,P})
+    k = FFTgrid(T,P).k
+    FlatS2QUFourier{T,P}(im * k' .* f.Ql, im * k' .* f.Ul)
+end
+function *{T,P}(::∂Op{:y}, f::FlatS2QUFourier{T,P})
+    k = FFTgrid(T,P).k[1:Nside(P)÷2+1]
+    FlatS2QUFourier{T,P}(im * k .* f.Ql, im * k .* f.Ul)
+end
+
+
+tovec(f::FlatS2) = vcat((v[:] for v in fieldvalues(f))...)
+function fromvec{F<:Union{FlatS2QUMap,FlatS2EBMap}}(::Type{F}, vec::AbstractVector)
+    nside = round(Int,√(length(vec)÷2))
+    F(reshape(vec[1:end÷2],(nside,nside)), reshape(vec[end÷2+1:end],(nside,nside)))
+end
+function fromvec{F<:Union{FlatS2QUFourier,FlatS2EBFourier}}(::Type{F}, vec::AbstractVector)
+    nside = round(Int,√(1+length(vec))-1)
+    F(reshape(vec[1:end÷2],(nside÷2+1,nside)), reshape(vec[end÷2+1:end],(nside÷2+1,nside)))
+end
+
+# pixel-by-pixel multiplication between a spin-0 map and a QU map, where Q&U are
+# each individually multiplied
+@swappable *{T,P}(a::FlatS0Map{T,P}, b::FlatS2QUMap{T,P}) = FlatS2QUMap{T,P}(a.Tx .* b.Qx, a.Tx .* b.Ux)

@@ -4,7 +4,7 @@
 
 using BayesLensSPTpol: cls_to_cXXk
 
-export FlatS0Fourier, FlatS0FourierDiagCov, FlatS0Map, FlatS0MapDiagCov
+export FlatS0Fourier, FlatS0Map
 
 abstract Map <: Basis
 abstract Fourier <: Basis
@@ -19,6 +19,8 @@ end
 
 typealias FlatS0{T,P} Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
 
+LenseBasis{F<:FlatS0}(::Type{F}) = Map
+
 Fourier{T,P}(f::FlatS0Map{T,P}) = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
 Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
@@ -30,8 +32,9 @@ function white_noise{F<:FlatS0}(::Type{F})
 end
 
 # define derivatives
-*{T,P}(::∂Op{:x}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* Fourier(f).Tl)
-*{T,P}(::∂Op{:y}, f::FlatS0{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:Nside(P)÷2+1] .* Fourier(f).Tl)
+∂Basis{F<:FlatS0}(::Type{F}) = Fourier
+*{T,P}(::∂Op{:x}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* f.Tl)
+*{T,P}(::∂Op{:y}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:Nside(P)÷2+1] .* f.Tl)
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{T})

@@ -57,12 +57,17 @@ meta(::Union{Field,LinearOp}) = tuple()
 data{T<:Union{Field,LinearOp}}(f::T) = fieldvalues(f)
 
 
-"""
-Operator used to take derivatives
-"""
+# Operator used to take derivatives.
+# Fields should implement *(op::∂Op, f::Field) to take derivatives, and
+# ∂Basis to specify a basis into which to automatically convert fields before
+# they are fed into this "*" method.
+# Note: defining ∂Op in this way allows it be a bonafide LinearOp which can be
+# both lazily evaluated and applied to all field types. 
 immutable ∂Op{s} <: LinearOp end
 ∂x, ∂y = ∂Op{:x}(), ∂Op{:y}()
 ∇ = [∂x, ∂y]
+*(op::∂Op,f::Field) = op * ∂Basis(typeof(f))(f)
+∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 
 
 include("flat.jl")
