@@ -9,7 +9,7 @@ abstract CVODE{reltol,abstol} <: ODESolver  # doesn't work very well...
 abstract ode45{reltol,abstol} <: ODESolver 
 
 
-immutable LenseFlowOp{F<:Field,I<:ODESolver} <: LinearFieldOp
+immutable LenseFlowOp{F<:Field,I<:ODESolver} <: LinearOp
     ϕ::F
     d::Vector{F}
     Jac::Matrix{F}

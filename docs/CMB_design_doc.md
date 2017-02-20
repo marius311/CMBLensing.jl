@@ -35,7 +35,7 @@ abstract Field{P<:Pix, S<:Spin, B<:Basis}
 and for an operator that can act on a field,
 
 ```julia
-abstract LinearFieldOp{P<:Pix, S<:Spin, B<:Basis}
+abstract LinearOp{P<:Pix, S<:Spin, B<:Basis}
 ```
 
 The meaning of the basis `B` for an operator is that, by default, fields will automatically be converted to that basis before being fed into the operator, therefore you only need to define the action of an operator in one basis. Of course, if you have a more efficient way to act with the operator in multiple bases, you could just add methods working in those bases which would supercede the default behavior. 

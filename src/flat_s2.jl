@@ -2,9 +2,6 @@
 # this file defines a flat-sky pixelized spin-2 map (like  a polarization Q&U map)
 # and operators on this map
 
-
-# I'm not totally happy with having it this way, because it necessitates the
-# long list of Map and Fourier definitions below. Probably needs more thoughts... 
 abstract QUMap <: Basis
 abstract EBMap <: Basis
 abstract QUFourier <: Basis
@@ -31,6 +28,8 @@ immutable FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
     Ul::Matrix{Complex{T}}
 end
 
+typealias FlatS2{T,P} Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+
 
 QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
 QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
@@ -38,7 +37,7 @@ function QUFourier{T,P}(f::FlatS2EBFourier{T,P})
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
     Ql = - f.El .*cos2ϕ + f.Bl .* sin2ϕ
     Ul = - f.El .*sin2ϕ - f.Bl .* cos2ϕ
-    (Ql,Ul)
+    FlatS2QUFourier{T,P}(Ql,Ul)
 end
 
 QUMap{T,P}(f::FlatS2QUFourier{T,P}) = FlatS2QUMap{T,P}(ℱ{P}\f.Ql, ℱ{P}\f.Ul)
@@ -49,34 +48,24 @@ EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f
 EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
 function EBFourier{T,P}(f::FlatS2QUFourier{T,P}) 
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-    El = - Ql.*cos2ϕ - Ul.*sin2ϕ
-    Bl =   Ql.*sin2ϕ - Ul.*cos2ϕ
-    (El,Bl)
+    El = - f.Ql .* cos2ϕ - f.Ul .* sin2ϕ
+    Bl =   f.Ql .* sin2ϕ - f.Ul .* cos2ϕ
+    FlatS2EBFourier{T,P}(El,Bl)
 end
 
 EBMap{T,P}(f::FlatS2EBFourier{T,P}) = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P}\f.Bl)
 EBMap{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier |> EBMap
 EBMap{T,P}(f::FlatS2QUFourier{T,P}) = f |> EBFourier |> EBMap
 
-# don't like these:
-Map(f::FlatS2QUMap) = f
-Map(f::FlatS2QUFourier) = QUMap(f)
-Map(f::FlatS2EBMap) = f
-Map(f::FlatS2EBFourier) = EBMap(f)
-Fourier(f::FlatS2QUMap) = QUFourier(f)
-Fourier(f::FlatS2QUFourier) = f
-Fourier(f::FlatS2EBMap) = EBFourier(f)
-Fourier(f::FlatS2EBFourier) = f
-
-
-# basically we always err on the side of keeping things in the EB and Fourier
-# (TODO: probably QU and Fourier or even QU and Map might make more sense...)
+# basically we always err on the side of keeping things in the QU and Map (could
+# be further explored if this is the most optimal choice given the operations we
+# tend to do)
 rules = Dict(
-    (FlatS2QUMap,     FlatS2QUFourier)  => FlatS2QUFourier,
-    (FlatS2EBMap,     FlatS2EBFourier)  => FlatS2EBFourier,
-    (FlatS2QUMap,     FlatS2EBMap)      => FlatS2EBMap,
-    (FlatS2QUFourier, FlatS2EBFourier)  => FlatS2EBFourier,
-    (FlatS2QUMap,     FlatS2EBFourier)  => FlatS2EBFourier,
+    (FlatS2QUMap,     FlatS2QUFourier)  => FlatS2QUMap,
+    (FlatS2EBMap,     FlatS2EBFourier)  => FlatS2EBMap,
+    (FlatS2QUMap,     FlatS2EBMap)      => FlatS2QUMap,
+    (FlatS2QUFourier, FlatS2EBFourier)  => FlatS2QUFourier,
+    (FlatS2QUMap,     FlatS2EBFourier)  => FlatS2QUMap,
     (FlatS2QUFourier, FlatS2EBMap)      => FlatS2QUFourier
 )
 
@@ -84,19 +73,13 @@ for ((F1,F2),Tout) in rules
     @eval @swappable promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
 end
 
-""" A covariance of a spin-2 flat sky map which is diagonal in pixel space"""
-immutable FlatS2EBFourierDiagCov{T<:Real,P<:Flat} <: LinearFieldDiagOp{P,S2,EBFourier}
-    CEEl::Matrix{Complex{T}}
-    CBBl::Matrix{Complex{T}}
+function white_noise{F<:FlatS2}(::Type{F})
+    T,P = F.parameters #will be less hacky in 0.6
+    FlatS2QUMap{T,P}((randn(Nside(P),Nside(P)) / FFTgrid(T,P).Δx for i=1:2)...)
 end
-*{T,P}(Σ::FlatS2EBFourierDiagCov{T,P}, f::FlatS2EBFourier{T,P}) = FlatS2EBFourier{T,P}(Σ.CEEl .* f.El, Σ.CBBl .* f.Bl)
-simulate{T,P}(Σ::FlatS2EBFourierDiagCov{T,P}) = FlatS2EBFourier{T,P}(ℱ{P} * randn(Nside(P),Nside(P)) .* √Σ.CEEl / FFTgrid(T,P).Δx, ℱ{P} * randn(Nside(P),Nside(P)) .* √Σ.CBBl / FFTgrid(T,P).Δx)
 
-
-function Cℓ_to_cov{T,P}(::Type{FlatS2EBFourierDiagCov{T,P}}, ℓ, CℓEE, CℓBB)
+function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{T}, CℓBB::Vector{T})
     g = FFTgrid(T,P)
-    FlatS2EBFourierDiagCov{T,P}(
-        cls_to_cXXk(ℓ, CℓEE, g.r)[1:round(Int,g.nside/2)+1,:],
-        cls_to_cXXk(ℓ, CℓBB, g.r)[1:round(Int,g.nside/2)+1,:]
-    )
+    n = g.nside÷2+1
+    LinearDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
 end

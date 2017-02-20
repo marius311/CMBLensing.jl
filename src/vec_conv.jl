@@ -1,12 +1,12 @@
 
-# allow converting Fields and LinearFieldOp to/from vectors
+# allow converting Fields and LinearOp to/from vectors
 getindex(f::Field, i::Colon) = tovec(f)
-function getindex{P,S,B}(op::LinearFieldOp, f::Tuple{Field{P,S,B}})
+function getindex{P,S,B}(op::LinearOp, f::Tuple{Field{P,S,B}})
     v = f[1][:]
     LazyVecApply{typeof(f[1]),B}(op,eltype(v),tuple(fill(length(v),2)...))
 end
 immutable LazyVecApply{F,B}
-    op::LinearFieldOp
+    op::LinearOp
     eltype::Type
     size::Tuple
 end

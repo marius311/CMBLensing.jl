@@ -2,7 +2,7 @@ using BayesLensSPTpol: indexwrap
 
 export FlatS0TaylensOp
 
-immutable FlatS0TaylensOp{T<:Real,P<:Flat} <: LinearFieldOp{P,S0,Map}
+immutable FlatS0TaylensOp{T<:Real,P<:Flat} <: LinearOp{P,S0,Map}
     # pixel remapping
     i::Matrix{Int}
     j::Matrix{Int}
@@ -25,11 +25,12 @@ function FlatS0TaylensOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
     Nside = g.nside
     
     # total displacement
-    dx, dy = map(f->f[:Tx],∇*ϕ)
+    d = ∇*ϕ
+    dx, dy = d[1][:Tx], d[2][:Tx]
 
     # nearest pixel displacement
     if taylens
-        di, dj = (round(Int,d/g.Δx) for d=(dx,dy)) # end
+        di, dj = (round(Int,d/g.Δx) for d=(dx,dy))
         i = indexwrap.(di .+ (1:Nside)', Nside)
         j = indexwrap.(dj .+ (1:Nside) , Nside)
     else
@@ -37,7 +38,7 @@ function FlatS0TaylensOp{T,P}(ϕ::FlatS0{T,P}; order=4, taylens=true)
     end
 
     # residual displacement
-    rx, ry = ((d - i.*g.Δx) for (d,i)=[(dx,di),(dy,dj)]) # end
+    rx, ry = ((d - i.*g.Δx) for (d,i)=[(dx,di),(dy,dj)])
 
     # precomputation
     kα = Dict{Any,Matrix{Complex{T}}}()

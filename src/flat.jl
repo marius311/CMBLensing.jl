@@ -8,7 +8,7 @@ immutable FFTgrid{dm, T}
     period::T
     nside::Int64
     Δx::T
-    Δk::T
+    Δℓ::T
     nyq::T
     x::Array{T,1}
     k::Array{T,1}
@@ -17,33 +17,41 @@ immutable FFTgrid{dm, T}
     FFT::FFTW.ScaledPlan{T,FFTW.rFFTWPlan{T,-1,false,dm},T}
 end
 
-function FFTgrid{T<:Real}(::Type{T}, dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
+
+"""
+# Arguments
+* `T`: 
+* `period::Real`: the length of one side of the map
+* `nside::Int`: the number of pixels in one side of the map 
+* `dm::Integer=2`: the number of dimensions (i.e. 2 for map)
+"""
+function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
     Δx  = period/nside
     FFT = (Δx/√(2π))^dm * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
-    Δk  = 2π/period
+    Δℓ  = 2π/period
     nyq = 2π/(2Δx)
-    x,k = getxkside(Δx,Δk,period,nside)
-    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...)) # end
-    ϕ   = angle.(k .+ im*k')
+    x,k = getxkside(Δx,Δℓ,period,nside)
+    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
+    ϕ   = angle.(k .+ im*k')[1:nside÷2+1,:]
     sincos2ϕ = sin(2ϕ), cos(2ϕ)
-    FFTgrid{dm,T}(period, nside, Δx, Δk, nyq, x, k, r, sincos2ϕ, FFT)
+    FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
-function getxkside(Δx,Δk,period,nside)
-    x, k = zeros(nside), zeros(nside)
+function getxkside(Δx,Δℓ,period,nside)
+    x, ℓ = zeros(nside), zeros(nside)
     for j in 0:(nside-1)
         x[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
-        k[j+1] = (j < nside/2) ? (j*Δk) : (j*Δk - 2π*nside/period)
+        ℓ[j+1] = (j < nside/2) ? (j*Δℓ) : (j*Δℓ - 2π*nside/period)
     end
-    x, k
+    x, ℓ
 end
 
 
-# Use generated functions to get planned FFT's only once _for any given (T, Ωpix,
+# Use generated functions to get planned FFT's only once for any given (T, Θpix,
 # Nside) combination
 @generated function FFTgrid{T<:Real,P<:Flat}(::Type{T},::Type{P})
-    Ωpix, Nside = P.parameters
-    FFTgrid(T, 2, Ωpix*Nside*pi/(180*60), Nside)
+    Θpix, Nside = P.parameters
+    FFTgrid(T, deg2rad(Θpix/60)*Nside, Nside)
 end
 
 abstract ℱ{P}

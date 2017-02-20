@@ -8,13 +8,13 @@ nside = 32
 T = Float64
 P = Flat{1,nside}
 
-ϕ = simulate(Cℓ_to_cov(FlatS0FourierDiagCov{T,P}, cls[:ell], cls[:ϕϕ]))
+ϕ = simulate(Cℓ_to_cov(P, S0, cls[:ell], cls[:ϕϕ]))
 
 """
 Gets a matrix representation of an operator in the T->T basis
 TODO: needs some tweaks to work generally then move into main source
 """
-function matrix{T<:Field}(::Type{T}, L::LinearFieldOp)
+function matrix{T<:Field}(::Type{T}, L::LinearOp)
     hcat(((convert(T,L*T((x=zeros(nside,nside); x[i]=1; x))))[:] for i=1:nside^2)...);
 end
 

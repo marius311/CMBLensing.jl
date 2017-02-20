@@ -43,13 +43,13 @@ immutable FFTgrid{dm, T}
 	period::T
 	nside::Int64
 	Δx::T
-	Δk::T
+	Δℓ::T
 	nyq::T
 	x::Array{T,1}
 	k::Array{T,1}
 	r::Array{T,dm}
 	sincos2ϕ::Tuple{Array{T,dm},Array{T,dm}}
-	FFT::FFTW.rFFTWPlan{T,-1,false,dm}  # saved plan _for fast fft
+	FFT::FFTW.rFFTWPlan{T,-1,false,dm}  # saved plan for fast fft
 end
 
 
@@ -105,14 +105,14 @@ end
 
 function FFTgrid{T<:Real}(::Type{T}, dm, period, nside; flags=FFTW.ESTIMATE, timelimit=5)
 	Δx       = period/nside
-	Δk       = 2π/period
+	Δℓ       = 2π/period
 	nyq      = 2π/(2Δx)
-	x,k      = getxkside(Δx,Δk,period,nside)
-	r        = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...)) # end
+	x,k      = getxkside(Δx,Δℓ,period,nside)
+	r        = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
 	ϕ        = angle.(k .+ im*k')
 	sincos2ϕ = sin(2ϕ), cos(2ϕ)
 	FFT      = (Δx/√(2π))^dm * plan_fft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
-	FFTgrid{dm,T}(period, nside, Δx, Δk, nyq, x, k, r, sincos2ϕ, FFT)
+	FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
 
@@ -181,7 +181,7 @@ end
 
 ##########################################################
 
-# Helper functions _for the _type constructors
+# Helper functions for the type constructors
 
 ##############################################################
 
@@ -213,11 +213,11 @@ function getgrid{T}(g::FFTgrid{2,T})
 end
 
 
-function getxkside(Δx,Δk,period,nside)
+function getxkside(Δx,Δℓ,period,nside)
 	xco_side, kco_side = zeros(nside), zeros(nside)
 	for j in 0:(nside-1)
 		xco_side[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
-		kco_side[j+1] = (j < nside/2) ? (j*Δk) : (j*Δk - 2π*nside/period)
+		kco_side[j+1] = (j < nside/2) ? (j*Δℓ) : (j*Δℓ - 2π*nside/period)
 	end
 	xco_side, kco_side
 end
@@ -360,8 +360,8 @@ function class(;ϕscale = 1.0, ψscale = 0.0, lmax = 6_000, r = 0.2, r0 = 100.0,
       	"n_s"           => n_s,
 		"r"             => r,
         #"k_pivot"      => 0.05,
-		#"k_step_trans" => 0.1, # 0.01 _for super high resolution
-   		#"l_linstep"    => 10, # 1 _for super high resolution
+		#"k_step_trans" => 0.1, # 0.01 for super high resolution
+   		#"l_linstep"    => 10, # 1 for super high resolution
    		)
 	cosmo[:set](params)
 	cosmo[:compute]()
@@ -433,7 +433,7 @@ end
 """ kbins, rtnk  = radial_power(fk, smooth, g) """
 function radial_power{dm,T}(fk, smooth::Number, g::FFTgrid{dm,T})
 	rtnk = Float64[]
-	dk = g.Δk
+	dk = g.Δℓ
 	kbins = collect((smooth*dk):(smooth*dk):(g.nyq))
 	for wavenumber in kbins
 		indx = (wavenumber-smooth*dk) .< g.r .<= (wavenumber+smooth*dk)
