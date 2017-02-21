@@ -1,7 +1,7 @@
 using Sundials
 using ODE
 
-export LenseFlowOp, ode45, Euler, CVODE
+export LenseFlowOp, ode45, Euler, CVODE, LenseBasis, δlense_flow
 
 abstract ODESolver
 abstract Euler{nsteps} <: ODESolver 
@@ -10,14 +10,14 @@ abstract ode45{reltol,abstol} <: ODESolver
 
 immutable LenseFlowOp{I<:ODESolver,F<:Field} <: LinearOp
     ϕ::F
-    d::Vector{F}
-    Jac::Matrix{F}
+    ∇ϕ::Vector{F}
+    Jϕ::Matrix{F}
 end
 
 function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::Type{I}=ode45{1e-3,1e-3})
-    d = ∇*ϕ
+    ∇ϕ = ∇*ϕ
     ϕ = Map(ϕ)
-    LenseFlowOp{I,typeof(ϕ)}(ϕ, d, ∇*d')
+    LenseFlowOp{I,typeof(ϕ)}(ϕ, ∇ϕ, ∇*∇ϕ')
 end
 
 # For each Field type, LenseFlow needs to know the basis in which lensing is a
@@ -29,7 +29,36 @@ LenseBasis{F<:Field}(x::AbstractArray{F}) = map(LenseBasis,x)
 
 
 # the LenseFlow algorithm 
-velocity(L::LenseFlowOp, f::Field, t::Real) = L.d'*inv(eye(2)+t*L.Jac)*LenseBasis(∇*f)
+velocity(L::LenseFlowOp, f::Field, t::Real) = L.∇ϕ'*inv(eye(2)+t*L.Jϕ)*LenseBasis(∇*f)
+
+# the velocity [df/dt dδf/dt] to propagate a small perturbation (δf, δϕ)
+# (note: dδϕ/dt = 0 so its not returned)
+function δvelocity(L::LenseFlowOp, f::Field, δf::Field, δϕ::Field, t::Real)
+    
+    ∇δϕ = ∇*δϕ                |> LenseBasis
+    Jδϕ = ∇*∇δϕ'              |> LenseBasis
+    M   = inv(eye(2)+t*L.Jϕ)  |> LenseBasis
+    ∇f  = ∇*f                 |> LenseBasis
+    ∇δf = ∇*δf                |> LenseBasis
+    
+    ḟ = L.∇ϕ'*M*∇f
+    δḟ = (∇δϕ'-L.∇ϕ'*M*t*Jδϕ)*M*∇f + L.∇ϕ'*M*∇δf
+    
+    (ḟ,δḟ)
+    
+end
+
+
+function δlense_flow{reltol,abstol}(L::LenseFlowOp{ode45{reltol,abstol}}, f0::Field, δf0::Field, δϕ0::Field, ts)
+    
+    y0 = vcat(f0[:],δf0[:])
+    n = length(y0)÷2
+    
+    y = ODE.ode45((t,y) -> vcat(map(f->f[:],δvelocity(L,y[1:n][~f0],y[n+1:end][~δf0],δϕ0,t))...), y0, ts; reltol=reltol, abstol=abstol, points=:specified)[2][end]
+    
+    (y[1:n][~f0], y[n+1:end][~δf0])
+end
+
 
 
 
