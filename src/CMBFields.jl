@@ -78,6 +78,7 @@ include("vec_conv.jl")
 include("healpix.jl")
 include("lenseflow.jl")
 include("taylens.jl")
+include("powerlens.jl")
 
 
 function getindex(f::Field,x::Symbol)
