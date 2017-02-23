@@ -89,13 +89,13 @@ end
 
 # define derivatives
 ∂Basis{F<:FlatS2QU}(::Type{F}) = QUFourier
-function *{T,P}(::∂Op{:x}, f::FlatS2QUFourier{T,P})
-    k = FFTgrid(T,P).k
-    FlatS2QUFourier{T,P}(im * k' .* f.Ql, im * k' .* f.Ul)
+function *{T,P.n}(::∂Op{:x,n}, f::FlatS2QUFourier{T,P})
+    ikn = (im .* FFTgrid(T,P).k).^n
+    FlatS2QUFourier{T,P}(ikn .* f.Ql, ikn .* f.Ul)
 end
 function *{T,P}(::∂Op{:y}, f::FlatS2QUFourier{T,P})
-    k = FFTgrid(T,P).k[1:Nside(P)÷2+1]
-    FlatS2QUFourier{T,P}(im * k .* f.Ql, im * k .* f.Ul)
+    ikn = (im .* FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n
+    FlatS2QUFourier{T,P}(ikn .* f.Ql, ikn .* f.Ul)
 end
 
 

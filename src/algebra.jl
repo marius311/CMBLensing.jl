@@ -60,6 +60,8 @@ for op in (:+, :-, :*)
     @eval @swappable ($op)(a::LinearOp, b::Number) = LazyBinaryOp{$op}(a,b)
 end
 /(op::LinearOp, n::Number) = LazyBinaryOp{/}(op,n)
+-(op::LinearOp) = LazyBinaryOp{*}(-1,op)
+^(op::LinearOp, n::Integer) = n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
 
 # evaluation rules when finally applying a lazy op to a field
 for op in (:+, :-)

@@ -33,8 +33,8 @@ end
 
 # define derivatives
 ∂Basis{F<:FlatS0}(::Type{F}) = Fourier
-*{T,P}(::∂Op{:x}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k' .* f.Tl)
-*{T,P}(::∂Op{:y}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}(im * FFTgrid(T,P).k[1:Nside(P)÷2+1] .* f.Tl)
+*{T,P,n}(::∂Op{:x,n}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}((im * FFTgrid(T,P).k').^n .* f.Tl)
+*{T,P,n}(::∂Op{:y,n}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}((im * FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n .* f.Tl)
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{T})

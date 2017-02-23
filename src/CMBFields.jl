@@ -63,12 +63,12 @@ data{T<:Union{Field,LinearOp}}(f::T) = fieldvalues(f)
 # they are fed into this "*" method.
 # Note: defining ∂Op in this way allows it be a bonafide LinearOp which can be
 # both lazily evaluated and applied to all field types. 
-immutable ∂Op{s} <: LinearOp end
-∂x, ∂y = ∂Op{:x}(), ∂Op{:y}()
+immutable ∂Op{s,n} <: LinearOp end
+^{s,n}(::∂Op{s,n}, m::Integer) = ∂Op{s,n*m}()
+∂x, ∂y = ∂Op{:x,1}(), ∂Op{:y,1}()
 ∇ = [∂x, ∂y]
 *(op::∂Op,f::Field) = op * ∂Basis(typeof(f))(f)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
-
 
 include("flat.jl")
 include("flat_s0.jl")
