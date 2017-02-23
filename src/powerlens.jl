@@ -1,3 +1,15 @@
+# 
+# This file defines a lensing operator that works on any generic Field as long
+# as ∂x and ∂y are defined for that field. 
+# 
+# The gradient of the lensed field with respect to the unlensed field and to ϕ
+# can also be computed. 
+# 
+# This just does the standard taylor series expansion around ∇ϕ to arbitrary
+# order (without a pixel permute step), but since the name "Taylens" is already
+# taken, this is called "PowerLens"
+# 
+
 immutable PowerLens{F<:Field} <: LinearOp
     order::Int
     ∂xⁱϕ::Dict{Int,Union{F,Int}}
@@ -6,7 +18,7 @@ end
 
 Ł = LenseBasis
 
-function PowerLens{F<:Field}(ϕ::F; order=4)
+function PowerLens{F<:FlatS0}(ϕ::F; order=4)
     PowerLens{F}(order,(Dict(i=>(i==0?1:Ł(∂*ϕ)^i) for i=0:order) for ∂=(∂x,∂y))...)
 end
 
