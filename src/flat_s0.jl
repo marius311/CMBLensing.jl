@@ -42,8 +42,13 @@ function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{
     LinearDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
 
+zero{F<:FlatS0}(::Type{F}) = ((T,P)=F.parameters; FlatS0Map{T,P}(zeros(Nside(P),Nside(P))))
+
 # how to convert to and from vectors (when needing to feed into other algorithms)
 tovec(f::FlatS0Map) = f.Tx[:]
 tovec(f::FlatS0Fourier) = f.Tl[:]
 fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(Nside(P)÷2+1,Nside(P))))
+
+length{T,P}(::Type{FlatS0Map{T,P}}) = Nside(P)^2
+length{T,P}(::Type{FlatS0Fourier{T,P}}) = Nside(P)*(Nside(P)÷2+1)

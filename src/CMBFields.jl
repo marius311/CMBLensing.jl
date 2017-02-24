@@ -3,7 +3,7 @@ module CMBFields
 using Util
 using PyCall
 using DataArrays: @swappable
-import Base: +, -, .+, .-, *, \, /, ^, ~, .*, ./, sqrt, getindex, size, eltype
+import Base: +, -, .+, .-, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: promote_type, convert
 
 

@@ -30,6 +30,8 @@ end
 
 typealias FlatS2{T,P} Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
 typealias FlatS2QU{T,P} Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+typealias FlatS2Map{T,P} Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
+typealias FlatS2Fourier{T,P} Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
 LenseBasis{F<:FlatS2}(::Type{F}) = QUMap
 
@@ -108,7 +110,16 @@ function fromvec{F<:Union{FlatS2QUFourier,FlatS2EBFourier}}(::Type{F}, vec::Abst
     nside = round(Int,√(1+length(vec))-1)
     F(reshape(vec[1:end÷2],(nside÷2+1,nside)), reshape(vec[end÷2+1:end],(nside÷2+1,nside)))
 end
+length{F<:FlatS2Map}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)^2) #todo: less hacky in 0.6.... 
+length{F<:FlatS2Fourier}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)*(Nside(P)÷2+1))
+
+
 
 # pixel-by-pixel multiplication between a spin-0 map and a QU map, where Q&U are
 # each individually multiplied
 @swappable *{T,P}(a::FlatS0Map{T,P}, b::FlatS2QUMap{T,P}) = FlatS2QUMap{T,P}(a.Tx .* b.Qx, a.Tx .* b.Ux)
+
+# needed for (df̃dϕ)ᵀ calculation, but need to think about how to really handle
+# transposing given the several different spaces at play....
+import Base: Ac_mul_B
+Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(+(map(.*,data(conj.(a)),data(b))...))

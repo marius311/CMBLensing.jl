@@ -14,8 +14,9 @@ end
 # element-wise multiplication or division of two Fields
 # no promotion should be done here since a.*b isn't linear alegrbra 
 # (i.e. it's not independent of which basis its done in)
-for op in (:*, :/), F in (Field,LinearDiagOp)
-    @eval ($op){T<:($F)}(a::T, b::T) = T(map($(Symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
+for op in (:*, :/)
+    @eval ($op){T<:Field}(a::T, b::T) = T(map($(Symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
+    @eval ($op){T<:LinearDiagOp}(a::T, b::T) = LinearDiagOp(a.f * b.f)
 end
 
 
@@ -27,7 +28,9 @@ end
 
 # Can raise these guys to powers explicitly since they're diagonal
 # for the case of f::Field, this is another instance where we're not really doing linear algebra
-^{T<:Union{LinearDiagOp,Field}}(f::T, n::Number) = T(map(.^,data(f),repeated(n))..., meta(f)...)
+# (this is defined as `{T<:Field}(f::T)` rather than just `f::Field` to avoid some method ambiguity bug)
+^{T<:Field}(f::T, n::Number) = T(map(.^,data(f),repeated(n))..., meta(f)...)
+^{T<:LinearDiagOp}(op::T, n::Number) = LinearDiagOp(op.f^n)
 sqrt{T<:Union{LinearDiagOp,Field}}(f::T) = T(map(sqrt,data(f))..., meta(f)...)
 
 # B(f) where B is a basis converts f to that basis
@@ -61,7 +64,7 @@ for op in (:+, :-, :*)
 end
 /(op::LinearOp, n::Number) = LazyBinaryOp{/}(op,n)
 -(op::LinearOp) = LazyBinaryOp{*}(-1,op)
-^(op::LinearOp, n::Integer) = n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
+^(op::LinearOp, n::Number) = n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
 
 # evaluation rules when finally applying a lazy op to a field
 for op in (:+, :-)
@@ -97,4 +100,4 @@ Ac_mul_B{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMa
 A_mul_Bc{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
 *{T<:LinearOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
 (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
-transpose(f::Union{Field,LinearOp}) = f
+transpose(f::Union{Field,LinearOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....
