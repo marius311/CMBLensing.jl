@@ -1,10 +1,10 @@
 module CMBFields
 
-using Util
 using PyCall
 using DataArrays: @swappable
 import Base: +, -, .+, .-, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: promote_type, convert
+import Base.LinAlg: dot
 
 
 export 
@@ -70,6 +70,7 @@ immutable ∂Op{s,n} <: LinearOp end
 *(op::∂Op,f::Field) = op * ∂Basis(typeof(f))(f)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 
+include("util.jl")
 include("flat.jl")
 include("flat_s0.jl")
 include("flat_s2.jl")

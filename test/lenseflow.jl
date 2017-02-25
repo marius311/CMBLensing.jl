@@ -1,4 +1,4 @@
-push!(LOAD_PATH, pwd()*"/../src")
+push!(LOAD_PATH, pwd()*"/src")
 using CMBFields
 using BayesLensSPTpol: class
 

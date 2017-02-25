@@ -1,4 +1,4 @@
-push!(LOAD_PATH, pwd()*"/../src")
+push!(LOAD_PATH, pwd()*"/src")
 
 using CMBFields
 using Base.Test
@@ -6,3 +6,5 @@ using Base.Test
 macro test_noerror(ex) :(@test ($(esc(ex)); true)) end
 
 include("algebra.jl")
+include("conversions.jl")
+include("dotproducts.jl")

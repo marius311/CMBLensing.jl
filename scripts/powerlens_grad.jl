@@ -4,19 +4,14 @@ using CMBFields
 using BayesLensSPTpol
 cls = class();
 
-
+##
 broadcast{F<:Field}(f,x::F) = F((broadcast(f,d) for d=data(x))...)
 
-# technically dotting can happen in any basis and I should not have to hard code
-# these basis conversions, but until bugs worked just do it in this hacky way...
-import Base.LinAlg: dot
-dot(a::FlatS2,b::FlatS2) = (EBMap(a)[:] ⋅ EBMap(b)[:]) * FFTgrid(typeof(a).parameters...).Δx^2
-dot(a::FlatS0,b::FlatS0) = (Map(a)[:] ⋅ Map(b)[:]) * FFTgrid(typeof(a).parameters...).Δx^2
-
+##
 
 using PyPlot
 cls = Main.cls
-nside = 32
+nside = 64
 T = Float64
 Θpix = 1
 P = Flat{Θpix,nside}
@@ -30,6 +25,8 @@ Cϕ  = Cℓ_to_cov(P,S0,cls[:ell],cls[:ϕϕ])                |> clipcov
 μKarcminT = 0.1
 Ωpix = deg2rad(Θpix/60)^2
 
+##
+
 # Cf = CT
 # CN  = LinearDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
 # Cmask = LinearDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<5000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:]))
@@ -38,7 +35,7 @@ Cmask = LinearDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<5000 ? 1 : 0 f
 CN  = LinearDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
 Cf = CEB
 
-
+##
 
 ϕ₀ = simulate(Cϕ)  |> LenseBasis
 f₀ = simulate(Cf) |> LenseBasis
@@ -48,6 +45,7 @@ df̃ = L*Ł(f₀) + simulate(CN)
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
 
+##
 
 function lnL(f,ϕ) 
     Δf̃ = df̃ - PowerLens(ϕ)*Ł(f)
@@ -61,25 +59,27 @@ function dlnL_dfϕ(f,ϕ)
      -df̃dϕᵀ(L, f, Ł(Cmask*(CN^-1*Δf̃))) + Cϕ^-1*ϕ]
 end
 
+##
 
 # check accuracy of derviative against numerical
 dlnL = dlnL_dfϕ(f₀,ϕ₀)
 dlnL[1]⋅δf + dlnL[2]⋅δϕ
 (lnL(f₀+ϵ*δf,ϕ₀+ϵ*δϕ) - lnL(f₀-ϵ*δf,ϕ₀-ϵ*δϕ))/(2ϵ)
 
-
+##
 
 using Optim
-optimize(x->norm(x), (x,dx)->(dx.=x), [1.,2], GradientDescent())
 
-fstart = L*f₀
 res = optimize(
     x->lnL(x[~(f₀,ϕ₀)]...), 
-    (x,∇x)->(∇x .= dlnL_dfϕ(x[~(f₀,ϕ₀)]...)[:]),
-    [fstart,ϕ₀][:],
-    GradientDescent())
+    (x,∇f)->(∇f .= dlnL_dfϕ(x[~(f₀,ϕ₀)]...)[:]),
+    [f₀,ϕ₀][:],
+    GradientDescent(),
+    Optim.Options(time_limit = 30.0))
 
-f = simulate(Cf)
 
-# TODO: why is this not giving zero???
-(Ł(f)[:Bx] - f[:Bx]) |> matshow
+res = optimize(
+    x->lnL(x[~(f₀,ϕ₀)]...), 
+    [f₀,ϕ₀][:],
+    Optim.Options(iterations=2))
+##

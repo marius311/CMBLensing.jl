@@ -189,10 +189,10 @@ indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
 
 
 function cls_to_cXXk{dm}(ell, cxxls, r::Array{Float64, dm})
-		spl = Dierckx.Spline1D(ell, cxxls; k=1, bc="zero", s=0.0)
-		rtn = squash(map(spl, r))::Array{Float64, dm}
-		rtn[r.==0.0] = 0.0
-		return squash(map(spl, r))::Array{Float64, dm}
+	spl = Dierckx.Spline1D(ell, cxxls; k=1, bc="zero", s=0.0)
+	rtn = squash(map(spl, r))::Array{Float64, dm}
+	rtn[r.==0.0] = 0.0
+	return complex(squash(map(spl, r)))
 end
 
 

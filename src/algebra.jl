@@ -2,17 +2,19 @@
 # algebra with Fields and LinearOps
 
 
-# addition and subtraction of two Fields or LinearDiagOps
-for op in (:+, :-)
+# operators for which to promote fields to common basis
+for op in (:+, :-, :dot)
     @eval ($op)(a::Field, b::Field) = ($op)(promote(a,b)...)
-    for F in (Field,LinearDiagOp)
-        @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
-        @eval ($op){T<:($F)}(a::T) = T(map($op,data(a))..., meta(a)...)
-    end
+end
+
+# operators for which to automatically broadcast the operation to the underlying data
+for op in (:+, :-), F in (Field,LinearDiagOp)
+    @eval ($op){T<:($F)}(a::T, b::T) = T(map($op,map(data,(a,b))...)..., meta(a)...)
+    @eval ($op){T<:($F)}(a::T) = T(map($op,data(a))..., meta(a)...)
 end
 
 # element-wise multiplication or division of two Fields
-# no promotion should be done here since a.*b isn't linear alegrbra 
+# no promotion should be done here since a.*b isn't linear algebra 
 # (i.e. it's not independent of which basis its done in)
 for op in (:*, :/)
     @eval ($op){T<:Field}(a::T, b::T) = T(map($(Symbol(:.,op)),map(data,(a,b))...)..., meta(a)...)
@@ -26,9 +28,11 @@ for op in (:+, :-, :.+, :.-, :*, :/, :.*, :./), F in (Field,LinearDiagOp)
     @eval ($op){T<:($F)}(n::Number, f::T) = T(map($op,repeated(n),data(f))..., meta(f)...)
 end
 
-# Can raise these guys to powers explicitly since they're diagonal
-# for the case of f::Field, this is another instance where we're not really doing linear algebra
-# (this is defined as `{T<:Field}(f::T)` rather than just `f::Field` to avoid some method ambiguity bug)
+# Can raise these guys to powers explicitly since they're diagonal for the case
+# of f::Field, this is another instance where we're not really doing linear
+# algebra 
+# (note: below this is defined as `{T<:Field}(f::T)` rather than just `f::Field`
+# to avoid some method ambiguity bug)
 ^{T<:Field}(f::T, n::Number) = T(map(.^,data(f),repeated(n))..., meta(f)...)
 ^{T<:LinearDiagOp}(op::T, n::Number) = LinearDiagOp(op.f^n)
 sqrt{T<:Union{LinearDiagOp,Field}}(f::T) = T(map(sqrt,data(f))..., meta(f)...)
@@ -83,7 +87,7 @@ import Base: inv
 function inv{T<:Field}(m::Matrix{T})
     n,n = size(m)
     @assert n==2
-    a,b,c,d = m[:]
+    a,b,c,d = (m[i] for i=eachindex(m))
     invdet = 1./(a*d-b*c)
     [invdet*d -invdet*b; -invdet*c invdet*a] :: Matrix{T}
 end

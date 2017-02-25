@@ -3,6 +3,8 @@ export Flat, FFTgrid
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
 abstract Flat{Θpix,Nside} <: Pix
 Nside{P<:Flat}(::Type{P}) = P.parameters[2] #convenience method, will look less hacky in 0.6
+Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
+
 
 immutable FFTgrid{dm, T}
     period::T
@@ -58,3 +60,16 @@ abstract ℱ{P}
 
 *{T,P}(::Type{ℱ{P}},x::Matrix{T}) = FFTgrid(T,P).FFT * x
 \{T,P}(::Type{ℱ{P}},x::Matrix{Complex{T}}) = FFTgrid(T,P).FFT \ x
+
+
+# Check map and fourier coefficient arrays are the right size
+function checkmap{T,P}(::Type{P},A::Matrix{T})
+    @assert ==(Nside(P),size(A)...) "Wrong size for a map."
+    A
+end
+function checkfourier{T,P}(::Type{P},A::Matrix{Complex{T}})
+    n,m = size(A)
+    @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
+    #todo: check symmetries
+    A
+end

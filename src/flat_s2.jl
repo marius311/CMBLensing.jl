@@ -2,6 +2,11 @@
 # this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
 # and operators on this map
 
+export 
+    QUMap, EBMap, QUFourier, EBFourier,
+    FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
+    FlatS2, FlatS2QU, FlatS2Map, FlatS2Fourier
+    
 abstract QUMap <: Basis
 abstract EBMap <: Basis
 abstract QUFourier <: Basis
@@ -11,27 +16,37 @@ abstract EBFourier <: Basis
 immutable FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
     Ex::Matrix{T}
     Bx::Matrix{T}
+    FlatS2EBMap(Ex, Bx) = new(checkmap(P,Ex),checkmap(P,Bx))
 end
+
 
 immutable FlatS2EBFourier{T<:Real,P<:Flat} <: Field{P,S2,EBFourier}
     El::Matrix{Complex{T}}
     Bl::Matrix{Complex{T}}
+    FlatS2EBFourier(El, Bl) = new(checkfourier(P,El),checkfourier(P,Bl))
 end
 
 immutable FlatS2QUMap{T<:Real,P<:Flat} <: Field{P,S2,QUMap}
     Qx::Matrix{T}
     Ux::Matrix{T}
+    FlatS2QUMap(Qx,Ux) = new(checkmap(P,Qx),checkmap(P,Ux))
 end
 
 immutable FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
     Ql::Matrix{Complex{T}}
     Ul::Matrix{Complex{T}}
+    FlatS2QUFourier(Ql,Ul) = new(checkfourier(P,Ql),checkfourier(P,Ul))
 end
 
 typealias FlatS2{T,P} Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
 typealias FlatS2QU{T,P} Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
 typealias FlatS2Map{T,P} Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
 typealias FlatS2Fourier{T,P} Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
+
+# convenience constructors
+for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
+    @eval ($F){T}(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀) = ($F){T,Flat{Θpix,size(a,2)}}(a,b)
+end
 
 LenseBasis{F<:FlatS2}(::Type{F}) = QUMap
 
@@ -100,7 +115,14 @@ function *{T,P,n}(::∂Op{:y,n}, f::FlatS2QUFourier{T,P})
     FlatS2QUFourier{T,P}(ikⁿ .* f.Ql, ikⁿ .* f.Ul)
 end
 
+# dot products
+dot{F<:FlatS2Map}(a::F,b::F) = a[:] ⋅ b[:] * FFTgrid(F.parameters...).Δx^2
+function dot{F<:FlatS2Fourier}(a::F,b::F)
+    F0 = FlatS0Fourier{F.parameters...}
+    +(map((a,b)->F0(a)⋅F0(b),data(a),data(b))...)
+end
 
+# vector conversions
 tovec(f::FlatS2) = vcat((v[:] for v in fieldvalues(f))...)
 function fromvec{F<:Union{FlatS2QUMap,FlatS2EBMap}}(::Type{F}, vec::AbstractVector)
     nside = round(Int,√(length(vec)÷2))
