@@ -66,7 +66,7 @@ data{T<:Union{Field,LinearOp}}(f::T) = fieldvalues(f)
 immutable ∂Op{s,n} <: LinearOp end
 ^{s,n}(::∂Op{s,n}, m::Integer) = ∂Op{s,n*m}()
 ∂x, ∂y = ∂Op{:x,1}(), ∂Op{:y,1}()
-∇ = [∂x, ∂y]
+∇ = [∂x, ∂y]; ∇ᵀ = [∂x ∂y]
 *(op::∂Op,f::Field) = op * ∂Basis(typeof(f))(f)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 

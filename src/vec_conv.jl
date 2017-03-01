@@ -13,7 +13,7 @@ getindex{F<:Field}(arr::Array{F},::Colon) = vcat((arr[i][:] for i=eachindex(arr)
 ~((args::Field)...) = map(typeof,args)
 function getindex{T<:Number,N}(v::AbstractVector{T}, i::NTuple{N,DataType})
     lengths = [map(length,i)...]
-    starts = 1+[0 cumsum(lengths)[1:end-1]]
+    starts = 1+[0; cumsum(lengths)[1:end-1]]
     [(println(s,l,t); fromvec(t,v[s:s+l-1])) for (s,l,t) in zip(starts,lengths,i)]
 end
 getindex{T<:Number}(v::AbstractVector{T},i::Tuple{DataType}) = fromvec(i[1],v)

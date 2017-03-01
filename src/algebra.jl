@@ -103,5 +103,6 @@ end
 Ac_mul_B{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (at=a'; at*b)
 A_mul_Bc{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
 *{T<:LinearOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
+*{F<:Field}(f::Field, m::AbstractArray{F}) = broadcast(*,[f],m)
 (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
 transpose(f::Union{Field,LinearOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....

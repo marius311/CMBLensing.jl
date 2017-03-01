@@ -1,7 +1,7 @@
 using Sundials
 using ODE
 
-export LenseFlowOp, ode45, Euler, CVODE, LenseBasis, δlense_flow
+export LenseFlowOp, ode45, Euler, CVODE, LenseBasis, δlenseflow
 
 abstract ODESolver
 abstract Euler{nsteps} <: ODESolver 
@@ -29,42 +29,10 @@ LenseBasis{F<:Field}(x::AbstractArray{F}) = map(LenseBasis,x)
 
 
 # the LenseFlow algorithm 
-velocity(L::LenseFlowOp, f::Field, t::Real) = L.∇ϕ'*inv(eye(2)+t*L.Jϕ)*LenseBasis(∇*f)
 
-# the velocity [df/dt dδf/dt] to propagate a small perturbation (δf, δϕ)
-# (note: dδϕ/dt = 0 so its not returned)
-function δvelocity(L::LenseFlowOp, f::Field, δf::Field, δϕ::Field, t::Real)
-    
-    ∇δϕ = ∇*δϕ                |> LenseBasis
-    Jδϕ = ∇*∇δϕ'              |> LenseBasis
-    M   = inv(eye(2)+t*L.Jϕ)  |> LenseBasis
-    ∇f  = ∇*f                 |> LenseBasis
-    ∇δf = ∇*δf                |> LenseBasis
-    
-    ḟ = L.∇ϕ'*M*∇f
-    δḟ = (∇δϕ'-L.∇ϕ'*M*t*Jδϕ)*M*∇f + L.∇ϕ'*M*∇δf
-    
-    (ḟ,δḟ)
-    
-end
+velocity(L::LenseFlowOp, f::Field, t::Real) = L.∇ϕ'*inv(eye(2)+t*L.Jϕ)*Ł(∇*f)
 
-
-function δlense_flow{reltol,abstol}(L::LenseFlowOp{ode45{reltol,abstol}}, f0::Field, δf0::Field, δϕ0::Field, ts)
-    
-    y0 = vcat(f0[:],δf0[:])
-    n = length(y0)÷2
-    
-    y = ODE.ode45((t,y) -> vcat(map(f->f[:],δvelocity(L,y[1:n][~f0],y[n+1:end][~δf0],δϕ0,t))...), y0, ts; reltol=reltol, abstol=abstol, points=:specified)[2][end]
-    
-    (y[1:n][~f0], y[n+1:end][~δf0])
-end
-
-
-
-
-# three different ODE solvers... 
-
-function lense_flow{nsteps}(L::LenseFlowOp{Euler{nsteps}}, f::Field, ts)
+function lenseflow{nsteps}(L::LenseFlowOp{Euler{nsteps}}, f::Field, ts)
     Δt = 1/nsteps * (ts[2]-ts[1])
     t = ts[1]
     for i=1:nsteps
@@ -74,13 +42,46 @@ function lense_flow{nsteps}(L::LenseFlowOp{Euler{nsteps}}, f::Field, ts)
     f
 end
 
-function lense_flow{reltol,abstol}(L::LenseFlowOp{CVODE{reltol,abstol}}, f::Field, ts)
+function lenseflow{reltol,abstol}(L::LenseFlowOp{CVODE{reltol,abstol}}, f::Field, ts)
     Sundials.cvode((t,y,ẏ)->(ẏ .= velocity(L,y[~f],t)[:]), f[:], ts; reltol=reltol, abstol=abstol)[2,:][~f]
 end
 
-function lense_flow{reltol,abstol}(L::LenseFlowOp{ode45{reltol,abstol}}, f::Field, ts)
+function lenseflow{reltol,abstol}(L::LenseFlowOp{ode45{reltol,abstol}}, f::Field, ts)
     ODE.ode45((t,y)->velocity(L,y[~f],t)[:], f[:], ts; reltol=reltol, abstol=abstol, points=:specified)[2][end][~f]
 end
 
-*(L::LenseFlowOp, f::Field) = lense_flow(L,LenseBasis(f),[0.,1])
-\(L::LenseFlowOp, f::Field) = lense_flow(L,LenseBasis(f),[1.,0])
+*(L::LenseFlowOp, f::Field) = lenseflow(L,LenseBasis(f),[0.,1])
+\(L::LenseFlowOp, f::Field) = lenseflow(L,LenseBasis(f),[1.,0])
+
+
+# transpose lenseflow
+
+function dLdf̃_df̃dfϕ{reltol,abstol,F}(L::LenseFlowOp{ode45{reltol,abstol},F}, f::Field, dLdf̃::Field, dLdϕ::F=zero(F))
+    
+    # first get lensed field at t=1
+    f̃ = lenseflow(L,f,[0.,1])
+    
+    # now run transpose perturbed lense flow backwards
+    y = ODE.ode45(
+        (t,y)->δvelocityᵀ(L,y[~(f̃,dLdf̃,dLdϕ)]...,t)[:], 
+        [f̃,dLdf̃,dLdϕ][:], [1.,0]; 
+        reltol=reltol, abstol=abstol, points=:specified)[2][end]
+    
+    y[~(f̃,dLdf̃,dLdϕ)][2:3]
+    
+end
+
+function δvelocityᵀ(L::LenseFlowOp, f::Field, dLdf̃::Field, dLdϕ::Field, t::Real)
+    
+    iM  = inv(eye(2)+t*L.Jϕ) |> Ł
+    ∇f  = ∇*f                |> Ł
+    iM_∇f = iM*∇f            |> Ł
+    iM_∇ϕ = iM*L.∇ϕ          |> Ł
+    
+    f′ = L.∇ϕ'*iM_∇f
+    dLdf̃′ = ∇ᵀ*(dLdf̃*iM_∇ϕ)
+    dLdϕ′ = ∇ᵀ*(dLdf̃*iM_∇f) + t*(∇ᵀ*((∇ᵀ*(iM_∇ϕ*iM_∇f'))'))
+    
+    [f′, dLdf̃′, dLdϕ′]
+
+end

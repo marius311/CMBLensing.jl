@@ -63,3 +63,20 @@ fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(resha
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(Nside(P)÷2+1,Nside(P))))
 length{T,P}(::Type{FlatS0Map{T,P}}) = Nside(P)^2
 length{T,P}(::Type{FlatS0Fourier{T,P}}) = Nside(P)*(Nside(P)÷2+1)
+
+using PyPlot
+import PyPlot: plot
+function plot{T,P}(f::FlatS0{T,P}; ax=nothing)
+    ax == nothing ? ax = figure()[:add_subplot](111) : ax
+    m = ax[:matshow](f[:Tx])
+    Θpix,nside = P.parameters
+    ax[:set_title]("$(nside)x$(nside) flat $T map at $(Θpix)' resolution")
+    colorbar(m,ax=ax)
+end
+
+function plot{F<:FlatS0}(fs::AbstractVecOrMat{F})
+    figure()
+    for i=eachindex(fs)
+        plot(fs[i]; ax=subplot(size(fs)...,i))
+    end
+end
