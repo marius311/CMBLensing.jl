@@ -21,5 +21,5 @@ end
 L_taylens = FlatS0TaylensOp(ϕ,order=10)
 L_lenseflow = LenseFlowOp(ϕ,ode45{1e-6,1e-6})
 
-@show logdet(matrix(FlatS0Map{T,P},L_taylens))
 @show logdet(matrix(FlatS0Map{T,P},L_lenseflow))
+@show logdet(matrix(FlatS0Map{T,P},L_taylens))

@@ -54,8 +54,8 @@ QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f
 QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
 function QUFourier{T,P}(f::FlatS2EBFourier{T,P})
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-    Ql = - f.El .*cos2ϕ + f.Bl .* sin2ϕ
-    Ul = - f.El .*sin2ϕ - f.Bl .* cos2ϕ
+    Ql = - f.El .*cos2ϕ .+ f.Bl .* sin2ϕ
+    Ul = - f.El .*sin2ϕ .- f.Bl .* cos2ϕ
     FlatS2QUFourier{T,P}(Ql,Ul)
 end
 
@@ -67,8 +67,8 @@ EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f
 EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
 function EBFourier{T,P}(f::FlatS2QUFourier{T,P}) 
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-    El = - f.Ql .* cos2ϕ - f.Ul .* sin2ϕ
-    Bl =   f.Ql .* sin2ϕ - f.Ul .* cos2ϕ
+    El = - f.Ql .* cos2ϕ .- f.Ul .* sin2ϕ
+    Bl =   f.Ql .* sin2ϕ .- f.Ul .* cos2ϕ
     FlatS2EBFourier{T,P}(El,Bl)
 end
 
@@ -103,6 +103,7 @@ function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{
     LinearDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
+zero{F<:FlatS2}(::Type{F}) = ((T,P)=F.parameters; FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...))
 
 # define derivatives
 ∂Basis{F<:FlatS2QU}(::Type{F}) = QUFourier
@@ -134,6 +135,10 @@ function fromvec{F<:Union{FlatS2QUFourier,FlatS2EBFourier}}(::Type{F}, vec::Abst
 end
 length{F<:FlatS2Map}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)^2) #todo: less hacky in 0.6.... 
 length{F<:FlatS2Fourier}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)*(Nside(P)÷2+1))
+eltype{F<:FlatS2QUMap}(::Type{F}) = F.parameters[1] #todo: bug in 0.5 (fixed in 0.6) requires writing this out lenghtily...
+eltype{F<:FlatS2EBMap}(::Type{F}) = F.parameters[1]
+eltype{F<:FlatS2QUFourier}(::Type{F}) = Complex{F.parameters[1]}
+eltype{F<:FlatS2EBFourier}(::Type{F}) = Complex{F.parameters[1]}
 
 
 
@@ -144,4 +149,26 @@ length{F<:FlatS2Fourier}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)*(Nside(P)÷2
 # needed for (df̃dϕ)ᵀ calculation, but need to think about how to really handle
 # transposing given the several different spaces at play....
 import Base: Ac_mul_B
-Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(+(map(.*,data(conj.(a)),data(b))...))
+Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(+(map(.*,map(conj,data(a)),data(b))...))
+
+
+# plotting
+function plot{T,P}(f::FlatS2{T,P}; ax=nothing, kwargs...)
+    if ax == nothing 
+        fig = figure()
+        ax = (fig[:add_subplot](1,2,i) for i=1:2)
+    end
+    Θpix,nside = P.parameters
+    for (a,k) in zip(ax,["E","B"])
+        m = a[:matshow](f[Symbol("$(k)x")]; kwargs...)
+        a[:set_title]("$(nside)x$(nside) flat $T $k-map at $(Θpix)' resolution")
+        colorbar(m,ax=a)
+    end
+end
+
+function plot{F<:FlatS2}(fs::Vector{F}; kwargs...)
+    fig,axs = subplots(2,length(fs))
+    for i=1:length(fs)
+        plot(fs[i]; ax=axs[:,i], kwargs...)
+    end
+end

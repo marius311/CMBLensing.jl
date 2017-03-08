@@ -14,7 +14,7 @@ getindex{F<:Field}(arr::Array{F},::Colon) = vcat((arr[i][:] for i=eachindex(arr)
 function getindex{T<:Number,N}(v::AbstractVector{T}, i::NTuple{N,DataType})
     lengths = [map(length,i)...]
     starts = 1+[0; cumsum(lengths)[1:end-1]]
-    [(println(s,l,t); fromvec(t,v[s:s+l-1])) for (s,l,t) in zip(starts,lengths,i)]
+    [fromvec(t,v[s:s+l-1]) for (s,l,t) in zip(starts,lengths,i)]
 end
 getindex{T<:Number}(v::AbstractVector{T},i::Tuple{DataType}) = fromvec(i[1],v)
 
@@ -22,17 +22,12 @@ getindex{T<:Number}(v::AbstractVector{T},i::Tuple{DataType}) = fromvec(i[1],v)
 length{F<:Field}(f::F) = length(F)
 
 
-# some of this may be broken....
-function getindex{P,S,B}(op::LinearOp, f::Tuple{Field{P,S,B}})
-    v = f[1][:]
-    LazyVecApply{typeof(f[1]),B}(op,eltype(v),tuple(fill(length(v),2)...))
-end
-immutable LazyVecApply{F,B}
+# convert operators of Fields to operators on vectors
+getindex(op::LinearOp, i::Tuple{DataType}) = LazyVecApply{i[1]}(op)
+immutable LazyVecApply{F}
     op::LinearOp
-    eltype::Type
-    size::Tuple
 end
-*{F,B}(lazy::LazyVecApply{F,B}, vec::AbstractVector) = tovec(B(lazy.op*fromvec(F,vec,meta(lazy.op)...)))
-eltype(lz::LazyVecApply) = lz.eltype
-size(lz::LazyVecApply) = lz.size
-size(lz::LazyVecApply, d) = d<=2 ? lz.size[d] : 1
+*{F}(lazy::LazyVecApply{F}, vec::AbstractVector) = convert(F,lazy.op*fromvec(F,vec))[:]
+eltype{F}(lz::LazyVecApply{F}) = eltype(F)
+size{F}(lz::LazyVecApply{F}) = (length(F),length(F))
+size{F}(lz::LazyVecApply{F}, d) = d<=2 ? length(F) : 1

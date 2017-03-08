@@ -54,7 +54,7 @@ end
 # our implementation of Taylens
 function *{T,P}(lens::FlatS0TaylensOp, f::FlatS0Map{T,P})
 
-    intlense(fx) = lens.taylens ? broadcast_getindex(fx, lens.j, lens.i) : fx
+    intlense(fx) = lens.taylens ? broadcast_getindex(fx, lens.j, lens.i) : fx[:,:]
     fl = f[:Tl]
 
     # lens to the nearest whole pixel

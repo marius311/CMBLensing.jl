@@ -29,12 +29,13 @@ end
 """
 function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
     Δx  = period/nside
+    FFTW.set_num_threads(Sys.CPU_CORES)
     FFT = (Δx/√(2π))^dm * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
     x,k = getxkside(Δx,Δℓ,period,nside)
     r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
-    ϕ   = angle.(k .+ im*k')[1:nside÷2+1,:]
+    ϕ   = angle.(k' .+ im*k)[1:nside÷2+1,:]
     sincos2ϕ = sin(2ϕ), cos(2ϕ)
     FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
@@ -42,8 +43,8 @@ end
 function getxkside(Δx,Δℓ,period,nside)
     x, ℓ = zeros(nside), zeros(nside)
     for j in 0:(nside-1)
-        x[j+1] = (j < nside/2) ? (j*Δx) : (j*Δx - period)
-        ℓ[j+1] = (j < nside/2) ? (j*Δℓ) : (j*Δℓ - 2π*nside/period)
+        x[j+1] = ((j <= (nside-j)) ? j : j-nside)*Δx
+        ℓ[j+1] = ((j <= (nside-j)) ? j : j-nside)*Δℓ
     end
     x, ℓ
 end

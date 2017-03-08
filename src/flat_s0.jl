@@ -61,22 +61,23 @@ tovec(f::FlatS0Map) = f.Tx[:]
 tovec(f::FlatS0Fourier) = f.Tl[:]
 fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(Nside(P)÷2+1,Nside(P))))
+eltype{T,P}(::Type{FlatS0Map{T,P}}) = T
+eltype{T,P}(::Type{FlatS0Fourier{T,P}}) = Complex{T}
 length{T,P}(::Type{FlatS0Map{T,P}}) = Nside(P)^2
 length{T,P}(::Type{FlatS0Fourier{T,P}}) = Nside(P)*(Nside(P)÷2+1)
 
-using PyPlot
-import PyPlot: plot
-function plot{T,P}(f::FlatS0{T,P}; ax=nothing)
+# plotting
+function plot{T,P}(f::FlatS0{T,P}; ax=nothing, kwargs...)
     ax == nothing ? ax = figure()[:add_subplot](111) : ax
-    m = ax[:matshow](f[:Tx])
+    m = ax[:matshow](f[:Tx]; kwargs...)
     Θpix,nside = P.parameters
     ax[:set_title]("$(nside)x$(nside) flat $T map at $(Θpix)' resolution")
     colorbar(m,ax=ax)
 end
 
-function plot{F<:FlatS0}(fs::AbstractVecOrMat{F})
+function plot{F<:FlatS0}(fs::AbstractVecOrMat{F}; kwargs...)
     figure()
     for i=eachindex(fs)
-        plot(fs[i]; ax=subplot(size(fs)...,i))
+        plot(fs[i]; ax=subplot(size(fs,1),size(fs,2),i), kwargs...)
     end
 end

@@ -16,8 +16,6 @@ immutable PowerLens{F<:Field} <: LinearOp
     ∂yϕⁱ::Dict{Int,Union{F,Int}}
 end
 
-Ł = LenseBasis
-
 function PowerLens{F<:FlatS0}(ϕ::F; order=4)
     PowerLens{F}(order,(Dict(i=>(i==0?1:(Ł(∂*ϕ))^i) for i=0:order) for ∂=(∂x,∂y))...)
 end

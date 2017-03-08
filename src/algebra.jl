@@ -68,7 +68,7 @@ for op in (:+, :-, :*)
 end
 /(op::LinearOp, n::Number) = LazyBinaryOp{/}(op,n)
 -(op::LinearOp) = LazyBinaryOp{*}(-1,op)
-^(op::LinearOp, n::Number) = n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
+^{T<:LinearOp}(op::T, n::Number) = n<0 ? error("Can't raise $T to negative ($n) power") : n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
 
 # evaluation rules when finally applying a lazy op to a field
 for op in (:+, :-)
@@ -104,5 +104,7 @@ Ac_mul_B{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMa
 A_mul_Bc{T1<:Union{Field,LinearOp},T2<:Union{Field,LinearOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (bt=b'; a*bt)
 *{T<:LinearOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
 *{F<:Field}(f::Field, m::AbstractArray{F}) = broadcast(*,[f],m)
+*{F<:Field}(f::LinearOp, m::AbstractArray{F}) = broadcast(*,[f],m)
+Ac_mul_B{F<:Field}(f::Field, m::AbstractArray{F}) = broadcast(Ac_mul_B,[f],m)
 (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
 transpose(f::Union{Field,LinearOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....

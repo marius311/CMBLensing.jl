@@ -1,7 +1,10 @@
 module CMBFields
 
 using PyCall
+using PyPlot
 using DataArrays: @swappable
+using IterativeSolvers
+import PyPlot: plot
 import Base: +, -, .+, .-, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: promote_type, convert
 import Base.LinAlg: dot
@@ -69,6 +72,35 @@ immutable ∂Op{s,n} <: LinearOp end
 ∇ = [∂x, ∂y]; ∇ᵀ = [∂x ∂y]
 *(op::∂Op,f::Field) = op * ∂Basis(typeof(f))(f)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
+
+
+# For each Field type, lensing algorithms needs to know the basis in which lensing is a
+# remapping. E.g. for FlatS0 and FlatS2 this is Map and QUMap, respectively.
+# Fields should implement their own LenseBasis(::Type{F}) to specify. 
+LenseBasis{F<:Field}(f::F) = LenseBasis(F)(f)
+LenseBasis{F<:Field}(::Type{F}) = error("""To lense a field of type $(typeof(f)), LenseBasis(f::$(typeof(f))) needs to be implemented.""")
+LenseBasis{F<:Field}(x::AbstractArray{F}) = map(LenseBasis,x)
+Ł = LenseBasis
+
+
+# Generic Wiener filter
+immutable WienerFilter{tol,TS<:LinearOp,TN<:LinearOp} <: LinearOp
+    S::TS
+    N::TN
+end
+typealias 𝕎 WienerFilter
+𝕎{TS,TN}(S::TS,N::TN,tol=1e-3) = 𝕎{tol,TS,TN}(S,N)
+function *{tol}(w::𝕎{tol}, d::Field)
+    A = w.S^-1+w.N^-1
+    if isa(A,LinearDiagOp)  
+        # if S & N are diagonal in the same basis they can be added/inverted directly
+        A^-1 * w.N^-1 * d
+    else
+        # otherwise solve using conjugate gradient
+        swf, hist = cg(A[~d], (w.N^-1*d)[:], tol=tol, log=true)
+        hist.isconverged ? swf[~d] : error("Conjugate gradient solution of Wiener filter did not converge.")
+    end
+end
 
 include("util.jl")
 include("flat.jl")

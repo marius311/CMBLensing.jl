@@ -1,3 +1,7 @@
+push!(LOAD_PATH, pwd()*"/src")
+using Base.Test
+using CMBFields
+
 
 nside = 64
 P = Flat{1,nside}
