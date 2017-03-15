@@ -1,14 +1,13 @@
-using Sundials
 using ODE
 
 export LenseFlowOp, LenseBasis, δlenseflow
 
-abstract ODESolver
-abstract ode45{reltol,abstol,maxsteps} <: ODESolver 
-abstract ode4{nsteps} <: ODESolver 
+abstract type ODESolver end
+abstract type ode45{reltol,abstol,maxsteps} <: ODESolver  end
+abstract type ode4{nsteps} <: ODESolver  end
 
 
-immutable LenseFlowOp{I<:ODESolver,F<:Field} <: LinearOp
+struct LenseFlowOp{I<:ODESolver,F<:Field} <: LinOp{Pix,Spin,Basis}
     ϕ::F
     ∇ϕ::Vector{F}
     Jϕ::Matrix{F}
@@ -22,7 +21,15 @@ end
 
 # the LenseFlow algorithm 
 
-velocity(L::LenseFlowOp, f::Field, t::Real) = L.∇ϕ'*inv(eye(2)+t*L.Jϕ)*Ł(∇*f)
+function velocity(L::LenseFlowOp, f::Field, t::Real)
+    M = eye(2) + t*L.Jϕ
+    ∇f = Ł(∇*f)
+    (   L.∇ϕ[1] .* (M[2,2] .* ∇f[1] .+ M[2,1] .* ∇f[2])
+      + L.∇ϕ[2] .* (M[1,2] .* ∇f[1] .+ M[1,1] .* ∇f[2])) ./ (M[1,1] .* M[2,2] .- M[1,2] .* M[2,1])
+end
+
+
+# velocity(L::LenseFlowOp, f::Field, t::Real) = @opt L.∇ϕ' ⨳ inv(eye(2)+t*L.Jϕ) ⨳ $Ł(∇*f)
 
 function lenseflow{reltol,abstol,maxsteps}(L::LenseFlowOp{ode45{reltol,abstol,maxsteps}}, f::Field, ts)
     ys = ODE.ode45(
@@ -35,6 +42,7 @@ end
 function lenseflow{nsteps}(L::LenseFlowOp{ode4{nsteps}}, f::Field, ts)
     ODE.ode4((t,y)->velocity(L,y[~f],t)[:], f[:], linspace(ts...,nsteps))[2][end][~f]
 end
+
 
 *(L::LenseFlowOp, f::Field) = lenseflow(L,LenseBasis(f),[0.,1])
 \(L::LenseFlowOp, f::Field) = lenseflow(L,LenseBasis(f),[1.,0])
@@ -78,12 +86,12 @@ function δvelocityᵀ(L::LenseFlowOp, f::Field, dLdf̃::Field, dLdϕ::Field, t:
     
     iM          = inv(eye(2)+t*L.Jϕ) |> Ł
     ∇f          = ∇*f                |> Ł
-    iM_dLdf̃ᵀ_∇f = iM*(dLdf̃'*∇f)      |> Ł
-    iM_∇ϕ       = iM*L.∇ϕ            |> Ł
+    iM_dLdf̃ᵀ_∇f = iM ⨳ (dLdf̃'*∇f)    |> Ł
+    iM_∇ϕ       = iM ⨳ L.∇ϕ          |> Ł
     
-    f′    = Ł(L.∇ϕ'*(iM*∇f))
-    dLdf̃′ = Ł(∇ᵀ*(dLdf̃'*iM_∇ϕ))
-    dLdϕ′ = Ł(∇ᵀ*iM_dLdf̃ᵀ_∇f + t*(∇ᵀ*((∇ᵀ*(iM_∇ϕ*iM_dLdf̃ᵀ_∇f'))')))
+    f′    = Ł(L.∇ϕ' ⨳ (iM*∇f))
+    dLdf̃′ = Ł(∇ᵀ ⨳ (dLdf̃'*iM_∇ϕ))
+    dLdϕ′ = Ł(∇ᵀ ⨳ iM_dLdf̃ᵀ_∇f + t*(∇ᵀ*((∇ᵀ*(iM_∇ϕ*iM_dLdf̃ᵀ_∇f'))')))
     
     [f′, dLdf̃′, dLdϕ′]
 

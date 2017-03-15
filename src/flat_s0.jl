@@ -6,26 +6,30 @@ using BayesLensSPTpol: cls_to_cXXk
 
 export FlatS0Fourier, FlatS0Map
 
-abstract Map <: Basis
-abstract Fourier <: Basis
+abstract type Map <: Basis end
+abstract type Fourier <: Basis end
 
-immutable FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
+struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
     Tx::Matrix{T}
-    FlatS0Map(Tx) = new(checkmap(P,Tx))
+    FlatS0Map{T,P}(Tx) where {T,P} = new(checkmap(P,Tx))
 end
 
-immutable FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
+struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
     Tl::Matrix{Complex{T}}
-    FlatS0Fourier(Tl) = new(checkfourier(P,Tl))
+    FlatS0Fourier{T,P}(Tl) where {T,P} = new(checkfourier(P,Tl))
 end
 
-typealias FlatS0{T,P} Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
+const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
 
 # convenience constructors
 FlatS0Map{T}(Tx::Matrix{T},Θpix=Θpix₀) = FlatS0Map{T,Flat{Θpix,size(Tx,2)}}(Tx)
 FlatS0Fourier{T}(Tl::Matrix{Complex{T}},Θpix=Θpix₀) = FlatS0Fourier{T,Flat{Θpix,size(Tl,2)}}(Tl)
 
 # basis conversion
+import Base: promote_rule
+promote_rule{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
+
+
 @swappable promote_type{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
 Fourier{T,P}(f::FlatS0Map{T,P}) = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
 Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
@@ -33,20 +37,14 @@ Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
 LenseBasis{F<:FlatS0}(::Type{F}) = Map
 
-function white_noise{F<:FlatS0}(::Type{F})
-    T,P = F.parameters #will be less hacky in 0.6
-    FlatS0Map{F.parameters...}(randn(Nside(P),Nside(P)) / FFTgrid(T,P).Δx)
+function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,P}}
+    FlatS0Map{T,P}(randn(Nside,Nside) / FFTgrid(T,P).Δx)
 end
-
-# derivatives
-∂Basis{F<:FlatS0}(::Type{F}) = Fourier
-*{T,P,n}(::∂Op{:x,n}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}((im * FFTgrid(T,P).k').^n .* f.Tl)
-*{T,P,n}(::∂Op{:y,n}, f::FlatS0Fourier{T,P}) = FlatS0Fourier{T,P}((im * FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n .* f.Tl)
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{T})
     g = FFTgrid(T,P)
-    LinearDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
+    FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
 
 zero{F<:FlatS0}(::Type{F}) = ((T,P)=F.parameters; FlatS0Map{T,P}(zeros(Nside(P),Nside(P))))

@@ -8,14 +8,14 @@ catch err
 end
 
 # Healpix pixelization with particular `Nside` value
-abstract Healpix{Nside} <: Pix
+abstract type Healpix{Nside} <: Pix end
 
-immutable HealpixS0Map{Nside} <: Field{Healpix{Nside},S0,Map}
+struct HealpixS0Map{Nside} <: Field{Healpix{Nside},S0,Map}
     Tx::Vector{Float64}
 end
 HealpixS0Map(Tx::Vector{Float64}) = HealpixS0Map{hp.npix2nside(length(Tx))}(Tx)
 
-immutable HealpixS0Fourier{Nside} <: Field{Healpix{Nside},S0,Fourier}
+struct HealpixS0Fourier{Nside} <: Field{Healpix{Nside},S0,Fourier}
     alm::Vector{Complex{Float64}}
 end
 

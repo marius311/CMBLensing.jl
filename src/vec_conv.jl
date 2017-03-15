@@ -1,6 +1,6 @@
 
 
-# allow converting Fields and LinearOp to/from vectors
+# allow converting Fields and LinOp to/from vectors
 
 
 # f[:] or [a,b,c][:] where f,a,b,c are Fields gives you a single vector representation.
@@ -23,9 +23,9 @@ length{F<:Field}(f::F) = length(F)
 
 
 # convert operators of Fields to operators on vectors
-getindex(op::LinearOp, i::Tuple{DataType}) = LazyVecApply{i[1]}(op)
-immutable LazyVecApply{F}
-    op::LinearOp
+getindex(op::LinOp, i::Tuple{DataType}) = LazyVecApply{i[1]}(op)
+struct LazyVecApply{F}
+    op::LinOp
 end
 *{F}(lazy::LazyVecApply{F}, vec::AbstractVector) = convert(F,lazy.op*fromvec(F,vec))[:]
 eltype{F}(lz::LazyVecApply{F}) = eltype(F)

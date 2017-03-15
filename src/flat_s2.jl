@@ -7,41 +7,41 @@ export
     FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
     FlatS2, FlatS2QU, FlatS2Map, FlatS2Fourier
     
-abstract QUMap <: Basis
-abstract EBMap <: Basis
-abstract QUFourier <: Basis
-abstract EBFourier <: Basis
+abstract type QUMap <: Basis end
+abstract type EBMap <: Basis end
+abstract type QUFourier <: Basis end
+abstract type EBFourier <: Basis end
 
 
-immutable FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
+struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
     Ex::Matrix{T}
     Bx::Matrix{T}
-    FlatS2EBMap(Ex, Bx) = new(checkmap(P,Ex),checkmap(P,Bx))
+    FlatS2EBMap{T,P}(Ex, Bx) where {T,P} = new(checkmap(P,Ex),checkmap(P,Bx))
 end
 
 
-immutable FlatS2EBFourier{T<:Real,P<:Flat} <: Field{P,S2,EBFourier}
+struct FlatS2EBFourier{T<:Real,P<:Flat} <: Field{P,S2,EBFourier}
     El::Matrix{Complex{T}}
     Bl::Matrix{Complex{T}}
-    FlatS2EBFourier(El, Bl) = new(checkfourier(P,El),checkfourier(P,Bl))
+    FlatS2EBFourier{T,P}(El, Bl) where {T,P} = new(checkfourier(P,El),checkfourier(P,Bl))
 end
 
-immutable FlatS2QUMap{T<:Real,P<:Flat} <: Field{P,S2,QUMap}
+struct FlatS2QUMap{T<:Real,P<:Flat} <: Field{P,S2,QUMap}
     Qx::Matrix{T}
     Ux::Matrix{T}
-    FlatS2QUMap(Qx,Ux) = new(checkmap(P,Qx),checkmap(P,Ux))
+    FlatS2QUMap{T,P}(Qx,Ux) where {T,P} = new(checkmap(P,Qx),checkmap(P,Ux))
 end
 
-immutable FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
+struct FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
     Ql::Matrix{Complex{T}}
     Ul::Matrix{Complex{T}}
-    FlatS2QUFourier(Ql,Ul) = new(checkfourier(P,Ql),checkfourier(P,Ul))
+    FlatS2QUFourier{T,P}(Ql,Ul) where {T,P} = new(checkfourier(P,Ql),checkfourier(P,Ul))
 end
 
-typealias FlatS2{T,P} Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
-typealias FlatS2QU{T,P} Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
-typealias FlatS2Map{T,P} Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
-typealias FlatS2Fourier{T,P} Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
+const FlatS2{T,P}=Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+const FlatS2QU{T,P}=Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+const FlatS2Map{T,P}=Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
+const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
 # convenience constructors
 for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
@@ -89,32 +89,30 @@ rules = Dict(
 )
 
 for ((F1,F2),Tout) in rules
-    @eval @swappable promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
+    @eval promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
 end
 
-function white_noise{F<:FlatS2}(::Type{F})
-    T,P = F.parameters #will be less hacky in 0.6
-    FlatS2QUMap{T,P}((randn(Nside(P),Nside(P)) / FFTgrid(T,P).Δx for i=1:2)...)
+function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
+    FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
 
 function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{T}, CℓBB::Vector{T})
     g = FFTgrid(T,P)
     n = g.nside÷2+1
-    LinearDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
+    FullDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
 zero{F<:FlatS2}(::Type{F}) = ((T,P)=F.parameters; FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...))
 
-# define derivatives
-∂Basis{F<:FlatS2QU}(::Type{F}) = QUFourier
-function *{T,P,n}(::∂Op{:x,n}, f::FlatS2QUFourier{T,P})
-    ikⁿ = (im .* FFTgrid(T,P).k).^n
-    FlatS2QUFourier{T,P}(ikⁿ' .* f.Ql, ikⁿ' .* f.Ul)
-end
-function *{T,P,n}(::∂Op{:y,n}, f::FlatS2QUFourier{T,P})
-    ikⁿ = (im .* FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n
-    FlatS2QUFourier{T,P}(ikⁿ .* f.Ql, ikⁿ .* f.Ul)
-end
+
+# function *{T,P,n}(::∂Op{:x,n}, f::FlatS2QUFourier{T,P})
+#     ikⁿ = (im .* FFTgrid(T,P).k).^n
+#     FlatS2QUFourier{T,P}(ikⁿ' .* f.Ql, ikⁿ' .* f.Ul)
+# end
+# function *{T,P,n}(::∂Op{:y,n}, f::FlatS2QUFourier{T,P})
+#     ikⁿ = (im .* FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n
+#     FlatS2QUFourier{T,P}(ikⁿ .* f.Ql, ikⁿ .* f.Ul)
+# end
 
 # dot products
 dot{F<:FlatS2Map}(a::F,b::F) = a[:] ⋅ b[:] * FFTgrid(F.parameters...).Δx^2

@@ -3,7 +3,6 @@ using CMBFields
 
 using BayesLensSPTpol
 cls = class();
-
 ##
 
 using PyPlot
@@ -14,35 +13,39 @@ T = Float64
 P = Flat{Θpix,nside}
 g = FFTgrid(T,P)
 
-clipcov(op::LinearDiagOp) = (for d in data(op.f) d[d.==0] = minimum(abs(d[d.!=0])/1e4) end; op)
+clipcov(op::LinDiagOp) = (for d in fieldvalues(op.f) d[d.==0] = minimum(abs(d[d.!=0])/1e4) end; op)
 CEB = Cℓ_to_cov(P,S2,cls[:ell],cls[:ee],1e-4*cls[:bb])  |> clipcov
 CT  = Cℓ_to_cov(P,S0,cls[:ell],cls[:tt])                |> clipcov
 Cϕ  = Cℓ_to_cov(P,S0,cls[:ell],cls[:ϕϕ])                |> clipcov
 
 μKarcminT = 0.001
 Ωpix = deg2rad(Θpix/60)^2
-
 ##
 Cf = CT
-CN  = LinearDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
-CÑ = LinearDiagOp(FlatS0Fourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],data(CN.f))...))
-Cmask = LinearDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<4000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:]))
+CN  = FullDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
+CÑ = FullDiagOp(FlatS0Fourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
+Cmask = FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<4000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:]))
 ##
-# Cmask = 1
 Cf = CEB
-CN  = LinearDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
-CÑ = LinearDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],data(CN.f))...))
-Cmask = LinearDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<6000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
+CN  = FullDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
+CÑ = FullDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
+Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<6000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
 
 ##
 ϕ₀ = simulate(Cϕ) |> LenseBasis
 f₀ = simulate(Cf) |> LenseBasis
 n₀ = simulate(CN) |> LenseBasis
-df̃_lf = LenseFlowOp(ϕ₀)*Ł(f₀) + n₀
-df̃_pl = PowerLens(ϕ₀)*Ł(f₀) + n₀
+# df̃_lf = LenseFlowOp(ϕ₀)*Ł(f₀) + n₀
+df̃_pl = PowerLens(ϕ₀)*f₀ + n₀
 ϵ = 1e-7
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
+##
+L = PowerLens(ϕ₀)
+@time L*f₀
+
+slowlens(L,f₀)
+
 ##
 using ProfileView
 Profile.clear()  # in case we have any previous profiling data
@@ -57,7 +60,7 @@ ProfileView.view()
 @benchmark Fourier(f₀)
 @benchmark inv(L.Jϕ)
 @benchmark velocity(L,f₀,0.5)
-
+f̃,ϕ
 50 * 40
 ##
 close("all")
@@ -69,27 +72,27 @@ f₀′ - f₀ |> plot
 ##
 function lnL(f,ϕ,df̃,LenseOp) 
     Δf̃ = df̃ - LenseOp(ϕ)*Ł(f)
-    (Δf̃⋅(Cmask*(CN^-1*Δf̃)) + f⋅(Cmask*(Cf^-1*f)) + ϕ⋅(Cϕ^-1*ϕ))/2
+    (Δf̃⋅(Cmask*(CN\Δf̃)) + f⋅(Cmask*(Cf\f)) + ϕ⋅(Cϕ\ϕ))/2
 end
 
 function dlnL_dfϕ(f,ϕ,df̃,LenseOp)
     L = LenseOp(ϕ)
     Δf̃ = df̃ - L*Ł(f)
-    df̃dfᵀ,df̃dϕᵀ = dLdf̃_df̃dfϕ(L,Ł(f),Ł(Cmask*(CN^-1*Δf̃)))
-    [-df̃dfᵀ + Cmask*(Cf^-1*f), -df̃dϕᵀ + Cϕ^-1*ϕ]
+    df̃dfᵀ,df̃dϕᵀ = dLdf̃_df̃dfϕ(L,Ł(f),Ł(Cmask*(CN\Δf̃)))
+    [-df̃dfᵀ + Cmask*(Cf\f), -df̃dϕᵀ + Cϕ\ϕ]
 end
 #
 function lnL̃(f̃,ϕ,df̃,LenseOp) 
     Δf̃ = df̃ - f̃
     f = LenseOp(ϕ)\f̃
-    (Δf̃⋅(Cmask*(CN^-1*Δf̃)) + f⋅(Cmask*(Cf^-1*f)) + ϕ⋅(Cϕ^-1*ϕ))/2
+    (Δf̃⋅(Cmask*(CN\Δf̃)) + f⋅(Cmask*(Cf\f)) + ϕ⋅(Cϕ\ϕ))/2
 end
 function dlnL̃_df̃ϕ(f̃,ϕ,df̃,LenseOp)
     L = LenseOp(ϕ)
     f = L\f̃
     Δf̃ = df̃ - f̃
-    dfdf̃ᵀ,dfdϕᵀ = dLdf_dfdf̃ϕ(L,Ł(f),Ł(Cmask*(Cf^-1*f)))
-    [-Ł(Cmask*(CN^-1*Δf̃)) + dfdf̃ᵀ, dfdϕᵀ + Cϕ^-1*ϕ]
+    dfdf̃ᵀ,dfdϕᵀ = dLdf_dfdf̃ϕ(L,Ł(f),Ł(Cmask*(Cf\f)))
+    [-Ł(Cmask*(CN\Δf̃)) + dfdf̃ᵀ, dfdϕᵀ + Cϕ\ϕ]
 end
 ##
 dlnL = dlnL_dfϕ(f₀,ϕ₀,df̃_lf,LenseFlowOp)
@@ -99,6 +102,7 @@ f̃₀ = LenseFlowOp(ϕ₀)*f₀
 dlnL = dlnL̃_df̃ϕ(f̃₀,ϕ₀,df̃_lf,LenseFlowOp)
 dlnL[1]⋅δf + dlnL[2]⋅δϕ , (lnL̃(f̃₀+ϵ*δf,ϕ₀+ϵ*δϕ,df̃_lf,LenseFlowOp) - lnL̃(f̃₀-ϵ*δf,ϕ₀-ϵ*δϕ,df̃_lf,LenseFlowOp))/(2ϵ)
 ##
+
 dlnL = dlnL_dfϕ(f₀,ϕ₀,df̃_pl,PowerLens)
 dlnL[1]⋅δf + dlnL[2]⋅δϕ , (lnL(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,df̃_pl,PowerLens) - lnL(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,df̃_pl,PowerLens))/(2ϵ)
 ##
@@ -112,7 +116,7 @@ fstart = [Ł(𝕎(Cf,CÑ)*df̃), zero(FlatS0Map{T,P})]
 [f₀,fstart[1],df̃] |> plot
 ##
 import Base.LinAlg.A_ldiv_B!
-immutable foo end
+struct foo end
 A_ldiv_B!(s,::foo,q) = ((f,ϕ) = q[~(f₀,ϕ₀)]; s.=[Ł(CÑ*f),Ł(Cϕ*ϕ)][:])
 ##
 res = optimize(

@@ -35,7 +35,7 @@ abstract Field{P<:Pix, S<:Spin, B<:Basis}
 and for an operator that can act on a field,
 
 ```julia
-abstract LinearOp{P<:Pix, S<:Spin, B<:Basis}
+abstract LinOp{P<:Pix, S<:Spin, B<:Basis}
 ```
 
 The meaning of the basis `B` for an operator is that, by default, fields will automatically be converted to that basis before being fed into the operator, therefore you only need to define the action of an operator in one basis. Of course, if you have a more efficient way to act with the operator in multiple bases, you could just add methods working in those bases which would supercede the default behavior. 
@@ -184,11 +184,11 @@ We give a convenient way to access the underlying data when needed. Accessing th
 Essentially, one can use `[]` to get a desired data field, and if the Field object needs to be converted it will be done automatically. That is, if we have two types,
 
 ```julia
-immutable FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
+struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
     Tx::Matrix{T}
 end
 
-immutable FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
+struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
     Tl::Matrix{Complex{T}}
 end
 ```

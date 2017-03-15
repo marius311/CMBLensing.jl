@@ -39,7 +39,7 @@ Custom type Definitions
 
 =##############################################################
 
-immutable FFTgrid{dm, T}
+struct FFTgrid{dm, T}
 	period::T
 	nside::Int64
 	Δx::T
@@ -55,7 +55,7 @@ end
 
 #---- Holds the cls expanded out to the 2 d spectral matrices.
 # ToDo: It might also be nice to hold σEEarcmin and σBBarcmin as well.
-immutable MatrixCls{dm}
+struct MatrixCls{dm}
 	cϕϕk::Array{Float64,dm}
 	cϕψk::Array{Float64,dm}
 	cψψk::Array{Float64,dm}
@@ -71,7 +71,7 @@ end
 
 
 # ----- Holds the decomposition of the lensing displacements
-immutable LenseDecomp
+struct LenseDecomp
 	indcol::Array{Int64,2}
 	indrow::Array{Int64,2}
 	rdisplx::Array{Float64,2}

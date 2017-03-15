@@ -14,7 +14,7 @@ P = Flat{1,nside}
 Gets a matrix representation of an operator in the T->T basis
 TODO: needs some tweaks to work generally then move into main source
 """
-function matrix{T<:Field}(::Type{T}, L::LinearOp)
+function matrix{T<:Field}(::Type{T}, L::LinOp)
     hcat(((convert(T,L*T((x=zeros(nside,nside); x[i]=1; x))))[:] for i=1:nside^2)...);
 end
 

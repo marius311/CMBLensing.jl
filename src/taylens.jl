@@ -2,7 +2,7 @@ using BayesLensSPTpol: indexwrap
 
 export FlatS0TaylensOp
 
-immutable FlatS0TaylensOp{T<:Real,P<:Flat} <: LinearOp{P,S0,Map}
+struct FlatS0TaylensOp{T<:Real,P<:Flat} <: LinOp{P,S0,Map}
     # pixel remapping
     i::Matrix{Int}
     j::Matrix{Int}

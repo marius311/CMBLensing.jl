@@ -1,12 +1,12 @@
 export Flat, FFTgrid
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
-abstract Flat{Θpix,Nside} <: Pix
+abstract type Flat{Θpix,Nside} <: Pix end
 Nside{P<:Flat}(::Type{P}) = P.parameters[2] #convenience method, will look less hacky in 0.6
 Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
 
 
-immutable FFTgrid{dm, T}
+struct FFTgrid{dm, T}
     period::T
     nside::Int64
     Δx::T
@@ -57,7 +57,7 @@ end
     FFTgrid(T, deg2rad(Θpix/60)*Nside, Nside)
 end
 
-abstract ℱ{P}
+abstract type ℱ{P} end
 
 *{T,P}(::Type{ℱ{P}},x::Matrix{T}) = FFTgrid(T,P).FFT * x
 \{T,P}(::Type{ℱ{P}},x::Matrix{Complex{T}}) = FFTgrid(T,P).FFT \ x
@@ -73,4 +73,17 @@ function checkfourier{T,P}(::Type{P},A::Matrix{Complex{T}})
     @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
     #todo: check symmetries
     A
+end
+
+
+include("flat_s0.jl")
+include("flat_s2.jl")
+
+
+# derivatives
+∂Basis(::Type{T}) where T<:FlatS0 = Fourier
+∂Basis(::Type{T}) where T<:FlatS2 = QUFourier
+for F in (FlatS0Fourier,FlatS2QUFourier)
+    @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k')
+    @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1])
 end
