@@ -105,15 +105,6 @@ end
 zero{F<:FlatS2}(::Type{F}) = ((T,P)=F.parameters; FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...))
 
 
-# function *{T,P,n}(::∂Op{:x,n}, f::FlatS2QUFourier{T,P})
-#     ikⁿ = (im .* FFTgrid(T,P).k).^n
-#     FlatS2QUFourier{T,P}(ikⁿ' .* f.Ql, ikⁿ' .* f.Ul)
-# end
-# function *{T,P,n}(::∂Op{:y,n}, f::FlatS2QUFourier{T,P})
-#     ikⁿ = (im .* FFTgrid(T,P).k[1:Nside(P)÷2+1]).^n
-#     FlatS2QUFourier{T,P}(ikⁿ .* f.Ql, ikⁿ .* f.Ul)
-# end
-
 # dot products
 dot{F<:FlatS2Map}(a::F,b::F) = a[:] ⋅ b[:] * FFTgrid(F.parameters...).Δx^2
 function dot{F<:FlatS2Fourier}(a::F,b::F)
@@ -138,11 +129,6 @@ eltype{F<:FlatS2EBMap}(::Type{F}) = F.parameters[1]
 eltype{F<:FlatS2QUFourier}(::Type{F}) = Complex{F.parameters[1]}
 eltype{F<:FlatS2EBFourier}(::Type{F}) = Complex{F.parameters[1]}
 
-
-
-# pixel-by-pixel multiplication between a spin-0 map and a QU map, where Q&U are
-# each individually multiplied
-@swappable *{T,P}(a::FlatS0Map{T,P}, b::FlatS2QUMap{T,P}) = FlatS2QUMap{T,P}(a.Tx .* b.Qx, a.Tx .* b.Ux)
 
 # needed for (df̃dϕ)ᵀ calculation, but need to think about how to really handle
 # transposing given the several different spaces at play....

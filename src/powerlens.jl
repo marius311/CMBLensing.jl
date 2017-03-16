@@ -21,7 +21,7 @@ function PowerLens{F<:FlatS0}(ϕ::F; order=4)
 end
 
 function *{F<:Field}(L::PowerLens, f::F)
-    f̂ = Ð(f)
+    f̂ = 1Ð(f)
     f̃ = 1Ł(f)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
         @. f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $Ł(∂x^a * ∂y^b * f̂) / factorial(a) / factorial(b)

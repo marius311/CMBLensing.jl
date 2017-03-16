@@ -80,6 +80,12 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 
 
+# we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
+@swappable broadcast_promote_type{F1<:FlatS0Map,F2<:FlatS2Map}(::Type{F1},::Type{F2}) = F2
+@swappable broadcast_promote_type{F1<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F1},::Type{F2}) = F2
+broadcast_data(::Type{F1}, f::F2) where {F1<:FlatS2Map, F2<:FlatS0Map} = repeated(broadcast_data(F2,f)...,2)
+broadcast_data(::Type{F1}, f::F2) where {F1<:FlatS2Fourier, F2<:FlatS0Fourier} = repeated(broadcast_data(F2,f)...,2)
+
 # derivatives
 ∂Basis(::Type{T}) where T<:FlatS0 = Fourier
 ∂Basis(::Type{T}) where T<:FlatS2 = QUFourier
