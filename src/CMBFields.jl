@@ -70,13 +70,16 @@ the basis in which it's diagonal.
 struct FullDiagOp{P,S,B,F<:Field{P,S,B}} <: LinDiagOp{P,S,B}
     f::F
     FullDiagOp{P,S,B,F}(f::F) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(f)
+    FullDiagOp{P,S,B,F}(args...) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(F(args...))
     FullDiagOp(f::F) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(f)
 end
 for op=(:*,:\)
     @eval ($op){P,S,B,F}(O::FullDiagOp{P,S,B,F}, f::Field{P,S,B}) = $(Symbol(:.,op))(O.f,f)
 end
 simulate(Σ::FullDiagOp{P,S,B,F}) where {P,S,B,F} = sqrt.(Σ) .* B(white_noise(F))
+broadcast_promote_type{D<:FullDiagOp}(::Type{D},::Type{D}) = D
 broadcast_data(::Type{F}, op::FullDiagOp{P,S,B,F}) where {P,S,B,F<:Field} = broadcast_data(F,op.f)
+broadcast_data(::Type{D}, op::D) where {P,S,B,F,D<:FullDiagOp{P,S,B,F}} = broadcast_data(F,op.f)
 
 
 # Operator used to take derivatives.
@@ -87,6 +90,10 @@ const ∂y = ∂{:y}()
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 const Ð = ∂Basis
 *(∂::∂, f::Field) = ∂ .* Ð(f)
+broadcast_promote_type(::Type{<:∂},::Type{<:∂}) = LinDiagOp{Pix,Spin,Basis}
+# todo: maybe define broadcast_data(::Type{FullDiagOp}) to allow things like B =
+# ∂x * A (with A,B as operators ?)
+
 
 
 # For each Field type, lensing algorithms needs to know the basis in which lensing is a

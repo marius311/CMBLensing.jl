@@ -81,14 +81,14 @@ include("flat_s2.jl")
 
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-@swappable broadcast_promote_type{F1<:FlatS0Map,F2<:FlatS2Map}(::Type{F1},::Type{F2}) = F2
-@swappable broadcast_promote_type{F1<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F1},::Type{F2}) = F2
-broadcast_data(::Type{F1}, f::F2) where {F1<:FlatS2Map, F2<:FlatS0Map} = repeated(broadcast_data(F2,f)...,2)
-broadcast_data(::Type{F1}, f::F2) where {F1<:FlatS2Fourier, F2<:FlatS0Fourier} = repeated(broadcast_data(F2,f)...,2)
+@swappable broadcast_promote_type{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
+@swappable broadcast_promote_type{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = repeated(broadcast_data(F0,f)...,2)
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = repeated(broadcast_data(F0,f)...,2)
 
 # derivatives
-∂Basis(::Type{T}) where T<:FlatS0 = Fourier
-∂Basis(::Type{T}) where T<:FlatS2 = QUFourier
+∂Basis(::Type{<:FlatS0}) = Fourier
+∂Basis(::Type{<:FlatS2}) = QUFourier
 for F in (FlatS0Fourier,FlatS2QUFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k')
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1])

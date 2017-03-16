@@ -22,9 +22,11 @@ Try not using broadcasting or converting $F to the right basis by hand.")
 # we have a separate promotion system for broadcasting, similar to the regular
 # one, which allows a slightly different set of combinations of Fields to be
 # broadcast together
-broadcast_promote_type(::Type{T},::Type{T}) where T = T
-broadcast_promote_type(a::Type,b::Type,c::Type) = broadcast_promote_type(broadcast_promote_type(a,b),c)
-broadcast_promote_type(args...) = broadcast_promote_type(map(typeof,args)...)
+broadcast_promote_type(::Type{<:Field}) = F
+broadcast_promote_type(::Type{F},::Type{F}) where {F<:Field} = F
+@swappable broadcast_promote_type{F<:Field,S<:Scalar}(::Type{F},::Type{S}) = F
+@swappable broadcast_promote_type{D<:LinDiagOp,S<:Scalar}(::Type{D},::Type{S}) = D
+broadcast_promote_type(a::Type,b::Type,cs::Type...) = broadcast_promote_type(broadcast_promote_type(a,b),cs...)
 # LinDiagOps who's {P,S,B} are supertypes of the Field's {P,S,B} are OK. this
 # lets through some bad cases though, which are caught by the fall-back
 # broadcast_data above.
@@ -37,8 +39,8 @@ and $T2 together. Try not broadcasting, or converting them to a different basis.
 # the actual broadcast functions which broadcast operations down to the
 # underlying data as returned by broadcast_data. at least one Field must be
 # present so we can infer the final type of the result
-broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field} = begin
-    F = broadcast_promote_type(args...)
+broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Union{Field,LinDiagOp}} = begin
+    F = broadcast_promote_type(map(typeof,args)...)
     F((broadcast(op,d...) for d=zip(map(broadcast_data,repeated(F),args)...))...)
 end
 broadcast!(op, X::F, args::Union{Field,LinDiagOp,Scalar}...) where {F<:Field} = begin
@@ -47,10 +49,6 @@ broadcast!(op, X::F, args::Union{Field,LinDiagOp,Scalar}...) where {F<:Field} = 
     end
     X
 end
-
-# catch-alls to give more helpful error messages
-broadcast(op, ::Union{_,LinDiagOp,Scalar}...) where {_<:LinDiagOp} = error("Broadcast expression must contain at least one Field.")
-
 
 
 ### old-style (slow) non-broadcasted algebra
