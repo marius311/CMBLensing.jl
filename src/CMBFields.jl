@@ -1,12 +1,14 @@
 module CMBFields
 
+using Base.Iterators: repeated
 using PyCall
 using PyPlot
 using DataArrays: @swappable
 using IterativeSolvers
+using StaticArrays
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
-import Base: promote_type, convert
+import Base: convert, promote_rule
 import Base.LinAlg: dot
 
 
@@ -86,6 +88,7 @@ broadcast_data(::Type{D}, op::D) where {P,S,B,F,D<:FullDiagOp{P,S,B,F}} = broadc
 struct ∂{s} <: LinDiagOp{Pix,Spin,Basis} end
 const ∂x = ∂{:x}()
 const ∂y = ∂{:y}()
+const ∇ = @SVector [∂x,∂y]
 ∂Basis{F<:Field}(f::F) = ∂Basis(F)(f)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 const Ð = ∂Basis
@@ -100,6 +103,7 @@ broadcast_promote_type(::Type{<:∂},::Type{<:∂}) = LinDiagOp{Pix,Spin,Basis}
 # remapping. E.g. for FlatS0 and FlatS2 this is Map and QUMap, respectively.
 # Fields should implement their own LenseBasis(::Type{F}) to specify. 
 LenseBasis{F<:Field}(f::F) = LenseBasis(F)(f)
+LenseBasis(a::AbstractArray{<:Field}) = LenseBasis.(a)
 LenseBasis{F<:Field}(::Type{F}) = error("""To lense a field of type $(typeof(f)), LenseBasis(f::$(typeof(f))) needs to be implemented.""")
 const Ł = LenseBasis
 

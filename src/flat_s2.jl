@@ -89,7 +89,7 @@ rules = Dict(
 )
 
 for ((F1,F2),Tout) in rules
-    @eval promote_type{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
+    @eval promote_rule{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
 end
 
 function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
@@ -150,9 +150,9 @@ function plot{T,P}(f::FlatS2{T,P}; ax=nothing, kwargs...)
     end
 end
 
-function plot{F<:FlatS2}(fs::Vector{F}; kwargs...)
+function plot(fs::AbstractVector{<:FlatS2}; kwargs...)
     fig,axs = subplots(2,length(fs))
     for i=1:length(fs)
-        plot(fs[i]; ax=axs[:,i], kwargs...)
+        plot(fs[i]; ax=axs[i,:], kwargs...)
     end
 end

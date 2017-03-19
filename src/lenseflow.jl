@@ -9,8 +9,8 @@ abstract type ode4{nsteps} <: ODESolver  end
 
 struct LenseFlowOp{I<:ODESolver,F<:Field} <: LinOp{Pix,Spin,Basis}
     ϕ::F
-    ∇ϕ::Vector{F}
-    Jϕ::Matrix{F}
+    ∇ϕ::SVector{2,F}
+    Jϕ::SMatrix{2,2,F,4}
 end
 
 function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::Type{I}=ode45{1e-3,1e-3,100})
@@ -20,16 +20,7 @@ function LenseFlowOp{I<:ODESolver}(ϕ::Field, ::Type{I}=ode45{1e-3,1e-3,100})
 end
 
 # the LenseFlow algorithm 
-
-function velocity(L::LenseFlowOp, f::Field, t::Real)
-    M = eye(2) + t*L.Jϕ
-    ∇f = Ł(∇*f)
-    (   L.∇ϕ[1] .* (M[2,2] .* ∇f[1] .+ M[2,1] .* ∇f[2])
-      + L.∇ϕ[2] .* (M[1,2] .* ∇f[1] .+ M[1,1] .* ∇f[2])) ./ (M[1,1] .* M[2,2] .- M[1,2] .* M[2,1])
-end
-
-
-# velocity(L::LenseFlowOp, f::Field, t::Real) = @opt L.∇ϕ' ⨳ inv(eye(2)+t*L.Jϕ) ⨳ $Ł(∇*f)
+velocity(L::LenseFlowOp, f::Field, t::Real) = @× L.∇ϕ' × inv(𝕀 + t*L.Jϕ) × $Ł(∇*f)
 
 function lenseflow{reltol,abstol,maxsteps}(L::LenseFlowOp{ode45{reltol,abstol,maxsteps}}, f::Field, ts)
     ys = ODE.ode45(
@@ -81,17 +72,16 @@ function dLdf_dfdf̃ϕ{reltol,abstol,F}(L::LenseFlowOp{ode45{reltol,abstol},F}, 
     
 end
 
-
 function δvelocityᵀ(L::LenseFlowOp, f::Field, dLdf̃::Field, dLdϕ::Field, t::Real)
     
-    iM          = inv(eye(2)+t*L.Jϕ) |> Ł
-    ∇f          = ∇*f                |> Ł
-    iM_dLdf̃ᵀ_∇f = iM ⨳ (dLdf̃'*∇f)    |> Ł
-    iM_∇ϕ       = iM ⨳ L.∇ϕ          |> Ł
+    iM          = Ł(inv(𝕀 + t*L.Jϕ))
+    ∇f          = Ł(∇*f)
+    iM_dLdf̃ᵀ_∇f = Ł(@× dLdf̃' * (iM × ∇f))
+    iM_∇ϕ       = Ł(iM × L.∇ϕ)      
     
-    f′    = Ł(L.∇ϕ' ⨳ (iM*∇f))
-    dLdf̃′ = Ł(∇ᵀ ⨳ (dLdf̃'*iM_∇ϕ))
-    dLdϕ′ = Ł(∇ᵀ ⨳ iM_dLdf̃ᵀ_∇f + t*(∇ᵀ*((∇ᵀ*(iM_∇ϕ*iM_dLdf̃ᵀ_∇f'))')))
+    @× f′    = Ł(L.∇ϕ' × iM × ∇f)
+    @× dLdf̃′ = Ł(dLdf̃' * ∇ᵀ × iM_∇ϕ)
+    @× dLdϕ′ = Ł(∇ᵀ × iM_dLdf̃ᵀ_∇f + t*(∇ᵀ × ((∇ᵀ × (iM_∇ϕ × iM_dLdf̃ᵀ_∇f'))')))
     
     [f′, dLdf̃′, dLdϕ′]
 

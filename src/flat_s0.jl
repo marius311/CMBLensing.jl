@@ -11,12 +11,12 @@ abstract type Fourier <: Basis end
 
 struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
     Tx::Matrix{T}
-    FlatS0Map{T,P}(Tx) where {T,P} = new(checkmap(P,Tx))
+    FlatS0Map{T,P}(Tx) where {T,P} = new{T,P}(checkmap(P,Tx))
 end
 
 struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
     Tl::Matrix{Complex{T}}
-    FlatS0Fourier{T,P}(Tl) where {T,P} = new(checkfourier(P,Tl))
+    FlatS0Fourier{T,P}(Tl) where {T,P} = new{T,P}(checkfourier(P,Tl))
 end
 
 const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
@@ -26,11 +26,9 @@ FlatS0Map{T}(Tx::Matrix{T},Θpix=Θpix₀) = FlatS0Map{T,Flat{Θpix,size(Tx,2)}}
 FlatS0Fourier{T}(Tl::Matrix{Complex{T}},Θpix=Θpix₀) = FlatS0Fourier{T,Flat{Θpix,size(Tl,2)}}(Tl)
 
 # basis conversion
-import Base: promote_rule
 promote_rule{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
 
 
-@swappable promote_type{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
 Fourier{T,P}(f::FlatS0Map{T,P}) = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
 Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 

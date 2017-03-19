@@ -29,15 +29,6 @@ function *{F<:Field}(L::PowerLens, f::F)
     f̃
 end
 
-function slowlens{F<:Field}(L::PowerLens, f::F)
-    f̂ = Ð(f)
-    f̃ = 1Ł(f)
-    for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * Ł(∂x^a * ∂y^b * f̂) / factorial(a) / factorial(b)
-    end
-    f̃
-end
-
 dLdf̃_df̃dfϕ(L::PowerLens, f::Field, dLdf̃::Field) = [df̃dfᵀ(L,dLdf̃), df̃dϕᵀ(L,f,dLdf̃)]
 
 """ Compute (df̃(f)/df)ᵀ * dLdf̃ """

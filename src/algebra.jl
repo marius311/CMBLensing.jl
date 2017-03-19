@@ -7,6 +7,7 @@ import Base: broadcast, broadcast!
 # implicitly assume our maps are real, and addition/multiplication by a complex
 # number, even of the fourier transform, would break this. 
 const Scalar = Real
+const FieldOpScal = Union{Field,LinOp,Scalar}
 
 # the data which is broadcast over for Fields and Scalars
 # (other objects can define their own methods for this, allowing a single type
@@ -41,7 +42,7 @@ and $T2 together. Try not broadcasting, or converting them to a different basis.
 # present so we can infer the final type of the result
 broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Union{Field,LinDiagOp}} = begin
     F = broadcast_promote_type(map(typeof,args)...)
-    F((broadcast(op,d...) for d=zip(map(broadcast_data,repeated(F),args)...))...)
+    F((broadcast(op,d...) for d=zip(map(broadcast_data,repeated(F),args)...))...)::F
 end
 broadcast!(op, X::F, args::Union{Field,LinDiagOp,Scalar}...) where {F<:Field} = begin
     for (x,d)=zip(broadcast_data(F,X),zip(map(broadcast_data,repeated(F),args)...))
@@ -68,6 +69,8 @@ end
 dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 
+### basis conversion
+
 # B(f) where B is a basis converts f to that basis
 (::Type{B}){P,S,B}(f::Field{P,S,B}) = f
 convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
@@ -83,20 +86,21 @@ end
 
 
 
-# # type for allowing composition of LinOps
-struct LazyBinaryOp{Op} <: LinOp{Pix,Spin,Basis}
-    a::Union{LinOp,Real}
-    b::Union{LinOp,Real}
+### lazy evaluation
+struct LazyBinaryOp{Op,TA<:Union{LinOp,Scalar},TB<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
+    a::TA
+    b::TB
+    LazyBinaryOp(a::TA,::Op,b::TB) where {Op<:Function,TA,TB} = new{Op,TA,TB}(a,b)
     # maybe assert metadata is the same here? 
 end
 
 # do these ops lazily in these cases
 for op in (:+, :-, :*)
-    @eval ($op)(a::LinOp, b::LinOp) = LazyBinaryOp{$op}(a,b)
-    @eval @swappable ($op)(a::LinOp, b::Real) = LazyBinaryOp{$op}(a,b)
+    @eval ($op)(a::LinOp, b::LinOp) = LazyBinaryOp(a,$op,b)
+    @eval @swappable ($op)(a::LinOp, b::Real) = LazyBinaryOp(a,$op,b)
 end
-/(op::LinOp, n::Real) = LazyBinaryOp{/}(op,n)
--(op::LinOp) = LazyBinaryOp{*}(-1,op)
+/(op::LinOp, n::Real) = LazyBinaryOp(op,/,n)
+-(op::LinOp) = LazyBinaryOp(-1,*,op)
 ^(op::LinOp, n::Int) = n<0 ? error("Can't raise $T to negative ($n) power") : n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
 
 # evaluation rules when finally applying a lazy op to a field
@@ -105,37 +109,32 @@ for op in (:+, :-)
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
-# 
-# # getting metadata
-# linop(lz::LazyBinaryOp) = isa(lz.a, LinOp) ? lz.a : lz.b
-# meta(lz::LazyBinaryOp) = meta(linop(lz))
-# size(lz::LazyBinaryOp) = size(linop(lz))
 
 
-# import Base: inv
-# function inv{T<:Field}(m::Matrix{T})
-#     n,n = size(m)
-#     @assert n==2
-#     a,b,c,d = (m[i] for i=eachindex(m))
-#     invdet = 1./(a*d-b*c)
-#     [invdet*d -invdet*b; -invdet*c invdet*a] :: Matrix{T}
-# end
+### linear algebra of Vectors and Matrices of Fields
+include("broadcast_expand.jl")
+import Base: Ac_mul_B, A_mul_Bc, broadcast, transpose, inv, ctranspose
 
+const Field2DVector = SVector{2,<:FieldOpScal}
+const Field2DRowVector = RowVector{<:FieldOpScal,<:Field2DVector}
+const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
-# linear algebra of Vector{T} and Matrix{T} where T<:Union{Field,LinOp}
-import Base: Ac_mul_B, A_mul_Bc, broadcast, transpose
-# function *{T1<:Union{Field,LinOp},T2<:Union{Field,LinOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2})
-#     @assert size(a,2)==size(b,1) "Dimension mismatch"
-#     ans = [sum(a[i,j]*b[j,k] for j=1:size(b,1)) for i=1:size(a,1), k=1:size(b,2)]
-#     size(ans)==(1,1) ? ans[1,1] : ans
-# end
-# Ac_mul_B{T1<:Union{Field,LinOp},T2<:Union{Field,LinOp}}(a::AbstractVecOrMat{T1}, b::AbstractVecOrMat{T2}) = (at=a'; at*b)
-# Ac_mul_B{F<:Field}(f::Field, m::AbstractArray{F}) = broadcast(Ac_mul_B,[f],m)
+×(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]]
+×(a::Field2DRowVector, b::Field2DMatrix) = @. (@SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]])'
+×(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
+    
+A_mul_Bc(a::Field2DVector, b::Field2DVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
+*(a::Field2DVector, f::Field) = @SVector [a[1]*f, a[2]*f]
 
-A_mul_Bc(a::Vector{<:Field}, b::Vector{<:Field}) = [a[i].*b[j] for i=eachindex(a), j=eachindex(b)]
-A_mul_Bc(a::Vector{<:LinOp}, b::Vector{<:Field}) = [a[i].*b[j] for i=eachindex(a), j=eachindex(b)]
-*{T<:LinOp}(m::AbstractArray{T}, f::Field) = broadcast(*,m,[f])
-# *{F<:Field}(f::Field, m::AbstractArray{F}) = broadcast(*,[f],m)
-# *{F<:Field}(f::LinOp, m::AbstractArray{F}) = broadcast(*,[f],m)
+ctranspose(v::Field2DVector) = RowVector(v)
+
+function inv(m::Field2DMatrix)
+    a,b,c,d = m
+    invdet = @. 1/(a*d-b*c)
+    @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
+end
+
+const 𝕀 = @SMatrix [1 0; 0 1]
+
 # (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
 transpose(f::Union{Field,LinOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....
