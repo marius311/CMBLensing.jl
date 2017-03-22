@@ -6,6 +6,7 @@ using PyPlot
 using DataArrays: @swappable
 using IterativeSolvers
 using StaticArrays
+using BayesLensSPTpol: cls_to_cXXk, class
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: convert, promote_rule
@@ -13,9 +14,10 @@ import Base.LinAlg: dot
 
 
 export 
-    Field, LinOp, LinDiagOp, simulate, Cℓ_to_cov,
+    Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
-    ∂x, ∂y, ∇
+    ∂x, ∂y, ∇,
+    cls_to_cXXk, class, ⨳
 
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -89,7 +91,9 @@ struct ∂{s} <: LinDiagOp{Pix,Spin,Basis} end
 const ∂x = ∂{:x}()
 const ∂y = ∂{:y}()
 const ∇ = @SVector [∂x,∂y]
+const ∇ᵀ = RowVector(∇)
 ∂Basis{F<:Field}(f::F) = ∂Basis(F)(f)
+∂Basis(a::AbstractArray{<:Field}) = ∂Basis.(a)
 ∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
 const Ð = ∂Basis
 *(∂::∂, f::Field) = ∂ .* Ð(f)
@@ -99,13 +103,6 @@ broadcast_promote_type(::Type{<:∂},::Type{<:∂}) = LinDiagOp{Pix,Spin,Basis}
 
 
 
-# For each Field type, lensing algorithms needs to know the basis in which lensing is a
-# remapping. E.g. for FlatS0 and FlatS2 this is Map and QUMap, respectively.
-# Fields should implement their own LenseBasis(::Type{F}) to specify. 
-LenseBasis{F<:Field}(f::F) = LenseBasis(F)(f)
-LenseBasis(a::AbstractArray{<:Field}) = LenseBasis.(a)
-LenseBasis{F<:Field}(::Type{F}) = error("""To lense a field of type $(typeof(f)), LenseBasis(f::$(typeof(f))) needs to be implemented.""")
-const Ł = LenseBasis
 
 
 # Generic Wiener filter
@@ -132,9 +129,7 @@ include("flat.jl")
 include("algebra.jl")
 include("vec_conv.jl")
 include("healpix.jl")
-include("lenseflow.jl")
-include("taylens.jl")
-include("powerlens.jl")
+include("lensing.jl")
 
 (getbasis(::Type{F}) where F<:Field{P,S,B} where {P,S,B}) = B
 function getindex(f::F,x::Symbol) where F<:Field{P,S,B} where {P,S,B}

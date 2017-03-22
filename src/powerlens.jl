@@ -10,18 +10,21 @@
 # taken, this is called "PowerLens"
 # 
 
-struct PowerLens{F<:Field} <: LinOp{Pix,Spin,Basis}
+export PowerLens, δPδf̃_df̃dfϕ
+
+struct PowerLens{F<:Field{<:Pix,<:S0,<:Basis}} <: LenseOp
     order::Int
-    ∂xϕⁱ::Dict{Int,Union{F,Int}}
-    ∂yϕⁱ::Dict{Int,Union{F,Int}}
+    ∂xϕⁱ::Dict{Int,Union{Int,F}}
+    ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end
 
-function PowerLens{F<:FlatS0}(ϕ::F; order=4)
-    PowerLens{F}(order,(Dict(i=>(i==0?1:(Ł(∂*ϕ)).^i) for i=0:order) for ∂=(∂x,∂y))...)
+function PowerLens(ϕ; order=4)
+    ∂xϕⁱ,∂yϕⁱ = [Dict(i=>(i==0?1:(Ł(∂*ϕ)).^i) for i=0:order) for ∂=(∂x,∂y)]
+    PowerLens{typeof(∂xϕⁱ[1])}(order,∂xϕⁱ,∂yϕⁱ)
 end
 
-function *{F<:Field}(L::PowerLens, f::F)
-    f̂ = 1Ð(f)
+function *(L::PowerLens, f::Field)
+    f̂ = Ð(f)
     f̃ = 1Ł(f)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
         @. f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $Ł(∂x^a * ∂y^b * f̂) / factorial(a) / factorial(b)
@@ -29,25 +32,29 @@ function *{F<:Field}(L::PowerLens, f::F)
     f̃
 end
 
-dLdf̃_df̃dfϕ(L::PowerLens, f::Field, dLdf̃::Field) = [df̃dfᵀ(L,dLdf̃), df̃dϕᵀ(L,f,dLdf̃)]
 
-""" Compute (df̃(f)/df)ᵀ * dLdf̃ """
-function df̃dfᵀ{F<:Field}(L::PowerLens, dLdf̃::F)
-    r = dLdf̃
+*(J::δf̃_δfϕᵀ{<:PowerLens},δPδf̃::Field) = [δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.f,δPδf̃)]
+
+""" Compute (δf̃(f)/δf)ᵀ * δP/δf̃ """
+function δf̃δfᵀ(L::PowerLens, δPδf̃::Field)
+    ŁδPδf̃ = Ł(δPδf̃)
+    r = 1Ð(δPδf̃)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        r += @. (-1)^n * ∂x^a * ∂y^b * $Ð(L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $Ł(dLdf̃)) / factorial(a) / factorial(b)
+        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * ŁδPδf̃) / factorial(a) / factorial(b)
     end
     r
 end
 
-""" Compute (df̃(f)/dϕ)ᵀ * dLdf̃ """
-function df̃dϕᵀ{F<:Field}(L::PowerLens{F}, f::Field, dLdf̃::Field)
-    f̂ = Ð(f)
-    r = zero(F)
+""" Compute (δf̃(f)/δϕ)ᵀ * δP/δf̃ """
+function δf̃δϕᵀ(L::PowerLens{F}, f::Field, δPδf̃::Field) where {F}
+    ŁδPδf̃ = Ł(δPδf̃)
+    Ðf = Ð(f)
+    r = Ð(zero(F))
+    ∂ⁿfᵀ_δPδf̃ = Ł(zero(F))
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        ∂ⁿfᵀ_dLdf̃ = Ł(@. ∂x^a * ∂y^b * f̂)' * Ł(dLdf̃) ./ factorial(a) ./ factorial(b)
-        r += -(  ((a==0) ? 0 : (∂x * (a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᵀ_dLdf̃)))
-               + ((b==0) ? 0 : (∂y * (b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_dLdf̃))))
+        ∂ⁿfᵀ_δPδf̃ .= (Ł(@. ∂x^a * ∂y^b * Ðf)' * ŁδPδf̃) ./ factorial(a) ./ factorial(b)
+        @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᵀ_δPδf̃)))
+                  + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_δPδf̃))))
     end
     r
 end

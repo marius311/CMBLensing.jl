@@ -10,16 +10,16 @@ getindex{F<:Field}(arr::Array{F},::Colon) = vcat((arr[i][:] for i=eachindex(arr)
 
 # x[~f] or x[~(a,b,c)] converts vector x back into fields of type f or a,b,c,
 # respectively, assuming the vector is the right length
-~((args::Field)...) = map(typeof,args)
-function getindex{T<:Number,N}(v::AbstractVector{T}, i::NTuple{N,DataType})
-    lengths = [map(length,i)...]
+@generated ~(args::Field...) = :(Tuple{$(args...)})
+@generated function getindex(v::AbstractVector{<:Number}, i::Type{S}) where {S<:NTuple}
+    lengths = [map(length,S.parameters)...]
     starts = 1+[0; cumsum(lengths)[1:end-1]]
-    [fromvec(t,v[s:s+l-1]) for (s,l,t) in zip(starts,lengths,i)]
+    :(tuple($((:(fromvec($t,v[$(s:s+l-1)])) for (s,l,t) in zip(starts,lengths,S.parameters))...)))
 end
-getindex{T<:Number}(v::AbstractVector{T},i::Tuple{DataType}) = fromvec(i[1],v)
+getindex(v::AbstractVector{<:Number},::Type{Tuple{F}}) where {F<:Field} = fromvec(F,v)
 
 # each field defines length(::Type{F}), this lets us call length() on a Field object itself
-length{F<:Field}(f::F) = length(F)
+length{F<:Field}(::F) = length(F)
 
 
 # convert operators of Fields to operators on vectors

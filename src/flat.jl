@@ -2,7 +2,7 @@ export Flat, FFTgrid
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
 abstract type Flat{Θpix,Nside} <: Pix end
-Nside{P<:Flat}(::Type{P}) = P.parameters[2] #convenience method, will look less hacky in 0.6
+Nside(::Type{P}) where {_,N,P<:Flat{_,N}} = N
 Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
 
 
@@ -36,7 +36,7 @@ function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, t
     x,k = getxkside(Δx,Δℓ,period,nside)
     r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
     ϕ   = angle.(k' .+ im*k)[1:nside÷2+1,:]
-    sincos2ϕ = sin(2ϕ), cos(2ϕ)
+    sincos2ϕ = sin.(2ϕ), cos.(2ϕ)
     FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 

@@ -1,40 +1,48 @@
 push!(LOAD_PATH, pwd()*"/src")
 using Base.Test
 using CMBFields
+using CMBFields: LazyBinaryOp
+using StaticArrays
 
-
-nside = 64
+nside = 4
 P = Flat{1,nside}
 T = Float64
 
 d = rand(nside,nside)
-f = FlatS0Map{T,P}(d)
+f = Fourier(FlatS0Map{T,P}(d))
+
+fvec = @SVector [f, f]
+opvec = @SVector [∂x, ∂y]
+fmat = @SMatrix [f f; f f]
+opmat = @SMatrix [∂x ∂y; ∂x ∂y]
 
 @testset "vector algebra" begin
 
     # vec inner
-    @test ([f,f]' * [f,f]).Tx == 2.*d.^2
-    @test_noerror [∂x,∂x]' * [∂x,∂x]
+    @test (fvec' ⨳ fvec).Tl == @. 2*f.Tl^2
+    @test (opvec' ⨳ opvec) isa LazyBinaryOp
 
     # vec outer
-    @test all(map(f->f.Tx == d.^2,([f,f] * [f,f]')))
-    @test_noerror [∂x,∂x] * [∂x,∂x]'
+    @test all(map(g->(g.Tl == f.Tl.^2),(fvec * fvec')))
+    @test (opvec ⨳ opvec') isa StaticMatrix{<:LazyBinaryOp}
     
     # vec inner op on fields
-    @test_noerror [∂x,∂y]' * [f,f]
+    @test (opvec' ⨳ fvec) isa Field
 
     # op broadcasting
-    @test_noerror ([∂x,∂y]*f) :: Vector
+    @test (opvec*f) isa StaticVector
     
     # matrix*vector
-    @test_noerror ([f f; f f] * [f, f]) :: Matrix
-    @test_noerror ([∂x ∂x; ∂x ∂x] * [f, f]) :: Matrix
-    @test_noerror ([∂x ∂x; ∂x ∂x] * [∂x, ∂x]) :: Matrix
+    @test (fmat ⨳ fvec) isa StaticVector{<:Field}
+    @test (opmat ⨳ fvec) isa StaticVector{<:Field}
+    @test (opmat ⨳ opvec) isa StaticVector{<:LazyBinaryOp}
 
     # vector*matrix
-    @test_noerror ([f f] * [f f; f f]) :: Matrix
-    @test_noerror ([∂x ∂x] * [∂x ∂x; ∂x ∂x]) :: Matrix
+    @test (fvec' ⨳ fmat) isa RowVector{<:Field}
+    @test (opvec' ⨳ opmat) isa RowVector{<:LazyBinaryOp}
     
     # matrix*matrix
-    @test_noerror ([f f; f f] * [f f; f f]) :: Matrix
+    @test (fmat ⨳ fmat) isa StaticMatrix{<:Field}
+    @test (opmat ⨳ opmat) isa StaticMatrix{<:LazyBinaryOp}
+    
 end

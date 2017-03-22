@@ -19,35 +19,27 @@ broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
 broadcast_data(::Type{F}, f::T) where {F,T} = error("Can't broadcast $T as a $F.
 Try not using broadcasting or converting $F to the right basis by hand.")
 
-
-# we have a separate promotion system for broadcasting, similar to the regular
-# one, which allows a slightly different set of combinations of Fields to be
-# broadcast together
-broadcast_promote_type(::Type{<:Field}) = F
-broadcast_promote_type(::Type{F},::Type{F}) where {F<:Field} = F
-@swappable broadcast_promote_type{F<:Field,S<:Scalar}(::Type{F},::Type{S}) = F
-@swappable broadcast_promote_type{D<:LinDiagOp,S<:Scalar}(::Type{D},::Type{S}) = D
-broadcast_promote_type(a::Type,b::Type,cs::Type...) = broadcast_promote_type(broadcast_promote_type(a,b),cs...)
-# LinDiagOps who's {P,S,B} are supertypes of the Field's {P,S,B} are OK. this
-# lets through some bad cases though, which are caught by the fall-back
-# broadcast_data above.
-@swappable broadcast_promote_type{DP,DS,DB,D<:LinDiagOp{DP,DS,DB},FP<:DP,FS<:DS,FB<:DB,F<:Field{FP,FS,FB}}(::Type{D},::Type{F}) = F
-# fall-back
-broadcast_promote_type(::Type{T1},::Type{T2}) where {T1,T2} = error("Can't broadcast $T1 
-and $T2 together. Try not broadcasting, or converting them to a different basis.") 
-
+# get the type of the final result in a type stable way (adapted from broadcast.jl)
+containertype(x::F) where {F<:Field} = F
+containertype(::T) where {T<:Union{LinDiagOp,Scalar}} = Any
+containertype(ct1, ct2) = promote_containertype(containertype(ct1), containertype(ct2))
+@inline containertype(ct1, ct2, cts...) = promote_containertype(containertype(ct1), containertype(ct2, cts...))
+promote_containertype(::Type{F}, ::Type{F}) where {F<:Field} = F
+promote_containertype(::Type{Any}, ::Type{Any}) = Any
+@swappable promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
 
 # the actual broadcast functions which broadcast operations down to the
 # underlying data as returned by broadcast_data. at least one Field must be
 # present so we can infer the final type of the result
-broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Union{Field,LinDiagOp}} = begin
-    F = broadcast_promote_type(map(typeof,args)...)
-    F((broadcast(op,d...) for d=zip(map(broadcast_data,repeated(F),args)...))...)::F
+function broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field}
+    F = containertype(args...)
+    F(map(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
 end
+
 broadcast!(op, X::F, args::Union{Field,LinDiagOp,Scalar}...) where {F<:Field} = begin
     for (x,d)=zip(broadcast_data(F,X),zip(map(broadcast_data,repeated(F),args)...))
         broadcast!(op,x,d...)
-    end
+    end 
     X
 end
 
@@ -119,12 +111,22 @@ const Field2DVector = SVector{2,<:FieldOpScal}
 const Field2DRowVector = RowVector{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
-×(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]]
-×(a::Field2DRowVector, b::Field2DMatrix) = @. (@SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]])'
-×(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
-    
-A_mul_Bc(a::Field2DVector, b::Field2DVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
+const 𝕀 = @SMatrix [1 0; 0 1]
+⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]]
+⨳(a::Field2DRowVector, b::Field2DMatrix) = @. (@SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]])'
+⨳(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
+⨳(a::Field2DVector, b::Field2DRowVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
+function ⨳(a::Field2DMatrix, b::Field2DMatrix)
+    @. @SMatrix [(a[1,1]*b[1,1]+a[1,2]*b[2,1]) (a[1,1]*b[1,2]+a[1,2]*b[2,2]);
+                 (a[2,1]*b[1,1]+a[2,2]*b[2,1]) (a[2,1]*b[1,2]+a[2,2]*b[2,2])] 
+end
+
 *(a::Field2DVector, f::Field) = @SVector [a[1]*f, a[2]*f]
+*(f::Field, a::Field2DVector) = @SVector [f*a[1], f*a[2]]
+
+# need this for type stability when converting bases of StaticArrays, seems like
+# maybe a StaticArrays bug.... 
+broadcast(::Type{B},a::StaticArray) where {B<:Basis} = map(x->B(x),a)
 
 ctranspose(v::Field2DVector) = RowVector(v)
 
@@ -134,7 +136,5 @@ function inv(m::Field2DMatrix)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
 
-const 𝕀 = @SMatrix [1 0; 0 1]
 
-# (::Type{B}){B<:Basis,F<:Field}(a::AbstractArray{F}) = map(B,a)
 transpose(f::Union{Field,LinOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....

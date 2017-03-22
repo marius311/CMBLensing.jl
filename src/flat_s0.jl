@@ -2,8 +2,6 @@
 # this file defines a flat-sky pixelized spin-0 map (like T or ϕ)
 # and operators on this map
 
-using BayesLensSPTpol: cls_to_cXXk
-
 export FlatS0Fourier, FlatS0Map
 
 abstract type Map <: Basis end
@@ -45,11 +43,12 @@ function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{
     FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
 
-zero{F<:FlatS0}(::Type{F}) = ((T,P)=F.parameters; FlatS0Map{T,P}(zeros(Nside(P),Nside(P))))
+zero(::Union{Type{FlatS0Map{T,P}},Type{FlatS0Fourier{T,P}}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
 
 # dot products
 dot{T,P}(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) = (a.Tx ⋅ b.Tx) * FFTgrid(T,P).Δx^2
 dot{T,P}(a::FlatS0Fourier{T,P}, b::FlatS0Fourier{T,P}) = real((a.Tl[:] ⋅ b.Tl[:]) + (a.Tl[2:Nside(P)÷2,:][:] ⋅ b.Tl[2:Nside(P)÷2,:][:])) * FFTgrid(T,P).Δℓ^2
+# dot{T,P}(a::FlatS0Fourier{T,P}, b::FlatS0Fourier{T,P}) = real((a.Tl[:] ⋅ b.Tl[:]) + (a.Tl[2:Nside(P)÷2,:][:] ⋅ b.Tl[2:Nside(P)÷2,:][:])) * FFTgrid(T,P).Δℓ^2
 
 
 # vector conversion

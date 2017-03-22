@@ -25,7 +25,7 @@ using MacroTools
 # to a solution based on @generated functions transparently. 
 
 
-macro ×(ex)
+macro ⨳(ex)
     
     # todo: recurse thru turning ∇ᵀ into ∇'
     
@@ -43,7 +43,7 @@ macro ×(ex)
         end
     end
     
-    if @capture(ex, a_' × inv(𝕀 + t_*J_) × c_)
+    if @capture(ex, a_' ⨳ inv(𝕀 + t_*J_) ⨳ c_)
         a,J,c,t = checktemp!.((a,J,c,t))
         quote
             $temps
@@ -51,16 +51,19 @@ macro ×(ex)
                  - $t*($a[1]*$J[2,1]*$c[2] + $a[2]*$J[1,2]*$c[1])) 
                / ((1+$t*$J[1,1])*(1+$t*$J[2,2]) - $t^2*$J[2,1]*$J[1,2]))
         end
-    elseif @capture(ex, a_' × b_ × c_)
+    elseif @capture(ex, a_' ⨳ b_ ⨳ c_)
         a,b,c = checktemp!.((a,b,c))
         quote
             $temps
             @. ($a[1]*$b[1,1]*$c[1] + $a[1]*$b[1,2]*$c[2] 
               + $a[2]*$b[2,1]*$c[1] + $a[2]*$b[2,2]*$c[2])
         end
-    elseif @capture(ex, a_' × b_)
+    elseif @capture(ex, a_' ⨳ b_)
         a,b = checktemp!((a,b))
         :($temps; @. $a[1]*$b[1] + $a[2]*$b[2])
+    elseif @capture(ex, A_ ⨳ b_)
+        A,b = checktemp!((A,b))
+        :($temps; @. $A[1,1]*$b[1] + $A[2]*$b[2])
     end
 
 end
