@@ -12,15 +12,15 @@
 
 export PowerLens, δPδf̃_df̃dfϕ
 
-struct PowerLens{F<:Field{<:Pix,<:S0,<:Basis}} <: LenseOp
+struct PowerLens{F<:Field{<:Any,<:S0}} <: LenseOp
     order::Int
     ∂xϕⁱ::Dict{Int,Union{Int,F}}
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end
 
 function PowerLens(ϕ; order=4)
-    ∂xϕⁱ,∂yϕⁱ = [Dict(i=>(i==0?1:(Ł(∂*ϕ)).^i) for i=0:order) for ∂=(∂x,∂y)]
-    PowerLens{typeof(∂xϕⁱ[1])}(order,∂xϕⁱ,∂yϕⁱ)
+    ∂xϕ, ∂yϕ = Ł(∂x*ϕ), Ł(∂y*ϕ)
+    PowerLens{typeof(∂xϕ)}(order,(Dict(i=>(i==0?1:∂ϕ.^i) for i=0:order) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 
 function *(L::PowerLens, f::Field)
@@ -33,14 +33,14 @@ function *(L::PowerLens, f::Field)
 end
 
 
-*(J::δf̃_δfϕᵀ{<:PowerLens},δPδf̃::Field) = [δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.f,δPδf̃)]
+*(J::δf̃_δfϕᵀ{<:PowerLens},δPδf̃::Field) = (δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.f,δPδf̃))
 
 """ Compute (δf̃(f)/δf)ᵀ * δP/δf̃ """
 function δf̃δfᵀ(L::PowerLens, δPδf̃::Field)
     ŁδPδf̃ = Ł(δPδf̃)
     r = 1Ð(δPδf̃)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * ŁδPδf̃) / factorial(a) / factorial(b)
+        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * ŁδPδf̃) / factorial(a) / factorial(b)
     end
     r
 end

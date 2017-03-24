@@ -79,12 +79,25 @@ end
 include("flat_s0.jl")
 include("flat_s2.jl")
 
+const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P}}
+const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
+
+# generic tovec works for all fields (each must define its own fromvec)
+@generated function tovec(f::Union{FlatS0,FlatS2}) 
+    :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
+end
+
+# generic eltype
+eltype(::Type{F}) where {T,P,F<:FlatMap{T,P}} = T
+eltype(::Type{F}) where {T,P,F<:FlatFourier{T,P}} = Complex{T}
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-@swappable broadcast_promote_type{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
-@swappable broadcast_promote_type{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
+@swappable promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
+@swappable promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = repeated(broadcast_data(F0,f)...,2)
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = repeated(broadcast_data(F0,f)...,2)
+@swappable *(a::FlatS0Map, b::FlatS2Map) = a.*b
+
 
 # derivatives
 ∂Basis(::Type{<:FlatS0}) = Fourier

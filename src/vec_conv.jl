@@ -6,12 +6,13 @@
 # f[:] or [a,b,c][:] where f,a,b,c are Fields gives you a single vector representation.
 getindex(f::Field, i::Colon) = tovec(f)
 getindex{F<:Field}(arr::Array{F},::Colon) = vcat((arr[i][:] for i=eachindex(arr))...)
+getindex{N}(t::NTuple{N,Field},::Colon) = vcat((t[i][:] for i=1:N)...)
 
 
 # x[~f] or x[~(a,b,c)] converts vector x back into fields of type f or a,b,c,
 # respectively, assuming the vector is the right length
 @generated ~(args::Field...) = :(Tuple{$(args...)})
-@generated function getindex(v::AbstractVector{<:Number}, i::Type{S}) where {S<:NTuple}
+@generated function getindex(v::AbstractVector{<:Number}, i::Type{S}) where {S<:Tuple}
     lengths = [map(length,S.parameters)...]
     starts = 1+[0; cumsum(lengths)[1:end-1]]
     :(tuple($((:(fromvec($t,v[$(s:s+l-1)])) for (s,l,t) in zip(starts,lengths,S.parameters))...)))

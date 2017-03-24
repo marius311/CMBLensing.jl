@@ -11,18 +11,20 @@ using MacroTools
 #
 # @. x[1]*M[1,1]*x[1] + x[2]*M[2,1]*x[1] + x[1]*M[1,2]*x[2] + x[2]*M[2,2]*x[2]
 # 
-# which is one single broacasted loop and hence no temporary memory is allocated.
+# which is one single broacasted loop and hence no temporary memory is allocated
+# and its fast.
 #
 # eventually, we should be able to do this with @generated functions which can
 # know both the types of the arguments and the expression being broacasted.
 # unfortunately, in 0.6 you can't call broadcast from a @generated function,
 # although it seems like at some point in the future that could be fixed. 
 # 
-# thus, for now, we do this with macro's, and hard code a number of different
-# cases. this is kinda ugly and won't work generally since macro's know the
-# expression but not the argument types, but worst case scenario is that we just
-# don't optimize a particular expression. eventually we should be able to switch
-# to a solution based on @generated functions transparently. 
+# thus, for now, we do this with macro's and a custom operator, ⨳, and hard code
+# a number of different cases. this is kinda ugly and won't work generally since
+# macro's know the expression but not the argument types, but worst case
+# scenario is that we just don't optimize a particular expression. the point is
+# though eventually we should be able to switch to a solution based on
+# @generated functions with no change to the code otherwise.
 
 
 macro ⨳(ex)

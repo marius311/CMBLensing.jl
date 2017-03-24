@@ -102,38 +102,34 @@ function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{
     FullDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
-zero{F<:FlatS2}(::Type{F}) = ((T,P)=F.parameters; FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...))
+zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...)
 
 
 # dot products
-dot{F<:FlatS2Map}(a::F,b::F) = a[:] ⋅ b[:] * FFTgrid(F.parameters...).Δx^2
-function dot{F<:FlatS2Fourier}(a::F,b::F)
-    F0 = FlatS0Fourier{F.parameters...}
-    +(map((a,b)->F0(a)⋅F0(b),data(a),data(b))...)
+dot(a::F,b::F) where {T,P,F<:FlatS2Map{T,P}} = (a[:] ⋅ b[:]) * FFTgrid(T,P).Δx^2
+@generated function dot(a::F,b::F) where {T,P,F<:FlatS2Fourier{T,P}}
+    F0 = FlatS0Fourier{T,P}
+    fn = fieldnames(a)
+    :($F0(a.$(fn[1])) ⋅ $F0(b.$(fn[1])) + $F0(a.$(fn[2])) ⋅ $F0(b.$(fn[2])))
 end
 
 # vector conversions
-tovec(f::FlatS2) = vcat((v[:] for v in fieldvalues(f))...)
-function fromvec{F<:Union{FlatS2QUMap,FlatS2EBMap}}(::Type{F}, vec::AbstractVector)
+function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Map}
     nside = round(Int,√(length(vec)÷2))
     F(reshape(vec[1:end÷2],(nside,nside)), reshape(vec[end÷2+1:end],(nside,nside)))
 end
-function fromvec{F<:Union{FlatS2QUFourier,FlatS2EBFourier}}(::Type{F}, vec::AbstractVector)
+function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier}
     nside = round(Int,√(1+length(vec))-1)
     F(reshape(vec[1:end÷2],(nside÷2+1,nside)), reshape(vec[end÷2+1:end],(nside÷2+1,nside)))
 end
-length{F<:FlatS2Map}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)^2) #todo: less hacky in 0.6.... 
-length{F<:FlatS2Fourier}(::Type{F}) = (P=F.parameters[2]; 2Nside(P)*(Nside(P)÷2+1))
-eltype{F<:FlatS2QUMap}(::Type{F}) = F.parameters[1] #todo: bug in 0.5 (fixed in 0.6) requires writing this out lenghtily...
-eltype{F<:FlatS2EBMap}(::Type{F}) = F.parameters[1]
-eltype{F<:FlatS2QUFourier}(::Type{F}) = Complex{F.parameters[1]}
-eltype{F<:FlatS2EBFourier}(::Type{F}) = Complex{F.parameters[1]}
+length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Map{T,P}} = 2N^2
+length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Fourier{T,P}} = 2N*(N÷2+1)
 
 
-# needed for (df̃dϕ)ᵀ calculation, but need to think about how to really handle
+# needed for (δf̃δϕ)ᵀ calculation, but need to think about how to really handle
 # transposing given the several different spaces at play....
 import Base: Ac_mul_B
-Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(+(map(.*,map(conj,data(a)),data(b))...))
+Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
 
 
 # plotting
@@ -142,17 +138,17 @@ function plot{T,P}(f::FlatS2{T,P}; ax=nothing, kwargs...)
         fig = figure()
         ax = (fig[:add_subplot](1,2,i) for i=1:2)
     end
-    Θpix,nside = P.parameters
+    Θ,N = P.parameters
     for (a,k) in zip(ax,["E","B"])
-        m = a[:matshow](f[Symbol("$(k)x")]; kwargs...)
-        a[:set_title]("$(nside)x$(nside) flat $T $k-map at $(Θpix)' resolution")
-        colorbar(m,ax=a)
+        m = pyimport(:seaborn)[:heatmap](f[Symbol("$(k)x")]; ax=a, xticklabels=false, yticklabels=false, square=true, kwargs...)
+        a[:set_title]("$k map ($(N)x$(N) @ $(Θ)')")
     end
 end
 
-function plot(fs::AbstractVector{<:FlatS2}; kwargs...)
-    fig,axs = subplots(2,length(fs))
+function plot(fs::AbstractVector{<:FlatS2}; plotsize=4, kwargs...)
+    fig,axs = subplots(length(fs),2)
     for i=1:length(fs)
         plot(fs[i]; ax=axs[i,:], kwargs...)
     end
+    fig[:set_size_inches](plotsize.*(2,length(fs))...)
 end

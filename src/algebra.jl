@@ -112,8 +112,8 @@ const Field2DRowVector = RowVector{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
 const 𝕀 = @SMatrix [1 0; 0 1]
-⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]]
-⨳(a::Field2DRowVector, b::Field2DMatrix) = @. (@SVector [a[1,1]*b[1]+a[1,2]*b[2], a[1,1]*b[1]+a[1,2]*b[2]])'
+⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[2,1]*b[1]+a[2,2]*b[2]]
+⨳(a::Field2DRowVector, b::Field2DMatrix) = ((b') ⨳ (a'))'
 ⨳(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
 ⨳(a::Field2DVector, b::Field2DRowVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
 function ⨳(a::Field2DMatrix, b::Field2DMatrix)
@@ -123,6 +123,7 @@ end
 
 *(a::Field2DVector, f::Field) = @SVector [a[1]*f, a[2]*f]
 *(f::Field, a::Field2DVector) = @SVector [f*a[1], f*a[2]]
+Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
 
 # need this for type stability when converting bases of StaticArrays, seems like
 # maybe a StaticArrays bug.... 

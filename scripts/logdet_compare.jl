@@ -4,7 +4,7 @@ using CMBFields
 using BayesLensSPTpol: class
 cls = class();
 
-nside = 32
+nside = 16
 T = Float64
 P = Flat{1,nside}
 
@@ -18,8 +18,8 @@ function matrix{T<:Field}(::Type{T}, L::LinOp)
     hcat(((convert(T,L*T((x=zeros(nside,nside); x[i]=1; x))))[:] for i=1:nside^2)...);
 end
 
-L_taylens = FlatS0TaylensOp(ϕ,order=10)
-L_lenseflow = LenseFlowOp(ϕ,ode45{1e-6,1e-6})
+L_taylens = PowerLens(ϕ)
+L_lenseflow = LenseFlowOp(ϕ)
 
 @show logdet(matrix(FlatS0Map{T,P},L_lenseflow))
 @show logdet(matrix(FlatS0Map{T,P},L_taylens))

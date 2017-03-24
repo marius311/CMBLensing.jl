@@ -1,23 +1,21 @@
 push!(LOAD_PATH, pwd()*"/src")
-using CMBFields
-
-using BayesLensSPTpol
-cls = class();
+@eval Main begin
+    using BayesLensSPTpol: class
+    cls = class();
+end
 ##
-
+using CMBFields
 using PyPlot
 cls = Main.cls
-nside = 512
+nside = 64
 T = Float64
 Θpix = 1
 P = Flat{Θpix,nside}
 g = FFTgrid(T,P)
-
-clipcov(op::LinDiagOp) = (for d in fieldvalues(op.f) d[d.==0] = minimum(abs(d[d.!=0])/1e4) end; op)
+clipcov(op::LinDiagOp) = (for d in fieldvalues(op.f) d[d.==0] = minimum(abs.(d[d.!=0])/1e4) end; op)
 CEB = Cℓ_to_cov(P,S2,cls[:ell],cls[:ee],1e-4*cls[:bb])  |> clipcov
 CT  = Cℓ_to_cov(P,S0,cls[:ell],cls[:tt])                |> clipcov
 Cϕ  = Cℓ_to_cov(P,S0,cls[:ell],cls[:ϕϕ])                |> clipcov
-
 μKarcminT = 0.001
 Ωpix = deg2rad(Θpix/60)^2
 ##
@@ -29,82 +27,32 @@ Cmask = FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<4000 ? 1 : 0 for l=
 Cf = CEB
 CN  = FullDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
 CÑ = FullDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
-Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<6000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
-
+Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<2000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
 ##
-ϕ₀ = simulate(Cϕ) |> LenseBasis
-f₀ = simulate(Cf) |> LenseBasis
-n₀ = simulate(CN) |> LenseBasis
-# df̃_lf = LenseFlowOp(ϕ₀)*Ł(f₀) + n₀
+ϕ₀ = simulate(Cϕ)
+f₀ = simulate(Cf)
+n₀ = simulate(CN)
+df̃_lf = LenseFlowOp(ϕ₀)*f₀ + n₀
 df̃_pl = PowerLens(ϕ₀)*f₀ + n₀
 ϵ = 1e-7
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
-##
-L = PowerLens(ϕ₀)
-@time L*f₀
 
-slowlens(L,f₀)
-
+include("../src/likelihood.jl")
+ds_pl = DataSet(df̃_pl,CN,Cf,Cϕ,Cmask);
+ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Cmask);
 ##
-using ProfileView
-Profile.clear()  # in case we have any previous profiling data
-@profile L*f₀
-ProfileView.view()
+using Base.Test
+# new stuff:
+(::Type{Tuple{F1,F2}})(fs::NTuple{2,Field}) where {F1,F2} = (F1(fs[1]),F2(fs[2]))
+(::Type{Tuple{F1,F2,F3}})(fs::NTuple{3,Field}) where {F1,F2,F3} = (F1(fs[1]),F2(fs[2]),F3(fs[3]))
+dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
 ##
-@benchmark L.∇ϕ'*inv(eye(2)+0.3*L.Jϕ)*Ł(∇*f₀)
-@benchmark L.∇ϕ'*L.Jϕ*L.∇ϕ
-@benchmark inv(eye(2)+0.3*L.Jϕ)
-@benchmark Ł(∇*f₀)
-@benchmark L.∇ϕ'*(L.Jϕ)*Ł(∇*f₀)
-@benchmark Fourier(f₀)
-@benchmark inv(L.Jϕ)
-@benchmark velocity(L,f₀,0.5)
-f̃,ϕ
-50 * 40
+(@inferred lnP(f₀,ϕ₀,ds_pl,0,PowerLens)), (@inferred lnP(f₀,ϕ₀,ds_lf,0.,LenseFlowOp))
 ##
-close("all")
-L = LenseFlowOp(ϕ₀,ode45{1e-3,0,20})
-f₀′ = L\(L*f₀)
-f₀′ - f₀ |> plot
-# plt[:hist]((f₀′ / f₀ - 1)[:],range=(-0.5,0.5))
-# plt[:hist]((f₀′ / f₀ - 1)[:],bins=50,range=(-0.001,0.001))
+(@inferred δlnP_δfϕ(f₀,ϕ₀,ds_pl,0,PowerLens)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_pl,0,PowerLens) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_pl,0,PowerLens))/(2ϵ)
 ##
-function lnL(f,ϕ,df̃,LenseOp) 
-    Δf̃ = df̃ - LenseOp(ϕ)*Ł(f)
-    (Δf̃⋅(Cmask*(CN\Δf̃)) + f⋅(Cmask*(Cf\f)) + ϕ⋅(Cϕ\ϕ))/2
-end
-
-function dlnL_dfϕ(f,ϕ,df̃,LenseOp)
-    L = LenseOp(ϕ)
-    Δf̃ = df̃ - L*Ł(f)
-    df̃dfᵀ,df̃dϕᵀ = dLdf̃_df̃dfϕ(L,Ł(f),Ł(Cmask*(CN\Δf̃)))
-    [-df̃dfᵀ + Cmask*(Cf\f), -df̃dϕᵀ + Cϕ\ϕ]
-end
-#
-function lnL̃(f̃,ϕ,df̃,LenseOp) 
-    Δf̃ = df̃ - f̃
-    f = LenseOp(ϕ)\f̃
-    (Δf̃⋅(Cmask*(CN\Δf̃)) + f⋅(Cmask*(Cf\f)) + ϕ⋅(Cϕ\ϕ))/2
-end
-function dlnL̃_df̃ϕ(f̃,ϕ,df̃,LenseOp)
-    L = LenseOp(ϕ)
-    f = L\f̃
-    Δf̃ = df̃ - f̃
-    dfdf̃ᵀ,dfdϕᵀ = dLdf_dfdf̃ϕ(L,Ł(f),Ł(Cmask*(Cf\f)))
-    [-Ł(Cmask*(CN\Δf̃)) + dfdf̃ᵀ, dfdϕᵀ + Cϕ\ϕ]
-end
-##
-dlnL = dlnL_dfϕ(f₀,ϕ₀,df̃_lf,LenseFlowOp)
-dlnL[1]⋅δf + dlnL[2]⋅δϕ , (lnL(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,df̃_lf,LenseFlowOp) - lnL(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,df̃_lf,LenseFlowOp))/(2ϵ)
-##
-f̃₀ = LenseFlowOp(ϕ₀)*f₀
-dlnL = dlnL̃_df̃ϕ(f̃₀,ϕ₀,df̃_lf,LenseFlowOp)
-dlnL[1]⋅δf + dlnL[2]⋅δϕ , (lnL̃(f̃₀+ϵ*δf,ϕ₀+ϵ*δϕ,df̃_lf,LenseFlowOp) - lnL̃(f̃₀-ϵ*δf,ϕ₀-ϵ*δϕ,df̃_lf,LenseFlowOp))/(2ϵ)
-##
-
-dlnL = dlnL_dfϕ(f₀,ϕ₀,df̃_pl,PowerLens)
-dlnL[1]⋅δf + dlnL[2]⋅δϕ , (lnL(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,df̃_pl,PowerLens) - lnL(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,df̃_pl,PowerLens))/(2ϵ)
+(@inferred δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,0,LenseFlowOp) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,0,LenseFlowOp))/(2ϵ)
 ##
 using Optim
 f₀ = simulate(Cf) |> LenseBasis
