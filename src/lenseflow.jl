@@ -96,8 +96,8 @@ function δvelocityᵀ(L::LenseFlowOp, f::Field, δPδf̃::Field, δPδϕ::Field
     iM_∇ϕ       = Ł(iM ⨳ L.∇ϕ)
     
     f′    = @⨳ L.∇ϕ' ⨳ iM ⨳ ∇f
-    δPδf̃′ = ∇ᵀ ⨳ Ð(ŁδPδf̃*iM_∇ϕ)
-    δPδϕ′ = ∇ᵀ ⨳ Ð(iM_δPδf̃ᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ Ð(iM_∇ϕ ⨳ iM_δPδf̃ᵀ_∇f'))'))
+    δPδf̃′ = @⨳ ∇ᵀ ⨳ $Ð(ŁδPδf̃*iM_∇ϕ)
+    δPδϕ′ = @⨳ ∇ᵀ ⨳ $Ð(iM_δPδf̃ᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(iM_∇ϕ ⨳ iM_δPδf̃ᵀ_∇f'))'))
     
     (f′, δPδf̃′, δPδϕ′)
 
