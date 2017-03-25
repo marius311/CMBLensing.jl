@@ -130,9 +130,10 @@ include("algebra.jl")
 include("vec_conv.jl")
 include("healpix.jl")
 include("lensing.jl")
+include("plotting.jl")
 
-(getbasis(::Type{F}) where F<:Field{P,S,B} where {P,S,B}) = B
-function getindex(f::F,x::Symbol) where F<:Field{P,S,B} where {P,S,B}
+getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
+function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
     l = filter(S->x in fieldnames(S), subtypes(Field{P,S}))
     if (length(l)==1)
         getfield(getbasis(l[1])(f),x)

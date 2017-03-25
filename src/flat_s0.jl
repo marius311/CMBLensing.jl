@@ -55,18 +55,3 @@ fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(resha
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(Nside(P)÷2+1,Nside(P))))
 length{T,P}(::Type{FlatS0Map{T,P}}) = Nside(P)^2
 length{T,P}(::Type{FlatS0Fourier{T,P}}) = Nside(P)*(Nside(P)÷2+1)
-
-# plotting
-function plot(f::FlatS0{T,P}; ax=nothing, kwargs...) where {T,P}
-    ax == nothing ? ax = figure()[:add_subplot](111) : ax
-    ax = pyimport(:seaborn)[:heatmap](f[:Tx]; xticklabels=false, yticklabels=false, square=true, kwargs...)
-    Θ,N = P.parameters # until https://github.com/JuliaLang/julia/issues/21147 is fixed...
-    ax[:set_title]("T map ($(N)x$(N) @ $(Θ)')")
-end 
-
-function plot(fs::AbstractVecOrMat{F}; plotsize=4, kwargs...) where {F<:FlatS0}
-    figure(figsize=plotsize.*(size(fs,1),size(fs,2)))
-    for i=eachindex(fs)
-        plot(fs[i]; ax=subplot(size(fs,1),size(fs,2),i), kwargs...)
-    end
-end

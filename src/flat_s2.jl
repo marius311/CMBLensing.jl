@@ -130,25 +130,3 @@ length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Fourier{T,P}} = 2N*(N÷2+
 # transposing given the several different spaces at play....
 import Base: Ac_mul_B
 Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
-
-
-# plotting
-function plot{T,P}(f::FlatS2{T,P}; ax=nothing, kwargs...)
-    if ax == nothing 
-        fig = figure()
-        ax = (fig[:add_subplot](1,2,i) for i=1:2)
-    end
-    Θ,N = P.parameters
-    for (a,k) in zip(ax,["E","B"])
-        m = pyimport(:seaborn)[:heatmap](f[Symbol("$(k)x")]; ax=a, xticklabels=false, yticklabels=false, square=true, kwargs...)
-        a[:set_title]("$k map ($(N)x$(N) @ $(Θ)')")
-    end
-end
-
-function plot(fs::AbstractVector{<:FlatS2}; plotsize=4, kwargs...)
-    fig,axs = subplots(length(fs),2)
-    for i=1:length(fs)
-        plot(fs[i]; ax=axs[i,:], kwargs...)
-    end
-    fig[:set_size_inches](plotsize.*(2,length(fs))...)
-end

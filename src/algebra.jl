@@ -64,7 +64,7 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 ### basis conversion
 
 # B(f) where B is a basis converts f to that basis
-(::Type{B}){P,S,B}(f::Field{P,S,B}) = f
+(::Type{B})(f::Field{P,S,B}) where {P,S,B} = f
 convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
 
 
