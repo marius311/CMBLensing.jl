@@ -34,14 +34,14 @@ expression. E.g., if you write,
 
     @⨳ A ⨳ b
 
-this is expands to, 
+this expands to, 
 
     @. [A[1,1] * b[1] + A[1,2] * b[2], 
         A[2,1] * b[1] + A[2,2] * b[2]]
         
 If b is some sub-expression, it will get spliced into the expanded result and
 possibly evaluated multiple times, which might be inefficient depending on the
-case. You can force allocation of a temporary variable but putting $(...)
+case. You can force allocation of a temporary variable but putting \$(...)
 around any subexpression, e.g.
 
     @⨳ A * \$(1+b)

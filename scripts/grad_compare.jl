@@ -1,33 +1,43 @@
 push!(LOAD_PATH, pwd()*"/src")
 @eval Main begin
     using BayesLensSPTpol: class
-    cls = class();
-end
+    cls = class(lmax=4000)
+end;
 ##
 using CMBFields
 using PyPlot
 cls = Main.cls
-nside = 64
-T = Float64
+nside = 256
+T = Float32
 Θpix = 1
 P = Flat{Θpix,nside}
 g = FFTgrid(T,P)
-clipcov(op::LinDiagOp) = (for d in fieldvalues(op.f) d[d.==0] = minimum(abs.(d[d.!=0])/1e4) end; op)
-CEB = Cℓ_to_cov(P,S2,cls[:ell],cls[:ee],1e-4*cls[:bb])  |> clipcov
-CT  = Cℓ_to_cov(P,S0,cls[:ell],cls[:tt])                |> clipcov
-Cϕ  = Cℓ_to_cov(P,S0,cls[:ell],cls[:ϕϕ])                |> clipcov
+CEB = Cℓ_to_cov(T,P,S2,cls[:ell],cls[:ee],cls[:bb])
+CT  = Cℓ_to_cov(T,P,S0,cls[:ell],cls[:tt])
+Cϕ  = Cℓ_to_cov(T,P,S0,cls[:ell],cls[:ϕϕ])
 μKarcminT = 0.001
 Ωpix = deg2rad(Θpix/60)^2
 ##
-Cf = CT
-CN  = FullDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
-CÑ = FullDiagOp(FlatS0Fourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
-Cmask = FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<4000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:]))
+# Cf = CT
+# CN  = FullDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
+# CÑ = FullDiagOp(FlatS0Fourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
+# Cmask = FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(1:10000,[l<4000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:]))
+# ##
+# Cf = CEB
+# CN  = FullDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
+# CÑ = FullDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
+# Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<2000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
 ##
-Cf = CEB
-CN  = FullDiagOp(FlatS2QUMap{T,P}((fill(μKarcminT^2 * Ωpix,(nside,nside)) for i=1:2)...))
-CÑ = FullDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
-Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<2000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
+const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}
+
+Cf = FullDiagOp(FieldTuple(CT.f,CEB.f))
+CN  = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
+Cmask = FullDiagOp(FieldTuple(
+    Cℓ_to_cov(T,P,S0,collect(1.:4000),ones(4000)).f,
+    Cℓ_to_cov(T,P,S2,collect(1.:4000),ones(4000),ones(4000)).f
+))
+# CÑ = FullDiagOp(FlatS2EBFourier{T,P}(map(x->complex(x)[1:size(x,1)÷2+1,:],fieldvalues(CN.f))...))
+# Cmask = FullDiagOp(FlatS2EBFourier{T,P}((cls_to_cXXk(1:10000,[l<2000 ? 1 : 0 for l=1:10000],g.r)[1:g.nside÷2+1,:] for i=1:2)...))
 ##
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
@@ -41,6 +51,8 @@ df̃_pl = PowerLens(ϕ₀)*f₀ + n₀
 include("../src/likelihood.jl")
 ds_pl = DataSet(df̃_pl,CN,Cf,Cϕ,Cmask);
 ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Cmask);
+Cmask * f₀
+
 ##
 using Base.Test
 # new stuff:
@@ -54,6 +66,9 @@ dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
 ##
 (@inferred δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,0,LenseFlowOp) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,0,LenseFlowOp))/(2ϵ)
 ##
+
+δf̃_δfϕᵀ(LenseFlowOp(ϕ₀,ode45{1e-3,1e-3,10,true}),f₀)*Ł(Cmask*(CN\(n₀)))
+
 using Optim
 f₀ = simulate(Cf) |> LenseBasis
 ϕ₀ = simulate(Cϕ) |> LenseBasis

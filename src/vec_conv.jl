@@ -4,7 +4,6 @@
 
 
 # f[:] or [a,b,c][:] where f,a,b,c are Fields gives you a single vector representation.
-getindex(f::Field, i::Colon) = tovec(f)
 getindex{F<:Field}(arr::Array{F},::Colon) = vcat((arr[i][:] for i=eachindex(arr))...)
 getindex{N}(t::NTuple{N,Field},::Colon) = vcat((t[i][:] for i=1:N)...)
 

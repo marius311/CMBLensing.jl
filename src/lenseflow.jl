@@ -38,12 +38,12 @@ function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
 end
 
 function lenseflow(L::LenseFlowOp{ode4{N}}, f::F, ts) where {N,F<:Field}
-    ODE.ode4((t,y)->F(velocity(L,y[~f],t))[:], f[:], linspace(ts...,N))[2][end][~f]::F
+    ODE.ode4((t,y)->F(velocity(L,y[~f],t))[:], f[:], Float32.(linspace(ts...,N)))[2][end][~f]::F
 end
 
 
-*(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),[0.,1])
-\(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),[1.,0])
+*(L::LenseFlowOp, f::Field) = lenseflow(L,Ł(f),Float32[0,1])
+\(L::LenseFlowOp, f::Field) = lenseflow(L,Ł(f),Float32[1,0])
 
 # transpose lenseflow
 
@@ -59,7 +59,7 @@ function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::F1, δPδf̃::F2, δLδϕ::F3=ze
     Fs = Tuple{F1,F2,F3}
     ys = ODE.ode45(
         (t,y)->((Fs(δvelocityᵀ(L,y[Fs]...,t)))[:]), 
-        [f̃,δPδf̃,δLδϕ][:], [1.,0]; 
+        [f̃,δPδf̃,δLδϕ][:], Float32[1,0]; 
         kwargs(I)...)
         
     if dbg(I)

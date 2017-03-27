@@ -30,7 +30,7 @@ end
 function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
     Δx  = period/nside
     FFTW.set_num_threads(Sys.CPU_CORES)
-    FFT = (Δx/√(2π))^dm * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
+    FFT = T((Δx/√(2π))^dm) * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
     x,k = getxkside(Δx,Δℓ,period,nside)
@@ -64,16 +64,18 @@ abstract type ℱ{P} end
 
 
 # Check map and fourier coefficient arrays are the right size
-function checkmap{T,P}(::Type{P},A::Matrix{T})
+function checkmap{T,P}(::Type{P},A::AbstractMatrix{T})
     @assert ==(Nside(P),size(A)...) "Wrong size for a map."
     A
 end
-function checkfourier{T,P}(::Type{P},A::Matrix{Complex{T}})
+function checkfourier{T,P}(::Type{P},A::AbstractMatrix{Complex{T}})
     n,m = size(A)
     @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
     #todo: check symmetries
     A
 end
+
+Cℓ_to_cov(::Type{P}, ::Type{S}, args::Vector{T}...) where {T,P,S<:Spin} = Cℓ_to_cov(T,P,S,args...)
 
 
 include("flat_s0.jl")
@@ -82,8 +84,8 @@ include("flat_s2.jl")
 const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P}}
 const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
 
-# generic tovec works for all fields (each must define its own fromvec)
-@generated function tovec(f::Union{FlatS0,FlatS2}) 
+# generic f[:] that works for both fields (each must define its own fromvec)
+@generated function getindex(f::Union{FlatS0,FlatS2},::Colon) 
     :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
 end
 
@@ -100,9 +102,9 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} =
 
 
 # derivatives
-∂Basis(::Type{<:FlatS0}) = Fourier
-∂Basis(::Type{<:FlatS2}) = QUFourier
+DerivBasis(::Type{<:FlatS0}) = Fourier
+DerivBasis(::Type{<:FlatS2}) = QUFourier
 for F in (FlatS0Fourier,FlatS2QUFourier)
-    @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k')
-    @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1])
+    @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
+    @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
 end

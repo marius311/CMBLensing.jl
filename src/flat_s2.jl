@@ -14,7 +14,7 @@ abstract type EBFourier <: Basis end
 
 
 struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
-    Ex::Matrix{T}
+    Ex::Matrix
     Bx::Matrix{T}
     FlatS2EBMap{T,P}(Ex, Bx) where {T,P} = new(checkmap(P,Ex),checkmap(P,Bx))
 end
@@ -96,7 +96,7 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
 
-function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S2}, ℓ::Vector{T}, CℓEE::Vector{T}, CℓBB::Vector{T})
+function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ::Vector, CℓEE::Vector, CℓBB::Vector)
     g = FFTgrid(T,P)
     n = g.nside÷2+1
     FullDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))

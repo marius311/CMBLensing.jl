@@ -59,9 +59,12 @@ abstract type LinOp{P<:Pix, S<:Spin, B<:Basis} end
 
 
 """
-Diagonal operators are operators over which we can do explicit broadcasting.
+Operators which are diagonal in basis B. This is imporant because it means we
+can do explicit broadcasting between these operators and other fields which are
+also in basis B.
+
 Each LinDiagOp needs to implement broadcast_data(::Type{F}, op::LinDiagOp) which
-should return a tuple of data which can be broadcasted togther with the data of a
+should return a tuple of data which can be broadcasted together with the data of a
 field of type F.
 """
 abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
@@ -71,36 +74,33 @@ abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
 An LinDiagOp which is stored explicitly as all of its diagonal coefficients in
 the basis in which it's diagonal. 
 """
-struct FullDiagOp{P,S,B,F<:Field{P,S,B}} <: LinDiagOp{P,S,B}
+struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
     f::F
-    FullDiagOp{P,S,B,F}(f::F) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(f)
-    FullDiagOp{P,S,B,F}(args...) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(F(args...))
-    FullDiagOp(f::F) where {P,S,B,F<:Field{P,S,B}} = new{P,S,B,F}(f)
+    FullDiagOp(f::F) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f)
 end
 for op=(:*,:\)
-    @eval ($op){P,S,B,F}(O::FullDiagOp{P,S,B,F}, f::Field{P,S,B}) = $(Symbol(:.,op))(O.f,f)
+    @eval ($op)(O::FullDiagOp{F}, f::F) where {F} = $(Symbol(:.,op))(O.f,f)
 end
-simulate(Σ::FullDiagOp{P,S,B,F}) where {P,S,B,F} = sqrt.(Σ) .* B(white_noise(F))
-broadcast_promote_type{D<:FullDiagOp}(::Type{D},::Type{D}) = D
-broadcast_data(::Type{F}, op::FullDiagOp{P,S,B,F}) where {P,S,B,F<:Field} = broadcast_data(F,op.f)
-broadcast_data(::Type{D}, op::D) where {P,S,B,F,D<:FullDiagOp{P,S,B,F}} = broadcast_data(F,op.f)
+simulate(Σ::FullDiagOp{F}) where {F} = sqrt.(Σ) .* F(white_noise(F))
+broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 
+""" 
+A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð.
+For any particular types of fields, these might be different actual bases, e.g.
+the lensing basis is Map for S0 but QUMap for S2.
+"""
+abstract type Basislike <: Basis end
+(::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
+(::Type{B})(a::AbstractArray{<:Field}) where {B<:Basislike} = B.(a)
 
 # Operator used to take derivatives.
-struct ∂{s} <: LinDiagOp{Pix,Spin,Basis} end
-const ∂x = ∂{:x}()
-const ∂y = ∂{:y}()
+abstract type DerivBasis <: Basislike end
+const Ð = DerivBasis
+struct ∂{s} <: LinDiagOp{Pix,Spin,DerivBasis} end
+const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 const ∇ᵀ = RowVector(∇)
-∂Basis{F<:Field}(f::F) = ∂Basis(F)(f)
-∂Basis(a::AbstractArray{<:Field}) = ∂Basis.(a)
-∂Basis{F<:Field}(::Type{F}) = error("""To take a derivative a field of type $F, ∂Basis(f::$F) needs to be implemented.""")
-const Ð = ∂Basis
 *(∂::∂, f::Field) = ∂ .* Ð(f)
-broadcast_promote_type(::Type{<:∂},::Type{<:∂}) = LinDiagOp{Pix,Spin,Basis}
-# todo: maybe define broadcast_data(::Type{FullDiagOp}) to allow things like B =
-# ∂x * A (with A,B as operators ?)
-
 
 
 
@@ -125,11 +125,12 @@ function *{tol}(w::𝕎{tol}, d::Field)
 end
 
 include("util.jl")
-include("flat.jl")
 include("algebra.jl")
+include("lensing.jl")
+include("flat.jl")
 include("vec_conv.jl")
 include("healpix.jl")
-include("lensing.jl")
+include("field_tuples.jl")
 include("plotting.jl")
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B

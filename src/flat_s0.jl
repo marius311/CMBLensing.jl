@@ -9,12 +9,12 @@ abstract type Fourier <: Basis end
 
 struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
     Tx::Matrix{T}
-    FlatS0Map{T,P}(Tx::Matrix) where {T,P} = new{T,P}(checkmap(P,Tx))
+    FlatS0Map{T,P}(Tx::AbstractMatrix) where {T,P} = new{T,P}(checkmap(P,Tx))
 end
 
 struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
     Tl::Matrix{Complex{T}}
-    FlatS0Fourier{T,P}(Tl::Matrix) where {T,P} = new{T,P}(checkfourier(P,Tl))
+    FlatS0Fourier{T,P}(Tl::AbstractMatrix) where {T,P} = new{T,P}(checkfourier(P,Tl))
 end
 
 const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
@@ -38,7 +38,7 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,
 end
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
-function Cℓ_to_cov{T,P}(::Type{P}, ::Type{S0}, ℓ::Vector{T}, CℓTT::Vector{T})
+function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ℓ::Vector, CℓTT::Vector)
     g = FFTgrid(T,P)
     FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end

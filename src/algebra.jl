@@ -12,12 +12,11 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 # the data which is broadcast over for Fields and Scalars
 # (other objects can define their own methods for this, allowing a single type
 # of object to be broadcast with many different types of Fields)
-broadcast_data(::Type{F}, n::Scalar) where {F<:Field} = repeated(n)
+broadcast_length(::Type{F}) where {F} = length(fieldnames(F))
+broadcast_data(::Type{F}, n::Scalar) where {F<:Field} = repeated(n,broadcast_length(F))
 broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
-
-# fall-back
 broadcast_data(::Type{F}, f::T) where {F,T} = error("Can't broadcast $T as a $F.
-Try not using broadcasting or converting $F to the right basis by hand.")
+Try not using broadcasting or converting $F to the right basis by hand.") #fall-back
 
 # get the type of the final result in a type stable way (adapted from broadcast.jl)
 containertype(x::F) where {F<:Field} = F
@@ -27,6 +26,9 @@ containertype(ct1, ct2) = promote_containertype(containertype(ct1), containertyp
 promote_containertype(::Type{F}, ::Type{F}) where {F<:Field} = F
 promote_containertype(::Type{Any}, ::Type{Any}) = Any
 @swappable promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
+promote_containertype(::Type{F1}, ::Type{F2}) where {F1,F2} = error("Can't broadcast together $F1 and $F2. 
+Try not using broadcasting or converting them to the same basis by hand.") #fall-back
+
 
 # the actual broadcast functions which broadcast operations down to the
 # underlying data as returned by broadcast_data. at least one Field must be
@@ -70,8 +72,8 @@ convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
 
 # convert Fields to right basis before feeding into a LinOp
 for op=(:*,:\)
-    @eval ($op){P,S,B1,B2}(O::LinOp{P,S,B1}, f::Field{P,S,B2}) = $(op)(O,B1(f))
-    @eval ($op){P,S,B}(O::LinOp{P,S,B}, f::Field{P,S,B}) = throw(MethodError($op,(O,f)))
+    @eval ($op){B1,B2}(O::LinOp{<:Any,<:Any,B1}, f::Field{<:Any,<:Any,B2}) = $(op)(O,B1(f))
+    # @eval ($op)(O::LinOp, f::F) where {F<:Field} = throw(MethodError($op,(O,f)))
 end
 
 
