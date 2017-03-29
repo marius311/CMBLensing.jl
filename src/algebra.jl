@@ -69,13 +69,13 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 # B(f) where B is a basis converts f to that basis
 (::Type{B})(f::Field{P,S,B}) where {P,S,B} = f
+#todo: probably want to have convert(::Type{T},..)::T rather than the following...
 convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
 
 
 # convert Fields to right basis before feeding into a LinOp
 for op=(:*,:\)
     @eval @∷ ($op){B1,B2}(O::LinOp{∷,∷,B1}, f::Field{∷,∷,B2}) = $(op)(O,B1(f))
-    # @eval ($op)(O::LinOp, f::F) where {F<:Field} = throw(MethodError($op,(O,f)))
 end
 
 

@@ -1,77 +1,147 @@
-# the following code defines a two-tuple of Fields, where basically everything
-# is just forwarded down to the individual fields
-#
-# todo: define FieldNTuple by just looping over this with an @eval and $N
-# inserted in-place of 2
+#= 
+
+This file defines "FieldNTuples", arbitrary tuples of fields
+
+To keep things type-stable, until a solution to
+https://discourse.julialang.org/t/is-there-a-way-to-forward-getindex-for-tuples-in-a-type-stable-way/2889
+comes along, we generate parametric structs for each "N" with a loop and @eval.
+i.e., the code below generates more-or-less, 
+
+struct Field2Tuple{F1,F2}
+    f1::F1
+    f2::F2
+end
+
+struct Field3Tuple{F1,F2,F3}
+    f1::F1
+    f2::F2
+    f2::F3
+end
+
+etc..., along with all of the necessary functions for each. 
+
+Due to this, the code below can be a bit obtuse; you can also take a look at
+docs/field_2tuples.jl which is the version explicitly written out for 2-tuples,
+which this file is a generalization of. Additionally, you can uncomment the
+"println" line below to just directly print the generate code, which is not too
+bad to read either. 
+
+=#
+
 
 export FieldTuple
 
-abstract type Basis2Tuple{B1<:Basis,B2<:Basis} <: Basis end
+*(args::Union{_,Symbol,Int}...) where {_<:Symbol} = Symbol(args...)
 
-#
-# I really wish I could define this just as 
-# Field2Tuple{F1<:Field{∷,∷,B1},F2<:Field{∷,∷,B2}} <: Field{Pix,Spin,Basis2Tuple{B1,B2}}
-# but this doesn't exist in Julia (yet?), so instead I use this "hack"
-# see also: https://discourse.julialang.org/t/could-julia-have-implicit-type-parameters/2914/5
-#
-@∷ struct Field2Tuple{F1<:Field,F2<:Field,B1,B2} <: Field{Pix,Spin,Basis2Tuple{B1,B2}}
-    f1 :: F1
-    f2 :: F2
-    Field2Tuple(f1::F1,f2::F2) where {B1,B2,F1<:Field{∷,∷,B1},F2<:Field{∷,∷,B2}} = new{F1,F2,B1,B2}(f1,f2)
-    Field2Tuple{F1,F2,B1,B2}(f1::F1,f2::F2) where {B1,B2,F1<:Field{∷,∷,B1},F2<:Field{∷,∷,B2}} = new{F1,F2,B1,B2}(f1,f2)
+Ns = [2,3] # which FieldNTuples to generate
+
+for N in Ns
+    
+    let 
+        local f(i) = :f*i
+        local F(i) = :F*i
+        local B(i) = :B*i
+        local (fs, Fs, Bs) = @. f(1:N), F(1:N), B(1:N)
+        local (Fas, Fbs) = @. (F(1:N)*:a), F(1:N)*:b
+        local (FNT, BNT)= (:Field*N*:Tuple, :Basis*N*:Tuple)
+
+        (q = (quote
+        
+            abstract type $(:Basis*N*:Tuple){$((:($(B(i))<:Basis) for i=1:N)...)} <: Basis end
+            
+            # 
+            # I really wish I could define this just as 
+            # Field2Tuple{F1<:Field{∷,∷,B1},F2<:Field{∷,∷,B2}} <: Field{Pix,Spin,Basis2Tuple{B1,B2}}
+            # but this doesn't exist in Julia (yet?), so instead I use this "hack"
+            # see also: https://discourse.julialang.org/t/could-julia-have-implicit-type-parameters/2914/5
+            # 
+            @∷ struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{Pix,Spin,$(:Basis*N*:Tuple){$(Bs...)}} 
+                $((:($(:f*i)::$(:F*i)) for i=1:N)...)
+                # todo:
+                $FNT($((:($(:f*i)::$(:F*i)) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+                $FNT{$(Fs...),$(Bs...)}($((:($(:f*i)::$(:F*i)) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+            end
+            
+            shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "Field$($N)Tuple{$(join(map(shortname,[$(Fs...)]),","))}"
+            
+            # Field2Tuple's data
+            broadcast_length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(broadcast_length($(F(i)))) for i=1:N)...))
+            broadcast_data(::Type{$FNT{$(Fs...)}}, f::$FNT) where {$(Fs...)}  = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f.$(f(i))))) for i=1:N)...))
+            # How to broadcast other things as a Field2Tuple
+            broadcast_data(::Type{$FNT{$(Fs...)}}, f::Union{Field,LinOp}) where {$(Fs...)} = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f))) for i=1:N)...))
+            # needed for ambiguity (todo: get rid of needing this...)
+            broadcast_data(::Type{$FNT{$(Fs...)}}, op::FullDiagOp) where {$(Fs...)} = broadcast_data($FNT{$(Fs...)},op.f)
+
+
+            # the final data type when broadcasting things with Field2Tuple
+            containertype(::$FNT{$(Fs...)}) where {$(Fs...)} = $FNT{$((:(containertype($(F(i)))) for i=1:N)...)}
+            containertype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT{$(Fs...)}
+            function promote_containertype(::Type{$FNT{$(Fas...)}}, ::Type{$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)}
+                $FNT{$((:(promote_containertype($(F(i)*:a), $(F(i)*:b))) for i=1:N)...)}
+            end
+            @swappable function promote_containertype{F<:Field,$(Fs...)}(::Type{F},::Type{$FNT{$(Fs...)}})
+                $FNT{$((:(promote_containertype(F,$(F(i)))) for i=1:N)...)}
+            end
+            @swappable *(a::Field,b::$FNT) = a.*b
+            *(a::$FNT,b::$FNT) = a.*b 
+
+            # Reconstruct FieldNTuple from broadcasted data
+            function (::Type{<:$FNT{$(Fs...)}})(args...) where {$(Fs...)}
+                lens = broadcast_length.([$(Fs...)])
+                starts = [1; cumsum(lens)[1:end-1]+1]
+                ends = starts + lens - 1
+                $FNT($((:($(F(i))(args[starts[$i]:ends[$i]]...)) for i=1:N)...))
+            end
+
+            # promotion / conversion
+            function promote_rule(::Type{<:$FNT{$(Fas...)}},::Type{<:$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)} 
+                $FNT{$((:(promote_type($(F(i)*:a), $(F(i)*:b))) for i=1:N)...)}
+            end
+            (::Type{<:$FNT{$(Fs...)}})(f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
+            convert(::Type{<:$FNT{$(Fs...)}},f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
+
+            # Basis conversions
+            (::Type{$BNT{$(Bs...)}})(f::$FNT) where {$(Bs...)} = $FNT($((:($(B(i))(f.$(f(i)))) for i=1:N)...))
+            (::Type{B})(f::$FNT) where {B<:Basis} = $FNT($((:(B(f.$(f(i)))) for i=1:N)...))
+            (::Type{B})(f::$FNT) where {B<:Basislike} = $FNT($((:(B(f.$(f(i)))) for i=1:N)...)) #needed for ambiguity
+
+            # dot product
+            dot(a::$FNT, b::$FNT) = +($((:(dot(a.$(f(i)),b.$(f(i)))) for i=1:N)...))
+
+            # transpose multiplication (todo: optimize...)
+            Ac_mul_B(a::$FNT,b::$FNT) = +($((:(Ac_mul_B(a.$(f(i)),b.$(f(i)))) for i=1:N)...))
+
+            # for simulating
+            white_noise(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT($((:(white_noise($(F(i)))) for i=1:N)...))
+
+            zero(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT($((:(zero($(F(i)))) for i=1:N)...))
+
+            # vector conversion
+            getindex(f::$FNT,::Colon) = vcat($((:(f.$(f(i))[:]) for i=1:N)...))
+            function fromvec(::Type{F}, vec::AbstractVector) where {$(Fs...),F<:$FNT{$(Fs...)}}
+                lens = length.([$(Fs...)])
+                starts = [1; cumsum(lens)[1:end-1]+1]
+                ends = starts + lens - 1
+                F( $((:(fromvec($(F(i)),(@view vec[starts[$i]:ends[$i]]))) for i=1:N)...) )
+            end
+            length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(length($(F(i)))) for i=1:N)...))
+
+        end)) # |> println    # ...uncomment to print generated code
+        eval(q)
+        
+    end
+    
 end
 
-const F2T = Field2Tuple
-FieldTuple(a,b) = F2T(a,b)
-shortname(::Type{<:F2T{F1,F2}}) where {F1,F2} = "Field2Tuple{$(shortname(F1)),$(shortname(F2))}"
+# containertype(::Type{T}) as opposed to containertype(::T) is only used from
+# this file and only because of the "hack" mentioned above, hence we need this
+# for other fields. hopefully we eventually can get rid of this
+containertype(::Type{F}) where {F<:Field} = F
+    
+    
 
-# Field2Tuple's data
-broadcast_length(::Type{<:F2T{F1,F2}}) where {F1,F2} = broadcast_length(F1) + broadcast_length(F2)
-broadcast_data(::Type{F2T{F1,F2}}, f::F2T) where {F1,F2}  = (broadcast_data(F1,f.f1)...,broadcast_data(F2,f.f2)...)
-# How to broadcast other things as a Field2Tuple
-broadcast_data(::Type{F2T{F1,F2}}, f::Union{Field,LinOp}) where {F1,F2} = (broadcast_data(F1,f)...,broadcast_data(F2,f)...)
-# needed for ambiguity (todo: get rid of needing this...)
-broadcast_data(::Type{F2T{F1,F2}}, op::FullDiagOp{<:F2T{F1,F2}}) where {F1,F2} = broadcast_data(F2T{F1,F2},op.f)
-
-# the final data type when broadcasting things with Field2Tuple
-containertype(::F2T{F1,F2}) where {F1,F2} = F2T{F1,F2}
-promote_containertype(::Type{F2T{F1a,F1b}}, ::Type{F2T{F2a,F2b}}) where {F1a,F2a,F1b,F2b} = F2T{promote_containertype(F1a,F2a),promote_containertype(F1b,F2b)}
-@swappable promote_containertype{F<:Field,F1,F2}(::Type{F},::Type{F2T{F1,F2}}) = F2T{promote_containertype(F,F1),promote_containertype(F,F2)}
-@swappable *(a::Field,b::F2T) = a.*b
-*(a::F2T,b::F2T) = a.*b 
-
-
-# Reconstruct Field2Tuple from broadcasted data
-function (::Type{F2T{F1,F2}})(args...) where {F1,F2}
-    n = length.(fieldnames.((F1,F2)))
-    F2T(F1(args[1:n[1]]...),F2(args[n[1]+1:end]...))
+@eval const FieldTuple = Union{$((:Field*N*:Tuple for N=Ns)...)}
+for N in Ns
+    @eval FieldTuple($((:f*i for i=1:N)...)) = $(:Field*N*:Tuple)($((:f*i for i=1:N)...))
 end
-
-# promotion / conversion
-promote_rule(::Type{<:F2T{F1a,F2a}},::Type{<:F2T{F1b,F2b}}) where {F1a,F2a,F1b,F2b} = F2T{promote_type(F1a,F1b),promote_type(F2a,F2b)}
-(::Type{<:F2T{F1,F2}})(f::F2T) where {F1,F2} = F2T(F1(f.f1),F2(f.f2))
-convert(::Type{<:F2T{F1,F2}},f::F2T) where {F1,F2} = F2T(F1(f.f1),F2(f.f2))
-
-# Basis conversions
-(::Type{Basis2Tuple{B1,B2}})(f::Field2Tuple) where {B1,B2} = F2T(B1(f.f1),B2(f.f2))
-(::Type{B})(f::Field2Tuple) where {B<:Basis} = F2T(B(f.f1),B(f.f2))
-(::Type{B})(f::Field2Tuple) where {B<:Basislike} = F2T(B(f.f1),B(f.f2)) #needed for ambiguity
-
-# vector conversion
-getindex(f::F2T,::Colon) = vcat(f.f1[:],f.f2[:])
-function fromvec(::Type{F}, vec::AbstractVector) where {F1,F2,F<:F2T{F1,F2}}
-    n = length.((F1,F2))
-    F(fromvec(F1,(@view vec[1:n[1]])),fromvec(F2,(@view vec[n[1]+1:end])))
-end
-length(::Type{<:F2T{F1,F2}}) where {F1,F2} = length(F1)+length(F2)
-
-# dot product
-dot(a::F2T{F1,F2},b::F2T{F1,F2}) where {F1,F2} = dot(a.f1,b.f1)+dot(a.f1,b.f1)
-
-# transpose multiplication (avoid storing temporary array)
-Ac_mul_B(a::F2T,b::F2T) = (x=a.f1'*b.f1; x+=a.f2'*b.f2)
-
-# for simulating
-white_noise(::Type{<:F2T{F1,F2}}) where {F1,F2} = F2T(white_noise(F1),white_noise(F2))
-
-zero(::Type{<:F2T{F1,F2}}) where {F1,F2} = F2T(zero(F1),zero(F2))
+    

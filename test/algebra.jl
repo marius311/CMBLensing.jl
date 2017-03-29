@@ -12,10 +12,11 @@ macro mytest(F,ex) :(@test (((@inferred ($(esc(ex))))::$(esc(F))); true)) end
 f0 = FlatS0Map(rand(4,4))
 f2 = FlatS2QUMap(rand(4,4),rand(4,4))
 f02 = FieldTuple(f0,f2)
+f220 = FieldTuple(f2,f2,f0)
 fn = FieldTuple(f02,f02)
 
 @testset "Basic Algebra" begin
-    for f in (f0,f2,f02,fn)
+    for f in (f0,f2,f02,f220,fn)
         F = typeof(f)
         @testset "$(shortname(typeof(f)))" begin
             @mytest F f+1
@@ -29,14 +30,15 @@ fn = FieldTuple(f02,f02)
             @mytest f+Ð(f)
             @mytest f+Ł(f)
             @mytest ∂x*f
-            @mytest ∂y*f
+            @mytest ∂x*FullDiagOp(f)*f
+            @mytest ∂x.*FullDiagOp(Ð(f)).*Ð(f)
             @mytest simulate(FullDiagOp(f))
             
             @mytest f⋅f
             @mytest f'*f
             
-            # @mytest2 f.=f
-            # @mytest2 (@. f = 2∂x*f + 3∂y*f)
+            # @mytest2 (@. f = 2f + 3f)
+            # @mytest2 (@. f = 2*∂x*f + 3*∂y*f)
         end
     end
     @testset "S0/S2" begin
