@@ -41,3 +41,8 @@ function plot(fs::AbstractVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=4, 
     end
 end
 plot(f::Field2Tuple{<:FlatS0,<:FlatS2}; kwargs...) = plot([f]; kwargs...)
+
+function plot(m::Matrix{<:Real}; kwargs...)
+    m[isinf(m)]=NaN
+    pyimport(:seaborn)[:heatmap](m; mask=isnan(m), xticklabels=false, yticklabels=false, square=true, kwargs...)
+end

@@ -68,6 +68,7 @@ function checkmap{T,P}(::Type{P},A::AbstractMatrix{T})
     @assert ==(Nside(P),size(A)...) "Wrong size for a map."
     A
 end
+checkfourier{T<:Real,P}(::Type{P},A::AbstractMatrix{T}) = checkfourier(P,complex(A))
 function checkfourier{T,P}(::Type{P},A::AbstractMatrix{Complex{T}})
     n,m = size(A)
     @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
@@ -108,3 +109,6 @@ for F in (FlatS0Fourier,FlatS2QUFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
 end
+
+
+const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}

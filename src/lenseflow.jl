@@ -1,4 +1,3 @@
-using ODE
 
 export LenseFlowOp, LenseBasis, δlenseflow
 
@@ -28,17 +27,17 @@ dbg(::Type{ode45{ϵr,ϵa,N,d}}) where {ϵr,ϵa,N,d} = d
 velocity(L::LenseFlowOp, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Jϕ) ⨳ $Ł(∇*f)
 
 function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
-    ys = ODE.ode45((t,y)->F(velocity(L,y[~f],t))[:], f[:], ts; kwargs(I)...)
+    ys = ODE.ode45((t,y)->F(velocity(L,y,t)), f, ts; kwargs(I)...)
     if dbg(I)
         info("lenseflow: ode45 took $(length(ys[2])) steps")
         ys
     else
-        ys[2][end][~f]::F # <-- ODE.jl not type stable
+        ys[2][end]::F # <-- ODE.jl not type stable
     end
 end
 
 function lenseflow(L::LenseFlowOp{ode4{N}}, f::F, ts) where {N,F<:Field}
-    ODE.ode4((t,y)->F(velocity(L,y[~f],t))[:], f[:], Float32.(linspace(ts...,N)))[2][end][~f]::F
+    ODE.ode4((t,y)->F(velocity(L,y,t)), f, Float32.(linspace(ts...,N)))[2][end]::F
 end
 
 

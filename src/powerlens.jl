@@ -12,7 +12,7 @@
 
 export PowerLens, δPδf̃_df̃dfϕ
 
-struct PowerLens{F<:Field{<:Any,<:S0}} <: LenseOp
+@∷ struct PowerLens{F<:Field{∷,<:S0}} <: LenseOp
     order::Int
     ∂xϕⁱ::Dict{Int,Union{Int,F}}
     ∂yϕⁱ::Dict{Int,Union{Int,F}}

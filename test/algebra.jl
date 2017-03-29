@@ -1,48 +1,46 @@
 push!(LOAD_PATH, pwd()*"/src")
 using Base.Test
 using CMBFields
-using CMBFields: LazyBinaryOp
-using StaticArrays
+using MacroTools
 
-nside = 4
-P = Flat{1,nside}
-T = Float64
-
-d = rand(nside,nside)
-f = Fourier(FlatS0Map{T,P}(d))
-
-fvec = @SVector [f, f]
-opvec = @SVector [∂x, ∂y]
-fmat = @SMatrix [f f; f f]
-opmat = @SMatrix [∂x ∂y; ∂x ∂y]
-
-@testset "vector algebra" begin
-
-    # vec inner
-    @test (fvec' ⨳ fvec).Tl == @. 2*f.Tl^2
-    @test (opvec' ⨳ opvec) isa LazyBinaryOp
-
-    # vec outer
-    @test all(map(g->(g.Tl == f.Tl.^2),(fvec * fvec')))
-    @test (opvec ⨳ opvec') isa StaticMatrix{<:LazyBinaryOp}
+# checks on error thrown and is type-stable
+macro mytest(ex) :(@test (@inferred ($(esc(ex))); true)) end
+macro mytest2(ex) :(@test ($(esc(ex)); true)) end
+macro mytest(F,ex) :(@test (((@inferred ($(esc(ex))))::$(esc(F))); true)) end
     
-    # vec inner op on fields
-    @test (opvec' ⨳ fvec) isa Field
+    
+f0 = FlatS0Map(rand(4,4))
+f2 = FlatS2QUMap(rand(4,4),rand(4,4))
+f02 = FieldTuple(f0,f2)
+fn = FieldTuple(f02,f02)
 
-    # op broadcasting
-    @test (opvec*f) isa StaticVector
-    
-    # matrix*vector
-    @test (fmat ⨳ fvec) isa StaticVector{<:Field}
-    @test (opmat ⨳ fvec) isa StaticVector{<:Field}
-    @test (opmat ⨳ opvec) isa StaticVector{<:LazyBinaryOp}
-
-    # vector*matrix
-    @test (fvec' ⨳ fmat) isa RowVector{<:Field}
-    @test (opvec' ⨳ opmat) isa RowVector{<:LazyBinaryOp}
-    
-    # matrix*matrix
-    @test (fmat ⨳ fmat) isa StaticMatrix{<:Field}
-    @test (opmat ⨳ opmat) isa StaticMatrix{<:LazyBinaryOp}
-    
+@testset "Basic Algebra" begin
+    for f in (f0,f2,f02,fn)
+        F = typeof(f)
+        @testset "$(shortname(typeof(f)))" begin
+            @mytest F f+1
+            @mytest F 2*f
+            @mytest F f+f
+            @mytest F f*f
+            @mytest F FullDiagOp(f)*f
+            @mytest F FullDiagOp(f)*Ð(f)
+            @mytest F FullDiagOp(f)*Ł(f)
+            
+            @mytest f+Ð(f)
+            @mytest f+Ł(f)
+            @mytest ∂x*f
+            @mytest ∂y*f
+            @mytest simulate(FullDiagOp(f))
+            
+            @mytest f⋅f
+            @mytest f'*f
+            
+            # @mytest2 f.=f
+            # @mytest2 (@. f = 2∂x*f + 3∂y*f)
+        end
+    end
+    @testset "S0/S2" begin
+        @mytest f0*f2
+        @mytest f0*f02
+    end
 end

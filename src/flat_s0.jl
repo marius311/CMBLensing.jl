@@ -40,7 +40,7 @@ end
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ℓ::Vector, CℓTT::Vector)
     g = FFTgrid(T,P)
-    FullDiagOp(FlatS0Fourier{T,P}(cls_to_cXXk(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
+    FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
 
 zero(::Union{Type{FlatS0Map{T,P}},Type{FlatS0Fourier{T,P}}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))

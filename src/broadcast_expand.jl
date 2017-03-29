@@ -1,4 +1,3 @@
-using MacroTools
 
 #
 # we want to be able to write expressions involving Vector/Matrix{<:Field}, and
@@ -79,7 +78,7 @@ macro ⨳(ex)
     # recurse thru turning ∇ᵀ into ∇' 
     # (we use ∇ᵀ instead of ∇' b/c of a syntax highlighting bug in Juno which
     # hopefully gets fixed soon...)
-    convert∇(ex) = isexpr(ex) ? (map!(convert∇,ex.args); ex) : (ex==:(∇ᵀ) ? :(∇') : ex) #'
+    convert∇(ex) = isexpr(ex) ? (map!(convert∇,ex.args,ex.args); ex) : (ex==:(∇ᵀ) ? :(∇') : ex) #'
     ex = convert∇(ex)
     
     # check if ex is of the form $(...) and if so allocate a temporary
@@ -119,7 +118,7 @@ macro ⨳(ex)
             :(@SVector [$A[1,1]*$b[1] + $A[1,2]*$b[2],
                         $A[2,1]*$b[1] + $A[2,2]*$b[2]])
         else
-            isexpr(ex) ? (map!(visit,ex.args); ex) : esc(ex)
+            isexpr(ex) ? (map!(visit,ex.args,ex.args); ex) : esc(ex)
         end
     end
     

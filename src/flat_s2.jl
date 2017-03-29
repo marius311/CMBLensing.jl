@@ -99,7 +99,7 @@ end
 function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ::Vector, CℓEE::Vector, CℓBB::Vector)
     g = FFTgrid(T,P)
     n = g.nside÷2+1
-    FullDiagOp(FlatS2EBFourier{T,P}(cls_to_cXXk(ℓ, CℓEE, g.r)[1:n,:], cls_to_cXXk(ℓ, CℓBB, g.r)[1:n,:]))
+    FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
 zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...)

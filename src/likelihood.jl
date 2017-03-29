@@ -1,4 +1,3 @@
-using NamedTuples
 
 """
 Stores variables needed to construct the likelihood
@@ -17,8 +16,10 @@ The log posterior probability, lnP, s.t.
 
 """
 lnP(f,ϕ,ds,t::Real,::Type{L}=LenseFlowOp) where {L<:LenseOp} = lnP(f,ϕ,ds,Val{float(t)},L)
-lnP(Δ,f,ϕ,ds::DataSet) = -(Δ⋅(ds.Cmask*(ds.CN\Δ)) + f⋅(ds.Cmask*(ds.Cf\f)) + ϕ⋅(ds.Cϕ\ϕ))/2
-lnP(f,ϕ,ds,::Type{Val{0.}},::Type{L}) where {L<:LenseOp} = lnP(ds.d-L(ϕ)*f,f,ϕ,ds)
+lnP(Δ,f,ϕ,ds::DataSet) = -(  Δ ⋅ (ds.Cmask * nan2zero.(ds.CN\Δ))
+                           + f ⋅ (ds.Cmask * nan2zero.(ds.Cf\f))
+                           + ϕ ⋅ (ds.Cmask * nan2zero.(ds.Cϕ\ϕ)))/2
+lnP(f,ϕ,ds,::Type{Val{0.}},::Type{L}) where {L<:LenseOp} = lnP(ds.d-L(ϕ)*f,f,ϕ,ds) 
 lnP(f̃,ϕ,ds,::Type{Val{1.}},::Type{L}) where {L<:LenseFlowOp} = lnP(ds.d-f̃,L(ϕ)\f̃,ϕ,ds)
 
 """
@@ -33,8 +34,8 @@ Returns :
 function δlnP_δfϕ(f,ϕ,ds,::Type{Val{0.}},::Type{L}) where {L<:LenseOp}
     Lϕ = L(ϕ)
     Δ =  ds.d - Lϕ*f
-    δlnL_δf, δlnL_δϕ = (δf̃_δfϕᵀ(Lϕ,f)*Ł(ds.Cmask*(ds.CN\Δ))) # derivatives of the likelihood term
-    (δlnL_δf - ds.Cmask*(ds.Cf\f), δlnL_δϕ - ds.Cϕ\ϕ)
+    δlnL_δf, δlnL_δϕ = (δf̃_δfϕᵀ(Lϕ,f)*Ł(ds.Cmask*nan2zero.(ds.CN\Δ))) # derivatives of the likelihood term
+    (δlnL_δf - (ds.Cmask*nan2zero.(ds.Cf\f)), δlnL_δϕ - ds.Cmask*nan2zero.(ds.Cϕ\ϕ))
 end
 
 

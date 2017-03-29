@@ -1,4 +1,3 @@
-using BayesLensSPTpol: indexwrap
 
 export FlatS0TaylensOp
 

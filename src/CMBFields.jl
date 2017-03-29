@@ -1,23 +1,28 @@
 module CMBFields
 
-using Base.Iterators: repeated
+using IterativeSolvers
+using Interpolations
+using MacroTools
+using NamedTuples
+using ODE
 using PyCall
 using PyPlot
-using DataArrays: @swappable
-using IterativeSolvers
 using StaticArrays
-using BayesLensSPTpol: cls_to_cXXk, class
+
+using Base.Iterators: repeated
+
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: convert, promote_rule
-import Base.LinAlg: dot
+import Base.LinAlg: dot, norm, isnan
+
 
 
 export 
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    cls_to_cXXk, class, ⨳
+    Cℓ_2D, class, ⨳, shortname
 
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -83,6 +88,8 @@ for op=(:*,:\)
 end
 simulate(Σ::FullDiagOp{F}) where {F} = sqrt.(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
+shortname(::Type{<:FullDiagOp{F}}) where {F} = "FullDiagOp{$(shortname(F))}"
+
 
 """ 
 A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð.
@@ -101,7 +108,10 @@ const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
+shortname(::Type{∂{s}}) where {s} = "∂$s"
 
+
+shortname(::Type{F}) where {F<:Field} = F.name.name
 
 
 
@@ -127,11 +137,12 @@ end
 include("util.jl")
 include("algebra.jl")
 include("lensing.jl")
+include("field_tuples.jl")
 include("flat.jl")
 include("vec_conv.jl")
 include("healpix.jl")
-include("field_tuples.jl")
 include("plotting.jl")
+include("cls.jl")
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
 function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
