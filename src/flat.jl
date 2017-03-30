@@ -1,4 +1,4 @@
-export Flat, FFTgrid
+export Flat, FFTgrid, FlatIQUMap
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
 abstract type Flat{Θpix,Nside} <: Pix end
@@ -112,3 +112,8 @@ end
 
 
 const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}
+
+# todo: make this actually take into account TE
+function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓTE, CℓEE, CℓBB)
+    FullDiagOp(FieldTuple(Cℓ_to_cov(T,P,S0,ℓ,CℓTT).f, Cℓ_to_cov(T,P,S2,ℓ,CℓEE,CℓBB).f))
+end

@@ -2,9 +2,6 @@
 export LenseFlowOp, LenseBasis, δlenseflow
 
 abstract type ODESolver end
-abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
-abstract type ode4{nsteps} <: ODESolver  end
-
 
 struct LenseFlowOp{I<:ODESolver,F<:Field} <: LenseOp
     ϕ::F
@@ -12,61 +9,61 @@ struct LenseFlowOp{I<:ODESolver,F<:Field} <: LenseOp
     Jϕ::SMatrix{2,2,F,4}
 end
 
-function LenseFlowOp{I<:ODESolver}(ϕ::Field{<:Pix,<:S0,<:Basis}, ::Type{I}=ode45{1e-3,1e-3,100,false})
+function LenseFlowOp{I<:ODESolver}(ϕ::Field{<:Pix,<:S0,<:Basis}, ::Type{I}=ode4{4})
     ∇ϕ = ∇*ϕ
     ϕ = Map(ϕ)
     LenseFlowOp{I,typeof(ϕ)}(ϕ, ∇ϕ, ∇⨳(∇ϕ'))
 end
 
-function kwargs(::Type{ode45{ϵr,ϵa,N,dbg}}) where {ϵr,ϵa,N,dbg}
-    Dict(:reltol=>ϵr, :abstol=>ϵa, :minstep=>1/N, :points=>(dbg ? :all : :specified))
-end
+# the ODE solvers
+abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
+abstract type ode4{nsteps} <: ODESolver  end
+kwargs{ϵr,ϵa,N,dbg}(::Type{ode45{ϵr,ϵa,N,dbg}}) = Dict(:norm=>pixstd, :reltol=>ϵr, :abstol=>ϵa, :minstep=>1/N, :points=>((dbg[1] || dbg[2]) ? :all : :specified))
+kwargs(::Type{<:ode4}) = Dict()
+run_ode(::Type{<:ode45}) = ODE.ode45
+run_ode(::Type{<:ode4}) = ODE.ode4
 dbg(::Type{ode45{ϵr,ϵa,N,d}}) where {ϵr,ϵa,N,d} = d
+dbg(::Type{<:ode4}) = (false,false)
+
 
 # the LenseFlow algorithm 
 velocity(L::LenseFlowOp, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Jϕ) ⨳ $Ł(∇*f)
 
 function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
-    ys = ODE.ode45((t,y)->F(velocity(L,y,t)), f, ts; kwargs(I)...)
-    if dbg(I)
-        info("lenseflow: ode45 took $(length(ys[2])) steps")
-        ys
-    else
-        ys[2][end]::F # <-- ODE.jl not type stable
-    end
+    ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, ts; kwargs(I)...)
+    dbg(I)[1] && info("lenseflow: ode45 took $(length(ys[2])) steps")
+    dbg(I)[2] ? ys : ys[2][end]::F # <-- ODE.jl not type stable
 end
 
-function lenseflow(L::LenseFlowOp{ode4{N}}, f::F, ts) where {N,F<:Field}
-    ODE.ode4((t,y)->F(velocity(L,y,t)), f, Float32.(linspace(ts...,N)))[2][end]::F
-end
+# function lenseflow(L::LenseFlowOp{ode4{N}}, f::F, ts) where {N,F<:Field}
+#     ODE.ode4((t,y)->F(velocity(L,y,t)), f, Float32.(linspace(ts...,N)))[2][end]::F
+# end
 
 
-*(L::LenseFlowOp, f::Field) = lenseflow(L,Ł(f),Float32[0,1])
-\(L::LenseFlowOp, f::Field) = lenseflow(L,Ł(f),Float32[1,0])
+*(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),Float32[0,1])
+\(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),Float32[1,0])
 
-# transpose lenseflow
+
+## transpose lenseflow
 
 *(J::δf̃_δfϕᵀ{<:LenseFlowOp}, δPδf̃::Field) = δf̃_δfϕᵀ(J.L,Ł(J.f),Ł(δPδf̃))
 
 """ Compute [(δf̃(f)/δf)ᵀ * δP/δf̃, (δf̃(f)/δϕ)ᵀ * δP/δf̃] """
-function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::F1, δPδf̃::F2, δLδϕ::F3=zero(F)) where {I,F,F1<:Field,F2<:Field,F3<:Field}
+function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::Ff, δPδf̃::Fδf̃, δLδϕ::Fδϕ=Ð(zero(F))) where {I,F,Ff<:Field,Fδf̃<:Field,Fδϕ<:Field}
     
     # first get lensed field at t=1
-    f̃ = F1(L*f)
-    
+    f̃ = Ff(L*f)
+    # this specifies the basis in which we do the ODE, which is taken to be the
+    # basis in which the fields come into this function
+    Fy = Field3Tuple{Ff,Fδf̃,Fδϕ}
     # now run negative transpose perturbed lense flow backwards
-    Fs = Tuple{F1,F2,F3}
-    ys = ODE.ode45(
-        (t,y)->((Fs(δvelocityᵀ(L,y[Fs]...,t)))[:]), 
-        [f̃,δPδf̃,δLδϕ][:], Float32[1,0]; 
+    ys = run_ode(I)(
+        (t,y)->Fy(FieldTuple(δvelocityᵀ(L,y...,t)...)), 
+        FieldTuple(f̃,δPδf̃,δLδϕ), Float32[1,0]; 
         kwargs(I)...)
         
-    if dbg(I)
-        info("δf̃_δfϕᵀ: ode45 took $(length(ys[2])) steps")
-        ys
-    else
-        ys[2][end][Fs][2:3] :: Tuple{F2,F3} # <-- tuple indexing with UnitRange not type stable (yet?)
-    end
+    dbg(I)[1] && info("δf̃_δfϕᵀ: ode45 took $(length(ys[2])) steps")
+    dbg(I)[2] ? ys : ys[2][end][2:3] :: Tuple{Fδf̃,Fδϕ}
 end
 
 # function dLdf_dfdf̃ϕ{reltol,abstol,maxsteps,F}(L::LenseFlowOp{ode45{reltol,abstol,maxsteps},F}, f::Field, dLdf::Field, δPδϕ::F=zero(F); debug=false)

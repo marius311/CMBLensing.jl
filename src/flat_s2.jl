@@ -96,7 +96,7 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
 
-function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ::Vector, CℓEE::Vector, CℓBB::Vector)
+function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
     g = FFTgrid(T,P)
     n = g.nside÷2+1
     FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
@@ -130,3 +130,7 @@ length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Fourier{T,P}} = 2N*(N÷2+
 # transposing given the several different spaces at play....
 import Base: Ac_mul_B
 Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
+
+# norms (for e.g. ODE integration error tolerance)
+pixstd{T,P}(f::FlatS2Map{T,P}) = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
+pixstd{T,P}(f::FlatS2Fourier{T,P}) = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))

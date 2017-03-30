@@ -125,6 +125,13 @@ for N in Ns
                 F( $((:(fromvec($(F(i)),(@view vec[starts[$i]:ends[$i]]))) for i=1:N)...) )
             end
             length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(length($(F(i)))) for i=1:N)...))
+            
+            # makes them iterable to allow unpacking, splatting, etc....
+            # todo: i think for some reason only the first item is type stable?
+            start(f::$FNT) = Val{1}
+            next{i}(f::$FNT,::Type{Val{i}}) = getfield(f,i), Val{i+1}
+            done{i}(::$FNT,::Type{Val{i}}) = i>$N
+
 
         end)) # |> println    # ...uncomment to print generated code
         eval(q)
@@ -138,10 +145,23 @@ end
 # for other fields. hopefully we eventually can get rid of this
 containertype(::Type{F}) where {F<:Field} = F
     
-    
-
+# convenience constructors, FieldTuple(...)
 @eval const FieldTuple = Union{$((:Field*N*:Tuple for N=Ns)...)}
 for N in Ns
     @eval FieldTuple($((:f*i for i=1:N)...)) = $(:Field*N*:Tuple)($((:f*i for i=1:N)...))
 end
+
+# propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
+pixstd(f::FieldTuple) = @show mean(pixstd.(fieldvalues(f)))
+pixstd(arr::AbstractArray{<:Field}) = mean(pixstd.(arr))
+pixstd(x,::Int) = pixstd(x)
     
+    
+# allows some super simple convenience stuff with normal tuples of Fields (but
+# not as powerful as FieldTuples)
+(::Type{Tuple{F1,F2}})(fs::NTuple{2,Field}) where {F1,F2} = (F1(fs[1]),F2(fs[2]))
+(::Type{Tuple{F1,F2,F3}})(fs::NTuple{3,Field}) where {F1,F2,F3} = (F1(fs[1]),F2(fs[2]),F3(fs[3]))
+dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
+
+# warning: not type-stable and basically can't be without changes to Julia 
+getindex(f::FieldTuple, i) = (f...)[i]

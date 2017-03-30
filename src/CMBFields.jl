@@ -15,6 +15,7 @@ import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
 import Base: convert, promote_rule
 import Base.LinAlg: dot, norm, isnan
+import Base: start, done, next
 
 
 
@@ -143,6 +144,8 @@ include("vec_conv.jl")
 include("healpix.jl")
 include("plotting.jl")
 include("cls.jl")
+include("likelihood.jl")
+
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
 function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}

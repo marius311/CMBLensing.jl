@@ -1,43 +1,36 @@
 push!(LOAD_PATH, pwd()*"/src")
 using CMBFields
-##
+
+
+## calc Cℓs and store in Main since I reload CMBFields alot during development
 cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=4000))
-nside = 256
-T = Float64
-Θpix = 1
+## set up the types of maps
+Θpix, nside, T = 1, 256, Float32
 P = Flat{Θpix,nside}
-g = FFTgrid(T,P)
-CEB = Cℓ_to_cov(T,P,S2,cls[:ℓ],cls[:ee],cls[:bb])
-CT  = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:tt])
-Cϕ  = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:ϕϕ])
+## covariances 
+Cf    = Cℓ_to_cov(T,P,S0,S2,cls[:ℓ],cls[:tt],cls[:te],cls[:ee],cls[:bb])
+Cϕ    = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:ϕϕ])
 μKarcminT = 0.001
 Ωpix = deg2rad(Θpix/60)^2
-##
-Cf = FullDiagOp(FieldTuple(CT.f,CEB.f))
 CN  = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
-##
-Cf = CT
-CN  = FullDiagOp(FlatS0Map{T,P}(fill(μKarcminT^2 * Ωpix,(nside,nside))))
-Cmask = Cℓ_to_cov(T,P,S0,collect(1:2000),ones(2000))
-##
+## masks
+Mf    = Cℓ_to_cov(T,P,S0,S2,1:2000,repeated(ones(2000),4)...)
+Mϕ    = Cℓ_to_cov(T,P,S0,1:2000,ones(2000))
+## generate simulated datasets
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
 n₀ = simulate(CN)
 df̃_lf = LenseFlowOp(ϕ₀)*f₀ + n₀
 df̃_pl = PowerLens(ϕ₀)*f₀ + n₀
+ds_pl = DataSet(df̃_pl,CN,Cf,Cϕ,Mf,Mϕ);
+ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Mf,Mϕ);
+##
+
+## check accuracy of likelihood and derivatives for the two algorithms
+using Base.Test
 ϵ = 1e-5
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
-include("../src/likelihood.jl")
-ds_pl = DataSet(df̃_pl,CN,Cf,Cϕ,Cmask);
-ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Cmask);
-##
-using Base.Test
-# new stuff:
-(::Type{Tuple{F1,F2}})(fs::NTuple{2,Field}) where {F1,F2} = (F1(fs[1]),F2(fs[2]))
-(::Type{Tuple{F1,F2,F3}})(fs::NTuple{3,Field}) where {F1,F2,F3} = (F1(fs[1]),F2(fs[2]),F3(fs[3]))
-dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
-nan2zero{T}(x::T) = isnan(x)?zero(T):x
 ##
 (@inferred lnP(f₀,ϕ₀,ds_pl,0,PowerLens)), (@inferred lnP(f₀,ϕ₀,ds_lf,0.,LenseFlowOp))
 ##
@@ -45,24 +38,9 @@ nan2zero{T}(x::T) = isnan(x)?zero(T):x
 ##
 (@inferred δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,0,LenseFlowOp) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,0,LenseFlowOp))/(2ϵ)
 ##
-Ł(Cmask*nan2zero.(CN\n₀))xx
 
-[δlnP_δfϕ(f₀,ϕ₀,ds_pl,0,PowerLens)[1] [δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)[1] for i=1:4]'] |> plot
-a,b = δlnP_δfϕ(f₀,ϕ₀,ds_pl,0,PowerLens)
-a,b = δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)
-plot([a,b])
 
-(1,10) .* FieldTuple(a,b)
-
-(a,b) ⋅ (δf,δϕ)
-b⋅δϕ
-a⋅δf#,δϕ
-b |> plot
-
-δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)
-
-δf̃_δfϕᵀ(LenseFlowOp(ϕ₀,ode45{1e-3,1e-3,10,true}),f₀)*Ł(Cmask*(CN\(n₀)))
-
+## older stuff below here which I still need to get working again....
 using Optim
 f₀ = simulate(Cf) |> LenseBasis
 ϕ₀ = simulate(Cϕ) |> LenseBasis

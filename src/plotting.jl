@@ -1,3 +1,5 @@
+export plot
+
 # FlatS0
 function plot(f::FlatS0{T,P}, ax; kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
     pyimport(:seaborn)[:heatmap](f[:Tx]; ax=ax, xticklabels=false, yticklabels=false, square=true, kwargs...)

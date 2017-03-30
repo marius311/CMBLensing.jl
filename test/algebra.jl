@@ -35,7 +35,7 @@ fn = FieldTuple(f02,f02)
             @mytest simulate(FullDiagOp(f))
             
             @mytest f⋅f
-            @mytest f'*f
+            @mytest f'*f    
             
             # @mytest2 (@. f = 2f + 3f)
             # @mytest2 (@. f = 2*∂x*f + 3*∂y*f)

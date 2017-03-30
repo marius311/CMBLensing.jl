@@ -28,3 +28,6 @@ macro swappable(ex)
         error("@swappable couldn't understand function.")
     end
 end
+
+
+nan2zero{T}(x::T) = isnan(x)?zero(T):x
