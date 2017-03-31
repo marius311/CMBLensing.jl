@@ -100,8 +100,8 @@ end
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
 end
-*(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
-*(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
+*(lz::LazyBinaryOp{typeof(/)}, f::Field) = (lz.a * f) / lz.b
+*(lz::LazyBinaryOp{typeof(*)}, f::Field) = lz.a * (lz.b * f)
 
 
 ### linear algebra of Vectors and Matrices of Fields

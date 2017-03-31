@@ -14,8 +14,8 @@ Cϕ    = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:ϕϕ])
 Ωpix = deg2rad(Θpix/60)^2
 CN  = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
 ## masks
-Mf    = Cℓ_to_cov(T,P,S0,S2,1:2000,repeated(ones(2000),4)...)
-Mϕ    = Cℓ_to_cov(T,P,S0,1:2000,ones(2000))
+Mf    = Cℓ_to_cov(T,P,S0,S2,1:2000,repeated(ones(2000),4)...) * Squash
+Mϕ    = Cℓ_to_cov(T,P,S0,1:2000,ones(2000)) * Squash
 ## generate simulated datasets
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
