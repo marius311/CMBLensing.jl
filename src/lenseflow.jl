@@ -9,7 +9,7 @@ struct LenseFlowOp{I<:ODESolver,F<:Field} <: LenseOp
     Jϕ::SMatrix{2,2,F,4}
 end
 
-function LenseFlowOp{I<:ODESolver}(ϕ::Field{<:Pix,<:S0,<:Basis}, ::Type{I}=ode4{4})
+function LenseFlowOp{I<:ODESolver}(ϕ::Field{<:Pix,<:S0,<:Basis}, ::Type{I}=ode4{10})
     ∇ϕ = ∇*ϕ
     ϕ = Map(ϕ)
     LenseFlowOp{I,typeof(ϕ)}(ϕ, ∇ϕ, ∇⨳(∇ϕ'))
@@ -24,13 +24,15 @@ run_ode(::Type{<:ode45}) = ODE.ode45
 run_ode(::Type{<:ode4}) = ODE.ode4
 dbg(::Type{ode45{ϵr,ϵa,N,d}}) where {ϵr,ϵa,N,d} = d
 dbg(::Type{<:ode4}) = (false,false)
+tts(::Type{ode4{N}},ts) where {N} = linspace(ts...,N)
+tts(::Type{<:ode45}) = ts
 
 
 # the LenseFlow algorithm 
 velocity(L::LenseFlowOp, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Jϕ) ⨳ $Ł(∇*f)
 
 function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
-    ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, ts; kwargs(I)...)
+    ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, tts(I,ts); kwargs(I)...)
     dbg(I)[1] && info("lenseflow: ode45 took $(length(ys[2])) steps")
     dbg(I)[2] ? ys : ys[2][end]::F # <-- ODE.jl not type stable
 end
@@ -55,7 +57,7 @@ function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::Ff, δPδf̃::Fδf̃, δLδϕ::F
     # now run negative transpose perturbed lense flow backwards
     ys = run_ode(I)(
         (t,y)->Fy(FieldTuple(δvelocityᵀ(L,y...,t)...)), 
-        FieldTuple(f̃,δPδf̃,δLδϕ), Float32[1,0]; 
+        FieldTuple(f̃,δPδf̃,δLδϕ), tts(I,Float32[1,0]); 
         kwargs(I)...)
         
     dbg(I)[1] && info("δf̃_δfϕᵀ: ode45 took $(length(ys[2])) steps")

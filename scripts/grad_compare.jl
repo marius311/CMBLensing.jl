@@ -1,11 +1,10 @@
 push!(LOAD_PATH, pwd()*"/src")
 using CMBFields
 
-
 ## calc Cℓs and store in Main since I reload CMBFields alot during development
-cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=4000))
+cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000))
 ## set up the types of maps
-Θpix, nside, T = 1, 256, Float32
+Θpix, nside, T = 3, 256, Float32
 P = Flat{Θpix,nside}
 ## covariances 
 Cf    = Cℓ_to_cov(T,P,S0,S2,cls[:ℓ],cls[:tt],cls[:te],cls[:ee],cls[:bb])
@@ -14,8 +13,9 @@ Cϕ    = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:ϕϕ])
 Ωpix = deg2rad(Θpix/60)^2
 CN  = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
 ## masks
-Mf    = Cℓ_to_cov(T,P,S0,S2,1:2000,repeated(ones(2000),4)...) * Squash
-Mϕ    = Cℓ_to_cov(T,P,S0,1:2000,ones(2000)) * Squash
+ℓmax_mask = 3000
+Mf    = Cℓ_to_cov(T,P,S0,S2,1:ℓmax_mask,repeated(ones(ℓmax_mask),4)...) * Squash
+Mϕ    = Cℓ_to_cov(T,P,S0,1:ℓmax_mask,ones(ℓmax_mask)) * Squash
 ## generate simulated datasets
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
@@ -28,11 +28,13 @@ ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Mf,Mϕ);
 
 ## check accuracy of likelihood and derivatives for the two algorithms
 using Base.Test
-ϵ = 1e-5
+ϵ = 1e-4
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
 ##
-(@inferred lnP(f₀,ϕ₀,ds_pl,0,PowerLens)), (@inferred lnP(f₀,ϕ₀,ds_lf,0.,LenseFlowOp))
+((@inferred lnP(f₀,ϕ₀,ds_pl,0,PowerLens)), 
+ (@inferred lnP(f₀,ϕ₀,ds_lf,0.,LenseFlowOp)),
+ (@inferred lnP(LenseFlowOp(ϕ₀)*f₀,ϕ₀,ds_lf,1.,LenseFlowOp)))
 ##
 (@inferred δlnP_δfϕ(f₀,ϕ₀,ds_pl,0,PowerLens)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_pl,0,PowerLens) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_pl,0,PowerLens))/(2ϵ)
 ##
