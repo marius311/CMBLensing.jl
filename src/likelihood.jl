@@ -18,11 +18,9 @@ The log posterior probability, lnP, s.t.
 
 """
 lnP(f,ϕ,ds,t::Real,::Type{L}=LenseFlowOp) where {L<:LenseOp} = lnP(f,ϕ,ds,Val{float(t)},L)
-lnP(Δ,f,ϕ,ds::DataSet) = -(  Δ ⋅ (ds.Mf * nan2zero.(ds.CN\Δ))
-                           + f ⋅ (ds.Mf * nan2zero.(ds.Cf\f))
-                           + ϕ ⋅ (ds.Mϕ * nan2zero.(ds.Cϕ\ϕ)))/2
 lnP(f,ϕ,ds,::Type{Val{0.}},::Type{L}) where {L<:LenseOp} = lnP(ds.d-L(ϕ)*f,f,ϕ,ds) 
 lnP(f̃,ϕ,ds,::Type{Val{1.}},::Type{L}) where {L<:LenseFlowOp} = lnP(ds.d-f̃,L(ϕ)\f̃,ϕ,ds)
+lnP(Δ,f,ϕ,ds::DataSet) = -(Δ⋅(ds.Mf*(ds.CN\Δ)) + f⋅(ds.Mf*(ds.Cf\f)) + ϕ⋅(ds.Mϕ*(ds.Cϕ\ϕ)))/2
 
 """
 Gradient of the log posterior probability with
@@ -36,10 +34,9 @@ Returns :
 function δlnP_δfϕ(f,ϕ,ds,::Type{Val{0.}},::Type{L}) where {L<:LenseOp}
     Lϕ = L(ϕ)
     Δ =  ds.d - Lϕ*f
-    δlnL_δf, δlnL_δϕ = (δf̃_δfϕᵀ(Lϕ,f)*Ł(ds.Mf*nan2zero.(ds.CN\Δ))) # derivatives of the likelihood term
-    (δlnL_δf - (ds.Mf*nan2zero.(ds.Cf\f)), δlnL_δϕ - ds.Mϕ*nan2zero.(ds.Cϕ\ϕ))
+    δlnL_δf, δlnL_δϕ = (δf̃_δfϕᵀ(Lϕ,f)*Ł(ds.Mf*(ds.CN\Δ))) # derivatives of the likelihood term
+    (δlnL_δf - (ds.Mf*(ds.Cf\f)), δlnL_δϕ - ds.Mϕ*(ds.Cϕ\ϕ))
 end
-
 
 
 #=

@@ -152,7 +152,7 @@ for N in Ns
 end
 
 # propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
-pixstd(f::FieldTuple) = @show mean(pixstd.(fieldvalues(f)))
+pixstd(f::FieldTuple) = mean(pixstd.(fieldvalues(f)))
 pixstd(arr::AbstractArray{<:Field}) = mean(pixstd.(arr))
 pixstd(x,::Int) = pixstd(x)
     

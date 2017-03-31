@@ -23,7 +23,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, class, ⨳, shortname
+    Cℓ_2D, class, ⨳, @⨳, shortname
 
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -111,29 +111,18 @@ const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 
+""" An Op which applies some arbitrary function to its argument """
+struct FuncOp{F<:Function} <: LinOp{Pix,Spin,Basis} 
+    func::F
+end
+*(op::FuncOp, f::Field) = op.func.(f)
+
+
 
 shortname(::Type{F}) where {F<:Field} = F.name.name
 
 
 
-# Generic Wiener filter
-struct WienerFilter{tol,TS<:LinOp,TN<:LinOp} <: LinOp{Pix,Spin,Basis}
-    S::TS
-    N::TN
-end
-const 𝕎 = WienerFilter
-𝕎{TS,TN}(S::TS,N::TN,tol=1e-3) = 𝕎{tol,TS,TN}(S,N)
-function *{tol}(w::𝕎{tol}, d::Field)
-    A = w.S^-1+w.N^-1
-    if isa(A,LinDiagOp)  
-        # if S & N are diagonal in the same basis they can be added/inverted directly
-        A^-1 * w.N^-1 * d
-    else
-        # otherwise solve using conjugate gradient
-        swf, hist = cg(A[~d], (w.N^-1*d)[:], tol=tol, log=true)
-        hist.isconverged ? swf[~d] : error("Conjugate gradient solution of Wiener filter did not converge.")
-    end
-end
 
 include("util.jl")
 include("algebra.jl")
@@ -145,6 +134,11 @@ include("healpix.jl")
 include("plotting.jl")
 include("cls.jl")
 include("likelihood.jl")
+include("wiener.jl")
+
+
+""" An Op which turns all NaN's to zero """
+const Squash = FuncOp(nan2zero)
 
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B

@@ -35,10 +35,6 @@ function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
     dbg(I)[2] ? ys : ys[2][end]::F # <-- ODE.jl not type stable
 end
 
-# function lenseflow(L::LenseFlowOp{ode4{N}}, f::F, ts) where {N,F<:Field}
-#     ODE.ode4((t,y)->F(velocity(L,y,t)), f, Float32.(linspace(ts...,N)))[2][end]::F
-# end
-
 
 *(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),Float32[0,1])
 \(L::LenseFlowOp, f::Field) = lenseflow(L,Ð(f),Float32[1,0])
@@ -66,6 +62,8 @@ function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::Ff, δPδf̃::Fδf̃, δLδϕ::F
     dbg(I)[2] ? ys : ys[2][end][2:3] :: Tuple{Fδf̃,Fδϕ}
 end
 
+
+# function δf̃_δfϕᵀ(L::LenseFlowOp{I,F}, f::Ff, δPδf̃::Fδf̃, δLδϕ::Fδϕ=Ð(zero(F))) where {I,F,Ff<:Field,Fδf̃<:Field,Fδϕ<:Field}
 # function dLdf_dfdf̃ϕ{reltol,abstol,maxsteps,F}(L::LenseFlowOp{ode45{reltol,abstol,maxsteps},F}, f::Field, dLdf::Field, δPδϕ::F=zero(F); debug=false)
 #     
 #     # now run negative transpose perturbed lense flow forwards

@@ -52,4 +52,4 @@ end
 """
 Get the Cℓ as a 2D flat sky covariance
 """
-Cℓ_2D(ℓ, Cℓ, r) = exp.(extrapolate(interpolate((ℓ,),log.(Cℓ),Gridded(Linear())),-Inf)[r])
+Cℓ_2D(ℓ, Cℓ, r) = extrapolate(interpolate((ℓ,),Cℓ,Gridded(Linear())),0)[r]
