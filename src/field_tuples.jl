@@ -116,6 +116,8 @@ for N in Ns
 
             zero(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT($((:(zero($(F(i)))) for i=1:N)...))
 
+            eltype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = promote_type($((:(eltype($(F(i)))) for i=1:N)...))
+
             # vector conversion
             getindex(f::$FNT,::Colon) = vcat($((:(f.$(f(i))[:]) for i=1:N)...))
             function fromvec(::Type{F}, vec::AbstractVector) where {$(Fs...),F<:$FNT{$(Fs...)}}

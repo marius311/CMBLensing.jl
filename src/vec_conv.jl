@@ -23,7 +23,7 @@ length{F<:Field}(::F) = length(F)
 
 
 # convert operators of Fields to operators on vectors
-getindex(op::LinOp, i::Tuple{DataType}) = LazyVecApply{i[1]}(op)
+getindex(op::LinOp, ::Type{Tuple{F}}) where {F} = LazyVecApply{F}(op)
 struct LazyVecApply{F}
     op::LinOp
 end

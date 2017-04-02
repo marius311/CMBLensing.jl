@@ -8,6 +8,8 @@ using ODE
 using PyCall
 using PyPlot
 using StaticArrays
+using StatsBase
+
 
 using Base.Iterators: repeated
 
@@ -23,7 +25,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, class, ⨳, @⨳, shortname
+    Cℓ_2D, class, ⨳, @⨳, shortname, Squash
 
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -89,6 +91,7 @@ for op=(:*,:\)
 end
 simulate(Σ::FullDiagOp{F}) where {F} = sqrt.(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
+containertype(op::FullDiagOp) = containertype(op.f)
 shortname(::Type{<:FullDiagOp{F}}) where {F} = "FullDiagOp{$(shortname(F))}"
 
 
@@ -147,9 +150,9 @@ function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
     if (length(l)==1)
         getfield(getbasis(l[1])(f),x)
     elseif (length(l)==0)
-        throw("No subtype of $F has a field $x")
+        error("No subtype of $F has a field $x")
     else
-        throw("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
+        error("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
     end
 end
 

@@ -34,11 +34,15 @@ Try not using broadcasting or converting them to the same basis by hand.") #fall
 # the actual broadcast functions which broadcast operations down to the
 # underlying data as returned by broadcast_data. at least one Field must be
 # present so we can infer the final type of the result
-function broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field}
+broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field} = _broadcast(op,args...)
+# if there's no fields but at least one FullDiagOp we can still infer the final
+# type (which will be a FullDiagOp of some kind)
+broadcast(op, args::Union{_,LinDiagOp,Scalar}...) where {_<:FullDiagOp} = FullDiagOp(_broadcast(op,args...))
+function _broadcast(op, args...)
     F = containertype(args...)
     F(map(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
 end
-
+    
 broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
     F = containertype(X)
     for (x,d)=zip(broadcast_data(F,X),zip(map(broadcast_data,repeated(F),args)...))

@@ -33,7 +33,7 @@ function *(L::PowerLens, f::Field)
 end
 
 
-*(J::δf̃_δfϕᵀ{<:PowerLens},δPδf̃::Field) = (δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.f,δPδf̃))
+*(δPδf̃::Field, J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}) = (δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.fₜ,δPδf̃))
 
 """ Compute (δf̃(f)/δf)ᵀ * δP/δf̃ """
 function δf̃δfᵀ(L::PowerLens, δPδf̃::Field)

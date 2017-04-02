@@ -40,6 +40,7 @@ end
 
 const FlatS2{T,P}=Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
 const FlatS2QU{T,P}=Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
+const FlatS2EB{T,P}=Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P}}
 const FlatS2Map{T,P}=Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
 const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
@@ -101,6 +102,12 @@ function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
     n = g.nside÷2+1
     FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
 end
+
+function get_Cℓ(f::FlatS2{T,P}; ledges=(0:50:6000), which=(:EE,:BB)) where {T,P}
+    Cℓs = [get_Cℓ(FlatS0Fourier{T,P}(f[Symbol(x1,:l)]); ledges=ledges) for (x1,x2) in string.(which)]
+    (Cℓs[1][1], hcat(last.(Cℓs)...))
+end
+
 
 zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...)
 

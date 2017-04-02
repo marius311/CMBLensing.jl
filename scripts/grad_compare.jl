@@ -2,45 +2,71 @@ push!(LOAD_PATH, pwd()*"/src")
 using CMBFields
 
 ## calc Cℓs and store in Main since I reload CMBFields alot during development
-cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000))
+cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000,r=1e-3))
 ## set up the types of maps
 Θpix, nside, T = 3, 256, Float32
 P = Flat{Θpix,nside}
 ## covariances 
 Cf    = Cℓ_to_cov(T,P,S0,S2,cls[:ℓ],cls[:tt],cls[:te],cls[:ee],cls[:bb])
 Cϕ    = Cℓ_to_cov(T,P,S0,cls[:ℓ],cls[:ϕϕ])
-μKarcminT = 0.001
+μKarcminT = 1e-3
 Ωpix = deg2rad(Θpix/60)^2
 CN  = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
+CÑ = Cℓ_to_cov(T,P,S0,S2, 0:6000, repeated(μKarcminT^2 * Ωpix * ones(6001),4)...)
 ## masks
-ℓmax_mask = 3000
+ℓmax_mask = 2000
 Mf    = Cℓ_to_cov(T,P,S0,S2,1:ℓmax_mask,repeated(ones(ℓmax_mask),4)...) * Squash
 Mϕ    = Cℓ_to_cov(T,P,S0,1:ℓmax_mask,ones(ℓmax_mask)) * Squash
 ## generate simulated datasets
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
 n₀ = simulate(CN)
-df̃_lf = LenseFlowOp(ϕ₀)*f₀ + n₀
-df̃_pl = PowerLens(ϕ₀)*f₀ + n₀
-ds_pl = DataSet(df̃_pl,CN,Cf,Cϕ,Mf,Mϕ);
-ds_lf = DataSet(df̃_lf,CN,Cf,Cϕ,Mf,Mϕ);
+L_lf = LenseFlowOp(ϕ₀)
+L_pl = PowerLens(ϕ₀)
+d_lf = L_lf*f₀ + n₀
+d_pl = L_pl*f₀ + n₀
+ds_pl = DataSet(d_pl,CN,Cf,Cϕ,Mf,Mϕ);
+ds_lf = DataSet(d_lf,CN,Cf,Cϕ,Mf,Mϕ);
 ##
 
-## check accuracy of likelihood and derivatives for the two algorithms
+#### check accuracy of likelihood and derivatives for the two algorithms
 using Base.Test
-ϵ = 1e-4
+ϵ = 1e-3
 δϕ = simulate(Cϕ)
 δf = simulate(Cf)
-##
-((@inferred lnP(f₀,ϕ₀,ds_pl,0,PowerLens)), 
- (@inferred lnP(f₀,ϕ₀,ds_lf,0.,LenseFlowOp)),
- (@inferred lnP(LenseFlowOp(ϕ₀)*f₀,ϕ₀,ds_lf,1.,LenseFlowOp)))
-##
-(@inferred δlnP_δfϕ(f₀,ϕ₀,ds_pl,0,PowerLens)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_pl,0,PowerLens) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_pl,0,PowerLens))/(2ϵ)
-##
-(@inferred δlnP_δfϕ(f₀,ϕ₀,ds_lf,0,LenseFlowOp)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,0,LenseFlowOp) - lnP(f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,0,LenseFlowOp))/(2ϵ)
+## likelihoood evaluated with PowerLens at t=0 and with LenseFlow at t=0 and t=1
+((@inferred lnP(f₀,0,ϕ₀,ds_pl,PowerLens)), 
+ (@inferred lnP(f₀,0,ϕ₀,ds_lf,LenseFlowOp)),
+ (@inferred lnP(L_lf*f₀,1,ϕ₀,ds_lf,LenseFlowOp)))
+## PowerLens gradient at t=0
+(@inferred δlnP_δfₜϕ(f₀,0,ϕ₀,ds_pl,PowerLens)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,0,ϕ₀+ϵ*δϕ,ds_pl,PowerLens) - lnP(f₀-ϵ*δf,0,ϕ₀-ϵ*δϕ,ds_pl,PowerLens))/(2ϵ)
+## LenseFlow gradient at t=0
+(@inferred δlnP_δfₜϕ(f₀,0,ϕ₀,ds_lf,LenseFlowOp)⋅(δf,δϕ)), (lnP(f₀+ϵ*δf,0,ϕ₀+ϵ*δϕ,ds_lf,LenseFlowOp) - lnP(f₀-ϵ*δf,0,ϕ₀-ϵ*δϕ,ds_lf,LenseFlowOp))/(2ϵ)
+## LenseFlow gradient at t=1
+(@inferred δlnP_δfₜϕ(L_lf*f₀,1,ϕ₀,ds_lf,LenseFlowOp)⋅(δf,δϕ)), (lnP(L_lf*f₀+ϵ*δf,1,ϕ₀+ϵ*δϕ,ds_lf,LenseFlowOp) - lnP(L_lf*f₀-ϵ*δf,1,ϕ₀-ϵ*δϕ,ds_lf,LenseFlowOp))/(2ϵ)
 ##
 
+using PyPlot
+fstart = 𝕎(Cf,CÑ)*d_lf
+
+##
+semilogy(get_Cℓ(fstart.f2)...)
+semilogy(get_Cℓ(n₀.f2)...)
+semilogy(get_Cℓ(d_lf.f2)...)
+##
+gf,gϕ = δlnP_δfₜϕ(fstart,1,0ϕ₀,ds_lf,LenseFlowOp);
+[L_lf*f₀, fstart, 1e-6Cf*gf] |> plot
+[ϕ₀, Cϕ*gϕ] |> plot
+
+semilogy(get_Cℓ(ϕ₀)...)
+semilogy(get_Cℓ(1e-6Cϕ*gϕ)...)
+
+##
+gf,gϕ = δlnP_δfₜϕ(fstart,0,0ϕ₀,ds_lf,LenseFlowOp);
+Cϕ*δlnP_δfₜϕ(fstart,1,0ϕ₀,ds_lf,LenseFlowOp)[2] |> plot
+
+
+Cf^(-1)
 
 ## older stuff below here which I still need to get working again....
 using Optim
