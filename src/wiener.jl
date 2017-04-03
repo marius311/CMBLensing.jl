@@ -1,3 +1,5 @@
+export 𝕎
+
 # Generic Wiener filter
 struct WienerFilter{tol,TS<:LinOp,TN<:LinOp} <: LinOp{Pix,Spin,Basis}
     S::TS

@@ -1,4 +1,4 @@
-export Flat, FFTgrid, FlatIQUMap
+export Flat, FFTgrid, FlatIQUMap, get_Cℓ
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
 abstract type Flat{Θpix,Nside} <: Pix end
