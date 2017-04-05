@@ -23,6 +23,10 @@ function PowerLens(ϕ; order=4)
     PowerLens{typeof(∂xϕ)}(order,(Dict(i=>(i==0?1:∂ϕ.^i) for i=0:order) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 
+""" Create a PowerLens operator that lenses by -ϕ from an existing operator. """
+antilensing(L::PowerLens{F}) where {F} = PowerLens{F}(L.order, (Dict(i=>v*(-1)^i for (i,v)=∂) for ∂=(L.∂xϕⁱ,L.∂xϕⁱ))...)
+
+
 function *(L::PowerLens, f::Field)
     f̂ = Ð(f)
     f̃ = 1Ł(f)
@@ -32,29 +36,71 @@ function *(L::PowerLens, f::Field)
     f̃
 end
 
+*(v::Field, J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}) = (δf̃δfᵀ(J.L,v), δf̃δϕᵀ(J.L,J.fₜ,v))
+*(J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}, v::Field) = (δf̃δf(J.L,v), δf̃δϕ(J.L,J.fₜ,v))
 
-*(δPδf̃::Field, J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}) = (δf̃δfᵀ(J.L,δPδf̃), δf̃δϕᵀ(J.L,J.fₜ,δPδf̃))
 
-""" Compute (δf̃(f)/δf)ᵀ * δP/δf̃ """
-function δf̃δfᵀ(L::PowerLens, δPδf̃::Field)
-    ŁδPδf̃ = Ł(δPδf̃)
-    r = 1Ð(δPδf̃)
+## Lensing derivative
+
+""" δf̃(f,ϕ)/δf * v """
+δf̃δf(L::PowerLens, v::Field) = L*v
+
+""" δf̃(f,ϕ)/δϕ * v """
+function δf̃δϕ(L::PowerLens, f::F, v::Field) where {F<:Field}
+    Ðf = Ð(f)
+    r = Ł(zero(F))
+    ∂ⁿf = Ł(zero(F))
+    ∂xv, ∂yv = Ł(∇*v)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * ŁδPδf̃) / factorial(a) / factorial(b)
+        @. ∂ⁿf = $Ł(@. ∂x^a * ∂y^b * Ðf) / factorial(a) / factorial(b)
+        @. r += (  ((a==0) ? 0 : a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂xv * ∂ⁿf)
+                 + ((b==0) ? 0 : b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂yv * ∂ⁿf))
     end
     r
 end
 
-""" Compute (δf̃(f)/δϕ)ᵀ * δP/δf̃ """
-function δf̃δϕᵀ(L::PowerLens{F}, f::Field, δPδf̃::Field) where {F}
-    ŁδPδf̃ = Ł(δPδf̃)
+
+## Lensing derivative transpose
+
+""" (δf̃(f,ϕ)/δf)ᵀ * v """
+function δf̃δfᵀ(L::PowerLens, v::Field)
+    Łv = Ł(v)
+    r = 1Ð(v)
+    for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
+        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * Łv) / factorial(a) / factorial(b)
+    end
+    r
+end
+
+""" (δf̃(f,ϕ)/δϕ)ᵀ * v """
+function δf̃δϕᵀ(L::PowerLens{F}, f::Field, v::Field) where {F}
+    Łv = Ł(v)
     Ðf = Ð(f)
     r = Ð(zero(F))
-    ∂ⁿfᵀ_δPδf̃ = Ł(zero(F))
+    ∂ⁿfᵀ_v = Ł(zero(F))
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        ∂ⁿfᵀ_δPδf̃ .= (Ł(@. ∂x^a * ∂y^b * Ðf)' * ŁδPδf̃) ./ factorial(a) ./ factorial(b)
-        @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᵀ_δPδf̃)))
-                  + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_δPδf̃))))
+        @. ∂ⁿfᵀ_v = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
+        @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᵀ_v)))
+                  + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_v))))
+    end
+    r
+end
+
+## Lensing second derivative
+
+""" Compute wᵀ * δ²f̃(f,ϕ)/δϕ² * v """
+function δ²f̃_δϕ²(L::PowerLens{F}, f::Field, w::Field, v::Field) where {F}
+    Łw = Ł(w)
+    Ðf = Ð(f)
+    ∂xv, ∂yv = Ł(∇*v)
+    r = Ð(zero(F))
+    ∂ⁿfᵀ_w = Ł(zero(F))
+    for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
+        @. ∂ⁿfᵀ_w = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
+        @. r += -(  ((a<2)        ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᵀ_w)))
+                  + ((a<1 || b<1) ? 0 : (∂x * $Ð(@. ∂xv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_w)))
+                  + ((b<2)        ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᵀ_w)))
+                  + ((a<1 || b<1) ? 0 : (∂y * $Ð(@. ∂yv * a * b     * L.∂yϕⁱ[b-1] * L.∂xϕⁱ[a-1] * ∂ⁿfᵀ_w))))
     end
     r
 end
