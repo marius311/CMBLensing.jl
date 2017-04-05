@@ -33,27 +33,16 @@ function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, t
     FFT = T((Δx/√(2π))^dm) * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
-    x,k = getxkside(Δx,Δℓ,period,nside)
+    x,k = (ifftshift(-nside÷2:(nside-1)÷2),) .* [Δx,Δℓ]'
     r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
     ϕ   = angle.(k' .+ im*k)[1:nside÷2+1,:]
-    sincos2ϕ = sin.(2ϕ), cos.(2ϕ)
+    sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
     FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
-function getxkside(Δx,Δℓ,period,nside)
-    x, ℓ = zeros(nside), zeros(nside)
-    for j in 0:(nside-1)
-        x[j+1] = ((j <= (nside-j)) ? j : j-nside)*Δx
-        ℓ[j+1] = ((j <= (nside-j)) ? j : j-nside)*Δℓ
-    end
-    x, ℓ
-end
-
-
 # Use generated functions to get planned FFT's only once for any given (T, Θpix,
 # Nside) combination
-@generated function FFTgrid{T<:Real,P<:Flat}(::Type{T},::Type{P})
-    Θpix, Nside = P.parameters
+@generated function FFTgrid(::Type{T},::Type{P}) where {Θpix, Nside, T<:Real,P<:Flat{Θpix, Nside}}
     FFTgrid(T, deg2rad(Θpix/60)*Nside, Nside)
 end
 
@@ -121,7 +110,7 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} =
 # derivatives
 DerivBasis(::Type{<:FlatS0}) = Fourier
 DerivBasis(::Type{<:FlatS2}) = QUFourier
-for F in (FlatS0Fourier,FlatS2QUFourier)
+for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
 end
