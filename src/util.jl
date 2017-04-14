@@ -31,3 +31,8 @@ end
 
 
 nan2zero{T}(x::T) = isnan(x)?zero(T):x
+
+""" Return a tuple with the expression repeated n times """
+macro repeated(ex,n)
+    :(tuple($(repeated(esc(ex),n)...)))
+end

@@ -1,10 +1,11 @@
 module CMBFields
 
-using IterativeSolvers
 using Interpolations
+using IterativeSolvers
 using MacroTools
 using NamedTuples
 using ODE
+using Parameters
 using PyCall
 using PyPlot
 using StaticArrays
@@ -14,10 +15,11 @@ using StatsBase
 using Base.Iterators: repeated
 
 import PyPlot: plot
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^, sqrt, getindex, size, eltype, zero, length
-import Base: convert, promote_rule
+import Base: +, -, *, \, /, ^, ~, .*, ./, .^, 
+    Ac_mul_B, broadcast, convert, done, eltype, getindex, 
+    inv, length, next, promote_rule, size, sqrt, start, transpose, zero
 import Base.LinAlg: dot, norm, isnan
-import Base: start, done, next
+
 
 
 
@@ -25,7 +27,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, class, ⨳, @⨳, shortname, Squash
+    Cℓ_2D, class, ⨳, @⨳, shortname, Squash, pixstd
 
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -112,14 +114,23 @@ const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
+gradhess(f) = (∇f=∇*f; (∇f,∇*(∇f')))
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 
 """ An Op which applies some arbitrary function to its argument """
 struct FuncOp{F<:Function} <: LinOp{Pix,Spin,Basis} 
-    func::F
+    op::F
 end
-*(op::FuncOp, f::Field) = op.func.(f)
-
+struct TransposableFuncOp{F<:Function,Fᵀ<:Function} <: LinOp{Pix,Spin,Basis} 
+    op::F
+    opᵀ::Fᵀ
+end
+FuncOp(op,opᵀ) = TransposableFuncOp(op,opᵀ)
+*(op::FuncOp, f::Field) = op.op(f)
+*(f::Field, op::FuncOp) = error("transpose($(typeof(op))) * v is not implemented")
+*(op::TransposableFuncOp, f::Field) = op.op(f)
+*(f::Field, op::TransposableFuncOp) = op.opᵀ(f)
+transpose(op::TransposableFuncOp) = TransposableFuncOp(op.opᵀ,op.op)
 
 
 shortname(::Type{F}) where {F<:Field} = F.name.name
@@ -141,7 +152,7 @@ include("wiener.jl")
 
 
 """ An Op which turns all NaN's to zero """
-const Squash = FuncOp(nan2zero)
+const Squash = FuncOp(x->broadcast(nan2zero,x))
 
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B

@@ -12,8 +12,8 @@ struct FFTgrid{dm, T}
     Δx::T
     Δℓ::T
     nyq::T
-    x::Array{T,1}
-    k::Array{T,1}
+    x::Vector{T}
+    k::Vector{T}
     r::Array{T,dm}
     sincos2ϕ::Tuple{Array{T,dm},Array{T,dm}}
     FFT::FFTW.ScaledPlan{T,FFTW.rFFTWPlan{T,-1,false,dm},T}
@@ -89,6 +89,7 @@ include("flat_s2.jl")
 
 const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P}}
 const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
+const FlatField{T,P} = Union{FlatMap{T,P},FlatFourier{T,P}}
 
 # generic f[:] that works for both fields (each must define its own fromvec)
 @generated function getindex(f::Union{FlatS0,FlatS2},::Colon) 
@@ -109,7 +110,8 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} =
 
 # derivatives
 DerivBasis(::Type{<:FlatS0}) = Fourier
-DerivBasis(::Type{<:FlatS2}) = QUFourier
+DerivBasis(::Type{<:FlatS2QU}) = QUFourier
+DerivBasis(::Type{<:FlatS2EB}) = EBFourier
 for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))

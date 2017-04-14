@@ -43,7 +43,7 @@ function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ℓ, CℓTT)
     FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
 
-function get_Cℓ(f::FlatS0{T,P}; ledges=0:50:6000) where {T,P}
+function get_Cℓ(f::FlatS0{T,P}; ledges=0:50:16000) where {T,P}
     g = FFTgrid(T,P)
     α = g.Δx^2/(4π^2)*g.nside^2
     power = fit(Histogram,g.r[:],WeightVec((@. g.r^2 * abs2($unfold(f[:Tl])))[:]),ledges)
@@ -53,7 +53,7 @@ function get_Cℓ(f::FlatS0{T,P}; ledges=0:50:6000) where {T,P}
 end
 
 
-zero(::Union{Type{FlatS0Map{T,P}},Type{FlatS0Fourier{T,P}}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
+zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
 
 # dot products
 dot{T,P}(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) = (a.Tx ⋅ b.Tx) * FFTgrid(T,P).Δx^2

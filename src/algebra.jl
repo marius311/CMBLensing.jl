@@ -45,9 +45,7 @@ end
     
 broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
     F = containertype(X)
-    for (x,d)=zip(broadcast_data(F,X),zip(map(broadcast_data,repeated(F),args)...))
-        broadcast!(op,x,d...)
-    end 
+    map(broadcast!, repeated(op), broadcast_data(F,X), map(broadcast_data, repeated(F), args)...)
     X
 end
 
@@ -67,6 +65,27 @@ end
 ^(f::Field,n::Int) = f.^n #needed to avoid ambiguity error
 -(f::Field) = .-(f)
 dot(a::Field,b::Field) = dot(promote(a,b)...)
+
+
+### transposing
+
+# our fields implicitly are column vectors, so transposing them technically
+# should turn them into some sort of row vector object, but we can always tell
+# if a field is supposed to be transposed depending on if its to the left or
+# right of an operator. e.g. in x * Op its clear x is a transposed field
+# (otherwise the expression doesn't make sense). since we can always infer this,
+# we don't actually have a "TransposedField" object or anything like that.
+transpose(f::Field) = f 
+
+# there is one exception, sometimes we write f1' * f2 with f1 and f2 as Fields
+# (this comes up in the transposed lensing operators). for S0 this means Tx .*
+# Tx, for S2 it means Qx .* Qx + Ux .* Ux, etc... in these cases, we overload
+# the '* operator (Ac_mul_B). since we don't have a TransposedField object, this
+# means we can't store the transpose of a field then later multiply it, i.e.
+# `y=x'; y*x` doesn't work. in this case, the `y*x` does *not* do this transpose
+# multiplication. 
+Ac_mul_B(x::Field, y::Field) = x*y
+
 
 
 ### basis conversion
@@ -110,10 +129,9 @@ end
 
 ### linear algebra of Vectors and Matrices of Fields
 include("broadcast_expand.jl")
-import Base: Ac_mul_B, A_mul_Bc, broadcast, transpose, inv, ctranspose
 
 const Field2DVector = SVector{2,<:FieldOpScal}
-const Field2DRowVector = RowVector{<:FieldOpScal,<:Field2DVector}
+const Field2DRowVector = RowVector{<:FieldOpScal,<:ConjArray{<:FieldOpScal,1,<:Field2DVector}}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
 const 𝕀 = @SMatrix [1 0; 0 1]
@@ -134,16 +152,11 @@ Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
 # maybe a StaticArrays bug.... 
 broadcast(::Type{B},a::StaticArray) where {B<:Basis} = map(x->B(x),a)
 
-ctranspose(v::Field2DVector) = RowVector(v)
-
 function inv(m::Field2DMatrix)
     a,b,c,d = m
     invdet = @. 1/(a*d-b*c)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
-
-
-transpose(f::Union{Field,LinOp}) = f #todo: this should probably conjugate the field but need to think about exactly what that impacts....
 
 # needed by ODE.jl
 norm(f::Field) = +(norm.(broadcast_data(containertype(f),f))...)

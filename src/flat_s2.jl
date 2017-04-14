@@ -55,8 +55,8 @@ QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f
 QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
 function QUFourier{T,P}(f::FlatS2EBFourier{T,P})
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-    Ql = - f.El .*cos2ϕ .+ f.Bl .* sin2ϕ
-    Ul = - f.El .*sin2ϕ .- f.Bl .* cos2ϕ
+    Ql = @. - f.El * cos2ϕ + f.Bl * sin2ϕ
+    Ul = @. - f.El * sin2ϕ - f.Bl * cos2ϕ
     FlatS2QUFourier{T,P}(Ql,Ul)
 end
 
@@ -68,8 +68,8 @@ EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f
 EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
 function EBFourier{T,P}(f::FlatS2QUFourier{T,P}) 
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-    El = - f.Ql .* cos2ϕ .- f.Ul .* sin2ϕ
-    Bl =   f.Ql .* sin2ϕ .- f.Ul .* cos2ϕ
+    El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
+    Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
     FlatS2EBFourier{T,P}(El,Bl)
 end
 
@@ -103,13 +103,13 @@ function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
     FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
-function get_Cℓ(f::FlatS2{T,P}; ledges=(0:50:6000), which=(:EE,:BB)) where {T,P}
+function get_Cℓ(f::FlatS2{T,P}; ledges=(0:50:16000), which=(:EE,:BB)) where {T,P}
     Cℓs = [get_Cℓ(FlatS0Fourier{T,P}(f[Symbol(x1,:l)]); ledges=ledges) for (x1,x2) in string.(which)]
     (Cℓs[1][1], hcat(last.(Cℓs)...))
 end
 
 
-zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(fill(zeros(Nside(P),Nside(P)),2)...)
+zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(@repeated(zeros(Nside(P),Nside(P)),2)...)
 
 
 # dot products
