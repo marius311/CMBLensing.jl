@@ -1,6 +1,6 @@
 push!(LOAD_PATH, pwd()*"/src")
 using Base.Test
-using CMBFields
+using CMBLensing
 using MacroTools
 
 # checks on error thrown and is type-stable

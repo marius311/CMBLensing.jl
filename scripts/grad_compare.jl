@@ -1,9 +1,8 @@
-push!(LOAD_PATH, pwd()*"/src")
-using CMBFields
+using CMBLensing
 using PyPlot
 
-## calc Cℓs and store in Main since I reload CMBFields alot during development
-cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000,r=1e-3))
+## calc Cℓs and store in Main since I reload CMBLensing alot during development
+cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000,r=0.05))
 ## set up the types of maps
 Θpix, nside, T = 3, 128, Float32
 P = Flat{Θpix,nside}

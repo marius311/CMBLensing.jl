@@ -1,6 +1,6 @@
 __precompile__()
 
-module CMBFields
+module CMBLensing
 
 using Interpolations
 using IterativeSolvers
@@ -139,7 +139,7 @@ FuncOp(op,; op⁻¹=nothing, symmetric=false) = FuncOp(op,op,op⁻¹,op⁻¹)
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op⁻ᴴ,op⁻¹)
 
 
-shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBFields.","")
+shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBLensing.","")
 
 
 

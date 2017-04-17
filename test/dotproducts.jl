@@ -1,6 +1,6 @@
 push!(LOAD_PATH, pwd()*"/src")
 using Base.Test
-using CMBFields
+using CMBLensing
 
 @testset "dot products" begin
 

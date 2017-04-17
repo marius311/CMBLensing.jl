@@ -1,6 +1,6 @@
 push!(LOAD_PATH, pwd()*"/src")
 
-using CMBFields
+using CMBLensing
 using BayesLensSPTpol: class
 cls = class(lmax=4000);
 
@@ -19,8 +19,8 @@ for nside=[8,16,32,64]
     T = Float64
     P = Flat{1,nside}
     ϕ = simulate(Cℓ_to_cov(P, S0, T.(cls[:ell]), T.(cls[:ϕϕ])))
-    # @show logdet(matrix(FlatS0Map{T,P},LenseFlowOp(ϕ,CMBFields.ode45{0,nside/100,100,false})))
-    @show logdet(matrix(FlatS0Map{T,P},LenseFlowOp(ϕ,CMBFields.ode45{1e-3,1e-3,100,false})))
+    # @show logdet(matrix(FlatS0Map{T,P},LenseFlowOp(ϕ,CMBLensing.ode45{0,nside/100,100,false})))
+    @show logdet(matrix(FlatS0Map{T,P},LenseFlowOp(ϕ,CMBLensing.ode45{1e-3,1e-3,100,false})))
 end
 
 

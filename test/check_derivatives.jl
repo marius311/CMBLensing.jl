@@ -1,10 +1,10 @@
-using CMBFields
+using CMBLensing
 using Base.Test
 import Base: ≈
 
 ≈(a::Field,b::Field) = pixstd(a-b)<1e-4
 
-## calc Cℓs and store in Main since I reload CMBFields alot during development
+## calc Cℓs and store in Main since I reload CMBLensing alot during development
 cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000,r=0.05))
 ## set up the types of maps
 Θpix, nside, T = 3, 75, Float64

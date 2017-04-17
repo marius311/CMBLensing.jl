@@ -1,5 +1,5 @@
 push!(LOAD_PATH, pwd()*"/src")
-using CMBFields: FlatS0Map
+using CMBLensing: FlatS0Map
 using BenchmarkTools
 ##
 m = rand(2000,2000)

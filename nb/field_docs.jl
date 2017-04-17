@@ -1,7 +1,7 @@
 
 push!(LOAD_PATH, pwd()*"/../src")
 using BayesLensSPTpol
-using CMBFields
+using CMBLensing
 using PyPlot
 using PyCall
 

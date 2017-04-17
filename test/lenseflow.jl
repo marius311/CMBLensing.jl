@@ -1,5 +1,5 @@
 push!(LOAD_PATH, pwd()*"/src")
-using CMBFields
+using CMBLensing
 using BayesLensSPTpol: class
 
 

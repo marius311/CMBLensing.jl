@@ -1,7 +1,7 @@
 push!(LOAD_PATH, pwd()*"/src")
 using Base.Test
 import Base: ≈
-using CMBFields
+using CMBLensing
 ##
 
 # test bases conversions
