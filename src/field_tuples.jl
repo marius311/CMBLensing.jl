@@ -62,7 +62,7 @@ for N in Ns
                 $FNT{$(Fs...),$(Bs...)}($((:($(:f*i)::$(:F*i)) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
             end
             
-            shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "Field$($N)Tuple{$(join(map(shortname,[$(Fs...)]),","))}"
+            shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "{$(join(map(shortname,[$(Fs...)]),","))}"
             
             # Field2Tuple's data
             broadcast_length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(broadcast_length($(F(i)))) for i=1:N)...))

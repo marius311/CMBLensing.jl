@@ -49,13 +49,14 @@ end
 """ Converts an (N÷2+1,N) fourier transform matrix to the full (N,N) one via symmetries """
 function unfold(Tl::AbstractMatrix{Complex{T}}) where {T}
     m,n = size(Tl)
-    @assert iseven(n) && m==n÷2+1
+    @assert m==n÷2+1
+    m2 = iseven(n) ? 2m : 2m+1
     Tlu = Array{Complex{T}}(n,n)
     Tlu[1:m,1:n] = Tl
     @inbounds for i=m+1:n
-        Tlu[i,1] = Tl[2m-i, 1]'
+        Tlu[i,1] = Tl[m2-i, 1]'
         @simd for j=2:n
-            Tlu[i,j] = Tl[2m-i, 2m-j]'
+            Tlu[i,j] = Tl[m2-i, m2-j]'
         end
     end
     Tlu

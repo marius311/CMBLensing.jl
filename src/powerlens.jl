@@ -10,7 +10,7 @@
 # taken, this is called "PowerLens"
 # 
 
-export PowerLens, δPδf̃_df̃dfϕ
+export PowerLens
 
 @∷ struct PowerLens{F<:Field{∷,<:S0}} <: LenseOp
     order::Int
@@ -36,14 +36,17 @@ function *(L::PowerLens, f::Field)
     f̃
 end
 
-*(v::Field, J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}) = (δf̃_δfᵀ(J.L,v), δf̃_δϕᵀ(J.L,J.fₜ,v))
-*(J::δfₛ_δfₜϕ{1.,0.,<:PowerLens}, v::Field) = (δf̃_δf(J.L,v), δf̃_δϕ(J.L,J.fₜ,v))
+
+## PowerLens Jacobian operators
+
+*(fϕ::Field2Tuple, J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}) = FieldTuple(δf̃_δfᴴ(J.L,fϕ[1]), δf̃_δϕᴴ(J.L,J.fₜ,fϕ[1]) + fϕ[2])
+*(J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}, fϕ::Field2Tuple) = FieldTuple(δf̃_δf(J.L,fϕ[1]) + δf̃_δϕ(J.L,J.fₜ,fϕ[2]), fϕ[2])
 
 
-δf̃_δf(L::PowerLens, f::Field) = FuncOp(x->L*x, x->δf̃_δfᵀ(L,x))
-δf̃_δϕ(L::PowerLens, f::Field) = FuncOp(x->δf̃_δϕ(L,f,x), x->δf̃_δϕᵀ(L,f,x))
+δf̃_δf(L::PowerLens)           = FuncOp(x->δf̃_δf(L,x),   x->δf̃_δfᴴ(L,x))
+δf̃_δϕ(L::PowerLens, f::Field) = FuncOp(x->δf̃_δϕ(L,f,x), x->δf̃_δϕᴴ(L,f,x))
 
-## Lensing derivative
+## Jacobian terms
 
 """ δf̃(f,ϕ)/δϕ * v """
 function δf̃_δϕ(L::PowerLens, f::F, v::Field) where {F<:Field}
@@ -59,11 +62,14 @@ function δf̃_δϕ(L::PowerLens, f::F, v::Field) where {F<:Field}
     r
 end
 
+""" δf̃(f,ϕ)/δf * v """
+δf̃_δf(L::PowerLens,v) = L*v
 
-## Lensing derivative transpose
 
-""" (δf̃(f,ϕ)/δf)ᵀ * v """
-function δf̃_δfᵀ(L::PowerLens, v::Field)
+## Jacobian transpose terms
+
+""" (δf̃(f,ϕ)/δf)ᴴ * v """
+function δf̃_δfᴴ(L::PowerLens, v::Field)
     Łv = Ł(v)
     r = 1Ð(v)
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
@@ -72,39 +78,41 @@ function δf̃_δfᵀ(L::PowerLens, v::Field)
     r
 end
 
-""" (δf̃(f,ϕ)/δϕ)ᵀ * v """
-function δf̃_δϕᵀ(L::PowerLens{F}, f::Field, v::Field) where {F}
+""" (δf̃(f,ϕ)/δϕ)ᴴ * v """
+function δf̃_δϕᴴ(L::PowerLens{F}, f::Field, v::Field) where {F}
     Łv = Ł(v)
     Ðf = Ð(f)
     r = Ð(zero(F))
-    ∂ⁿfᵀ_v = Ł(zero(F))
+    ∂ⁿfᴴ_v = Ł(zero(F))
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        @. ∂ⁿfᵀ_v = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
-        @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᵀ_v)))
-                  + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_v))))
+        @. ∂ⁿfᴴ_v = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
+        @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᴴ_v)))
+                  + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_v))))
     end
     r
 end
 
 ## Lensing second derivatives
 
-""" Compute wᵀ * δ²f̃(f,ϕ)/δϕ² * v """
+""" Compute wᴴ * δ²f̃(f,ϕ)/δϕ² * v """
 function δ²f̃_δϕ²(L::PowerLens{F}, f::Field, w::Field, v::Field) where {F}
     Łw = Ł(w)
     Ðf = Ð(f)
     ∂xv, ∂yv = Ł(∇*v)
     r = Ð(zero(F))
-    ∂ⁿfᵀ_w = Ł(zero(F))
+    ∂ⁿfᴴ_w = Ł(zero(F))
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        @. ∂ⁿfᵀ_w = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
-        @. r += -(  ((a<2)        ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᵀ_w)))
-                  + ((a<1 || b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᵀ_w)))
-                  + ((b<2)        ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᵀ_w)))
-                  + ((a<1 || b<1) ? 0 : (∂y * $Ð(@. ∂xv * a * b     * L.∂yϕⁱ[b-1] * L.∂xϕⁱ[a-1] * ∂ⁿfᵀ_w))))
+        @. ∂ⁿfᴴ_w = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
+        @. r += -(  ((a<2)        ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᴴ_w)))
+                  + ((a<1 || b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_w)))
+                  + ((b<2)        ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᴴ_w)))
+                  + ((a<1 || b<1) ? 0 : (∂y * $Ð(@. ∂xv * a * b     * L.∂yϕⁱ[b-1] * L.∂xϕⁱ[a-1] * ∂ⁿfᴴ_w))))
     end
     r
 end
 
+
+## Hessian terms
 
 δ²f̃_δϕδf(L::PowerLens, f::Field, w::Field, v::Field) = w * δf̃_δϕ(L,v)
 δ²f̃_δfδϕ(L::PowerLens, f::Field, w::Field, v::Field) = δf̃_δϕ(L,v) * w

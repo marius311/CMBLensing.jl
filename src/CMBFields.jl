@@ -16,8 +16,8 @@ using Base.Iterators: repeated
 
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, 
-    Ac_mul_B, broadcast, convert, done, eltype, getindex, 
-    inv, length, next, promote_rule, size, sqrt, start, transpose, zero
+    Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex, 
+    inv, length, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
 import Base.LinAlg: dot, norm, isnan
 
 
@@ -94,7 +94,6 @@ end
 simulate(Σ::FullDiagOp{F}) where {F} = sqrt.(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
-shortname(::Type{<:FullDiagOp{F}}) where {F} = "FullDiagOp{$(shortname(F))}"
 
 
 """ 
@@ -114,34 +113,35 @@ const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
-gradhess(f) = (∇f=∇*f; (∇f,∇*(∇f')))
+gradhess(f) = (∇f=∇*f; (∇f,∇⨳(∇f')))
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 
-""" An Op which applies some arbitrary function to its argument """
-struct FuncOp{F<:Function} <: LinOp{Pix,Spin,Basis} 
-    op::F
+""" 
+An Op which applies some arbitrary function to its argument.
+Transpose and/or inverse operations which are not specified will return an error. 
+"""
+@with_kw struct FuncOp{F<:Union{Function,Void},Fᴴ<:Union{Function,Void},F⁻¹<:Union{Function,Void},F⁻ᴴ<:Union{Function,Void}} <: LinOp{Pix,Spin,Basis} 
+    op::F = nothing
+    opᴴ::Fᴴ = nothing
+    op⁻¹::F⁻¹ = nothing
+    op⁻ᴴ::F⁻ᴴ = nothing
 end
-struct TransposableFuncOp{F<:Function,Fᵀ<:Function} <: LinOp{Pix,Spin,Basis} 
-    op::F
-    opᵀ::Fᵀ
-end
-FuncOp(op,opᵀ) = TransposableFuncOp(op,opᵀ)
-*(op::FuncOp, f::Field) = op.op(f)
-*(f::Field, op::FuncOp) = error("transpose($(typeof(op))) * v is not implemented")
-*(op::TransposableFuncOp, f::Field) = op.op(f)
-*(f::Field, op::TransposableFuncOp) = op.opᵀ(f)
-transpose(op::TransposableFuncOp) = TransposableFuncOp(op.opᵀ,op.op)
+FuncOp(op,; op⁻¹=nothing, symmetric=false) = FuncOp(op,op,op⁻¹,op⁻¹)
+*(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F   != Void ? op.op(f)   : error("op*f not implemented")
+*(f::Field, op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = Fᴴ  != Void ? op.opᴴ(f)  : error("f*op not implemented")
+\(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
+ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op⁻ᴴ,op⁻¹)
 
 
-shortname(::Type{F}) where {F<:Field} = F.name.name
+shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBFields.","")
 
 
 
 
 include("util.jl")
 include("algebra.jl")
-include("lensing.jl")
 include("field_tuples.jl")
+include("lensing.jl")
 include("flat.jl")
 include("vec_conv.jl")
 include("healpix.jl")

@@ -103,8 +103,8 @@ function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
     FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
 end
 
-function get_Cℓ(f::FlatS2{T,P}; ledges=(0:50:16000), which=(:EE,:BB)) where {T,P}
-    Cℓs = [get_Cℓ(FlatS0Fourier{T,P}(f[Symbol(x1,:l)]); ledges=ledges) for (x1,x2) in string.(which)]
+function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}
+    Cℓs = [get_Cℓ(FlatS0Fourier{T,P}(f[Symbol(x1,:l)]); kwargs...) for (x1,x2) in string.(which)]
     (Cℓs[1][1], hcat(last.(Cℓs)...))
 end
 

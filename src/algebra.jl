@@ -75,7 +75,7 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 # right of an operator. e.g. in x * Op its clear x is a transposed field
 # (otherwise the expression doesn't make sense). since we can always infer this,
 # we don't actually have a "TransposedField" object or anything like that.
-transpose(f::Field) = f 
+transpose(f::Field) = f
 
 # there is one exception, sometimes we write f1' * f2 with f1 and f2 as Fields
 # (this comes up in the transposed lensing operators). for S0 this means Tx .*

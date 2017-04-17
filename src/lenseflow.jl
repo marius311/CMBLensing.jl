@@ -6,7 +6,7 @@ abstract type ODESolver end
 struct LenseFlowOp{I<:ODESolver,t1,t2,F<:Field} <: LenseOp
     ϕ::F
     ∇ϕ::SVector{2,F}
-    Jϕ::SMatrix{2,2,F,4}
+    Hϕ::SMatrix{2,2,F,4}
 end
 
 
@@ -29,8 +29,8 @@ tts(::Type{ode4{N}},ts) where {N} = linspace(ts...,N)
 tts(::Type{<:ode45}) = ts
 
 
-# the LenseFlow algorithm 
-velocity(L::LenseFlowOp, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Jϕ) ⨳ $Ł(∇*f)
+""" ODE velocity for LenseFlow """
+velocity(L::LenseFlowOp, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*f)
 
 function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
     ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, tts(I,ts); kwargs(I)...)
@@ -39,44 +39,80 @@ function lenseflow(L::LenseFlowOp{I}, f::F, ts) where {I,F<:Field}
 end
 
 
-@∷ _getindex(L::LenseFlowOp{I,∷,∷,F}, ::→{t1,t2}) where {I,t1,t2,F} = LenseFlowOp{I,t1,t2,F}(L.ϕ,L.∇ϕ,L.Jϕ)
+@∷ _getindex(L::LenseFlowOp{I,∷,∷,F}, ::→{t1,t2}) where {I,t1,t2,F} = LenseFlowOp{I,t1,t2,F}(L.ϕ,L.∇ϕ,L.Hϕ)
 @∷ *(L::LenseFlowOp{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2])
 @∷ \(L::LenseFlowOp{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1])
 
 
-## transpose lenseflow
 
-*(δP_δfₛ::Field, J::δfₛ_δfₜϕ{s,t,<:LenseFlowOp}) where {s,t} = δfₛ_δfₜϕ(J.L,Ł(J.fₛ),Ł(δP_δfₛ),s,t)
+## LenseFlow Jacobian operators
 
-""" Compute [(δf̃(f)/δf)ᵀ * δP/δf̃, (δf̃(f)/δϕ)ᵀ * δP/δf̃] """
-@∷ function δfₛ_δfₜϕ(L::LenseFlowOp{I,∷,∷,F}, fₛ::Ff, δP_δfₛ::Fδf, s::Real, t::Real, δP_δϕ::Fδϕ=Ð(zero(F))) where {I,F,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
+*(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
+\(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₛ),Ł(fϕ)...,t,s)
+*(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)
+Ac_ldiv_B(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,t,s)
+
+
+## Jacobian
+
+""" (δfϕₛ(fₛ,ϕ)/δfϕₜ) * (δf,δϕ) """
+function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Ff, δf::Fδf, δϕ::Fδϕ, s::Real, t::Real) where {I,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
+    Fy = Field2Tuple{Ff,Fδf}
+    ∇δϕ,Hδϕ = Ł.(gradhess(δϕ))
+    ys = run_ode(I)(
+        (t,y)->Fy(δvelocity(L,y...,δϕ,t,∇δϕ,Hδϕ)), 
+        FieldTuple(fₜ,δf), tts(I,Float32[t,s]); 
+        kwargs(I)...)
+    dbg(I)[1] && info("δfϕₛ_δfϕₜ: ode45 took $(length(ys[2])) steps")
+    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2],δϕ) :: Field2Tuple{Fδf,Fδϕ}
+end
+
+""" ODE velocity for the Jacobian flow """
+function δvelocity(L::LenseFlowOp, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
     
+    @unpack ∇ϕ,Hϕ = L
+    M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
+    ∇f  = Ł(∇*f)
+    ∇δf = Ł(∇*δf)
+        
+    f′  = @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    δf′ = (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
+    
+    FieldTuple(f′, δf′)
+
+end
+
+
+## transpose Jacobian
+
+""" Compute (δfϕₛ(fₛ,ϕ)/δfϕₜ)' * (δf,δϕ) """
+function δfϕₛ_δfϕₜᴴ(L::LenseFlowOp{I}, fₛ::Ff, δf::Fδf, δϕ::Fδϕ, s::Real, t::Real) where {I,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
     # this specifies the basis in which we do the ODE, which is taken to be the
     # basis in which the fields come into this function
     Fy = Field3Tuple{Ff,Fδf,Fδϕ}
     # now run negative transpose perturbed lense flow backwards
     ys = run_ode(I)(
-        (t,y)->Fy(FieldTuple(δvelocityᵀ(L,y...,t)...)), 
-        FieldTuple(fₛ,δP_δfₛ,δP_δϕ), tts(I,Float32[s,t]); 
+        (t,y)->Fy(negδvelocityᵀ(L,y...,t)), 
+        FieldTuple(fₛ,δf,δϕ), tts(I,Float32[s,t]);
         kwargs(I)...)
-        
-    dbg(I)[1] && info("δf̃_δfϕᵀ: ode45 took $(length(ys[2])) steps")
-    dbg(I)[2] ? ys : ys[2][end][2:3] :: Tuple{Fδf,Fδϕ}
+    dbg(I)[1] && info("δfϕₛ_δfϕₜᴴ: ode45 took $(length(ys[2])) steps")
+    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2:3]...) :: Field2Tuple{Fδf,Fδϕ}
 end
 
 
-function δvelocityᵀ(L::LenseFlowOp, f::Field, δPδf̃::Field, δPδϕ::Field, t::Real)
+""" ODE velocity for the negative transpose Jacobian flow """
+function negδvelocityᵀ(L::LenseFlowOp, f::Field, δf::Field, δϕ::Field, t::Real)
     
-    ŁδPδf̃       = Ł(δPδf̃)
-    iM          = Ł(inv(𝕀 + t*L.Jϕ))
-    ∇f          = Ł(∇*f)
-    iM_δPδf̃ᵀ_∇f = Ł(iM ⨳ (ŁδPδf̃'*∇f))
-    iM_∇ϕ       = Ł(iM ⨳ L.∇ϕ)
+    Łδf        = Ł(δf)
+    M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
+    ∇f         = Ł(∇*f)
+    M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
+    M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
     
-    f′    = @⨳ L.∇ϕ' ⨳ iM ⨳ ∇f
-    δPδf̃′ = @⨳ ∇ᵀ ⨳ $Ð(ŁδPδf̃*iM_∇ϕ)
-    δPδϕ′ = @⨳ ∇ᵀ ⨳ $Ð(iM_δPδf̃ᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(iM_∇ϕ ⨳ iM_δPδf̃ᵀ_∇f'))'))
+    f′  = @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    δf′ = @⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ)
+    δϕ′ = @⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
     
-    (f′, δPδf̃′, δPδϕ′)
+    FieldTuple(f′, δf′, δϕ′)
 
 end
