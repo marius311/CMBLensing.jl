@@ -29,18 +29,18 @@ arguments.
 
 Returns : 
 """
-δlnP_δfₜϕ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlowOp) where {L} = δlnP_δfₜϕ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
-function δlnP_δfₜϕ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
+δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlowOp) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
+function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ
     
-    (   δlnL_δf̃(f̃,ds) * δf̃_δfₜϕ(L,f̃,fₜ,Val{t})
-     .+ δlnΠ_δf(f,ds) * δf_δfₜϕ(L,f,fₜ,Val{t})
-     .+ δlnΠᵩ_δfϕ(ϕ,ds))
+    (    δlnL_δf̃ϕ(f̃,ϕ,ds) * δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val{t})
+      + δlnΠᶠ_δfϕ(f,ϕ,ds) * δfϕ_δfϕₜ(L,f,fₜ,Val{t})
+      + δlnΠᶲ_δfϕ(f,ϕ,ds))
 end
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take
-δlnL_δf̃(f̃,ds) = (Δ=ds.d-f̃; ds.Mf*(ds.CN\Δ))
-δlnΠ_δf(f,ds) = -ds.Mf*(ds.Cf\f)
-δlnΠᵩ_δfϕ(ϕ,ds) = (0, -ds.Mϕ*(ds.Cϕ\ϕ))
+δlnL_δf̃ϕ(f̃,ϕ::Φ,ds) where {Φ}  = FieldTuple(ds.Mf*(ds.CN\(ds.d-f̃)), zero(Φ)         )
+δlnΠᶠ_δfϕ(f,ϕ::Φ,ds) where {Φ} = FieldTuple(-ds.Mf*(ds.Cf\f)      , zero(Φ)         )
+δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = FieldTuple(zero(F)               , -ds.Mϕ*(ds.Cϕ\ϕ))
