@@ -1,11 +1,10 @@
-@pyimport classy
 
 function class(;lmax = 6000, 
                 r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.128312, 
                 Θs = 0.0104098, logA = 3.29056, nₛ = 0.968602,
                 ϕscale = 1.0, ψscale = 0.0, r₀ = 100.0)
 
-	cosmo = classy.Class()
+	cosmo = classy[:Class]()
 	cosmo[:struct_cleanup]()
 	cosmo[:empty]()
 	params = Dict(

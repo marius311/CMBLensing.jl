@@ -1,3 +1,5 @@
+__precompile__()
+
 module CMBFields
 
 using Interpolations
@@ -21,6 +23,10 @@ import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
 import Base.LinAlg: dot, norm, isnan
 
 
+function __init__()
+    global classy = pyimport("classy")
+    # global hp = pyimport("healpy")
+end
 
 
 export 

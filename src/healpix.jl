@@ -1,11 +1,4 @@
 
-try
-    global hp
-    @pyimport healpy as hp
-catch err
-    warn("Couldn't load Healpy, Healpix functionality will not be available.")
-    println(err)
-end
 
 # Healpix pixelization with particular `Nside` value
 abstract type Healpix{Nside} <: Pix end

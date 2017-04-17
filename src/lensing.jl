@@ -1,3 +1,5 @@
+export FΦTuple, δf̃ϕ_δfϕ, Ł
+
 
 # For each Field type, lensing algorithms needs to know the basis in which lensing is a
 # remapping. E.g. for FlatS0 and FlatS2 this is Map and QUMap, respectively.
@@ -5,6 +7,9 @@
 abstract type LenseOp <: LinOp{Pix,Spin,Basis} end
 abstract type LenseBasis <: Basislike end
 const Ł = LenseBasis
+
+
+const FΦTuple = Field2Tuple{<:Field,<:Field{<:Any,<:S0}}
 
 """ 
 Operator which computes the lensing jacobian between time s and time t,
@@ -15,25 +20,37 @@ Operator which computes the lensing jacobian between time s and time t,
 The operator acts on a Field2Tuple containing (f,ϕ). Depending on the underlying
 lensing algorithm, you can transpose and/or invert this operator. 
  
-(Note: the bottom row is trivially [0,1], but included in the computation of
-the operator for logical consistency)
+Notes:
+
+    * The bottom row is trivially [0,1], but included to make the Jacobian
+      square and easier to reason about
+
+    * Different algorithms, and depending on whether the operators is transposed
+      or inversed, may need the field at time s, time t, or both, hence both are
+      stored here
+
 """
-# different algorithms may need the field at time s, time t, or both, hence both
-# are stored here (e.g. LenseFlow only needs fₛ but PowerLens only needs fₜ)
 struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp} <: LinOp{Pix,Spin,Basis}
     L::L
     fₛ::Field
     fₜ::Field
     δfϕₛ_δfϕₜ{s,t}(L,fₛ,fₜ) where {s,t} = new{s,t,typeof(L)}(L,fₛ,fₜ)
 end
-δf̃_δfₜϕ(L,f̃,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{1.,t}(L,f̃,fₜ)
-δf̃_δfₜϕ(L,f̃,fₜ,::Type{Val{1.}}) = FuncOp(identity)
-δf_δfₜϕ(L,f,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{0.,t}(L,f,fₜ)
-δf_δfₜϕ(L,f,fₜ,::Type{Val{0.}}) = FuncOp(identity)
+# convenience constructors which use f̃ to mean f_(t=1) and/or f to mean f_(t=0)
+δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{1.,t}(L,f̃,fₜ)
+δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Type{Val{1.}}) = FuncOp(identity)
+δfϕ_δfϕₜ(L,f,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{0.,t}(L,f,fₜ)
+δfϕ_δfϕₜ(L,f,fₜ,::Type{Val{0.}}) = FuncOp(identity)
 δfϕ_δf̃ϕ(L,f,f̃) = δfϕₛ_δfϕₜ{0.,1.}(L,f,f̃)
 δf̃ϕ_δfϕ(L,f̃,f) = δfϕₛ_δfϕₜ{1.,0.}(L,f̃,f)
+# inverse Jacobians are the same as switching time t and s
+\(J::δfϕₛ_δfϕₜ{s,t}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ) * fϕ
+Ac_ldiv_B(J::δfϕₛ_δfϕₜ{s,t}, fϕ::FΦTuple) where {s,t} = fϕ * δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ)
+# fall backs when not implemented for less confusing error messages
+*(J::δfϕₛ_δfϕₜ{s,t}, ::FΦTuple) where {s,t} = error("not implemented")
+*(::FΦTuple, J::δfϕₛ_δfϕₜ{s,t}) where {s,t} = error("not implemented")
 
-@∷ const FΦTuple = Field2Tuple{<:Field,<:Field{∷,<:S0}}
+
 
 # some syntactic sugar for making lensing operators that lense from time t1 to t2
 struct →{t1,t2} end

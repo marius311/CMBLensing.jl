@@ -1,5 +1,5 @@
 
-export LenseFlowOp, LenseBasis, δlenseflow
+export LenseFlowOp
 
 abstract type ODESolver end
 
@@ -48,14 +48,12 @@ end
 ## LenseFlow Jacobian operators
 
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
-\(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₛ),Ł(fϕ)...,t,s)
 *(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)
-Ac_ldiv_B(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,t,s)
 
 
 ## Jacobian
 
-""" (δfϕₛ(fₛ,ϕ)/δfϕₜ) * (δf,δϕ) """
+""" (δfϕₛ(fₜ,ϕ)/δfϕₜ) * (δf,δϕ) """
 function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Ff, δf::Fδf, δϕ::Fδϕ, s::Real, t::Real) where {I,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
     Fy = Field2Tuple{Ff,Fδf}
     ∇δϕ,Hδϕ = Ł.(gradhess(δϕ))
@@ -64,7 +62,7 @@ function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Ff, δf::Fδf, δϕ::Fδϕ, 
         FieldTuple(fₜ,δf), tts(I,Float32[t,s]); 
         kwargs(I)...)
     dbg(I)[1] && info("δfϕₛ_δfϕₜ: ode45 took $(length(ys[2])) steps")
-    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2],δϕ) :: Field2Tuple{Fδf,Fδϕ}
+    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2]::Fδf,δϕ)
 end
 
 """ ODE velocity for the Jacobian flow """
