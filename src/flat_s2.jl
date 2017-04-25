@@ -121,16 +121,14 @@ dot(a::F,b::F) where {T,P,F<:FlatS2Map{T,P}} = (a[:] ⋅ b[:]) * FFTgrid(T,P).Δ
 end
 
 # vector conversions
+length{T,P}(::Type{<:FlatS2{T,P}}) = 2Nside(P)^2
+@generated getindex(f::FlatS2Map,::Colon) = :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
+@generated getindex(f::FlatS2Fourier,::Colon) = :(vcat($((:(rfft2vec(f.$x)) for x in fieldnames(f))...)))
 function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Map}
     nside = round(Int,√(length(vec)÷2))
     F(reshape(vec[1:end÷2],(nside,nside)), reshape(vec[end÷2+1:end],(nside,nside)))
 end
-function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier}
-    nside = round(Int,√(1+length(vec))-1)
-    F(reshape(vec[1:end÷2],(nside÷2+1,nside)), reshape(vec[end÷2+1:end],(nside÷2+1,nside)))
-end
-length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Map{T,P}} = 2N^2
-length(::Type{F}) where {T,Θ,N,P<:Flat{Θ,N},F<:FlatS2Fourier{T,P}} = 2N*(N÷2+1)
+fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(vec[1:end÷2]), vec2rfft(vec[end÷2+1:end]))
 
 
 # needed for (δf̃δϕ)ᵀ calculation, but need to think about how to really handle

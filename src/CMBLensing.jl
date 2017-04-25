@@ -13,6 +13,8 @@ using PyPlot
 using StaticArrays
 using StatsBase
 
+include("RFFTVectors.jl"); using .RFFTVectors
+
 
 using Base.Iterators: repeated
 

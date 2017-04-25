@@ -61,10 +61,11 @@ dot{T,P}(a::FlatS0Fourier{T,P}, b::FlatS0Fourier{T,P}) = real((a.Tl[:] ⋅ b.Tl[
 
 
 # vector conversion
+length{T,P}(::Type{<:FlatS0{T,P}}) = Nside(P)^2
+getindex(f::FlatS0Map,::Colon) = f.Tx[:]
+getindex(f::FlatS0Fourier,::Colon) = rfft2vec(f.Tl)
 fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
-fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(reshape(vec,(Nside(P)÷2+1,Nside(P))))
-length{T,P}(::Type{FlatS0Map{T,P}}) = Nside(P)^2
-length{T,P}(::Type{FlatS0Fourier{T,P}}) = Nside(P)*(Nside(P)÷2+1)
+fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(vec2rfft(vec))
 
 
 # norms (for e.g. ODE integration error tolerance)
