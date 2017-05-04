@@ -27,7 +27,7 @@ Mϕ = Mf = Squash
 ϕ₀ = simulate(Cϕ)
 f₀ = simulate(Cf)
 n₀ = simulate(CN)
-L_lf = LenseFlowOp(ϕ₀)
+L_lf = LenseFlow(ϕ₀)
 L_pl = PowerLens(ϕ₀)
 d_lf = L_lf*f₀ + n₀
 d_pl = L_pl*f₀ + n₀
@@ -42,14 +42,14 @@ using Base.Test
 δf = simulate(Cf)
 ## likelihoood evaluated with PowerLens at t=0 and with LenseFlow at t=0 and t=1
 ((@inferred lnP(0,f₀,ϕ₀,ds_pl,PowerLens)), 
- (@inferred lnP(0,f₀,ϕ₀,ds_lf,LenseFlowOp)),
- (@inferred lnP(1,L_lf*f₀,ϕ₀,ds_lf,LenseFlowOp)))
+ (@inferred lnP(0,f₀,ϕ₀,ds_lf,LenseFlow)),
+ (@inferred lnP(1,L_lf*f₀,ϕ₀,ds_lf,LenseFlow)))
 ## PowerLens gradient at t=0
 (@inferred δlnP_δfϕₜ(0,f₀,ϕ₀,ds_pl,PowerLens)⋅FieldTuple(δf,δϕ)), (lnP(0,f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_pl,PowerLens) - lnP(0,f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_pl,PowerLens))/(2ϵ)
 ## LenseFlow gradient at t=0
-(@inferred δlnP_δfϕₜ(0,f₀,ϕ₀,ds_lf,LenseFlowOp)⋅FieldTuple(δf,δϕ)), (lnP(0,f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,LenseFlowOp) - lnP(0,f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,LenseFlowOp))/(2ϵ)
+(@inferred δlnP_δfϕₜ(0,f₀,ϕ₀,ds_lf,LenseFlow)⋅FieldTuple(δf,δϕ)), (lnP(0,f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,LenseFlow) - lnP(0,f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,LenseFlow))/(2ϵ)
 ## LenseFlow gradient at t=1
-(@inferred δlnP_δfϕₜ(1,L_lf*f₀,ϕ₀,ds_lf,LenseFlowOp)⋅FieldTuple(δf,δϕ)), (lnP(1,L_lf*f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,LenseFlowOp) - lnP(1,L_lf*f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,LenseFlowOp))/(2ϵ)
+(@inferred δlnP_δfϕₜ(1,L_lf*f₀,ϕ₀,ds_lf,LenseFlow)⋅FieldTuple(δf,δϕ)), (lnP(1,L_lf*f₀+ϵ*δf,ϕ₀+ϵ*δϕ,ds_lf,LenseFlow) - lnP(1,L_lf*f₀-ϵ*δf,ϕ₀-ϵ*δϕ,ds_lf,LenseFlow))/(2ϵ)
 ##
 
 ### 
@@ -85,8 +85,8 @@ res = optimize(
 x_trace(res)
 [fϕ_start.f2,res.minimizer[~fϕ_start].f2,ϕ₀]' |> plot
 
-f = 𝕎(Cf,CN̂)*(LenseFlowOp(res.minimizer[~fϕ_start].f2)\res.minimizer[~fϕ_start].f1)
-f = 𝕎(Cf,CN̂)*(LenseFlowOp(res.minimizer[~fϕ_start].f2)\fϕ_start.f1)
+f = 𝕎(Cf,CN̂)*(LenseFlow(res.minimizer[~fϕ_start].f2)\res.minimizer[~fϕ_start].f1)
+f = 𝕎(Cf,CN̂)*(LenseFlow(res.minimizer[~fϕ_start].f2)\fϕ_start.f1)
 [fϕ_start.f1,f,f₀] |> plot
 plot(res.minimizer[~fϕ_start].f2/Map(ϕ₀)-1,vmin=-0.3,vmax=0.3)
 

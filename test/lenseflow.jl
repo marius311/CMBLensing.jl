@@ -17,7 +17,7 @@ f = simulate(CT) |> LenseBasis
 
 # test inverse lensing is exact
 rtol = 1e-3
-L = LenseFlowOp(ϕ, ode45{rtol,rtol})
+L = LenseFlow(ϕ, ode45{rtol,rtol})
 ρ = ((L\(L*f))/f)[:Tx]
 @assert all(isapprox.(ρ,1; rtol=rtol))
 
@@ -25,6 +25,6 @@ L = LenseFlowOp(ϕ, ode45{rtol,rtol})
 ϵ = 1e-5
 δf = ϵ*simulate(CT) |> LenseBasis
 δϕ = ϵ*simulate(Cϕ) |> LenseBasis
-ρ = (δlense_flow(L,f,δf,δϕ,[0,1])[2] / (LenseFlowOp(ϕ+δϕ)*(f+δf)-LenseFlowOp(ϕ)*f))[:Tx]
+ρ = (δlense_flow(L,f,δf,δϕ,[0,1])[2] / (LenseFlow(ϕ+δϕ)*(f+δf)-LenseFlow(ϕ)*f))[:Tx]
 maximum(ρ), minimum(ρ)
 @assert all(isapprox.(ρ, 1; rtol=1e-2))

@@ -18,7 +18,7 @@ The log posterior probability, lnP, s.t.
 * ds : the DataSet (includes the data and signal/noise covariances)
 * L : the Lensing operator to use
 """
-lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlowOp) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
+lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
 lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t} = lnP(ds.d-L[t→1]*fₜ, L[t→0]*fₜ, ϕ, ds)
 lnP(Δ,f,ϕ,ds) = -(Δ⋅(ds.Md*(ds.CN\Δ)) + f⋅(ds.Mf*(ds.Cf\f)) + ϕ⋅(ds.Mϕ*(ds.Cϕ\ϕ)))/2
 
@@ -29,7 +29,7 @@ arguments.
 
 Returns :
 """
-δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlowOp) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
+δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
 function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ

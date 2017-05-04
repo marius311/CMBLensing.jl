@@ -28,7 +28,7 @@ f = Ł(simulate(Cf))
 ϵ = 1e-7
 
 ## LenseFlow tests
-L = LenseFlowOp
+L = LenseFlow
 f̃ = L(ϕ)*f
 # I'm unable to get a good t=1 likelihood derivative without some sort of masking,
 ℓmax_mask, Δℓ_taper = 3000, 500
