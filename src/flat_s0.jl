@@ -55,8 +55,10 @@ end
 
 zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
 
+Ac_mul_B(x::FlatS0Map, y::FlatS0Map) = x*y
+
 # dot products
-dot{T,P}(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) = (a.Tx ⋅ b.Tx) * FFTgrid(T,P).Δx^2
+dot{T,P}(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) = vecdot(a.Tx,b.Tx) * FFTgrid(T,P).Δx^2
 dot{T,P}(a::FlatS0Fourier{T,P}, b::FlatS0Fourier{T,P}) = real((a.Tl[:] ⋅ b.Tl[:]) + (a.Tl[2:Nside(P)÷2,:][:] ⋅ b.Tl[2:Nside(P)÷2,:][:])) * FFTgrid(T,P).Δℓ^2 #todo: could compute this with less ops
 
 

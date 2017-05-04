@@ -1,4 +1,4 @@
-__precompile__()
+# __precompile__()
 
 module CMBLensing
 
@@ -19,8 +19,8 @@ include("RFFTVectors.jl"); using .RFFTVectors
 using Base.Iterators: repeated
 
 import PyPlot: plot
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^, 
-    Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex, 
+import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
+    Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex,
     inv, length, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
 import Base.LinAlg: dot, norm, isnan
 
@@ -31,7 +31,7 @@ function __init__()
 end
 
 
-export 
+export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
@@ -59,7 +59,7 @@ abstract type Field{P<:Pix, S<:Spin, B<:Basis} end
 A linear operator acting on a field with a particular pixelization scheme and
 spin. The meaning of the basis (B) is not necessarliy the basis the operator is
 stored in, rather it specifies that fields should be converted to basis B before
-being acted on by the operator. 
+being acted on by the operator.
 
 All LinOps receive the following functionality:
 
@@ -67,10 +67,10 @@ All LinOps receive the following functionality:
   to A's basis, then calls the * function
 
 * Lazy evaluation: C = A + B returns a LazyBinaryOp object which when
-  applied to a field, C*f, computes A*f + B*f. 
-  
+  applied to a field, C*f, computes A*f + B*f.
+
 * Vector conversion: Af = A[~f] returns an object which when acting on an
-  AbstractVector, Af * v, converts v to a Field, then applies A. 
+  AbstractVector, Af * v, converts v to a Field, then applies A.
 
 """
 abstract type LinOp{P<:Pix, S<:Spin, B<:Basis} end
@@ -90,7 +90,7 @@ abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
 
 """
 An LinDiagOp which is stored explicitly as all of its diagonal coefficients in
-the basis in which it's diagonal. 
+the basis in which it's diagonal.
 """
 struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
     f::F
@@ -104,7 +104,7 @@ broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
 
 
-""" 
+"""
 A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð.
 For any particular types of fields, these might be different actual bases, e.g.
 the lensing basis is Map for S0 but QUMap for S2.
@@ -124,22 +124,22 @@ const ∇ᵀ = RowVector(∇)
 gradhess(f) = (∇f=∇*f; (∇f,∇⨳(∇f')))
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 
-""" 
-An Op which applies some arbitrary function to its argument.
-Transpose and/or inverse operations which are not specified will return an error. 
 """
-@with_kw struct FuncOp{F<:Union{Function,Void},Fᴴ<:Union{Function,Void},F⁻¹<:Union{Function,Void},F⁻ᴴ<:Union{Function,Void}} <: LinOp{Pix,Spin,Basis} 
+An Op which applies some arbitrary function to its argument.
+Transpose and/or inverse operations which are not specified will return an error.
+"""
+@with_kw struct FuncOp{F<:Union{Function,Void},Fᴴ<:Union{Function,Void},F⁻¹<:Union{Function,Void},F⁻ᴴ<:Union{Function,Void}} <: LinOp{Pix,Spin,Basis}
     op::F = nothing
     opᴴ::Fᴴ = nothing
     op⁻¹::F⁻¹ = nothing
     op⁻ᴴ::F⁻ᴴ = nothing
 end
-FuncOp(op,; op⁻¹=nothing, symmetric=false) = FuncOp(op,op,op⁻¹,op⁻¹)
+FuncOp(op; op⁻¹=nothing, symmetric=false) = symmetric ? FuncOp(op,op,op⁻¹,op⁻¹) : FuncOp(op,nothing,op⁻¹,nothing)
 *(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F   != Void ? op.op(f)   : error("op*f not implemented")
 *(f::Field, op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = Fᴴ  != Void ? op.opᴴ(f)  : error("f*op not implemented")
 \(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
-ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op⁻ᴴ,op⁻¹)
-
+ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
+const IdentityOp = FuncOp(repeated(identity,4)...)
 
 shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBLensing.","")
 

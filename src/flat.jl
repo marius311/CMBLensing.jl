@@ -1,6 +1,6 @@
 export Flat, FFTgrid, FlatIQUMap, get_Cℓ
 
-# a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins 
+# a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins
 abstract type Flat{Θpix,Nside} <: Pix end
 Nside(::Type{P}) where {_,N,P<:Flat{_,N}} = N
 Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
@@ -22,9 +22,9 @@ end
 
 """
 # Arguments
-* `T`: 
+* `T`:
 * `period::Real`: the length of one side of the map
-* `nside::Int`: the number of pixels in one side of the map 
+* `nside::Int`: the number of pixels in one side of the map
 * `dm::Integer=2`: the number of dimensions (i.e. 2 for map)
 """
 function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
@@ -77,27 +77,21 @@ const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P}}
 const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
 const FlatField{T,P} = Union{FlatMap{T,P},FlatFourier{T,P}}
 
-# generic f[:] that works for both fields (each must define its own fromvec)
-@generated function getindex(f::Union{FlatS0,FlatS2},::Colon) 
-    :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
-end
-
 # generic eltype
 eltype(::Type{F}) where {T,P,F<:FlatMap{T,P}} = T
 eltype(::Type{F}) where {T,P,F<:FlatFourier{T,P}} = Complex{T}
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-@swappable promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
-@swappable promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
+@typeswap promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
+@typeswap promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = repeated(broadcast_data(F0,f)...,2)
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = repeated(broadcast_data(F0,f)...,2)
-@swappable *(a::FlatS0Map, b::FlatS2Map) = a.*b
+@typeswap *(a::FlatS0Map, b::FlatS2Map) = a.*b
 
 
 # derivatives
 DerivBasis(::Type{<:FlatS0}) = Fourier
-DerivBasis(::Type{<:FlatS2QU}) = QUFourier
-DerivBasis(::Type{<:FlatS2EB}) = EBFourier
+DerivBasis(::Type{<:FlatS2}) = QUFourier
 for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))

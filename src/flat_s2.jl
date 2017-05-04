@@ -2,11 +2,11 @@
 # this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
 # and operators on this map
 
-export 
+export
     QUMap, EBMap, QUFourier, EBFourier,
     FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
     FlatS2, FlatS2QU, FlatS2Map, FlatS2Fourier
-    
+
 abstract type QUMap <: Basis end
 abstract type EBMap <: Basis end
 abstract type QUFourier <: Basis end
@@ -66,7 +66,7 @@ QUMap{T,P}(f::FlatS2EBFourier{T,P}) = f |> QUFourier |> QUMap
 
 EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f.Bx)
 EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
-function EBFourier{T,P}(f::FlatS2QUFourier{T,P}) 
+function EBFourier{T,P}(f::FlatS2QUFourier{T,P})
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
     El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
     Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
@@ -82,7 +82,7 @@ EBMap{T,P}(f::FlatS2QUFourier{T,P}) = f |> EBFourier |> EBMap
 # tend to do)
 rules = Dict(
     (FlatS2QUMap,     FlatS2QUFourier)  => FlatS2QUMap,
-    (FlatS2EBMap,     FlatS2EBFourier)  => FlatS2EBMap,
+    (FlatS2EBMap,     FlatS2EBFourier)  => FlatS2EBFourier,
     (FlatS2QUMap,     FlatS2EBMap)      => FlatS2QUMap,
     (FlatS2QUFourier, FlatS2EBFourier)  => FlatS2QUFourier,
     (FlatS2QUMap,     FlatS2EBFourier)  => FlatS2QUMap,
@@ -131,9 +131,6 @@ end
 fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(vec[1:end÷2]), vec2rfft(vec[end÷2+1:end]))
 
 
-# needed for (δf̃δϕ)ᵀ calculation, but need to think about how to really handle
-# transposing given the several different spaces at play....
-import Base: Ac_mul_B
 Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
 
 # norms (for e.g. ODE integration error tolerance)

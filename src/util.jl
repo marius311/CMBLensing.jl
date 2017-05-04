@@ -13,23 +13,24 @@ end
 
 
 """
-@swappable f(a,b) = body
+@typeswap f(a::T1,b::T2) = body
 
-is equivalent to 
+is equivalent to
 
-f(a,b) = body
-f(b,a) = body
+f(a::T1,b::T2) = body
+f(a::T2,b::T1) = body
 
 TODO: phase out use of this entirely, it tends to lead to ambiguities....
 """
-macro swappable(ex)
-    if @capture ex ((f_(a_,b_) = body_) | (function f_(a_,b_) body_ end))
-        esc(:($f($a,$b)=$body; $f($b,$a)=$body))
+macro typeswap(ex)
+    if @capture ex ((f_(a_::T1_,b_::T2_) = body_) | (function f_(a_::T1_,b_::T2_) body_ end))
+        esc(:($f($a::$T1,$b::$T2)=$body; $f($a::$T2,$b::$T1)=$body))
+    elseif @capture ex ((f_(::T1_,::T2_) = body_) | (function f_(::T1_,::T2_) body_ end))
+        esc(:($f(::$T1,::$T2)=$body; $f(::$T2,::$T1)=$body))
     else
-        error("@swappable couldn't understand function.")
+        error("@typeswap couldn't understand function.")
     end
 end
-
 
 nan2zero{T}(x::T) = isnan(x)?zero(T):x
 

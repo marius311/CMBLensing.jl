@@ -5,7 +5,7 @@ import Base: broadcast, broadcast!
 
 # scalars which are allowed in our expressions must be real because we
 # implicitly assume our maps are real, and addition/multiplication by a complex
-# number, even of the fourier transform, would break this. 
+# number, even of the fourier transform, would break this.
 const Scalar = Real
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
@@ -26,8 +26,8 @@ containertype(ct1, ct2) = promote_containertype(containertype(ct1), containertyp
 @inline containertype(ct1, ct2, cts...) = promote_containertype(containertype(ct1), containertype(ct2, cts...))
 promote_containertype(::Type{F}, ::Type{F}) where {F<:Field} = F
 promote_containertype(::Type{Any}, ::Type{Any}) = Any
-@swappable promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
-promote_containertype(::Type{F1}, ::Type{F2}) where {F1,F2} = error("Can't broadcast together $(shortname(F1)) and $(shortname(F2)). 
+@typeswap promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
+promote_containertype(::Type{F1}, ::Type{F2}) where {F1,F2} = error("Can't broadcast together $(shortname(F1)) and $(shortname(F2)).
 Try not using broadcasting or converting them to the same basis by hand.") #fall-back
 
 
@@ -42,7 +42,7 @@ function _broadcast(op, args...)
     F = containertype(args...)
     F(map(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
 end
-    
+
 broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
     F = containertype(X)
     map(broadcast!, repeated(op), broadcast_data(F,X), map(broadcast_data, repeated(F), args)...)
@@ -83,9 +83,13 @@ transpose(f::Field) = f
 # the '* operator (Ac_mul_B). since we don't have a TransposedField object, this
 # means we can't store the transpose of a field then later multiply it, i.e.
 # `y=x'; y*x` doesn't work. in this case, the `y*x` does *not* do this transpose
-# multiplication. 
+# multiplication.
+# this is the fallback:
 Ac_mul_B(x::Field, y::Field) = x*y
 
+
+
+Ac_mul_B(A::LinOp,f::Field) = f*A
 
 
 ### basis conversion
@@ -103,28 +107,29 @@ end
 
 
 ### lazy evaluation
-struct LazyBinaryOp{Op,TA<:Union{LinOp,Scalar},TB<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
-    a::TA
-    b::TB
-    LazyBinaryOp(a::TA,::Op,b::TB) where {Op<:Function,TA,TB} = new{Op,TA,TB}(a,b)
-    # maybe assert metadata is the same here? 
+# i.e. creating new operators which don't actually evaluate anything until
+# they've been right multiplied by a field
+struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
+    a::A
+    b::B
+    LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
 end
-
-# do these ops lazily in these cases
-for op in (:+, :-, :*)
-    @eval ($op)(a::LinOp, b::LinOp) = LazyBinaryOp(a,$op,b)
-    @eval @swappable ($op)(a::LinOp, b::Real) = LazyBinaryOp(a,$op,b)
+# the cases in which to create a lazy op
+for op in (:+, :-, :*, :Ac_mul_B)
+    @eval           ($op)(a::LinOp, b::LinOp)  = LazyBinaryOp($op,a,b)
+    @eval @typeswap ($op)(a::LinOp, b::Scalar) = LazyBinaryOp($op,a,b)
 end
-/(op::LinOp, n::Real) = LazyBinaryOp(op,/,n)
--(op::LinOp) = LazyBinaryOp(-1,*,op)
-^(op::LinOp, n::Int) = n<0 ? error("Can't raise $T to negative ($n) power") : n==0 ? 1 : n==1 ? op : *(repeated(op,n)...)
-
+/(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
+-(op::LinOp) = -1 * op
+^(op::LinOp, n::Int) = LazyBinaryOp(^,op,n)
 # evaluation rules when finally applying a lazy op to a field
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
 end
-*(lz::LazyBinaryOp{typeof(/)}, f::Field) = (lz.a * f) / lz.b
-*(lz::LazyBinaryOp{typeof(*)}, f::Field) = lz.a * (lz.b * f)
+*(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
+*(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
+*(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
+*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
 
 
 ### linear algebra of Vectors and Matrices of Fields
@@ -141,7 +146,7 @@ const 𝕀 = @SMatrix [1 0; 0 1]
 ⨳(a::Field2DVector, b::Field2DRowVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
 function ⨳(a::Field2DMatrix, b::Field2DMatrix)
     @. @SMatrix [(a[1,1]*b[1,1]+a[1,2]*b[2,1]) (a[1,1]*b[1,2]+a[1,2]*b[2,2]);
-                 (a[2,1]*b[1,1]+a[2,2]*b[2,1]) (a[2,1]*b[1,2]+a[2,2]*b[2,2])] 
+                 (a[2,1]*b[1,1]+a[2,2]*b[2,1]) (a[2,1]*b[1,2]+a[2,2]*b[2,2])]
 end
 
 *(a::Field2DVector, f::Field) = @SVector [a[1]*f, a[2]*f]
@@ -149,7 +154,7 @@ end
 Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
 
 # need this for type stability when converting bases of StaticArrays, seems like
-# maybe a StaticArrays bug.... 
+# maybe a StaticArrays bug....
 broadcast(::Type{B},a::StaticArray) where {B<:Basis} = map(x->B(x),a)
 
 function inv(m::Field2DMatrix)

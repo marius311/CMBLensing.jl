@@ -1,14 +1,14 @@
-# 
+#
 # This file defines a lensing operator that works on any generic Field as long
-# as ∂x and ∂y are defined for that field. 
-# 
+# as ∂x and ∂y are defined for that field.
+#
 # The gradient of the lensed field with respect to the unlensed field and to ϕ
-# can also be computed. 
-# 
+# can also be computed.
+#
 # This just does the standard taylor series expansion around ∇ϕ to arbitrary
 # order (without a pixel permute step), but since the name "Taylens" is already
 # taken, this is called "PowerLens"
-# 
+#
 
 export PowerLens
 
@@ -34,6 +34,15 @@ function *(L::PowerLens, f::Field)
         @. f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $Ł(∂x^a * ∂y^b * f̂) / factorial(a) / factorial(b)
     end
     f̃
+end
+
+function *(f::Field, L::PowerLens)
+    Łf = Ł(f)
+    r = 1Ð(f)
+    for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
+        @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * Łf) / factorial(a) / factorial(b)
+    end
+    r
 end
 
 

@@ -10,8 +10,9 @@ Gets a matrix representation of an operator in the T->T basis
 TODO: needs some tweaks to work generally then move into main source
 """
 function matrix{F<:Field}(::Type{F}, L::LinOp)
-    hcat(((F(L*F((x=zeros(nside,nside); x[i]=1; x))))[:] for i=1:nside^2)...);
+    hcat(((F(L*(x=zeros(length(F)); x[i]=1; x)[Tuple{F}]))[:] for i=1:length(F))...);
 end
+
 
 nside = 32
 
