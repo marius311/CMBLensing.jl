@@ -1,4 +1,4 @@
-export FΦTuple, δf̃ϕ_δfϕ, Ł
+export FΦTuple, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, Ł
 
 
 # For each Field type, lensing algorithms needs to know the basis in which lensing is a

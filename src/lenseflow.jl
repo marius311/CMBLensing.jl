@@ -9,13 +9,9 @@ struct LenseFlow{I<:ODESolver,t1,t2,F<:Field} <: LenseOp
     Hϕ::SMatrix{2,2,F,4}
 end
 
-
-@∷ function LenseFlow(ϕ::Field{∷,<:S0}, ::Type{I}=ode4{10}, t1=0., t2=1.) where {I<:ODESolver}
-    ∇ϕ = ∇*ϕ
-    ϕ = Map(ϕ)
-    LenseFlow{I,t1,t2,typeof(ϕ)}(ϕ, ∇ϕ, ∇⨳(∇ϕ'))
-end
-LenseFlow{I<:ODESolver}(ϕ) = LenseFlow(ϕ,I)
+LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0.,1.}(Map(ϕ), gradhess(ϕ)...)
+LenseFlow{I,t1,t2}(ϕ::F,∇ϕ,Hϕ) where {I,t1,t2,F} = LenseFlow{I,t1,t2,F}(ϕ,∇ϕ,Hϕ)
+LenseFlow(args...) = LenseFlow{ode4{10}}(args...)
 
 # the ODE solvers
 abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
@@ -31,7 +27,7 @@ tts(::Type{<:ode45},ts) = ts
 
 
 """ ODE velocity for LenseFlow """
-velocity(L::LenseFlow, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*f)
+velocity(L::LenseFlow, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f))
 
 function lenseflow(L::LenseFlow{I}, f::F, ts) where {I,F<:Field}
     ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, tts(I,ts); kwargs(I)...)
@@ -71,8 +67,8 @@ function δvelocity(L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, �
 
     @unpack ∇ϕ,Hϕ = L
     M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
-    ∇f  = Ł(∇*f)
-    ∇δf = Ł(∇*δf)
+    ∇f  = Ł(∇*Ð(f))
+    ∇δf = Ł(∇*Ð(δf))
 
     f′  = @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
     δf′ = (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
@@ -104,14 +100,14 @@ function negδvelocityᵀ(L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Re
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
-    ∇f         = Ł(∇*f)
+    ∇f         = Ł(∇*Ð(f))
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
     M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
-    
+
     f′  = @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
     δf′ = @⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ)
     δϕ′ = @⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
-    
+
     FieldTuple(f′, δf′, δϕ′)
 
 end

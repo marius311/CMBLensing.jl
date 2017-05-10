@@ -21,7 +21,7 @@ using Base.Iterators: repeated
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
     Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex,
-    inv, length, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
+    inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
 import Base.LinAlg: dot, norm, isnan
 
 
@@ -121,7 +121,11 @@ const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
-gradhess(f) = (∇f=∇*f; (∇f,∇⨳(∇f')))
+function gradhess(f)
+    (∂xf,∂yf)=∇*Ð(f)
+    ∂xyf = ∂x*∂yf
+    @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
+end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 
 """
@@ -140,7 +144,7 @@ FuncOp(op; op⁻¹=nothing, symmetric=false) = symmetric ? FuncOp(op,op,op⁻¹,
 \(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
 const IdentityOp = FuncOp(repeated(identity,4)...)
-
+literal_pow(^,op::FuncOp,::Type{Val{-1}}) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
 shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBLensing.","")
 
 
