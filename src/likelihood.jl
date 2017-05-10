@@ -5,10 +5,10 @@ export DataSet, lnP, δlnP_δfϕₜ, ℕ, 𝕊
 Stores variables needed to construct the likelihood
 """
 const DataSet=@NT(d,CN,Cf,Cϕ,Md,Mf,Mϕ)
-ℕ(ds) = FuncOp(op   = fϕ->FieldTuple(ds.Md*(ds.CN*fϕ[1]),0fϕ[2]), 
-               op⁻¹ = fϕ->FieldTuple(ds.Md*(ds.CN\fϕ[1]),0fϕ[2]), symmetric=true)
-𝕊(ds) = FuncOp(op   = fϕ->FieldTuple(ds.Mf*(ds.Cf*fϕ[1]),ds.Mϕ*(ds.Cϕ*fϕ[2])),
-               op⁻¹ = fϕ->FieldTuple(ds.Mf*(ds.Cf\fϕ[1]),ds.Mϕ*(ds.Cϕ\fϕ[2])), symmetric=true)
+ℕ(ds) = SymmetricFuncOp(op   = fϕ->FieldTuple(ds.Md*(ds.CN*fϕ[1]),0fϕ[2]), 
+                        op⁻¹ = fϕ->FieldTuple(ds.Md*(ds.CN\fϕ[1]),0fϕ[2]))
+𝕊(ds) = SymmetricFuncOp(op   = fϕ->FieldTuple(ds.Mf*(ds.Cf*fϕ[1]),ds.Mϕ*(ds.Cϕ*fϕ[2])),
+                        op⁻¹ = fϕ->FieldTuple(ds.Mf*(ds.Cf\fϕ[1]),ds.Mϕ*(ds.Cϕ\fϕ[2])))
 
 """
 The log posterior probability, lnP, s.t.
@@ -57,8 +57,8 @@ end
 HlnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = HlnP(Val{float(t)},fₜ,ϕ,ds,L(ϕ)) 
 HlnP(t,fₜ,ϕ,ds,L::LenseOp) = HlnP(Val{float(t)},fₜ,ϕ,ds,L) 
 HlnP(::Type{Val{1.}},f̃,ϕ,ds,L::LenseOp) = let δfϕ_δf̃ϕ = δfϕ_δf̃ϕ(L,L\f̃,f̃)
-    ℕ(ds)^-1 + δfϕ_δf̃ϕ' * (𝕊(ds)^-1 * δfϕ_δf̃ϕ)
+    - (ℕ(ds)^-1 + δfϕ_δf̃ϕ' * (𝕊(ds)^-1 * δfϕ_δf̃ϕ))
 end
 HlnP(::Type{Val{0.}},f,ϕ,ds,L::LenseOp) = let δf̃ϕ_δfϕ = δf̃ϕ_δfϕ(L,L*f,f)
-    δf̃ϕ_δfϕ' * (ℕ(ds)^-1 * δf̃ϕ_δfϕ) + 𝕊(ds)^-1
+    - (δf̃ϕ_δfϕ' * (ℕ(ds)^-1 * δf̃ϕ_δfϕ) + 𝕊(ds)^-1)
 end

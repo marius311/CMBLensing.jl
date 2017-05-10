@@ -15,6 +15,9 @@ using StatsBase
 
 include("RFFTVectors.jl"); using .RFFTVectors
 
+include("util.jl")
+
+
 
 using Base.Iterators: repeated
 
@@ -133,15 +136,15 @@ An Op which applies some arbitrary function to its argument.
 Transpose and/or inverse operations which are not specified will return an error.
 """
 @with_kw struct FuncOp{F<:Union{Function,Void},Fᴴ<:Union{Function,Void},F⁻¹<:Union{Function,Void},F⁻ᴴ<:Union{Function,Void}} <: LinOp{Pix,Spin,Basis}
-    op::F = nothing
-    opᴴ::Fᴴ = nothing
+    op  ::F   = nothing
+    opᴴ ::Fᴴ  = nothing
     op⁻¹::F⁻¹ = nothing
     op⁻ᴴ::F⁻ᴴ = nothing
 end
-FuncOp(op; op⁻¹=nothing, symmetric=false) = symmetric ? FuncOp(op,op,op⁻¹,op⁻¹) : FuncOp(op,nothing,op⁻¹,nothing)
-*(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F   != Void ? op.op(f)   : error("op*f not implemented")
-*(f::Field, op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = Fᴴ  != Void ? op.opᴴ(f)  : error("f*op not implemented")
-\(op::FuncOp{F,Fᴴ,F⁻¹,F⁻ᴴ}, f::Field) where {F,Fᴴ,F⁻¹,F⁻ᴴ} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
+SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
+@∷ *(op::FuncOp{F,∷,∷,∷}, f::Field)   where {F}   = F   != Void ? op.op(f)   : error("op*f not implemented")
+@∷ *(f::Field, op::FuncOp{∷,Fᴴ,∷,∷})  where {Fᴴ}  = Fᴴ  != Void ? op.opᴴ(f)  : error("f*op not implemented")
+@∷ \(op::FuncOp{∷,∷,F⁻¹,∷}, f::Field) where {F⁻¹} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
 const IdentityOp = FuncOp(repeated(identity,4)...)
 literal_pow(^,op::FuncOp,::Type{Val{-1}}) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
@@ -150,7 +153,6 @@ shortname(::Type{F}) where {F<:Field} = replace(string(F),"CMBLensing.","")
 
 
 
-include("util.jl")
 include("algebra.jl")
 include("field_tuples.jl")
 include("lensing.jl")
@@ -164,7 +166,7 @@ include("wiener.jl")
 
 
 """ An Op which turns all NaN's to zero """
-const Squash = FuncOp(x->broadcast(nan2zero,x))
+const Squash = FuncOp(op=x->broadcast(nan2zero,x))
 
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
