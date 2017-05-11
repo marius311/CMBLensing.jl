@@ -1,5 +1,6 @@
 module CMBLensing
 
+using Base.Iterators: repeated
 using Interpolations
 using IterativeSolvers
 using MacroTools
@@ -13,11 +14,6 @@ using StatsBase
 
 include("RFFTVectors.jl"); using .RFFTVectors
 
-include("util.jl")
-
-
-
-using Base.Iterators: repeated
 
 import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
@@ -25,6 +21,7 @@ import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
     inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
 import Base.LinAlg: dot, norm, isnan
 
+include("util.jl")
 
 function __init__()
     global classy = pyimport("classy")
