@@ -2,6 +2,7 @@ using JLD
 using CMBLensing
 using CMBLensing: @dictpack
 using CMBLensing.Minimize
+using Base.Iterators: repeated
 
 function run1(;
     Θpix = 3,
