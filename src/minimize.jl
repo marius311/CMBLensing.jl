@@ -104,7 +104,7 @@ function bcggd(t, fₜϕ_start, ds, ::Type{L}; Nsteps=10, Ncg=10, β=2) where {L
     trace = []
     fₜϕ_cur = fₜϕ_start
     for i=1:Nsteps
-        for j=1:2
+        @threads for j=1:2
             j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,L,2,Ncg))
             j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,L,1,β*Ncg))
         end
