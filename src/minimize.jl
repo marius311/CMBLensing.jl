@@ -111,6 +111,7 @@ function bcggd(t, fₜϕ_start, ds, ::Type{L}; Nsteps=10, Ncg=10, β=2) where {L
         @show i, lnP1, lnP2, t1, t2, ttot
         if lnP2<lnP1
             push!(trace,tr2...)
+            Ncg *= β
             println("Increasing Ncg to $Ncg")
             fₜϕ_cur = fₜϕ_cur2
         else
