@@ -1,4 +1,4 @@
-export DataSet, lnP, δlnP_δfϕₜ, ℕ, 𝕊
+export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 
 
 """
@@ -54,11 +54,17 @@ end
 
 ## Hessian
 
-HlnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = HlnP(Val{float(t)},fₜ,ϕ,ds,L(ϕ)) 
-HlnP(t,fₜ,ϕ,ds,L::LenseOp) = HlnP(Val{float(t)},fₜ,ϕ,ds,L) 
-HlnP(::Type{Val{1.}},f̃,ϕ,ds,L::LenseOp) = let δfϕ_δf̃ϕ = δfϕ_δf̃ϕ(L,L\f̃,f̃)
+"""
+Arguments:
+* L : Lensing operator to use for converting fₜ to t=0 and/or t=1
+* LJ : Lensing operator (of possible lower accuracy) to use in Jacobian calculation
+* (others same as above)
+"""
+HlnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow,::Type{LJ}=LenseFlow{ode4{2}}) where {L,LJ} = HlnP(Val{float(t)},fₜ,ϕ,ds,L(ϕ),LJ(ϕ)) 
+HlnP(t,fₜ,ϕ,ds,L::LenseOp,LJ::LenseOp) = HlnP(Val{float(t)},fₜ,ϕ,ds,L,LJ) 
+HlnP(::Type{Val{1.}},f̃,ϕ,ds,L::LenseOp,LJ::LenseOp) = let δfϕ_δf̃ϕ = δfϕ_δf̃ϕ(LJ,L\f̃,f̃)
     - (ℕ(ds)^-1 + δfϕ_δf̃ϕ' * (𝕊(ds)^-1 * δfϕ_δf̃ϕ))
 end
-HlnP(::Type{Val{0.}},f,ϕ,ds,L::LenseOp) = let δf̃ϕ_δfϕ = δf̃ϕ_δfϕ(L,L*f,f)
+HlnP(::Type{Val{0.}},f,ϕ,ds,L::LenseOp,LJ::LenseOp) = let δf̃ϕ_δfϕ = δf̃ϕ_δfϕ(LJ,L*f,f)
     - (δf̃ϕ_δfϕ' * (ℕ(ds)^-1 * δf̃ϕ_δfϕ) + 𝕊(ds)^-1)
 end

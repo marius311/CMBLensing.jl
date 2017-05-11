@@ -78,8 +78,7 @@ const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
 const FlatField{T,P} = Union{FlatMap{T,P},FlatFourier{T,P}}
 
 # generic eltype
-eltype(::Type{F}) where {T,P,F<:FlatMap{T,P}} = T
-eltype(::Type{F}) where {T,P,F<:FlatFourier{T,P}} = Complex{T}
+eltype(::Type{<:FlatField{T}}) where {T} = T
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
 @typeswap promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2

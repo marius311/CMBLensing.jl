@@ -181,6 +181,7 @@ function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
     end
 end
 
-
+# submodules
+include("minimize.jl")
 
 end

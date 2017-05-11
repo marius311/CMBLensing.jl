@@ -38,3 +38,19 @@ nan2zero{T}(x::T) = isnan(x)?zero(T):x
 macro repeated(ex,n)
     :(tuple($(repeated(esc(ex),n)...)))
 end
+
+""" 
+Pack some variables in a dictionary 
+
+```
+> x = 3
+> y = 4
+> @dictpack x y z=>5
+Dict(:x=>3,:y=>4,:z=>5)
+```
+"""
+macro dictpack(exs...)
+    kv(ex::Symbol) = :($(QuoteNode(ex))=>$(esc(ex)))
+    kv(ex) = isexpr(ex,:call) && ex.args[1]==:(=>) ? :($(QuoteNode(ex.args[2]))=>$(esc(ex.args[3]))) : error()
+    :(Dict($((kv(ex) for ex=exs)...)))
+end
