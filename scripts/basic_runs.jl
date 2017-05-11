@@ -12,7 +12,10 @@ function run1(;
     Nt0 = 15,   # number of t=0 branch steps
     Ncg1₀ = 5,  # initial Ncg for t=1 steps
     Ncg0₀ = 80, # initial Ncg for t=0 steps
+    seed = nothing, # random seed
     outfile=nothing)
+    
+    seed!=nothing && srand(seed)
 
     ## calc Cℓs and store in Main since I reload CMBLensing alot during development
     cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=8000,r=r));
@@ -58,11 +61,11 @@ function run1(;
     
     @show target_lnP
 
-    ## t=1 steps
+    println(" --- t=1 steps ---")
     (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,Nsteps=Nt1,Ncg=Ncg1₀,β=2)
     fcur,ϕcur = fϕcur = FieldTuple(L(ϕcur)\f̃cur,ϕcur)
 
-    ## t=0 steps
+    println(" --- t=0 steps ---")
     (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,Nsteps=Nt0,Ncg=Ncg0₀,β=2)
     f̃cur,ϕcur = f̃ϕcur = FieldTuple(L(ϕcur)*fcur,ϕcur)
     
