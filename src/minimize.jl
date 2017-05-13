@@ -44,18 +44,20 @@ Arguments:
 * t : which parametrization to use (i.e. t=0 for unlensed or t=1 for lensed)
 * fₜϕ_cur : fₜϕ to start at
 * Ngd, Ncg : number of gradient descent and conjugate gradient steps
+* L : Lensing operator to use for gradient descent
+* LJ : Lensing operator to use for the Hessian calculation
 
 Returns:
 * lnP(fₜϕ), fₜϕ, trace
 """
-function gdsteps(t, fₜϕ_cur, ds, ::Type{L}, Ngd, Ncg) where {L<:LenseOp}
+function gdsteps(t, fₜϕ_cur, ds, Ngd, Ncg, ::Type{L}, ::Type{LJ}=L) where {L<:LenseOp, LJ<:LenseOp}
     fₜcur,ϕcur = fₜϕ_cur
     trace = []
     
     for i=1:Ngd
-        let L=L(ϕcur)
+        let Lϕ=L(ϕcur)
             # get negative gradient
-            g = -δlnP_δfϕₜ(t,fₜϕ_cur...,ds,L)
+            g = -δlnP_δfϕₜ(t,fₜϕ_cur...,ds,Lϕ)
 
             # do steps towards CG solution of -H⁻¹*g
             @unpack CN,Cf,Cϕ,Md,Mf,Mϕ = ds
@@ -63,7 +65,7 @@ function gdsteps(t, fₜϕ_cur, ds, ::Type{L}, Ngd, Ncg) where {L<:LenseOp}
             if Ncg==0
                 Hinvg,cghist = approxℍ⁻¹*g, nothing
             else
-                Hinvg,cghist = pcg(sqrt.(approxℍ⁻¹), HlnP(t,fₜϕ_cur...,ds,L,LenseFlow{ode4{2}}(ϕcur)), g, nsteps=Ncg)
+                Hinvg,cghist = pcg(sqrt.(approxℍ⁻¹), HlnP(t,fₜϕ_cur...,ds,Lϕ,LJ(ϕcur)), g, nsteps=Ncg)
             end
 
             # line search
@@ -99,14 +101,16 @@ Arguments:
 * Nsteps : how many iterations of the above algorithm to do
 * Ncg : the starting value of Ncg
 * β : scaling factor described above
+* L : Lensing operator to use for gradient descent
+* LJ : Lensing operator to use for the Hessian calculation
 """
-function bcggd(t, fₜϕ_start, ds, ::Type{L}; Nsteps=10, Ncg=10, β=2) where {L<:LenseOp}
+function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, β=2) where {L<:LenseOp, LJ<:LenseOp}
     trace = []
     fₜϕ_cur = fₜϕ_start
     for i=1:Nsteps
-        ttot = @elapsed @threads for j=1:2
-            j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,L,2,Ncg))
-            j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,L,1,β*Ncg))
+        ttot = @elapsed for j=1:2
+            j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,2,Ncg,L,LJ))
+            j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,1,β*Ncg,L,LJ))
         end
         @show i, lnP1, lnP2, t1, t2, ttot
         if lnP2<lnP1

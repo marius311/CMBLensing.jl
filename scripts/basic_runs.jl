@@ -1,6 +1,6 @@
 using JLD
 using CMBLensing
-using CMBLensing: @dictpack
+using CMBLensing: @dictpack, ode4
 using CMBLensing.Minimize
 using Base.Iterators: repeated
 
@@ -14,13 +14,15 @@ function run1(;
     Ncg1₀ = 5,  # initial Ncg for t=1 steps
     Ncg0₀ = 80, # initial Ncg for t=0 steps
     seed = nothing, # random seed
-    outfile=nothing)
+    L = LenseFlow{ode4{7}},
+    LJ = LenseFlow{ode4{2}},
+    outfile = nothing,
+    cls = nothing)
     
     seed!=nothing && srand(seed)
-
-    ## calc Cℓs and store in Main since I reload CMBLensing alot during development
-    cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=8000,r=r));
-
+    
+    cls==nothing && (cls = class(lmax=8000,r=r))
+    
     ## set up the types of maps
     P = Flat{Θpix,nside}
     ## covariances
@@ -34,14 +36,13 @@ function run1(;
     ##
     f = simulate(Cf)
     ϕ = simulate(Cϕ)
-    L = LenseFlow{CMBLensing.ode4{7}}
     f̃ = L(ϕ)*f
-
+    
     # data mask
     ℓmax_mask, Δℓ_taper = 3000, 0
     Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
     Md = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
-
+    
     # field prior mask
     ℓmax_mask, Δℓ_taper = 3500, 0
     Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
@@ -50,24 +51,28 @@ function run1(;
     # i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
     # Ml[:,i]=Ml[i,:]=0
     # Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
-
+    
     # ϕ prior mask
     Mϕ = Squash
-
+    
     ds = DataSet(f̃ + simulate(CN), CN̂, Cf, Cϕ, Md, Mf, Mϕ);
     target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
-
+    
     ## starting point
-    f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ));
+    fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ))
     
     @show target_lnP
-
-    println(" --- t=1 steps ---")
-    (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,Nsteps=Nt1,Ncg=Ncg1₀,β=2)
-    fcur,ϕcur = fϕcur = FieldTuple(L(ϕcur)\f̃cur,ϕcur)
-
+    
+    if Nt1>0
+        println(" --- t=1 steps ---")
+        (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,LJ,Nsteps=Nt1,Ncg=Ncg1₀,β=2)
+        fcur,ϕcur = fϕcur = FieldTuple(L(ϕcur)\f̃cur,ϕcur)
+    else
+        tr1 = []
+    end
+    
     println(" --- t=0 steps ---")
-    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,Nsteps=Nt0,Ncg=Ncg0₀,β=2)
+    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,LJ,Nsteps=Nt0,Ncg=Ncg0₀,β=2)
     f̃cur,ϕcur = f̃ϕcur = FieldTuple(L(ϕcur)*fcur,ϕcur)
     
     @show tr2[end][:lnP], target_lnP
