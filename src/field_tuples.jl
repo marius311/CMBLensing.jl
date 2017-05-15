@@ -148,13 +148,13 @@ end
 containertype(::Type{F}) where {F<:Field} = F
     
 # convenience constructors, FieldTuple(...)
-@eval const FieldTuple = Union{$((:Field*N*:Tuple for N=Ns)...)}
+@eval const FieldTupleType = Union{$((:Field*N*:Tuple for N=Ns)...)}
 for N in Ns
     @eval FieldTuple($((:f*i for i=1:N)...)) = $(:Field*N*:Tuple)($((:f*i for i=1:N)...))
 end
 
 # propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
-pixstd(f::FieldTuple) = mean(pixstd.(fieldvalues(f)))
+pixstd(f::FieldTupleType) = mean(pixstd.(fieldvalues(f)))
 pixstd(arr::AbstractArray{<:Field}) = mean(pixstd.(arr))
 pixstd(x,::Int) = pixstd(x)
     
@@ -166,4 +166,4 @@ pixstd(x,::Int) = pixstd(x)
 dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
 
 # warning: not type-stable and basically can't be without changes to Julia 
-getindex(f::FieldTuple, i) = (f...)[i]
+getindex(f::FieldTupleType, i) = (f...)[i]

@@ -47,8 +47,8 @@ end
 
 ## PowerLens Jacobian operators
 
-*(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}) = FieldTuple(δf̃_δfᴴ(J.L,fϕ[1]), δf̃_δϕᴴ(J.L,J.fₜ,fϕ[1]) + fϕ[2])
-*(J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}, fϕ::FΦTuple) = FieldTuple(δf̃_δf(J.L,fϕ[1]) + δf̃_δϕ(J.L,J.fₜ,fϕ[2]), fϕ[2])
+*(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}) = FieldTuple(δf̃_δfᴴ(J.L,fϕ.f1), δf̃_δϕᴴ(J.L,J.fₜ,fϕ.f1) + fϕ.f2)
+*(J::δfϕₛ_δfϕₜ{1.,0.,<:PowerLens}, fϕ::FΦTuple) = FieldTuple(δf̃_δf(J.L,fϕ.f1) + δf̃_δϕ(J.L,J.fₜ,fϕ.f2), fϕ.f2)
 
 
 δf̃_δf(L::PowerLens)           = FuncOp(x->δf̃_δf(L,x),   x->δf̃_δfᴴ(L,x))

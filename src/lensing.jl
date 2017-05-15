@@ -30,11 +30,11 @@ Notes:
       stored here
 
 """
-struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp} <: LinOp{Pix,Spin,Basis}
+struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: LinOp{Pix,Spin,Basis}
     L::L
-    fₛ::Field
-    fₜ::Field
-    δfϕₛ_δfϕₜ{s,t}(L,fₛ,fₜ) where {s,t} = new{s,t,typeof(L)}(L,fₛ,fₜ)
+    fₛ::Fₛ
+    fₜ::Fₜ
+    δfϕₛ_δfϕₜ{s,t}(l::L,fₛ::Fₛ,fₜ::Fₜ) where {s,t,L,Fₛ,Fₜ} = new{s,t,L,Fₛ,Fₜ}(l,fₛ,fₜ)
 end
 # convenience constructors which use f̃ to mean f_(t=1) and/or f to mean f_(t=0)
 δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{1.,t}(L,f̃,fₜ)
