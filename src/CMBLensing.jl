@@ -1,6 +1,7 @@
 module CMBLensing
 
 using Base.Iterators: repeated
+using Base.Threads
 using Interpolations
 using IterativeSolvers
 using MacroTools

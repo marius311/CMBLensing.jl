@@ -54,3 +54,36 @@ macro dictpack(exs...)
     kv(ex) = isexpr(ex,:call) && ex.args[1]==:(=>) ? :($(QuoteNode(ex.args[2]))=>$(esc(ex.args[3]))) : error()
     :(Dict($((kv(ex) for ex=exs)...)))
 end
+
+
+"""
+Take an expression like
+
+    for a in A, b in B
+        ...
+        @. r += term
+    end
+
+and rewrite it so each term is computed in parallel and the results are added
+together in a threadsafe manner.
+"""
+macro threadsum(ex)
+    
+    if Threads.nthreads()==1; return esc(ex); end
+    
+    @capture(ex, for a_ in A_, b_ in B_
+        begin temps__; @. r_ += inc_; end
+    end) || error("usage: @threadsum for a in A, b in B; begin ...; @. r += ...; end")
+    
+    quote
+        m = SpinLock()
+        @threads for ab in [($(esc(a)),$(esc(b))) for $(esc(a)) in $(esc(A)) for $(esc(b)) in $(esc(B))]
+            $(esc(a)),$(esc(b)) = ab
+            $(esc.(temps)...)
+            inc = @. $(esc(inc))
+            lock(m)
+            $(esc(r)) .+= inc
+            unlock(m)
+        end
+    end
+end
