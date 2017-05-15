@@ -131,16 +131,16 @@ shortname(::Type{∂{s}}) where {s} = "∂$s"
 An Op which applies some arbitrary function to its argument.
 Transpose and/or inverse operations which are not specified will return an error.
 """
-@with_kw struct FuncOp{F<:Union{Function,Void},Fᴴ<:Union{Function,Void},F⁻¹<:Union{Function,Void},F⁻ᴴ<:Union{Function,Void}} <: LinOp{Pix,Spin,Basis}
-    op  ::F   = nothing
-    opᴴ ::Fᴴ  = nothing
-    op⁻¹::F⁻¹ = nothing
-    op⁻ᴴ::F⁻ᴴ = nothing
+@with_kw struct FuncOp <: LinOp{Pix,Spin,Basis}
+    op   = nothing
+    opᴴ  = nothing
+    op⁻¹ = nothing
+    op⁻ᴴ = nothing
 end
 SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
-@∷ *(op::FuncOp{F,∷,∷,∷}, f::Field)   where {F}   = F   != Void ? op.op(f)   : error("op*f not implemented")
-@∷ *(f::Field, op::FuncOp{∷,Fᴴ,∷,∷})  where {Fᴴ}  = Fᴴ  != Void ? op.opᴴ(f)  : error("f*op not implemented")
-@∷ \(op::FuncOp{∷,∷,F⁻¹,∷}, f::Field) where {F⁻¹} = F⁻¹ != Void ? op.op⁻¹(f) : error("op\\f not implemented")
+@∷ *(op::FuncOp, f::Field) = op.op   != nothing ? op.op(f)   : error("op*f not implemented")
+@∷ *(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
+@∷ \(op::FuncOp, f::Field) = op.op⁻¹ != nothing ? op.op⁻¹(f) : error("op\\f not implemented")
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
 const IdentityOp = FuncOp(repeated(identity,4)...)
 literal_pow(^,op::FuncOp,::Type{Val{-1}}) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
