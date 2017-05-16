@@ -60,10 +60,9 @@ end
 function δf̃_δϕ(L::PowerLens{N}, f::F, v::Field) where {N,F<:Field}
     Ðf = Ð(f)
     r = Ł(zero(F))
-    ∂ⁿf = Ł(zero(F))
     ∂xv, ∂yv = Ł(∇*v)
     @threadsum for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-        @. ∂ⁿf = $Ł(@. ∂x^a * ∂y^b * Ðf) / factorial(a) / factorial(b)
+        ∂ⁿf = @. $Ł(@. ∂x^a * ∂y^b * Ðf) / factorial(a) / factorial(b)
         @. r += (  ((a==0) ? 0 : a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂xv * ∂ⁿf)
                  + ((b==0) ? 0 : b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂yv * ∂ⁿf))
     end
@@ -91,9 +90,8 @@ function δf̃_δϕᴴ(L::PowerLens{N,F}, f::Field, v::Field) where {N,F}
     Łv = Ł(v)
     Ðf = Ð(f)
     r = Ð(zero(F))
-    ∂ⁿfᴴ_v = Ł(zero(F))
     @threadsum for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-        @. ∂ⁿfᴴ_v = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
+        ∂ⁿfᴴ_v = @. $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
         @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᴴ_v)))
                   + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_v))))
     end
@@ -108,9 +106,8 @@ function δ²f̃_δϕ²(L::PowerLens{N,F}, f::Field, w::Field, v::Field) where {
     Ðf = Ð(f)
     ∂xv, ∂yv = Ł(∇*v)
     r = Ð(zero(F))
-    ∂ⁿfᴴ_w = Ł(zero(F))
     @threadsum for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-        @. ∂ⁿfᴴ_w = $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
+        ∂ⁿfᴴ_w = @. $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
         @. r += -(  ((a<2)        ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᴴ_w)))
                   + ((a<1 || b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_w)))
                   + ((b<2)        ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᴴ_w)))

@@ -55,28 +55,26 @@ function gdsteps(t, fₜϕ_cur, ds, Ngd, Ncg, ::Type{L}, ::Type{LJ}=L) where {L<
     trace = []
     
     for i=1:Ngd
-        let Lϕ=L(ϕcur)
-            # get negative gradient
-            g = -δlnP_δfϕₜ(t,fₜϕ_cur...,ds,Lϕ)
+        # get negative gradient
+        g = -δlnP_δfϕₜ(t,fₜϕ_cur...,ds,L)
 
-            # do steps towards CG solution of -H⁻¹*g
-            @unpack CN,Cf,Cϕ,Md,Mf,Mϕ = ds
-            approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN^-1 + Mf.a*Cf^-1)^-1).f, 1e-5*Mϕ*Cϕ.f));
-            if Ncg==0
-                Hinvg,cghist = approxℍ⁻¹*g, nothing
-            else
-                Hinvg,cghist = pcg(sqrt.(approxℍ⁻¹), HlnP(t,fₜϕ_cur...,ds,Lϕ,LJ(ϕcur)), g, nsteps=Ncg)
-            end
-
-            # line search
-            T = eltype(Hinvg)
-            res = optimize(α->(-lnP(t,(fₜϕ_cur+exp(α)*Hinvg)...,ds)), T(log(1e-5)), T(log(1e2)), abs_tol=1e-2)
-            α = exp(res.minimizer)
-
-            fₜcur,ϕcur = (fₜϕ_cur += α*Hinvg)
-            
-            push!(trace, @dictpack t fϕ=>fₜϕ_cur lnP=>res.minimum g Hinvg α Ncg Nls=>res.f_calls cghist)
+        # do steps towards CG solution of -H⁻¹*g
+        @unpack CN,Cf,Cϕ,Md,Mf,Mϕ = ds
+        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN^-1 + Mf.a*Cf^-1)^-1).f, 1e-5*Mϕ*Cϕ.f))
+        if Ncg==0
+            Hinvg,cghist = approxℍ⁻¹*g, nothing
+        else
+            Hinvg,cghist = pcg(sqrt.(approxℍ⁻¹), HlnP(t,fₜϕ_cur...,ds,L,LJ), g, nsteps=Ncg)
         end
+
+        # line search
+        T = eltype(Hinvg)
+        res = optimize(α->(-lnP(t,(fₜϕ_cur+exp(α)*Hinvg)...,ds,L)), T(log(1e-5)), T(log(1e2)), abs_tol=1e-2)
+        α = exp(res.minimizer)
+
+        fₜcur,ϕcur = (fₜϕ_cur += α*Hinvg)
+        
+        push!(trace, @dictpack t fϕ=>fₜϕ_cur lnP=>res.minimum g Hinvg α Ncg Nls=>res.f_calls cghist)
     end
     res.minimum, fₜϕ_cur, trace
 end
@@ -108,7 +106,7 @@ function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, 
     trace = []
     fₜϕ_cur = fₜϕ_start
     for i=1:Nsteps
-        ttot = @elapsed for j=1:2
+        ttot = @elapsed @threads for j=1:2
             j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,2,Ncg,L,LJ))
             j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,1,β*Ncg,L,LJ))
         end

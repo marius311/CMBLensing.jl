@@ -44,13 +44,13 @@ function run1(;
     Md = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
     
     # field prior mask
-    ℓmax_mask, Δℓ_taper = 3500, 0
-    Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
-    Mf = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
-    # Ml = ones(Complex{T},nside÷2+1,nside)
-    # i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
-    # Ml[:,i]=Ml[i,:]=0
-    # Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
+    # ℓmax_mask, Δℓ_taper = 3500, 0
+    # Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
+    # Mf = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
+    Ml = ones(Complex{T},nside÷2+1,nside)
+    i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
+    Ml[:,i]=Ml[i,:]=0
+    Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
     
     # ϕ prior mask
     Mϕ = Squash
