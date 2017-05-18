@@ -102,7 +102,7 @@ Arguments:
 * L : Lensing operator to use for gradient descent
 * LJ : Lensing operator to use for the Hessian calculation
 """
-function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, β=2) where {L<:LenseOp, LJ<:LenseOp}
+function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, β=2, callback=nothing) where {L<:LenseOp, LJ<:LenseOp}
     trace = []
     fₜϕ_cur = fₜϕ_start
     for i=1:Nsteps
@@ -112,12 +112,12 @@ function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, 
         end
         @show i, lnP1, lnP2, t1, t2, ttot
         if lnP2<lnP1
-            push!(trace,tr2...)
+            callback(push!(trace,tr2...))
             Ncg *= β
             println("Increasing Ncg to $Ncg")
             fₜϕ_cur = fₜϕ_cur2
         else
-            push!(trace,tr1...)
+            callback(push!(trace,tr1...))
             fₜϕ_cur = fₜϕ_cur1
         end
     end

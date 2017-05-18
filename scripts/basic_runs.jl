@@ -57,6 +57,7 @@ function run1(;
     
     ds = DataSet(f̃ + simulate(CN), CN̂, Cf, Cϕ, Md, Mf, Mϕ);
     target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
+    rundat = @dictpack Θpix nside T r μKarcminT d=>ds.d target_lnP cls f f̃ ϕ
     
     ## starting point
     fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ))
@@ -65,24 +66,21 @@ function run1(;
     
     if Nt1>0
         println(" --- t=1 steps ---")
-        (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,LJ,Nsteps=Nt1,Ncg=Ncg1₀,β=2)
+        callback = tr -> outfile!=nothing && save(outfile,"rundat",rundat,"trace",tr)
+        (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,LJ,Nsteps=Nt1,Ncg=Ncg1₀,β=2,callback=callback)
         fcur,ϕcur = fϕcur = FieldTuple(L(ϕcur)\f̃cur,ϕcur)
     else
         tr1 = []
     end
     
     println(" --- t=0 steps ---")
-    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,LJ,Nsteps=Nt0,Ncg=Ncg0₀,β=2)
+    callback = tr -> outfile!=nothing && @time save(outfile,"rundat",rundat,"trace",[tr1; tr])
+    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,LJ,Nsteps=Nt0,Ncg=Ncg0₀,β=2,callback=callback)
     f̃cur,ϕcur = f̃ϕcur = FieldTuple(L(ϕcur)*fcur,ϕcur)
     
     @show tr2[end][:lnP], target_lnP
     
-    rundat = @dictpack Θpix nside T r μKarcminT d=>ds.d target_lnP cls f f̃ ϕ
     trace = [tr1; tr2]
-    
-    if outfile!=nothing
-        save(outfile,"rundat",rundat,"trace",trace)
-    end
     
     f̃cur, fcur, ϕcur, trace, rundat
     
