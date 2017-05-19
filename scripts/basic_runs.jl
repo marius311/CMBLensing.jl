@@ -73,12 +73,12 @@ function run1(;
     ## starting point
     fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ))
     
-    println("target_lnP = $target_lnP ± $(round(Int,sqrt(2*target_lnP)))")
+    println("target_lnP = $(round(Int,target_lnP)) ± $(round(Int,sqrt(2*target_lnP)))")
     
     if Nt1>0
         println(" --- t=1 steps ---")
         callback = tr -> outfile!=nothing && save(outfile,"rundat",rundat,"trace",tr)
-        (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,LJ,Nsteps=Nt1,Ncg=Ncg1₀,β=2,callback=callback)
+        (f̃cur,ϕcur),tr1 = f̃ϕcur,tr1 = bcggd(1,f̃ϕstart,ds,L,LJ,Nsteps=Nt1,Ncg=Ncg1₀,β=2,callback=callback,approxℍ⁻¹=approxℍ⁻¹)
         fcur,ϕcur = fϕcur = FieldTuple(L(ϕcur)\f̃cur,ϕcur)
     else
         tr1 = []
@@ -86,7 +86,7 @@ function run1(;
     
     println(" --- t=0 steps ---")
     callback = tr -> outfile!=nothing && @time save(outfile,"rundat",rundat,"trace",[tr1; tr])
-    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,LJ,Nsteps=Nt0,Ncg=Ncg0₀,β=2,callback=callback)
+    (fcur,ϕcur),tr2 = fϕcur,tr2 = bcggd(0,fϕcur,ds,L,LJ,Nsteps=Nt0,Ncg=Ncg0₀,β=2,callback=callback,approxℍ⁻¹=approxℍ⁻¹)
     f̃cur,ϕcur = f̃ϕcur = FieldTuple(L(ϕcur)*fcur,ϕcur)
     
     @show tr2[end][:lnP], target_lnP
