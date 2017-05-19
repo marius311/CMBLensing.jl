@@ -13,6 +13,7 @@ function run1(;
     Nt0 = 15,   # number of t=0 branch steps
     Ncg1₀ = 5,  # initial Ncg for t=1 steps
     Ncg0₀ = 80, # initial Ncg for t=0 steps
+    hessNϕ = false,
     seed = nothing, # random seed
     L = LenseFlow{ode4{7}},
     LJ = LenseFlow{ode4{2}},
@@ -59,10 +60,20 @@ function run1(;
     target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
     rundat = @dictpack Θpix nside T r μKarcminT d=>ds.d target_lnP cls f f̃ ϕ
     
+    
+    # hessian
+    if hessNϕ
+        Nℓϕϕ = readdlm("../dat/noise_dd.dat")[:].*(2:3000.).^-2./100
+        Nϕ = Cℓ_to_cov(T,P,S0,2:3000,Nℓϕϕ)
+        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN̂^-1 + Mf.a*Cf^-1)^-1).f, Mϕ*Nϕ.f));
+    else
+        approxℍ⁻¹ = nothing
+    end
+    
     ## starting point
     fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ))
     
-    @show target_lnP
+    println("target_lnP = $target_lnP ± $(round(Int,sqrt(2*target_lnP)))")
     
     if Nt1>0
         println(" --- t=1 steps ---")

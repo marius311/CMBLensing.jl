@@ -50,17 +50,19 @@ Arguments:
 Returns:
 * lnP(fₜϕ), fₜϕ, trace
 """
-function gdsteps(t, fₜϕ_cur, ds, Ngd, Ncg, ::Type{L}, ::Type{LJ}=L) where {L<:LenseOp, LJ<:LenseOp}
+function gdsteps(t, fₜϕ_cur, ds, Ngd, Ncg, ::Type{L}, ::Type{LJ}=L; approxℍ⁻¹=nothing) where {L<:LenseOp, LJ<:LenseOp}
     fₜcur,ϕcur = fₜϕ_cur
     trace = []
+    if approxℍ⁻¹ == nothing
+        @unpack CN,Cf,Cϕ,Md,Mf,Mϕ = ds
+        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN^-1 + Mf.a*Cf^-1)^-1).f, 1e-5*Mϕ*Cϕ.f))
+    end
     
     for i=1:Ngd
         # get negative gradient
         g = -δlnP_δfϕₜ(t,fₜϕ_cur...,ds,L)
 
         # do steps towards CG solution of -H⁻¹*g
-        @unpack CN,Cf,Cϕ,Md,Mf,Mϕ = ds
-        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN^-1 + Mf.a*Cf^-1)^-1).f, 1e-5*Mϕ*Cϕ.f))
         if Ncg==0
             Hinvg,cghist = approxℍ⁻¹*g, nothing
         else
@@ -102,13 +104,13 @@ Arguments:
 * L : Lensing operator to use for gradient descent
 * LJ : Lensing operator to use for the Hessian calculation
 """
-function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, β=2, callback=nothing) where {L<:LenseOp, LJ<:LenseOp}
+function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, β=2, callback=(tr->nothing), kwargs...) where {L<:LenseOp, LJ<:LenseOp}
     trace = []
     fₜϕ_cur = fₜϕ_start
     for i=1:Nsteps
         ttot = @elapsed @threads for j=1:2
-            j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,2,Ncg,L,LJ))
-            j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,1,β*Ncg,L,LJ))
+            j==1 && global t1 = @elapsed (global (lnP1, fₜϕ_cur1, tr1) = gdsteps(t,fₜϕ_cur,ds,2,Ncg,L,LJ; kwargs...))
+            j==2 && global t2 = @elapsed (global (lnP2, fₜϕ_cur2, tr2) = gdsteps(t,fₜϕ_cur,ds,1,β*Ncg,L,LJ; kwargs...))
         end
         @show i, lnP1, lnP2, t1, t2, ttot
         if lnP2<lnP1
