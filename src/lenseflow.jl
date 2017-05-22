@@ -28,8 +28,9 @@ tts(::Type{<:ode45},ts) = ts
 
 """ ODE velocity for LenseFlow """
 velocity(L::LenseFlow, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f))
+velocityᴴ(L::LenseFlow, f::Field, t::Real) = @⨳ ∇ᵀ ⨳ $Ð(Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))
 
-function lenseflow(L::LenseFlow{I}, f::F, ts) where {I,F<:Field}
+function lenseflow(L::LenseFlow{I}, f::F, ts, velocity) where {I,F<:Field}
     ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, tts(I,ts); kwargs(I)...)
     dbg(I)[1] && info("lenseflow: ode45 took $(length(ys[2])) steps")
     dbg(I)[2] ? ys : ys[2][end]::F # <-- ODE.jl not type stable
@@ -37,8 +38,10 @@ end
 
 
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t1,t2}) where {I,t1,t2,F} = LenseFlow{I,t1,t2,F}(L.ϕ,L.∇ϕ,L.Hϕ)
-@∷ *(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2])
-@∷ \(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1])
+@∷ *(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2],velocity)
+@∷ \(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1],velocity)
+@∷ *(f::Field, L::LenseFlow{∷,t1,t2}) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1],velocityᴴ)
+@∷ \(f::Field, L::LenseFlow{∷,t1,t2}) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2],velocityᴴ)
 
 
 
