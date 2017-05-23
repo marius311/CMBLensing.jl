@@ -1,7 +1,8 @@
 using JLD
 using CMBLensing
-using CMBLensing: @dictpack, ode4
+using CMBLensing: @dictpack, ode4, δlnΠᶠ_δfϕ
 using CMBLensing.Minimize
+using Optim
 using Base.Iterators: repeated
 
 function run1(;
@@ -94,5 +95,90 @@ function run1(;
     trace = [tr1; tr2]
     
     f̃cur, fcur, ϕcur, trace, rundat
+    
+end
+
+
+
+"""
+Iterative conditional algorithm
+"""
+function run2(;
+    Θpix = 3,
+    nside = 64,
+    T = Float32,
+    r = 0.05,
+    L = LenseFlow{ode4{7}},
+    outfile = nothing,
+    seed = nothing,
+    cls = nothing)
+    
+    seed!=nothing && srand(seed)
+    
+    cls==nothing && (cls = class(lmax=8000,r=r))
+    
+    ## set up the types of maps
+    P = Flat{Θpix,nside}
+    ## covariances
+    Cf = Cℓ_to_cov(T,P,S2,cls[:ℓ], cls[:ee],    cls[:bb])
+    Cf̃ = Cℓ_to_cov(T,P,S2,cls[:ℓ], cls[:ln_ee], cls[:ln_bb])
+    Cϕ = Cℓ_to_cov(T,P,S0,cls[:ℓ], cls[:ϕϕ])
+    μKarcminT = 1
+    Ωpix = deg2rad(Θpix/60)^2
+    CN  = FullDiagOp(FlatS2EBFourier{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside÷2+1,nside)),2)...))
+    ##
+    f = simulate(Cf)
+    ϕ = simulate(Cϕ)
+    f̃ = L(ϕ)*f
+    
+    # data mask
+    ℓmax_mask, Δℓ_taper = 3000, 0
+    Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
+    Md = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
+    
+    # field prior mask
+    # ℓmax_mask, Δℓ_taper = 3500, 0
+    # Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
+    # Mf = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
+    Ml = ones(Complex{T},nside÷2+1,nside)
+    i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
+    Ml[:,i]=Ml[i,:]=0
+    Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
+    
+    # ϕ prior mask
+    Mϕ = Squash
+    
+    d = f̃ + simulate(CN)
+    
+    target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
+    rundat = @dictpack Θpix nside T r μKarcminT d target_lnP cls f f̃ ϕ
+
+    trace = []
+
+    ϕcur = 0ϕ
+    fcur, f̃cur = nothing, nothing;
+    
+
+    for w in 0:0.1:1
+        ds = DataSet(d, CN, (@. (1-w)*Cf̃ + w*Cf), Cϕ, Md, Mf, Mϕ)
+        let L=L(ϕcur),
+            P = @. nan2zero((nan2zero(Md.a*CN^-1) + nan2zero(Mf.a*ds.Cf^-1))^-1/2);
+            A = L'*(Md*CN^-1*L) + Mf*ds.Cf^-1
+            b = L'*(Md*(CN\d))
+            fcur,hist = pcg(P,A,b; nsteps=50)
+            f̃cur = L*fcur
+        end;
+
+        ϕnew = Mϕ*Cϕ*(δlnΠᶠ_δfϕ(fcur,ϕcur,ds) * δfϕ_δf̃ϕ(L(ϕcur),fcur,f̃cur))[2];
+        α = (res = optimize(α->(-lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,ds,L)), T(0), T(1), abs_tol=1e-6)).minimizer
+        ϕcur = (1-α)*ϕcur+α*ϕnew
+
+        @show w,res.minimum,α
+        
+        push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnP=>-res.minimum α w hist)
+        
+        outfile!=nothing && save(outfile,"rundat",rundat,"trace",trace)
+            
+    end
     
 end
