@@ -26,7 +26,7 @@ function class(;lmax = 6000,
    		)
 	cosmo[:set](params)
 	cosmo[:compute]()
-	C̃ℓ,Cℓ = (Dict(k=>v[2:end] for (k,v) in cosmo[x](lmax)) for x in (:lensed_cl,:raw_cl))
+	C̃ℓ,Cℓ = (Dict([(k,v[2:end]) for (k,v) in cosmo[x](lmax)]) for x in (:lensed_cl,:raw_cl))
     α = 10^6 * cosmo[:T_cmb](); α² = α^2
 	rtn = Dict{Symbol, Vector{Float64}}(
 			:ℓ      => Cℓ["ell"],
