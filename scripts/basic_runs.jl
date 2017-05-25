@@ -2,6 +2,7 @@ using JLD
 using CMBLensing
 using CMBLensing: @dictpack, ode4, δlnΠᶠ_δfϕ
 using CMBLensing.Minimize
+using CMBLensing.Masking
 using Optim
 using Base.Iterators: repeated
 
@@ -57,7 +58,7 @@ function run1(;
     # ϕ prior mask
     Mϕ = Squash
     
-    ds = DataSet(f̃ + simulate(CN), CN̂, Cf, Cϕ, Md, Mf, Mϕ);
+    ds = DataSet(f̃ + simulate(CN), CN̂, Cf, Cϕ, Md, Mf, Mϕ)
     target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
     rundat = @dictpack Θpix nside T r μKarcminT d=>ds.d target_lnP cls f f̃ ϕ
     
@@ -66,7 +67,7 @@ function run1(;
     if hessNϕ
         Nℓϕϕ = readdlm("../dat/noise_dd.dat")[:].*(2:3000.).^-2./100
         Nϕ = Cℓ_to_cov(T,P,S0,2:3000,Nℓϕϕ)
-        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN̂^-1 + Mf.a*Cf^-1)^-1).f, Mϕ*Nϕ.f));
+        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN̂^-1 + Mf.a*Cf^-1)^-1).f, Mϕ*Nϕ.f))
     else
         approxℍ⁻¹ = nothing
     end
@@ -111,7 +112,10 @@ function run2(;
     L = LenseFlow{ode4{7}},
     outfile = nothing,
     seed = nothing,
-    cls = nothing)
+    mask = nothing,
+    cls = nothing,
+    ws = linspace(0,1,20).^3,
+    Ncg = 40)
     
     seed!=nothing && srand(seed)
     
@@ -130,16 +134,19 @@ function run2(;
     f = simulate(Cf)
     ϕ = simulate(Cϕ)
     f̃ = L(ϕ)*f
+    d = f̃ + simulate(CN)
     
     # data mask
-    ℓmax_mask, Δℓ_taper = 3000, 0
-    Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
-    Md = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
+    ℓmax_mask = 3000
+    fMd = Cℓ_to_cov(T,P,S2,1:ℓmax_mask,repeated(ones(ℓmax_mask),2)...)
+    if mask!=nothing
+        rMd = FullDiagOp(FlatS2QUMap{T,P}(repeated(1. * sptlike_mask(nside,Θpix; (mask==true?():mask)...),2)...))
+        Md = rMd * fMd * Squash
+    else
+        Md = fMd * Squash
+    end
     
     # field prior mask
-    # ℓmax_mask, Δℓ_taper = 3500, 0
-    # Ml = [ones(ℓmax_mask); (cos(linspace(0,π,Δℓ_taper))+1)/2]
-    # Mf = Cℓ_to_cov(T,P,S2,1:(ℓmax_mask+Δℓ_taper),repeated(Ml,2)...) * Squash
     Ml = ones(Complex{T},nside÷2+1,nside)
     i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
     Ml[:,i]=Ml[i,:]=0
@@ -148,37 +155,41 @@ function run2(;
     # ϕ prior mask
     Mϕ = Squash
     
-    d = f̃ + simulate(CN)
     
-    target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
+    target_lnP = mean(let n=simulate(CN); -n⋅(Md*(CN\n))/2 end for i=1:100)
+    @show target_lnP
     rundat = @dictpack Θpix nside T r μKarcminT d target_lnP cls f f̃ ϕ
 
     trace = []
 
     ϕcur = 0ϕ
-    fcur, f̃cur = nothing, nothing;
+    fcur, f̃cur = nothing, nothing
     
-
-    for w in 0:0.1:1
+    for w in ws
+        
         ds = DataSet(d, CN, (@. (1-w)*Cf̃ + w*Cf), Cϕ, Md, Mf, Mϕ)
+        
         let L=L(ϕcur),
-            P = @. nan2zero((nan2zero(Md.a*CN^-1) + nan2zero(Mf.a*ds.Cf^-1))^-1/2);
+            P = @. nan2zero((fMd*nan2zero(CN^-1) + Mf.a*nan2zero(ds.Cf^-1))^-1/2)
             A = L'*(Md*CN^-1*L) + Mf*ds.Cf^-1
             b = L'*(Md*(CN\d))
-            fcur,hist = pcg(P,A,b; nsteps=50)
+            fcur,hist = pcg(P,A,b; nsteps=Ncg)
             f̃cur = L*fcur
-        end;
+        end
 
         ϕnew = Mϕ*Cϕ*(δlnΠᶠ_δfϕ(fcur,ϕcur,ds) * δfϕ_δf̃ϕ(L(ϕcur),fcur,f̃cur))[2];
         α = (res = optimize(α->(-lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,ds,L)), T(0), T(1), abs_tol=1e-6)).minimizer
         ϕcur = (1-α)*ϕcur+α*ϕnew
 
-        @show w,res.minimum,α
-        
-        push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnP=>-res.minimum α w hist)
+        lnPw = -res.minimum
+        lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, CN, Cf, Cϕ, Md, Mf, Mϕ),L)
+        push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP α w hist)
+        @printf("%.4f %.2f %.2f %.2f",w,lnPw,lnP1,α)
         
         outfile!=nothing && save(outfile,"rundat",rundat,"trace",trace)
             
     end
+    
+    f̃cur, fcur, ϕcur, trace, rundat
     
 end

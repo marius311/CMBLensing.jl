@@ -180,5 +180,6 @@ end
 
 # submodules
 include("minimize.jl")
+include("masking.jl")
 
 end
