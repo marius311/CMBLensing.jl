@@ -19,7 +19,7 @@ end
 
 function PowerLens{N}(ϕ) where {N}
     ∂xϕ, ∂yϕ = Ł(∂x*ϕ), Ł(∂y*ϕ)
-    PowerLens{N,typeof(∂xϕ)}((Dict(i=>(i==0?1:∂ϕ.^i) for i=0:N) for ∂ϕ=(∂xϕ,∂yϕ))...)
+    PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0?1:∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 
 """ Create from an existing PowerLens operator one that lenses by -ϕ instead. """
