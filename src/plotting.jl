@@ -1,3 +1,6 @@
+using PyPlot
+import PyPlot: plot
+
 export plot
 
 pretty_name(s::Symbol) = pretty_name(string(s))

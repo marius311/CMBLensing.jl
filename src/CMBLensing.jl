@@ -9,14 +9,12 @@ using NamedTuples
 using ODE
 using Parameters
 using PyCall
-using PyPlot
 using StaticArrays
 using StatsBase
 
 include("RFFTVectors.jl"); using .RFFTVectors
 
 
-import PyPlot: plot
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
     Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex,
     inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
@@ -156,7 +154,7 @@ include("flat.jl")
 include("taylens.jl")
 include("vec_conv.jl")
 include("healpix.jl")
-include("plotting.jl")
+displayable(MIME("image/png")) && include("plotting.jl")
 include("cls.jl")
 include("likelihood.jl")
 include("wiener.jl")
