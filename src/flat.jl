@@ -67,6 +67,9 @@ function checkfourier{T,P}(::Type{P},A::AbstractMatrix{Complex{T}})
     A
 end
 
+
+Cℓ_2D(ℓ, Cℓ, r) = extrapolate(interpolate((ℓ,),Cℓ,Gridded(Linear())),0)[r]
+Cℓ_2D(::Type{P}, ℓ, Cℓ) where {N,P<:Flat{<:Any,N}} = Cℓ_2D(ℓ,Cℓ,FFTgrid(Float64,P).r)[1:N÷2+1,:]
 Cℓ_to_cov(::Type{P}, ::Type{S}, args::Vector{T}...) where {T,P,S<:Spin} = Cℓ_to_cov(T,P,S,args...)
 
 

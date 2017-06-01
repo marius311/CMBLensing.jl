@@ -47,8 +47,3 @@ function class(;lmax = 6000,
 		)
 	return rtn
 end
-
-"""
-Get the Cℓ as a 2D flat sky covariance
-"""
-Cℓ_2D(ℓ, Cℓ, r) = extrapolate(interpolate((ℓ,),Cℓ,Gridded(Linear())),0)[r]
