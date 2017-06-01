@@ -32,7 +32,8 @@ macro typeswap(ex)
     end
 end
 
-nan2zero{T}(x::T) = isnan(x)?zero(T):x
+nan2zero{T}(x::T) = !isfinite(x)?zero(T):x
+nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
 
 """ Return a tuple with the expression repeated n times """
 macro repeated(ex,n)

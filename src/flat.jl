@@ -72,6 +72,7 @@ Cℓ_to_cov(::Type{P}, ::Type{S}, args::Vector{T}...) where {T,P,S<:Spin} = Cℓ
 
 include("flat_s0.jl")
 include("flat_s2.jl")
+include("flat_s0s2.jl")
 
 const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P}}
 const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}
@@ -94,12 +95,4 @@ DerivBasis(::Type{<:FlatS2}) = QUFourier
 for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
-end
-
-
-const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}
-
-# todo: make this actually take into account TE
-function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓTE, CℓEE, CℓBB)
-    FullDiagOp(FieldTuple(Cℓ_to_cov(T,P,S0,ℓ,CℓTT).f, Cℓ_to_cov(T,P,S2,ℓ,CℓEE,CℓBB).f))
 end
