@@ -37,28 +37,11 @@ function broadcast(f,args::Union{_,FlatTEBCov{T,P},Scalar}...) where {T,P,_<:Fla
 end
 
 
-# pretty hacky but needed for StaticArrays to invert the 2x2 TE block matrix correctly
-# maybe we can get a PR to StaticArrays accepted that removes the need for this
+# these are needed for StaticArrays to invert the 2x2 TE block matrix correctly
+# we can hopefully remove this pending some sort of PR into StaticArrays to
+# remove the need for this
 one(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
-one(::Type{Vector{T}}) where {T} = Vector{T}(0)
 zero(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
-zero(::Type{Vector{T}}) where {T} = Vector{T}(0)
 
-# so that sqrtm works
+# this version puts Inf on diagonal for inverted 0 entries, the default throws a Singular error
 inv(d::Diagonal) = Diagonal(1./d.diag)
-
-## also PR to StaticArrays, coded in that style
-sqrtm(A::StaticMatrix) = _sqrtm(Size(A),A)
-@generated function _sqrtm(::Size{(2,2)}, A::StaticMatrix)
-    @assert size(A) == (2,2)
-    T = typeof(sqrtm(one(eltype(A))))
-    newtype = similar_type(A,T)
-            
-    quote
-        a,b,c,d = A
-        s = sqrtm(a*d-b*c)
-        t = inv(sqrtm(a+d+2s))
-        ($newtype)(t*(a+s), t*b, 
-                   t*c,     t*(d+s))
-    end
-end
