@@ -36,6 +36,14 @@ function broadcast(f,args::Union{_,FlatTEBCov{T,P},Scalar}...) where {T,P,_<:Fla
     FlatTEBCov{T,P}(map(broadcast, repeated(f), map(broadcast_data, repeated(FlatTEBCov), args)...)...)
 end
 
+function get_Cℓ(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
+    Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
+    (Cℓs[1][1], hcat(last.(Cℓs)...))
+end
+
+getindex(f::Field2Tuple{<:Field{<:Flat,<:S0},<:Field{<:Flat,<:S2}},s::Symbol) = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
+    
+    
 
 # these are needed for StaticArrays to invert the 2x2 TE block matrix correctly
 # we can hopefully remove this pending some sort of PR into StaticArrays to

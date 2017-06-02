@@ -104,7 +104,7 @@ function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
 end
 
 function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}
-    Cℓs = [get_Cℓ(FlatS0Fourier{T,P}(f[Symbol(x1,:l)]); kwargs...) for (x1,x2) in string.(which)]
+    Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
     (Cℓs[1][1], hcat(last.(Cℓs)...))
 end
 
