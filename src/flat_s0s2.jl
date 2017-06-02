@@ -4,7 +4,7 @@ const FlatTEBFourier{T,P} = Field2Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P}}
 
 # some convenience constructors
 FlatIQUMap{T,P}(i,q,u) where {T,P} = Field2Tuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
-FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS2QUFourier{T,P}(e,b))
+FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
 
 
 struct FlatTEBCov{T,P} <: LinDiagOp{P,Spin,Basis2Tuple{Fourier,EBFourier}}
