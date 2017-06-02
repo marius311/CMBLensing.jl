@@ -174,7 +174,8 @@ function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
     else
         error("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
     end
-end
+end 
+getindex(f::Field2Tuple{<:Field{<:Any,<:S0},<:Field{<:Any,<:S0}},s::Symbol) = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
 
 # submodules
 include("minimize.jl")
