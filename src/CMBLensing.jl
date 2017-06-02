@@ -17,7 +17,7 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
     Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex,
-    inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, zero
+    inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, one, zero, sqrtm
 import Base.LinAlg: dot, norm, isnan
 
 include("util.jl")
