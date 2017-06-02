@@ -166,4 +166,4 @@ pixstd(x,::Int) = pixstd(x)
 dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
 
 # warning: not type-stable and basically can't be without changes to Julia 
-getindex(f::FieldTupleType, i::Int) = (f...)[i]
+getindex(f::FieldTupleType, i::Union{Int,UnitRange{Int}}) = (f...)[i]
