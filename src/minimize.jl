@@ -11,7 +11,7 @@ using Parameters
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
 """
-function cg(A, b, x=0*b; nsteps=length(b))
+function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
     r = b - A*x
     p = r
     res = dot(r,r)
@@ -23,7 +23,7 @@ function cg(A, b, x=0*b; nsteps=length(b))
         x = x + α * p
         r = r - α * Ap
         res′ = dot(r,r)
-        if res′==0; break; end
+        if res′<tol; break; end
         p = r + (res′ / res) * p
         push!(reshist,res)
         res = res′
