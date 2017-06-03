@@ -52,12 +52,12 @@ end
 
 ### old-style (slow) non-broadcasted algebra
 
-for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
+for T in (:Field,:LinDiagOp), op in (:+,:-), (T1,T2) in ((T,:Scalar),(:Scalar,T),(T,T))
     @eval ($op)(a::$T1, b::$T2) = broadcast($(op),promote(a,b)...)
 end
 for op in (:*,:/)
-    for (T1,T2) in ((:F,:Scalar),(:Scalar,:F),(:F,:F))
-        @eval ($op)(a::$T1, b::$T2) where {F<:Field} = broadcast($(op),a,b)
+    for (T1,T2) in ((:T,:Scalar),(:Scalar,:T),(:T,:T)), T in (:Field,:LinDiagOp)
+        @eval ($op)(a::$T1, b::$T2) where {T<:$T} = broadcast($(op),a,b)
     end
     @eval ($op)(a::Field, b::Field) = error("Fields must be put into same basis before they can be multiplied.")
 end

@@ -200,7 +200,7 @@ function run2(;
         ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
         let L=L(ϕcur)
-            P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Cfw^-1)))^-1)
+            P = nan2zero.(sqrtm(nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Cfw^-1))^-1) * Mf
             A = L'*(Md*Cn^-1*L) + Mf*Cfw^-1
             b = L'*(Md*(Cn\d))
             fcur,hist = pcg(P,A,b; nsteps=Ncg)
@@ -213,8 +213,8 @@ function run2(;
 
         lnPw = -res.minimum
         lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, Cn, Cf, Cϕ, Md, Mf, Mϕ),L)
-        push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP α w hist)
-        @printf("%.4f %.2f %.2f %.2f",w,lnPw,lnP1,α)
+        push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP1 α w hist)
+        @printf("%.4f %.2f %.2f %.4f",w,lnPw,lnP1,α)
         
         outfile!=nothing && save(outfile,"rundat",rundat,"trace",trace)
             
