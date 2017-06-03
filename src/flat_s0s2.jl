@@ -28,6 +28,9 @@ function *(cv::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any
 end
 \(cv::FlatTEBCov, f::FlatTEBFourier) = inv(cv)*f
 
+
+
+
 literal_pow(^,cv::FlatTEBCov,::Type{Val{-1}}) = inv(cv)
 inv(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(inv(cv.ΣTE),1./cv.ΣB)
 sqrtm(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(nan2zero.(sqrtm(cv.ΣTE)),sqrt.(cv.ΣB))
@@ -40,6 +43,17 @@ broadcast_data(::Type{FlatTEBCov},cv::FlatTEBCov) = fieldvalues(cv)
 function broadcast(f,args::Union{_,FlatTEBCov{T,P},Scalar}...) where {T,P,_<:FlatTEBCov{T,P}}
     FlatTEBCov{T,P}(map(broadcast, repeated(f), map(broadcast_data, repeated(FlatTEBCov), args)...)...)
 end
+
+# can do TEB * Diag{TEB} explicilty 
+@symarg function *{T,P}(cv::FlatTEBCov{T,P}, d::FullDiagOp{<:FlatTEBFourier{T,P}})
+    all(isreal.(Mdf.f[:])) || error("Can't multiply TEB cov by non positive-definite operator.")
+    FlatTEBCov{T,P}(
+        @SMatrix([Diagonal(real(d.f[:Tl][:]))*cv.ΣTE[1,1] cv.ΣTE[1,2];
+                  cv.ΣTE[2,1] Diagonal(real(d.f[:El][:]))*cv.ΣTE[2,2]]),
+        real(d.f[:Bl]) .* cv.ΣB
+    )
+end
+
 
 function get_Cℓ(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
     Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]

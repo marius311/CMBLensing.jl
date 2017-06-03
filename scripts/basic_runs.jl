@@ -142,37 +142,35 @@ function run2(;
         Cf =  Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:tt],    Cℓf[:ee],    Cℓf[:bb],    Cℓf[:te])
         Cf̃  = Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:ln_tt], Cℓf[:ln_ee], Cℓf[:ln_bb], Cℓf[:ln_te])
         Cn =  Cℓ_to_cov(T,P,S0,S2,Cℓn[:ℓ], Cℓn[:tt],    Cℓn[:ee],    Cℓn[:bb],    Cℓn[:te])
-        Mdf = Cℓ_to_cov(T,P,S0,S2,1:ℓmax_data,repeated(ones(ℓmax_data),4)...)
     elseif use==:EB
         Cf =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ee],    Cℓf[:bb])
         Cf̃ =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ln_ee], Cℓf[:ln_bb])
         Cn =  Cℓ_to_cov(T,P,S2,Cℓn[:ℓ], Cℓn[:ee],    Cℓn[:bb])
-        Mdf = Cℓ_to_cov(T,P,S2,1:ℓmax_data,repeated(ones(ℓmax_data),2)...)
     elseif use==:T
         Cf =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:tt])
         Cf̃ =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:ln_tt])
         Cn =  Cℓ_to_cov(T,P,S0,Cℓn[:ℓ], Cℓn[:tt])
-        Mdf = Cℓ_to_cov(T,P,S0,1:ℓmax_data,ones(ℓmax_data))
     else
         error("Unrecognized '$(use)'")
     end
     
-    F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
     
     # data mask
+    F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
+    Mdf = FullDiagOp(F̂{T,P}(repeated(Cℓ_2D(P,1:ℓmax_data,ones(ℓmax_data)),nF)...))
     if mask!=nothing
         Mdr = FullDiagOp(F{T,P}(repeated(T.(sptlike_mask(nside,Θpix; (mask==true?():mask)...)),nF)...))
     else
         Mdr = 1
     end
     Md = Mdr * Mdf * Squash
-    
+
     # field prior mask
     if iseven(nside)
         Ml = ones(Complex{T},nside÷2+1,nside)
         i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
         Ml[:,i] = Ml[i,:] = 0
-        Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
+        Mf = FullDiagOp(F̂{T,P}(repeated(Ml,nF)...)) * Squash
     else    
         Mf = Squash
     end
@@ -202,8 +200,7 @@ function run2(;
         ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
         let L=L(ϕcur)
-            @show typeof(Mdf) typeof(Cn) typeof(Cfw)
-            P = nan2zero.(sqrtm((nan2zero.(Mdf .* Cn^-1) .+ nan2zero.(Cfw^-1)))^-1)
+            P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Cfw^-1)))^-1)
             A = L'*(Md*Cn^-1*L) + Mf*Cfw^-1
             b = L'*(Md*(Cn\d))
             fcur,hist = pcg(P,A,b; nsteps=Ncg)

@@ -13,22 +13,22 @@ end
 
 
 """
-@typeswap f(a::T1,b::T2) = body
+@symarg f(a::T1,b::T2) = body
 
 is equivalent to
 
 f(a::T1,b::T2) = body
-f(a::T2,b::T1) = body
+f(b::T2,a::T1) = body
 
 TODO: phase out use of this entirely, it tends to lead to ambiguities....
 """
-macro typeswap(ex)
+macro symarg(ex)
     if @capture ex ((f_(a_::T1_,b_::T2_) = body_) | (function f_(a_::T1_,b_::T2_) body_ end))
-        esc(:($f($a::$T1,$b::$T2)=$body; $f($a::$T2,$b::$T1)=$body))
+        esc(:($f($a::$T1,$b::$T2)=$body; $f($b::$T2,$a::$T1)=$body))
     elseif @capture ex ((f_(::T1_,::T2_) = body_) | (function f_(::T1_,::T2_) body_ end))
         esc(:($f(::$T1,::$T2)=$body; $f(::$T2,::$T1)=$body))
     else
-        error("@typeswap couldn't understand function.")
+        error("@symarg couldn't understand function.")
     end
 end
 

@@ -36,8 +36,8 @@ broadcast_data(::Type{F2T{F1,F2}}, op::FullDiagOp{<:F2T{F1,F2}}) where {F1,F2} =
 # the final data type when broadcasting things with Field2Tuple
 containertype(::F2T{F1,F2}) where {F1,F2} = F2T{F1,F2}
 promote_containertype(::Type{F2T{F1a,F1b}}, ::Type{F2T{F2a,F2b}}) where {F1a,F2a,F1b,F2b} = F2T{promote_containertype(F1a,F2a),promote_containertype(F1b,F2b)}
-@typeswap promote_containertype{F<:Field,F1,F2}(::Type{F},::Type{F2T{F1,F2}}) = F2T{promote_containertype(F,F1),promote_containertype(F,F2)}
-@typeswap *(a::Field,b::F2T) = a.*b
+@symarg promote_containertype{F<:Field,F1,F2}(::Type{F},::Type{F2T{F1,F2}}) = F2T{promote_containertype(F,F1),promote_containertype(F,F2)}
+@symarg *(a::Field,b::F2T) = a.*b
 *(a::F2T,b::F2T) = a.*b 
 
 
