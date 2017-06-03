@@ -17,7 +17,7 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 broadcast_data(::Type{F}, n::Scalar) where {F<:Field} = repeated(n,broadcast_length(F))
 broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
 broadcast_data(::Type{F}, f::T) where {F,T} = error("Can't broadcast a $(shortname(T)) as a $(shortname(F)).
-Try not using broadcasting or converting $F to the right basis by hand.") #fall-back
+Try not using broadcasting or converting $(shortname(F)) to the right basis by hand.") #fall-back
 
 # get the type of the final result in a type stable way (adapted from broadcast.jl)
 containertype(::F) where {F<:Field} = F

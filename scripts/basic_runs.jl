@@ -6,6 +6,17 @@ using CMBLensing.Masking
 using Optim
 using Base.Iterators: repeated
 
+
+function noisecls(μKarcminT,lmax=10000)
+    cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
+    for x in [:tt,:ee,:bb]
+        cls[x]=fill((x==:tt?1:2) * (μKarcminT*deg2rad(1/60))^2 * (4π),lmax)
+    end
+    cls[:te]=zeros(lmax)
+    cls
+end
+
+
 function run1(;
     Θpix = 3,
     nside = 64,
@@ -34,8 +45,8 @@ function run1(;
     Cϕ = Cℓ_to_cov(T,P,S0,cls[:ℓ], cls[:ϕϕ])
     μKarcminT = 1
     Ωpix = deg2rad(Θpix/60)^2
-    CN = FullDiagOp(FlatS2QUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),2)...))
-    CN̂  = FullDiagOp(FlatS2EBFourier{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside÷2+1,nside)),2)...))
+    Cn = FullDiagOp(FlatS2QUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),2)...))
+    Cn̂  = FullDiagOp(FlatS2EBFourier{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside÷2+1,nside)),2)...))
     ##
     f = simulate(Cf)
     ϕ = simulate(Cϕ)
@@ -58,7 +69,7 @@ function run1(;
     # ϕ prior mask
     Mϕ = Squash
     
-    ds = DataSet(f̃ + simulate(CN), CN̂, Cf, Cϕ, Md, Mf, Mϕ)
+    ds = DataSet(f̃ + simulate(Cn), Cn̂, Cf, Cϕ, Md, Mf, Mϕ)
     target_lnP = (0Ð(f).+1)⋅(Md*(0Ð(f).+1)) / FFTgrid(T,P).Δℓ^2 / 2
     rundat = @dictpack Θpix nside T r μKarcminT d=>ds.d target_lnP cls f f̃ ϕ
     
@@ -67,13 +78,13 @@ function run1(;
     if hessNϕ
         Nℓϕϕ = readdlm("../dat/noise_dd.dat")[:].*(2:3000.).^-2./100
         Nϕ = Cℓ_to_cov(T,P,S0,2:3000,Nℓϕϕ)
-        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*CN̂^-1 + Mf.a*Cf^-1)^-1).f, Mϕ*Nϕ.f))
+        approxℍ⁻¹ = FullDiagOp(FieldTuple(Squash*(@. (Md.a*Cn̂^-1 + Mf.a*Cf^-1)^-1).f, Mϕ*Nϕ.f))
     else
         approxℍ⁻¹ = nothing
     end
     
     ## starting point
-    fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,CN̂)*ds.d,0ϕ))
+    fϕcur = f̃ϕcur = f̃ϕstart = Ł(FieldTuple(Squash*𝕎(Cf̃,Cn̂)*ds.d,0ϕ))
     
     println("target_lnP = $(round(Int,target_lnP)) ± $(round(Int,sqrt(2*target_lnP)))")
     
@@ -113,52 +124,72 @@ function run2(;
     outfile = nothing,
     seed = nothing,
     mask = nothing,
-    cls = nothing,
+    Cℓf = nothing,
+    use = :TEB,
+    ℓmax_data = 3000,
+    μKarcminT = 1,
     ws = linspace(0,1,20).^3,
     Ncg = 40)
     
-    seed!=nothing && srand(seed)
+    # Cℓs
+    Cℓf==nothing && (Cℓf = class(lmax=8000,r=r))
+    Cℓn = noisecls(μKarcminT)
     
-    cls==nothing && (cls = class(lmax=8000,r=r))
-    
-    ## set up the types of maps
-    P = Flat{Θpix,nside}
     ## covariances
-    Cf = Cℓ_to_cov(T,P,S2,cls[:ℓ], cls[:ee],    cls[:bb])
-    Cf̃ = Cℓ_to_cov(T,P,S2,cls[:ℓ], cls[:ln_ee], cls[:ln_bb])
-    Cϕ = Cℓ_to_cov(T,P,S0,cls[:ℓ], cls[:ϕϕ])
-    μKarcminT = 1
-    Ωpix = deg2rad(Θpix/60)^2
-    CN  = FullDiagOp(FlatS2EBFourier{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside÷2+1,nside)),2)...))
-    ##
-    f = simulate(Cf)
-    ϕ = simulate(Cϕ)
-    f̃ = L(ϕ)*f
-    d = f̃ + simulate(CN)
-    
-    # data mask
-    ℓmax_mask = 3000
-    fMd = Cℓ_to_cov(T,P,S2,1:ℓmax_mask,repeated(ones(ℓmax_mask),2)...)
-    if mask!=nothing
-        rMd = FullDiagOp(FlatS2QUMap{T,P}(repeated(1. * sptlike_mask(nside,Θpix; (mask==true?():mask)...),2)...))
-        Md = rMd * fMd * Squash
+    P = Flat{Θpix,nside}
+    Cϕ = Cℓ_to_cov(T,P,S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
+    if use==:TEB
+        Cf =  Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:tt],    Cℓf[:ee],    Cℓf[:bb],    Cℓf[:te])
+        Cf̃  = Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:ln_tt], Cℓf[:ln_ee], Cℓf[:ln_bb], Cℓf[:ln_te])
+        Cn =  Cℓ_to_cov(T,P,S0,S2,Cℓn[:ℓ], Cℓn[:tt],    Cℓn[:ee],    Cℓn[:bb],    Cℓn[:te])
+        Mdf = Cℓ_to_cov(T,P,S0,S2,1:ℓmax_data,repeated(ones(ℓmax_data),4)...)
+    elseif use==:EB
+        Cf =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ee],    Cℓf[:bb])
+        Cf̃ =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ln_ee], Cℓf[:ln_bb])
+        Cn =  Cℓ_to_cov(T,P,S2,Cℓn[:ℓ], Cℓn[:ee],    Cℓn[:bb])
+        Mdf = Cℓ_to_cov(T,P,S2,1:ℓmax_data,repeated(ones(ℓmax_data),2)...)
+    elseif use==:T
+        Cf =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:tt])
+        Cf̃ =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:ln_tt])
+        Cn =  Cℓ_to_cov(T,P,S0,Cℓn[:ℓ], Cℓn[:tt])
+        Mdf = Cℓ_to_cov(T,P,S0,1:ℓmax_data,ones(ℓmax_data))
     else
-        Md = fMd * Squash
+        error("Unrecognized '$(use)'")
     end
     
+    F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
+    
+    # data mask
+    if mask!=nothing
+        Mdr = FullDiagOp(F{T,P}(repeated(T.(sptlike_mask(nside,Θpix; (mask==true?():mask)...)),nF)...))
+    else
+        Mdr = 1
+    end
+    Md = Mdr * Mdf * Squash
+    
     # field prior mask
-    Ml = ones(Complex{T},nside÷2+1,nside)
-    i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
-    Ml[:,i]=Ml[i,:]=0
-    Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
+    if iseven(nside)
+        Ml = ones(Complex{T},nside÷2+1,nside)
+        i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
+        Ml[:,i] = Ml[i,:] = 0
+        Mf = FullDiagOp(FlatS2EBFourier{T,P}(Ml,Ml)) * Squash
+    else    
+        Mf = Squash
+    end
     
     # ϕ prior mask
     Mϕ = Squash
     
-    
-    target_lnP = mean(let n=simulate(CN); -n⋅(Md*(CN\n))/2 end for i=1:100)
+    ## simulate data
+    seed!=nothing && srand(seed)
+    f = simulate(Cf)
+    ϕ = simulate(Cϕ)
+    f̃ = L(ϕ)*f
+    d = f̃ + simulate(Cn)
+
+    target_lnP = mean(let n=simulate(Cn); -n⋅(Md*(Cn\n))/2 end for i=1:100)
     @show target_lnP
-    rundat = @dictpack Θpix nside T r μKarcminT d target_lnP cls f f̃ ϕ
+    rundat = @dictpack Θpix nside T r μKarcminT d target_lnP Cℓf Cℓn f f̃ ϕ
 
     trace = []
 
@@ -167,22 +198,24 @@ function run2(;
     
     for w in ws
         
-        ds = DataSet(d, CN, (@. (1-w)*Cf̃ + w*Cf), Cϕ, Md, Mf, Mϕ)
+        Cfw = @. (1-w)*Cf̃ + w*Cf
+        ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
-        let L=L(ϕcur),
-            P = @. nan2zero((fMd*nan2zero(CN^-1) + Mf.a*nan2zero(ds.Cf^-1))^-1/2)
-            A = L'*(Md*CN^-1*L) + Mf*ds.Cf^-1
-            b = L'*(Md*(CN\d))
+        let L=L(ϕcur)
+            @show typeof(Mdf) typeof(Cn) typeof(Cfw)
+            P = nan2zero.(sqrtm((nan2zero.(Mdf .* Cn^-1) .+ nan2zero.(Cfw^-1)))^-1)
+            A = L'*(Md*Cn^-1*L) + Mf*Cfw^-1
+            b = L'*(Md*(Cn\d))
             fcur,hist = pcg(P,A,b; nsteps=Ncg)
             f̃cur = L*fcur
         end
 
-        ϕnew = Mϕ*Cϕ*(δlnΠᶠ_δfϕ(fcur,ϕcur,ds) * δfϕ_δf̃ϕ(L(ϕcur),fcur,f̃cur))[2];
+        ϕnew = Mϕ*Cϕ*(δlnΠᶠ_δfϕ(fcur,ϕcur,ds) * δfϕ_δf̃ϕ(L(ϕcur),fcur,f̃cur))[2]
         α = (res = optimize(α->(-lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,ds,L)), T(0), T(1), abs_tol=1e-6)).minimizer
         ϕcur = (1-α)*ϕcur+α*ϕnew
 
         lnPw = -res.minimum
-        lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, CN, Cf, Cϕ, Md, Mf, Mϕ),L)
+        lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, Cn, Cf, Cϕ, Md, Mf, Mϕ),L)
         push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP α w hist)
         @printf("%.4f %.2f %.2f %.2f",w,lnPw,lnP1,α)
         
