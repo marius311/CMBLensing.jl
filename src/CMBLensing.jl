@@ -99,6 +99,9 @@ sqrtm(f::FullDiagOp) = sqrt.(f)
 simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
+literal_pow(^,op::FullDiagOp,::Type{Val{-1}}) = inv(op)
+inv(op::FullDiagOp) = FullDiagOp(1./op.f)
+
 
 """
 A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð.
