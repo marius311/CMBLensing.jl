@@ -23,6 +23,7 @@ function cg(A, b, x=0*b; nsteps=length(b))
         x = x + α * p
         r = r - α * Ap
         res′ = dot(r,r)
+        if res′==0; break; end
         p = r + (res′ / res) * p
         push!(reshist,res)
         res = res′
