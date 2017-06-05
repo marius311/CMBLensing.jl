@@ -3,3 +3,6 @@
 *.jl.mem
 .DS_Store
 gitignore
+.ipynb_checkpoints
+.tags
+.vscode
