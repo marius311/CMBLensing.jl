@@ -47,9 +47,10 @@ end
 # can do TEB * Diag{TEB} explicilty 
 @symarg function *{T,P}(cv::FlatTEBCov{T,P}, d::FullDiagOp{<:FlatTEBFourier{T,P}})
     all(isreal.(d.f[:])) || error("Can't multiply TEB cov by non positive-definite operator.")
+    t,e = Diagonal(real(d.f[:Tl][:])), Diagonal(real(d.f[:El][:]))
     FlatTEBCov{T,P}(
-        @SMatrix([Diagonal(real(d.f[:Tl][:]))*cv.ΣTE[1,1] cv.ΣTE[1,2];
-                  cv.ΣTE[2,1] Diagonal(real(d.f[:El][:]))*cv.ΣTE[2,2]]),
+        @SMatrix([t*cv.ΣTE[1,1] t*cv.ΣTE[1,2];
+                  e*cv.ΣTE[2,1] e*cv.ΣTE[2,2]]),
         real(d.f[:Bl]) .* cv.ΣB
     )
 end

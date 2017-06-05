@@ -14,7 +14,8 @@ Simple generic conjugate gradient implementation that works on Vectors, Fields, 
 function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
     r = b - A*x
     p = r
-    res = dot(r,r)
+    bestres = res = dot(r,r)
+    bestx = x
     reshist = Vector{typeof(res)}()
 
     for i = 1:nsteps
@@ -23,12 +24,15 @@ function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
         x = x + α * p
         r = r - α * Ap
         res′ = dot(r,r)
+        if res′<bestres
+            bestres,bestx = res′,x
+        end
         if res′<tol; break; end
         p = r + (res′ / res) * p
         push!(reshist,res)
         res = res′
     end
-    x, reshist
+    bestx, reshist
 end
 
 """ 

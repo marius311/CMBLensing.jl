@@ -147,7 +147,7 @@ literal_pow(^,op::FuncOp,::Type{Val{-1}}) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,
 
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
 
-
+zero(::F) where {F<:Field} = zero(F)
 
 
 include("algebra.jl")

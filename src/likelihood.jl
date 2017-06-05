@@ -5,10 +5,6 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 Stores variables needed to construct the likelihood
 """
 const DataSet=@NT(d,CN,Cf,Cϕ,Md,Mf,Mϕ)
-ℕ(ds) = SymmetricFuncOp(op   = fϕ->FieldTuple(ds.Md*(ds.CN*fϕ[1]),0fϕ[2]), 
-                        op⁻¹ = fϕ->FieldTuple(ds.Md*(ds.CN\fϕ[1]),0fϕ[2]))
-𝕊(ds) = SymmetricFuncOp(op   = fϕ->FieldTuple(ds.Mf*(ds.Cf*fϕ[1]),ds.Mϕ*(ds.Cϕ*fϕ[2])),
-                        op⁻¹ = fϕ->FieldTuple(ds.Mf*(ds.Cf\fϕ[1]),ds.Mϕ*(ds.Cϕ\fϕ[2])))
 
 """
 The log posterior probability, lnP, s.t.
@@ -25,7 +21,7 @@ The log posterior probability, lnP, s.t.
 lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
 lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
 lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t} = lnP(ds.d-L[t→1]*fₜ, L[t→0]*fₜ, ϕ, ds)
-lnP(Δ,f,ϕ,ds) = -(Δ⋅(ds.Md*(ds.CN\Δ)) + f⋅(ds.Mf*(ds.Cf\f)) + ϕ⋅(ds.Mϕ*(ds.Cϕ\ϕ)))/2
+lnP(Δ,f,ϕ,ds) = (@unpack CN,Cf,Cϕ,Md,Mf,Mϕ=ds; -(Δ⋅(Md*(CN\(Md*Δ))) + f⋅(Mf*(Cf\f)) + ϕ⋅(Mϕ*(Cϕ\ϕ)))/2)
 
 """
 Gradient of the log posterior probability with
@@ -47,12 +43,25 @@ end
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take
-δlnL_δf̃ϕ(f̃,ϕ::Φ,ds) where {Φ}  = FieldTuple(ds.Md*(ds.CN\(ds.d-f̃)), zero(Φ)         )
-δlnΠᶠ_δfϕ(f,ϕ::Φ,ds) where {Φ} = FieldTuple(-ds.Mf*(ds.Cf\f)      , zero(Φ)         )
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = FieldTuple(zero(F)               , -ds.Mϕ*(ds.Cϕ\ϕ))
+δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack Md,CN=ds; FieldTuple(Md*(CN\(Md*(d-f̃))), zero(Φ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds; FieldTuple(-Mf*(Cf\f)        , zero(Φ)))
+δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Mϕ,Cϕ=ds; FieldTuple(zero(F)           , -Mϕ*(Cϕ\ϕ)))
 
 
 ## Hessian
+
+""" Joing (f,ϕ) noise covariance """
+function ℕ(ds) 
+    @unpack Md,CN=ds
+    SymmetricFuncOp(  op = fϕ->FieldTuple(Md*(CN*fϕ[1]),0fϕ[2]), 
+                    op⁻¹ = fϕ->FieldTuple(Md*(CN\fϕ[1]),0fϕ[2]))
+end
+""" Joint (f,ϕ) signal covariances """
+function 𝕊(ds) 
+    @unpack Mf,Cf,Mϕ,Cϕ=ds
+    SymmetricFuncOp(op   = fϕ->FieldTuple(Mf*(Cf*fϕ[1]),Mϕ*(Cϕ*fϕ[2])),
+                    op⁻¹ = fϕ->FieldTuple(Mf*(Cf\fϕ[1]),Mϕ*(Cϕ\fϕ[2])))
+end
 
 """
 Arguments:
