@@ -129,7 +129,8 @@ function run2(;
     ℓmax_data = 3000,
     μKarcminT = 1,
     ws = linspace(0,1,20).^3,
-    Ncg = 40)
+    Ncg = 100,
+    Ncg0 = 5000)
     
     # Cℓs
     Cℓf==nothing && (Cℓf = class(lmax=8000,r=r))
@@ -163,17 +164,18 @@ function run2(;
     else
         Mdr = 1
     end
-    Md = Mdr * Mdf * Squash
+    Md = Squash * Mdr * Mdf * Squash
 
     # field prior mask
     if iseven(nside)
         Ml = ones(Complex{T},nside÷2+1,nside)
         i = indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k)[1]
         Ml[:,i] = Ml[i,:] = 0
-        Mf = FullDiagOp(F̂{T,P}(repeated(Ml,nF)...)) * Squash
-    else    
-        Mf = Squash
+        Mff = FullDiagOp(F̂{T,P}(repeated(Ml,nF)...))
+    else
+        Mff = 1
     end
+    Mf = Squash * Mff * Squash
     
     # ϕ prior mask
     Mϕ = Squash
@@ -185,7 +187,7 @@ function run2(;
     f̃ = L(ϕ)*f
     d = f̃ + simulate(Cn)
 
-    target_lnP = mean(let n=simulate(Cn); -n⋅(Md*(Cn\n))/2 end for i=1:100)
+    target_lnP = mean(let n=simulate(Cn); -n⋅(Md'*(Cn\(Md*n)))/2 end for i=1:100)
     @show target_lnP
     rundat = @dictpack Θpix nside T r μKarcminT d target_lnP Cℓf Cℓn f f̃ ϕ
 
@@ -199,11 +201,11 @@ function run2(;
         Cfw = @. (1-w)*Cf̃ + w*Cf
         ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
-        let L=L(ϕcur)
-            P = nan2zero.(sqrtm(nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Cfw^-1))^-1) * Mf
-            A = L'*(Md*Cn^-1*L) + Mf*Cfw^-1
-            b = L'*(Md*(Cn\d))
-            fcur,hist = pcg(P,A,b; nsteps=Ncg)
+        let L = (w==0?IdentityOp:L(ϕcur)),
+            P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Mff * Cfw^-1)))^-1);
+            A = L'*(Md'*(Cn^-1)*Md*L) + Mf'*Cfw^-1*Mf
+            b = L'*(Md'*(Cn^-1)*Md*d)
+            fcur,hist = pcg(P, A, b, fcur==nothing?0*b:(Squash*(P\fcur)), nsteps=(w==0?Ncg0:Ncg))
             f̃cur = L*fcur
         end
 

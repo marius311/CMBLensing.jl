@@ -128,8 +128,10 @@ for op in (:+, :-)
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
+*(f::Field, lz::LazyBinaryOp{*}) = (f*lz.a)*lz.b
 *(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
+ctranspose(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,ctranspose(lz.b),ctranspose(lz.a))
 
 
 ### linear algebra of Vectors and Matrices of Fields

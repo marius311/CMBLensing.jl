@@ -32,7 +32,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, class, ⨳, @⨳, shortname, Squash, pixstd
+    Cℓ_2D, class, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
 abstract type Pix end
@@ -95,12 +95,14 @@ end
 for op=(:*,:\)
     @eval ($op)(O::FullDiagOp{F}, f::F) where {F} = $(Symbol(:.,op))(O.f,f)
 end
+*(f::Field,O::FullDiagOp) = O*f
 sqrtm(f::FullDiagOp) = sqrt.(f)
 simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
 literal_pow(^,op::FullDiagOp,::Type{Val{-1}}) = inv(op)
 inv(op::FullDiagOp) = FullDiagOp(1./op.f)
+ctranspose(f::FullDiagOp) = f
 
 
 """
@@ -164,7 +166,7 @@ include("wiener.jl")
 
 
 """ An Op which turns all NaN's to zero """
-const Squash = FuncOp(op=x->broadcast(nan2zero,x))
+const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))
 
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
