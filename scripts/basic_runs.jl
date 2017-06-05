@@ -216,7 +216,7 @@ function run2(;
         lnPw = -res.minimum
         lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, Cn, Cf, Cϕ, Md, Mf, Mϕ),L)
         push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP1 α w hist)
-        @printf("%.4f %.2f %.2f %.4f",w,lnPw,lnP1,α)
+        @printf("%.4f %.2f %.2f %.4f\n",w,lnPw,lnP1,α)
         
         outfile!=nothing && save(outfile,"rundat",rundat,"trace",trace)
             

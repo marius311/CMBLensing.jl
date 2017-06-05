@@ -7,6 +7,7 @@ using CMBLensing
 using CMBLensing: ode4, @dictpack
 using Optim
 using Parameters
+using ProgressMeter
 
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
@@ -18,7 +19,7 @@ function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
     bestx = x
     reshist = Vector{typeof(res)}()
 
-    for i = 1:nsteps
+    @showprogress 1 "CG" for i = 1:nsteps
         Ap = A*p
         α = res / dot(p,Ap)
         x = x + α * p
