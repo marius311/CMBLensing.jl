@@ -108,7 +108,7 @@ end
 
 ### lazy evaluation
 # i.e. creating new operators which don't actually evaluate anything until
-# they've been right multiplied by a field
+# they've been multiplied by a field
 struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
     a::A
     b::B
