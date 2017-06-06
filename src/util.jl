@@ -88,3 +88,22 @@ macro threadsum(ex)
         end
     end
 end
+
+
+using Base.Threads
+function tmap(f,args...)
+    if Threads.nthreads()==1
+        map(f,args...)
+    else
+        cargs = collect(zip(args...))
+        n = length(cargs)
+        # TODO: figure out why inferring the result actually makes things *slower* ?
+        # T = Core.Inference.return_type(f, Tuple{typeof.(cargs[1])...})
+        T = Any
+        ans = Vector{T}(n)
+        @threads for i=1:n
+            ans[i] = f(cargs[i]...)
+        end
+        ans
+    end
+end
