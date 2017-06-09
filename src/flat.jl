@@ -99,3 +99,8 @@ for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
 end
+
+# bandpass
+function broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}}
+    repeated(Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],broadcast_length(F))
+end

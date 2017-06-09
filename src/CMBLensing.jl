@@ -32,7 +32,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, class, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd
+    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
 abstract type Pix end
@@ -146,6 +146,17 @@ SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
 const IdentityOp = FuncOp(repeated(identity,4)...)
 literal_pow(^,op::FuncOp,::Type{Val{-1}}) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
+
+
+# band passes
+struct BandPassOp{T<:Vector} <: LinDiagOp{Pix,Spin,DerivBasis}
+    ℓ::T
+    Wℓ::T
+end
+HP(ℓ,Δℓ=50) = BandPassOp(collect(0.:10000), [zeros(ℓ-Δℓ); @.((cos(linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
+LP(ℓ,Δℓ=50) = BandPassOp(collect(0.:(ℓ+Δℓ-1)), [ones(ℓ-Δℓ); @.(cos(linspace(0,π,2Δℓ))+1)/2])
+*(op::BandPassOp,f::Field) = op .* Ð(f)
+
 
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
 
