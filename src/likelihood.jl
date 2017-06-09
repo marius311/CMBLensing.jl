@@ -21,7 +21,7 @@ The log posterior probability, lnP, s.t.
 lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
 lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
 lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t} = lnP(ds.d-L[t→1]*fₜ, L[t→0]*fₜ, ϕ, ds)
-lnP(Δ,f,ϕ,ds) = (@unpack CN,Cf,Cϕ,Md,Mf,Mϕ=ds; -(Δ⋅(Md'*(CN\(Md*Δ))) + f⋅(Mf*(Cf\f)) + ϕ⋅(Mϕ*(Cϕ\ϕ)))/2)
+lnP(Δ,f,ϕ,ds) = (@unpack CN,Cf,Cϕ,Md,Mf,Mϕ=ds; -(Δ⋅(Md'*(CN\(Md*Δ))) + f⋅(Mf'*(Cf\(Mf*f))) + ϕ⋅(Mϕ'*(Cϕ\(Mϕ*ϕ))))/2)
 
 """
 Gradient of the log posterior probability with
@@ -44,8 +44,8 @@ end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take
 δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack Md,CN=ds; FieldTuple(Md'*(CN\(Md*(d-f̃))), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds; FieldTuple(-Mf*(Cf\f)        , zero(Φ)))
-δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Mϕ,Cϕ=ds; FieldTuple(zero(F)           , -Mϕ*(Cϕ\ϕ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds; FieldTuple(-Mf*(Cf\(Mf*f))    , zero(Φ)))
+δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Mϕ,Cϕ=ds; FieldTuple(zero(F)            , -Mϕ'*(Cϕ\(Mϕ*ϕ))))
 
 
 ## Hessian
