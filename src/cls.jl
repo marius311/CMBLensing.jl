@@ -1,5 +1,7 @@
+export class, noisecls
 
-function class(;lmax = 6000, 
+
+function class(;lmax = 8000, 
                 r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.128312, 
                 Θs = 0.0104098, logA = 3.29056, nₛ = 0.968602,
                 ϕscale = 1.0, ψscale = 0.0, r₀ = 100.0)
@@ -46,4 +48,14 @@ function class(;lmax = 6000,
 			:bb0  => Cℓ["bb"] * α² * (r₀ / r),
 		)
 	return rtn
+end
+
+
+function noisecls(μKarcminT,lmax=8000)
+    cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
+    for x in [:tt,:ee,:bb]
+        cls[x]=fill((x==:tt?1:2)*(μKarcminT*deg2rad(1/60))^2 * (4π),lmax)
+    end
+    cls[:te]=zeros(lmax)
+    cls
 end
