@@ -13,6 +13,8 @@ using StaticArrays
 using StatsBase
 
 include("RFFTVectors.jl"); using .RFFTVectors
+include("masking.jl")
+
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
@@ -195,6 +197,5 @@ getindex(f::Field2Tuple{<:Field{<:Any,<:S0},<:Field{<:Any,<:S2}},s::Symbol) = st
 
 # submodules
 include("minimize.jl")
-include("masking.jl")
 
 end
