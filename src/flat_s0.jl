@@ -73,3 +73,10 @@ fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,
 # norms (for e.g. ODE integration error tolerance)
 pixstd(f::FlatS0Map) = sqrt(var(f.Tx))
 pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
+
+# up/down grading map resolution
+function ud_grade(f::FlatS0{T,P},θnew) where {T,θ,N,P<:Flat{θ,N}}
+    @assert θnew>θ && isinteger(θnew//θ) "Can only downgrade in integer steps"
+    fac = round(Int,θnew/θ)
+    FlatS0Map{T,Flat{θnew,N÷fac}}(mapslices(mean,reshape(f[:Tx],(fac,N÷fac,fac,N÷fac)),(1,3))[1,:,1,:])
+end

@@ -34,7 +34,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇,
-    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd
+    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
 abstract type Pix end

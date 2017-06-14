@@ -48,6 +48,8 @@ const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
     @eval ($F){T}(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀) = ($F){T,Flat{Θpix,size(a,2)}}(a,b)
 end
+FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q[:Tx],U[:Tx])
+
 
 LenseBasis{F<:FlatS2}(::Type{F}) = QUMap
 
@@ -136,3 +138,5 @@ Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*
 # norms (for e.g. ODE integration error tolerance)
 pixstd{T,P}(f::FlatS2Map{T,P}) = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
 pixstd{T,P}(f::FlatS2Fourier{T,P}) = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
+
+ud_grade(f::FlatS2{T,P},θnew) where {T,P} = FlatS2QUMap((ud_grade(FlatS0Map{T,P}(f[x]),θnew) for x=[:Qx,:Ux])...)
