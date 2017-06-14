@@ -33,7 +33,7 @@ end
 export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
-    ∂x, ∂y, ∇,
+    ∂x, ∂y, ∇, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade
 
 # a type of (Pix,Spin,Basis) defines the generic behavior of our fields
@@ -116,7 +116,7 @@ abstract type Basislike <: Basis end
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
 (::Type{B})(a::AbstractArray{<:Field}) where {B<:Basislike} = B.(a)
 
-# Operator used to take derivatives.
+# Operators used to take derivatives
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 struct ∂{s} <: LinDiagOp{Pix,Spin,DerivBasis} end
@@ -130,6 +130,9 @@ function gradhess(f)
     @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
 end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
+struct ∇²Op <: LinDiagOp{Pix,Spin,DerivBasis} end
+const ∇² = ∇²Op()
+*(∇²::∇²Op, f::Field) = ∇² .* Ð(f)
 
 """
 An Op which applies some arbitrary function to its argument.
