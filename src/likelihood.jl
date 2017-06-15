@@ -4,7 +4,7 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 """
 Stores variables needed to construct the likelihood
 """
-const DataSet=@NT(d,CN,Cf,Cϕ,Md,Mf,Mϕ)
+struct DataSet{Td,TCN,TCf,TCϕ,TMd,TMf,TMϕ}; d::Td; CN::TCN; Cf::TCf; Cϕ::TCϕ; Md::TMd; Mf::TMf; Mϕ::TMϕ; end
 
 """
 The log posterior probability, lnP, s.t.

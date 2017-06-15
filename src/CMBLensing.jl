@@ -1,3 +1,5 @@
+__precompile__()
+
 module CMBLensing
 
 using Base.Iterators: repeated
@@ -6,12 +8,11 @@ using ImageFiltering
 using Images
 using Interpolations
 using MacroTools
-using NamedTuples
 using ODE
 using Parameters
 using ProgressMeter
 using PyCall
-using Requires
+using PyPlot
 using StaticArrays
 using StatsBase
 include("RFFTVectors.jl"); using .RFFTVectors
@@ -46,7 +47,7 @@ include("flat.jl")
 include("taylens.jl")
 include("vec_conv.jl")
 include("healpix.jl")
-@require PyPlot include("plotting.jl")
+include("plotting.jl")
 include("cls.jl")
 include("likelihood.jl")
 include("wiener.jl")
