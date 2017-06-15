@@ -1,20 +1,8 @@
 using JLD
 using CMBLensing
 using CMBLensing: @dictpack, ode4, δlnΠᶠ_δfϕ
-using CMBLensing.Minimize
-using CMBLensing.Masking
 using Optim
 using Base.Iterators: repeated
-
-
-function noisecls(μKarcminT,lmax=10000)
-    cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
-    for x in [:tt,:ee,:bb]
-        cls[x]=fill((x==:tt?1:2) * (μKarcminT*deg2rad(1/60))^2 * (4π),lmax)
-    end
-    cls[:te]=zeros(lmax)
-    cls
-end
 
 
 function run1(;
@@ -128,33 +116,22 @@ function run2(;
     use = :TEB,
     ℓmax_data = 3000,
     μKarcminT = 1,
-    ws = linspace(0,1,20).^3,
+    ws = 1:20,
     Ncg = 100,
     Ncg0 = 5000)
     
     # Cℓs
     Cℓf==nothing && (Cℓf = class(lmax=8000,r=r))
+    Cℓf̃ = Dict(k=>Cℓf[Symbol("ln_$k")] for (k,v) in Cℓf if Symbol("ln_$k") in keys(Cℓf))
     Cℓn = noisecls(μKarcminT)
     
     ## covariances
     P = Flat{Θpix,nside}
-    Cϕ = Cℓ_to_cov(T,P,S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
-    if use==:TEB
-        Cf =  Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:tt],    Cℓf[:ee],    Cℓf[:bb],    Cℓf[:te])
-        Cf̃  = Cℓ_to_cov(T,P,S0,S2,Cℓf[:ℓ], Cℓf[:ln_tt], Cℓf[:ln_ee], Cℓf[:ln_bb], Cℓf[:ln_te])
-        Cn =  Cℓ_to_cov(T,P,S0,S2,Cℓn[:ℓ], Cℓn[:tt],    Cℓn[:ee],    Cℓn[:bb],    Cℓn[:te])
-    elseif use==:EB
-        Cf =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ee],    Cℓf[:bb])
-        Cf̃ =  Cℓ_to_cov(T,P,S2,Cℓf[:ℓ], Cℓf[:ln_ee], Cℓf[:ln_bb])
-        Cn =  Cℓ_to_cov(T,P,S2,Cℓn[:ℓ], Cℓn[:ee],    Cℓn[:bb])
-    elseif use==:T
-        Cf =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:tt])
-        Cf̃ =  Cℓ_to_cov(T,P,S0,Cℓf[:ℓ], Cℓf[:ln_tt])
-        Cn =  Cℓ_to_cov(T,P,S0,Cℓn[:ℓ], Cℓn[:tt])
-    else
-        error("Unrecognized '$(use)'")
-    end
-    
+    SS,ks = Dict(:TEB=>((S0,S2),(:tt,:ee,:bb,:te)), :EB=>((S2,),(:ee,:bb)), :T=>((S0,),(:tt,)))[use]
+    Cϕ = Cℓ_to_cov(T,P,S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cf = Cℓ_to_cov(T,P,SS..., Cℓf[:ℓ], (Cℓf[k] for k=ks)...)
+    Cf̃ = Cℓ_to_cov(T,P,SS..., Cℓf[:ℓ], (Cℓf̃[k] for k=ks)...)
+    Cn = Cℓ_to_cov(T,P,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
     
     # data mask
     F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
@@ -196,8 +173,10 @@ function run2(;
     ϕcur = 0ϕ
     fcur, f̃cur = nothing, nothing
     
-    for w in ws
+    for (i,w) in enumerate(ws)
         
+        w==:auto && (w = 1-get_Cℓ(L(ϕcur)\f̃,which=[:BB],Δℓ=500)[2][2]/get_Cℓ(f̃,which=[:BB],Δℓ=500)[2][2])
+
         Cfw = @. (1-w)*Cf̃ + w*Cf
         ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
@@ -216,7 +195,7 @@ function run2(;
         lnPw = -res.minimum
         lnP1 = lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,DataSet(d, Cn, Cf, Cϕ, Md, Mf, Mϕ),L)
         push!(trace,@dictpack f̃cur fcur ϕcur ϕnew lnPw lnP1 α w hist)
-        @printf("%.4f %.2f %.2f %.4f\n",w,lnPw,lnP1,α)
+        @printf("%i %.4f %.2f %.2f %.4f\n",i,w,lnPw,lnP1,α)
         
         outfile!=nothing && save(outfile,"rundat",rundat,"trace",trace)
             
