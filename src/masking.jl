@@ -37,8 +37,8 @@ weights the noisy edges of the maps." Story et al. 2015
 Note: some of the above numbers are very slightly tweaked.
 
 """
-function sptlike_mask(nside, Θpix; apod=false, nsources=round(Int,((nside*Θpix)/60)^2 * 120/100), paddeg=3)
-    ptsrc = .!bleed(sim_ptsrcs(nside,nsources),7/Θpix)
+function sptlike_mask(nside, Θpix; apod=false, nsources=round(Int,((nside*Θpix)/60)^2 * 120/100), paddeg=3, srcrad=7)
+    ptsrc = .!bleed(sim_ptsrcs(nside,nsources),srcrad/Θpix)
     boundary = boundarymask(nside, Θpix, paddeg)
     if apod==false
         boundary .& ptsrc
