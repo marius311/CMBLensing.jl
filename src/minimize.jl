@@ -1,13 +1,4 @@
-module Minimize
-
 export bcggd, cg, pcg, gdsteps
-
-using Base.Threads
-using CMBLensing
-using CMBLensing: ode4, @dictpack
-using Optim
-using Parameters
-using ProgressMeter
 
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
@@ -130,7 +121,4 @@ function bcggd(t, fₜϕ_start, ds, ::Type{L}, ::Type{LJ}=L; Nsteps=10, Ncg=10, 
         end
     end
     fₜϕ_cur, trace
-end
-
-
 end
