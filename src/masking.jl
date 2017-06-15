@@ -1,9 +1,4 @@
-module Masking
-
 export sptlike_mask
-
-using Images
-using ImageFiltering
 
 """
 An SPT-like mask, based mostly on,
@@ -79,6 +74,4 @@ function sim_ptsrcs(nside,nsources)
         m[rand(1:nside),rand(1:nside)] = true
     end
     m
-end
-
 end

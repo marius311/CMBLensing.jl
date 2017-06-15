@@ -2,6 +2,8 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
+using ImageFiltering
+using Images
 using Interpolations
 using MacroTools
 using NamedTuples
@@ -13,7 +15,7 @@ using Requires
 using StaticArrays
 using StatsBase
 include("RFFTVectors.jl"); using .RFFTVectors
-include("masking.jl"); using .Masking
+
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
@@ -49,5 +51,6 @@ include("cls.jl")
 include("likelihood.jl")
 include("wiener.jl")
 include("minimize.jl")
+include("masking.jl")
 
 end
