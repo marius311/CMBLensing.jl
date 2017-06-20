@@ -54,7 +54,7 @@ end
 function noisecls(μKarcminT,lmax=8000)
     cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
     for x in [:tt,:ee,:bb]
-        cls[x]=fill((x==:tt?1:2)*(μKarcminT*deg2rad(1/60))^2 * (4π),lmax)
+        cls[x]=fill((x==:tt?1:2)*(deg2rad(μKarcminT/60))^2,lmax)
     end
     cls[:te]=zeros(lmax)
     cls
