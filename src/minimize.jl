@@ -10,7 +10,7 @@ function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
     bestx = x
     reshist = Vector{typeof(res)}()
 
-    @showprogress 1 "CG" for i = 1:nsteps
+    @showprogress 5 "CG: " for i = 1:nsteps
         Ap = A*p
         α = res / dot(p,Ap)
         x = x + α * p
@@ -30,7 +30,7 @@ end
 """ 
 Preconditioned conjugate gradient. P should be symmetric and roughly √A⁻¹
 """
-pcg(P,A,b,x=0*b; kwargs...) = ((x,hist)=cg(P*A*P,P*b,x; kwargs...); (P*x, hist))
+pcg(P,A,b,x=P*b; kwargs...) = ((x,hist)=cg(P*A*P,P*b,x; kwargs...); (P*x, hist))
 
 
 """
