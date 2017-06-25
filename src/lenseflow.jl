@@ -11,12 +11,12 @@ end
 
 LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0.,1.}(Map(ϕ), gradhess(ϕ)...)
 LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(ϕ,∇ϕ,Hϕ)
-LenseFlow(args...) = LenseFlow{ode4{10}}(args...)
+LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 
 # the ODE solvers
 abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
 abstract type ode4{nsteps} <: ODESolver  end
-abstract type myode4{nsteps} <: ODESolver  end
+abstract type jrk4{nsteps} <: ODESolver  end
 
 function ode45{ϵr,ϵa,N,dbg}(vel,x₀,ts) where {ϵr,ϵa,N,dbg}
     ys = ODE.ode45(
@@ -27,7 +27,7 @@ function ode45{ϵr,ϵa,N,dbg}(vel,x₀,ts) where {ϵr,ϵa,N,dbg}
     dbg ? ys : ys[2][end]
 end
 ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->F!(similar(y₀),t,y),y₀,linspace(t₀,t₁,N+1))[2][end]
-myode4{N}(F!,y₀,t₀,t₁) where {N} = myode4(F!,y₀,t₀,t₁,N)
+jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 """ ODE velocity for LenseFlow """
 velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
@@ -93,12 +93,12 @@ end
 
 
 """
-Solve for y(t₀) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
+Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
 
 Arguments
 * F! : a function F!(v,t,y) which sets v=F(t,y)
 """
-function myode4(F!::Function, y₀, t₀, t₁, nsteps)
+function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
     k₁, k₂, k₃, k₄ = @repeated(similar(y₀),4)
