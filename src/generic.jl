@@ -62,7 +62,8 @@ abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
 
 zero(::F) where {F<:Field} = zero(F)
-
+similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
+copy(f::Field) = deepcopy(f)
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
 function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}

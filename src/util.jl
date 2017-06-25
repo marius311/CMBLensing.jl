@@ -7,8 +7,21 @@ import Base: ==
 Simply replaces every occurence of ∷ with <:Any
 """
 macro ∷(ex)
-    visit(ex) = isexpr(ex) ? (map!(visit,ex.args,ex.args); ex) : (ex==:(∷) ? :(<:Any) : ex)
-    esc(visit(ex))
+    esc(postwalk(x->(x==:(∷) ? :(<:Any) : x),ex))
+end
+
+
+"""
+@! x = f!(args...) is equivalent to f!(x,args...)
+"""
+macro !(ex)
+    if @capture(ex, x_ = f_(args__; kwargs_...))
+        esc(:($f($x,$(args...); $kwargs...)))
+    elseif @capture(ex, x_ = f_(args__))
+        esc(:($f($x,$(args...))))
+    else
+        error("Usage: @! x = f!(...)")
+    end
 end
 
 

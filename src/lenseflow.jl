@@ -3,46 +3,41 @@ export LenseFlow
 
 abstract type ODESolver end
 
-struct LenseFlow{I<:ODESolver,t1,t2,F<:Field} <: LenseOp
+struct LenseFlow{I<:ODESolver,t₀,t₁,F<:Field} <: LenseOp
     ϕ::F
     ∇ϕ::SVector{2,F}
     Hϕ::SMatrix{2,2,F,4}
 end
 
 LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0.,1.}(Map(ϕ), gradhess(ϕ)...)
-LenseFlow{I,t1,t2}(ϕ::F,∇ϕ,Hϕ) where {I,t1,t2,F} = LenseFlow{I,t1,t2,F}(ϕ,∇ϕ,Hϕ)
+LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(ϕ,∇ϕ,Hϕ)
 LenseFlow(args...) = LenseFlow{ode4{10}}(args...)
 
 # the ODE solvers
 abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
 abstract type ode4{nsteps} <: ODESolver  end
-kwargs{ϵr,ϵa,N,dbg}(::Type{ode45{ϵr,ϵa,N,dbg}}) = Dict(:norm=>pixstd, :reltol=>ϵr, :abstol=>ϵa, :minstep=>1/N, :points=>((dbg[1] || dbg[2]) ? :all : :specified))
-kwargs(::Type{<:ode4}) = Dict()
-run_ode(::Type{<:ode45}) = ODE.ode45
-run_ode(::Type{<:ode4}) = ODE.ode4
-dbg(::Type{ode45{ϵr,ϵa,N,d}}) where {ϵr,ϵa,N,d} = d
-dbg(::Type{<:ode4}) = (false,false)
-tts(::Type{ode4{N}},ts) where {N} = linspace(ts...,N)
-tts(::Type{<:ode45},ts) = ts
+abstract type myode4{nsteps} <: ODESolver  end
 
+function ode45{ϵr,ϵa,N,dbg}(vel,x₀,ts) where {ϵr,ϵa,N,dbg}
+    ys = ODE.ode45(
+        (t,y)->F!(similar(y₀),t,y), y₀, linspace(t₀,t₁,N+1),
+        norm=pixstd, reltol=ϵr, abstol=ϵa, minstep=1/N, points=((dbg[1] || dbg[2]) ? :all : :specified)
+    )
+    dbg && info("ode45 took $(length(ys[2])) steps")
+    dbg ? ys : ys[2][end]
+end
+ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->F!(similar(y₀),t,y),y₀,linspace(t₀,t₁,N+1))[2][end]
+myode4{N}(F!,y₀,t₀,t₁) where {N} = myode4(F!,y₀,t₀,t₁,N)
 
 """ ODE velocity for LenseFlow """
-velocity(L::LenseFlow, f::Field, t::Real) = @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f))
-velocityᴴ(L::LenseFlow, f::Field, t::Real) = @⨳ ∇ᵀ ⨳ $Ð(Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))
+velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))))
 
-function lenseflow(L::LenseFlow{I}, f::F, ts, velocity) where {I,F<:Field}
-    ys = run_ode(I)((t,y)->F(velocity(L,y,t)), f, tts(I,ts); kwargs(I)...)
-    dbg(I)[1] && info("lenseflow: ode45 took $(length(ys[2])) steps")
-    dbg(I)[2] ? ys : ys[2][end]::F # <-- ODE.jl not type stable
-end
-
-
-@∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t1,t2}) where {I,t1,t2,F} = LenseFlow{I,t1,t2,F}(L.ϕ,L.∇ϕ,L.Hϕ)
-@∷ *(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2],velocity)
-@∷ \(L::LenseFlow{∷,t1,t2}, f::Field) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1],velocity)
-@∷ *(f::Field, L::LenseFlow{∷,t1,t2}) where {t1,t2} = lenseflow(L,Ð(f),Float32[t2,t1],velocityᴴ)
-@∷ \(f::Field, L::LenseFlow{∷,t1,t2}) where {t1,t2} = lenseflow(L,Ð(f),Float32[t1,t2],velocityᴴ)
-
+@∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
+*(L::LenseFlow{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
+\(L::LenseFlow{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₁, t₀)
+*(f::Field, L::LenseFlow{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₀, t₁)
+\(f::Field, L::LenseFlow{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₁, t₀)
 
 
 ## LenseFlow Jacobian operators
@@ -54,29 +49,20 @@ end
 ## Jacobian
 
 """ (δfϕₛ(fₜ,ϕ)/δfϕₜ) * (δf,δϕ) """
-function δfϕₛ_δfϕₜ(L::LenseFlow{I}, fₜ::Ff, δf::Fδf, δϕ::Fδϕ, s::Real, t::Real) where {I,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
-    Fy = Field2Tuple{Ff,Fδf}
-    ∇δϕ,Hδϕ = Ł.(gradhess(δϕ))
-    ys = run_ode(I)(
-        (t,y)->Fy(δvelocity(L,y...,δϕ,t,∇δϕ,Hδϕ)),
-        FieldTuple(fₜ,δf), tts(I,Float32[t,s]);
-        kwargs(I)...)
-    dbg(I)[1] && info("δfϕₛ_δfϕₜ: ode45 took $(length(ys[2])) steps")
-    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2]::Fδf,δϕ)
+function δfϕₛ_δfϕₜ(L::LenseFlow{I}, fₜ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
+    FieldTuple(I((v,t,y)->δvelocity!(v,L,y...,δϕ,t,Ł.(gradhess(δϕ))...),FieldTuple(fₜ,δf),t,s)[2], δϕ)
 end
 
 """ ODE velocity for the Jacobian flow """
-function δvelocity(L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
+function δvelocity!(f_δf′::Field2Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
 
     @unpack ∇ϕ,Hϕ = L
     M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
     ∇f  = Ł(∇*Ð(f))
     ∇δf = Ł(∇*Ð(δf))
 
-    f′  = @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    δf′ = (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
-
-    FieldTuple(f′, δf′)
+    f_δf′[1] .= @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    f_δf′[2] .= (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
 
 end
 
@@ -84,22 +70,13 @@ end
 ## transpose Jacobian
 
 """ Compute (δfϕₛ(fₛ,ϕ)/δfϕₜ)' * (δf,δϕ) """
-function δfϕₛ_δfϕₜᴴ(L::LenseFlow{I}, fₛ::Ff, δf::Fδf, δϕ::Fδϕ, s::Real, t::Real) where {I,Ff<:Field,Fδf<:Field,Fδϕ<:Field}
-    # this specifies the basis in which we do the ODE, which is taken to be the
-    # basis in which the fields come into this function
-    Fy = Field3Tuple{Ff,Fδf,Fδϕ}
-    # now run negative transpose perturbed lense flow backwards
-    ys = run_ode(I)(
-        (t,y)->Fy(negδvelocityᵀ(L,y...,t)),
-        FieldTuple(fₛ,δf,δϕ), tts(I,Float32[s,t]);
-        kwargs(I)...)
-    dbg(I)[1] && info("δfϕₛ_δfϕₜᴴ: ode45 took $(length(ys[2])) steps")
-    dbg(I)[2] ? ys : FieldTuple(ys[2][end][2:3]...) :: Field2Tuple{Fδf,Fδϕ}
+function δfϕₛ_δfϕₜᴴ(L::LenseFlow{I}, fₛ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
+    FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,L,y...,t),FieldTuple(fₛ,δf,δϕ), s,t)[2:3]...)
 end
 
 
 """ ODE velocity for the negative transpose Jacobian flow """
-function negδvelocityᵀ(L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!(f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
@@ -107,10 +84,30 @@ function negδvelocityᵀ(L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Re
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
     M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
 
-    f′  = @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    δf′ = @⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ)
-    δϕ′ = @⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
+    f_δf_δϕ′[1] .= @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    f_δf_δϕ′[2] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
+    f_δf_δϕ′[3] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
 
-    FieldTuple(f′, δf′, δϕ′)
+end
 
+
+
+"""
+Solve for y(t₀) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
+
+Arguments
+* F! : a function F!(v,t,y) which sets v=F(t,y)
+"""
+function myode4(F!::Function, y₀, t₀, t₁, nsteps)
+    h = (t₁-t₀)/nsteps
+    y = copy(y₀)
+    k₁, k₂, k₃, k₄ = @repeated(similar(y₀),4)
+    for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
+        @! k₁ = F!(t, y)
+        @! k₂ = F!(t + (h/2), y + (h/2)*k₁)
+        @! k₃ = F!(t + (h/2), y + (h/2)*k₂)
+        @! k₄ = F!(t +   (h), y +   (h)*k₃)
+        @. y += h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+    end
+    return y
 end

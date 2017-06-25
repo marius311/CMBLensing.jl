@@ -7,7 +7,7 @@ using Base.Threads
 using ImageFiltering
 using Images
 using Interpolations
-using MacroTools
+using MacroTools: @capture, postwalk, isexpr
 using ODE
 using Parameters
 using ProgressMeter
@@ -19,9 +19,10 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 
 
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^,
-    Ac_mul_B, Ac_ldiv_B, broadcast, convert, done, eltype, getindex,
-    inv, length, literal_pow, next, promote_rule, size, sqrt, start, transpose, ctranspose, one, zero, sqrtm
+import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
+    convert,copy, done, eltype, getindex, inv, length, literal_pow, next,
+    promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
+    sqrtm
 import Base.LinAlg: dot, norm, isnan
 
 
