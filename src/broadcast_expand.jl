@@ -103,6 +103,13 @@ macro ⨳(ex)
                  +($a[2]*(1+$t*$J[1,1])-$t*$a[1]*$J[2,1])*$c[2])
                 / ((1+$t*$J[1,1])*(1+$t*$J[2,2]) - $t^2*$J[2,1]*$J[1,2]))
             end
+        elseif @capture(ex, a_ * (inv(𝕀 + t_*J_) ⨳ c_))
+            a,J,c,t = checktemp!.((a,J,c,t))
+            push!(temps.args,:(det = @. (1+$t*$J[1,1])*(1+$t*$J[2,2]) - $t^2*$J[2,1]*$J[1,2]))
+            quote
+                @SVector [$a * ((1+$t*$J[2,2])*$c[1] - $t*$J[1,2]*$c[2]) / det,
+                          $a * ((1+$t*$J[1,1])*$c[2] - $t*$J[2,1]*$c[1]) / det]
+            end
         elseif @capture(ex, b_' ⨳ (a_' ⨳ A_)')
             A,a,b = checktemp!.((A,a,b))
             :($b[1]*($a[1]*$A[1,1]+$a[2]*$A[2,1]) + $b[2]*($a[1]*$A[1,2]+$a[2]*$A[2,2]))
