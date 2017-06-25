@@ -44,7 +44,7 @@ end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take
 δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack Md,CN=ds; FieldTuple(Md'*(CN\(Md*(d-f̃))), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds; FieldTuple(-Mf*(Cf\(Mf*f))    , zero(Φ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds; FieldTuple(-Mf'*(Cf\(Mf*f))   , zero(Φ)))
 δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Mϕ,Cϕ=ds; FieldTuple(zero(F)            , -Mϕ'*(Cϕ\(Mϕ*ϕ))))
 
 
