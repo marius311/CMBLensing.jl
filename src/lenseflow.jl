@@ -18,15 +18,15 @@ abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
 abstract type ode4{nsteps} <: ODESolver  end
 abstract type jrk4{nsteps} <: ODESolver  end
 
-function ode45{ϵr,ϵa,N,dbg}(vel,x₀,ts) where {ϵr,ϵa,N,dbg}
+function ode45{ϵr,ϵa,N,dbg}(F!,y₀,t₀,t₁) where {ϵr,ϵa,N,dbg}
     ys = ODE.ode45(
-        (t,y)->F!(similar(y₀),t,y), y₀, linspace(t₀,t₁,N+1),
+        (t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1),
         norm=pixstd, reltol=ϵr, abstol=ϵa, minstep=1/N, points=((dbg[1] || dbg[2]) ? :all : :specified)
     )
-    dbg && info("ode45 took $(length(ys[2])) steps")
-    dbg ? ys : ys[2][end]
+    dbg[1] && info("ode45 took $(length(ys[2])) steps")
+    dbg[2] ? ys : ys[2][end]
 end
-ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->F!(similar(y₀),t,y),y₀,linspace(t₀,t₁,N+1))[2][end]
+ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1))[2][end]
 jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 """ ODE velocity for LenseFlow """
@@ -50,19 +50,19 @@ velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ �
 
 """ (δfϕₛ(fₜ,ϕ)/δfϕₜ) * (δf,δϕ) """
 function δfϕₛ_δfϕₜ(L::LenseFlow{I}, fₜ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
-    FieldTuple(I((v,t,y)->δvelocity!(v,L,y...,δϕ,t,Ł.(gradhess(δϕ))...),FieldTuple(fₜ,δf),t,s)[2], δϕ)
+    FieldTuple(I((v,t,y)->δvelocity!(v,L,y...,δϕ,t,Ł.(gradhess(δϕ))...),Ł(FieldTuple(fₜ,δf)),t,s)[2], δϕ)
 end
 
 """ ODE velocity for the Jacobian flow """
-function δvelocity!(f_δf′::Field2Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
+function δvelocity!(v_f_δf::Field2Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
 
     @unpack ∇ϕ,Hϕ = L
     M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
-    ∇f  = Ł(∇*Ð(f))
-    ∇δf = Ł(∇*Ð(δf))
+    ∇f  = Ł(∇*f)
+    ∇δf = Ł(∇*δf)
 
-    f_δf′[1] .= @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    f_δf′[2] .= (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
+    v_f_δf[1] .= @⨳ ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    v_f_δf[2] .= (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
 
 end
 
