@@ -36,7 +36,8 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇, ∇²,
-    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade
+    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade,
+    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, BandPassOp
 
 include("util.jl")
 include("generic.jl")

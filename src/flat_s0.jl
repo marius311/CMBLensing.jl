@@ -46,9 +46,9 @@ end
 function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000) where {T,P}
     g = FFTgrid(T,P)
     α = g.Δx^2/(4π^2)*g.nside^2
-    power = fit(Histogram,g.r[:],WeightVec((@. g.r^2 * real(dot($unfold(f[:Tl]),$unfold(f2[:Tl]))))[:]),ℓedges)
+    power = fit(Histogram,g.r[:],Weights((@. real(dot($unfold(f[:Tl]),$unfold(f2[:Tl]))))[:]),ℓedges)
     counts = fit(Histogram,g.r[:],ℓedges)
-    h = Histogram(ℓedges, (@. power.weights / counts.weights / (2π) / α), :right)
+    h = Histogram(ℓedges, (@. power.weights / counts.weights / α), :right)
     ((h.edges[1][1:end-1]+h.edges[1][2:end])/2, h.weights)
 end
 

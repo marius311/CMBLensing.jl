@@ -76,3 +76,9 @@ function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
         error("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
     end
 end 
+
+
+function get_Cℓ(args...; kwargs...) end
+get_αℓⁿCℓ(α=1,n=0,args...; kwargs...) = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. (α*ℓ^n*Cℓ)))
+get_Dℓ(args...; kwargs...)            = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. ℓ*(ℓ+1)*Cℓ/(2π)))
+get_ℓ⁴Cℓ(args...; kwargs...)          = get_αℓⁿCℓ(1,4,args...; kwargs...)
