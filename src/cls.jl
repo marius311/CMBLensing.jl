@@ -51,10 +51,15 @@ function class(;lmax = 8000,
 end
 
 
-function noisecls(μKarcminT,lmax=8000)
+"""
+* `μKarcminT`: temperature noise in μK-arcmin
+* `beam`: beam-FWHM in arcmin
+"""
+function noisecls(μKarcminT,beam=0,lmax=8000)
+    Bl = beam==0 ? 1 : @. exp((1:lmax)^2*deg2rad(beam/60)^2/(8*log(2)))
     cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
     for x in [:tt,:ee,:bb]
-        cls[x]=fill((x==:tt?1:2)*(deg2rad(μKarcminT/60))^2,lmax)
+        cls[x]=fill((x==:tt?1:2)*(deg2rad(μKarcminT/60))^2,lmax) .* Bl
     end
     cls[:te]=zeros(lmax)
     cls
