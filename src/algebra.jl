@@ -40,12 +40,12 @@ broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field} = _broa
 broadcast(op, args::Union{_,LinDiagOp,Scalar}...) where {_<:FullDiagOp} = FullDiagOp(_broadcast(op,args...))
 function _broadcast(op, args...)
     F = containertype(args...)
-    F(tmap(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
+    F(@tmap(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
 end
 
 broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
     F = containertype(X)
-    tmap(broadcast!, repeated(op), broadcast_data(F,X), map(broadcast_data, repeated(F), args)...)
+    @tmap(broadcast!, repeated(op), broadcast_data(F,X), map(broadcast_data, repeated(F), args)...)
     X
 end
 

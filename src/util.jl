@@ -103,20 +103,29 @@ macro threadsum(ex)
 end
 
 
-using Base.Threads
-function tmap(f,args...)
+"""
+Threaded `map`, like `pmap`, but using `@threads`. 
+
+If Threads.nthreads()==1 then this macro-exapands to just use `map`, so there's
+zero overhead and no impact to type-stability. The threaded case however is not
+type-stable, although this is intentional b/c for some weird reason that actually
+makes my use-case slower.
+"""
+macro tmap(f,args...)
     if Threads.nthreads()==1
-        map(f,args...)
+        :(map($(esc(f)),$(esc.(args)...)))
     else
-        cargs = collect(zip(args...))
-        n = length(cargs)
-        # TODO: figure out why inferring the result actually makes things *slower* ?
-        # T = Core.Inference.return_type(f, Tuple{typeof.(cargs[1])...})
-        T = Any
-        ans = Vector{T}(n)
-        @threads for i=1:n
-            ans[i] = f(cargs[i]...)
+        quote
+            cargs = collect(zip($(esc.(args)...)))
+            n = length(cargs)
+            # TODO: figure out why inferring the result actually makes things *slower* ?
+            # T = Core.Inference.return_type(f, Tuple{typeof.(cargs[1])...})
+            T = Any
+            ans = Vector{T}(n)
+            @threads for i=1:n
+                ans[i] = $(esc(f))(cargs[i]...)
+            end
+            ans
         end
-        ans
     end
 end
