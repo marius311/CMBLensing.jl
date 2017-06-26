@@ -19,9 +19,9 @@ function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
         if res′<bestres
             bestres,bestx = res′,x
         end
+        push!(reshist,res)
         if res′<tol; break; end
         p = r + (res′ / res) * p
-        push!(reshist,res)
         res = res′
     end
     bestx, reshist
