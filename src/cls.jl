@@ -2,9 +2,9 @@ export class, noisecls
 
 
 function class(;lmax = 8000, 
-                r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.128312, 
-                Θs = 0.0104098, logA = 3.29056, nₛ = 0.968602,
-                ϕscale = 1.0, ψscale = 0.0, r₀ = 100.0)
+                r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
+                Θs = 0.0104098, logA = 3.043, nₛ = 0.968602,
+                k_pivot = 0.002)
 
 	cosmo = classy[:Class]()
 	cosmo[:struct_cleanup]()
@@ -22,10 +22,8 @@ function class(;lmax = 8000,
       	"ln10^{10}A_s"  => logA,
       	"n_s"           => nₛ,
 		"r"             => r,
-        #"k_pivot"      => 0.05,
-		#"k_step_trans" => 0.1, # 0.01 for super high resolution
-   		#"l_linstep"    => 10, # 1 for super high resolution
-   		)
+        "k_pivot"       => k_pivot
+	)
 	cosmo[:set](params)
 	cosmo[:compute]()
 	C̃ℓ,Cℓ = (Dict([(k,v[2:end]) for (k,v) in cosmo[x](lmax)]) for x in (:lensed_cl,:raw_cl))
@@ -42,25 +40,26 @@ function class(;lmax = 8000,
 			:bb 	=> Cℓ["bb"] * α²,
 			:te 	=> Cℓ["te"] * α²,
 			:tϕ 	=> Cℓ["tp"] * α,
-			:ϕϕ   => ϕscale.*Cℓ["pp"],
-			:ϕψ   => 0.0.*Cℓ["pp"],
-			:ψψ   => ψscale.*Cℓ["pp"],
-			:bb0  => Cℓ["bb"] * α² * (r₀ / r),
-		)
+			:ϕϕ     => Cℓ["pp"],
+			:ϕψ     => 0.0.*Cℓ["pp"],
+			:ψψ     => Cℓ["pp"]
+	)
 	return rtn
 end
 
 
 """
 * `μKarcminT`: temperature noise in μK-arcmin
-* `beam`: beam-FWHM in arcmin
+* `beamFWHM`: beam-FWHM in arcmin
 """
-function noisecls(μKarcminT,beam=0,lmax=8000)
-    Bl = beam==0 ? 1 : @. exp((1:lmax)^2*deg2rad(beam/60)^2/(8*log(2)))
-    cls = Dict{Symbol,Any}(:ℓ=>1:lmax)
+function noisecls(μKarcminT;beamFWHM=0,ℓmax=8000,ℓknee=100,αknee=3)
+    ℓ = 1:ℓmax
+    Bℓ = @. exp(ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2)))
+    Nℓ1f = @. 1 + (ℓknee/ℓ)^αknee
+    Cℓs = Dict{Symbol,Any}(:ℓ=>ℓ)
     for x in [:tt,:ee,:bb]
-        cls[x]=fill((x==:tt?1:2)*(deg2rad(μKarcminT/60))^2,lmax) .* Bl
+        Cℓs[x]=fill((x==:tt?1:2)*(deg2rad(μKarcminT/60))^2,ℓmax) .* Bℓ .* Nℓ1f
     end
-    cls[:te]=zeros(lmax)
-    cls
+    Cℓs[:te]=zeros(ℓmax)
+    Cℓs
 end
