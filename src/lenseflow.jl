@@ -3,7 +3,9 @@ export LenseFlow
 
 abstract type ODESolver end
 
-struct LenseFlow{I<:ODESolver,t₀,t₁,F<:Field} <: LenseOp
+abstract type LenseFlowOp{I<:ODESolver,t₀,t₁} <: LenseOp end
+
+struct LenseFlow{I<:ODESolver,t₀,t₁,F<:Field} <: LenseFlowOp{I,t₀,t₁}
     ϕ::F
     ∇ϕ::SVector{2,F}
     Hϕ::SMatrix{2,2,F,4}
@@ -34,22 +36,22 @@ velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ i
 velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ ⨳ $Ð(@⨳ $Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))))
 
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
-*(L::LenseFlow{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
-\(L::LenseFlow{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₁, t₀)
-*(f::Field, L::LenseFlow{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₁, t₀)
-\(f::Field, L::LenseFlow{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₀, t₁)
+*(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
+\(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₁, t₀)
+*(f::Field, L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₁, t₀)
+\(f::Field, L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₀, t₁)
 
 
 ## LenseFlow Jacobian operators
 
-*(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlow}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
-*(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlow}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)
+*(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
+*(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)
 
 
 ## Jacobian
 
 """ (δfϕₛ(fₜ,ϕ)/δfϕₜ) * (δf,δϕ) """
-function δfϕₛ_δfϕₜ(L::LenseFlow{I}, fₜ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
+function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
     FieldTuple(I((v,t,y)->δvelocity!(v,L,y...,δϕ,t,Ł.(gradhess(δϕ))...),Ł(FieldTuple(fₜ,δf)),t,s)[2], δϕ)
 end
 
@@ -70,13 +72,13 @@ end
 ## transpose Jacobian
 
 """ Compute (δfϕₛ(fₛ,ϕ)/δfϕₜ)' * (δf,δϕ) """
-function δfϕₛ_δfϕₜᴴ(L::LenseFlow{I}, fₛ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
+function δfϕₛ_δfϕₜᴴ(L::LenseFlowOp{I}, fₛ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
     FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,L,y...,t),FieldTuple(fₛ,δf,δϕ), s,t)[2:3]...)
 end
 
 
 """ ODE velocity for the negative transpose Jacobian flow """
-function negδvelocityᴴ!(f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
@@ -84,12 +86,29 @@ function negδvelocityᴴ!(f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field, �
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
     M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
 
-    f_δf_δϕ′[1] .= @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    f_δf_δϕ′[2] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
-    f_δf_δϕ′[3] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
+    v_f_δf_δϕ′[1] .= @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    v_f_δf_δϕ′[2] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
+    v_f_δf_δϕ′[3] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
 
 end
 
+
+# Version of LenseFlow that does more precomputation and 
+#  is thus faster if repeatedly called with the same ϕ
+#  (but is slower for a one-time call)
+struct CachedLenseFlow{N,t₀,t₁,F<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+    L::LenseFlow{jrk4{N},t₀,t₁,F}
+    p::Dict{Float16,SVector{2,F}}
+end
+cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁} =
+    CachedLenseFlow(L,Dict(Float16(t)=>inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ for t=linspace(t₀,t₁,2N+1)))
+    
+# here we use the precomputation:
+velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  L.p[Float16(t)]' ⨳ Ł(∇*f))
+velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
+# no specialized version for these (yet):
+negδvelocityᴴ!(v_f_δf_δϕ′, L::CachedLenseFlow, args...) = negδvelocityᴴ!(v_f_δf_δϕ′, L.L, args...)
+δvelocity!(v_f_δf, L::CachedLenseFlow, args...) = δvelocity!(v_f_δf, L.L, args...)
 
 
 """
