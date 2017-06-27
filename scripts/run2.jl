@@ -35,6 +35,8 @@ function run2(;
     use = :TEB,
     ℓmax_data = 3000,
     μKarcminT = 1,
+    beamFWHM = 1.5,
+    ℓknee = 100,
     ws = 1:20,
     Ncg = 100,
     Ncg0 = 5000,
@@ -43,7 +45,7 @@ function run2(;
     # Cℓs
     Cℓf==nothing && (Cℓf = class(lmax=8000,r=r))
     Cℓf̃ = Dict(k=>Cℓf[Symbol("ln_$k")] for (k,v) in Cℓf if Symbol("ln_$k") in keys(Cℓf))
-    Cℓn = noisecls(μKarcminT, beamFWHM=6)
+    Cℓn = noisecls(μKarcminT, beamFWHM=beamFWHM, ℓknee=ℓknee)
     
     ## covariances
     P = Flat{Θpix,nside}
@@ -95,19 +97,18 @@ function run2(;
     for (i,w) in enumerate(ws)
         
         if w==:auto
-            Δℓ = 400
             wℓ = fit_wℓ(L(ϕcur)\f̃,f,f̃)[round.(Int,Cℓf[:ℓ])]
             w500 = wℓ[500]
             Cfw = Cℓ_to_cov(T,P,SS..., Cℓf[:ℓ], ((@. sign(Cℓf[k])*abs(Cℓf̃[k])^(1-wℓ)*abs(Cℓf[k])^wℓ) for k=ks)...);
         else
-            Cfw = Cf*w + Cf̃*(1-w)
             w500 = w
+            Cfw = Cf*w + Cf̃*(1-w)
         end
         
         ds = DataSet(d, Cn, Cfw, Cϕ, Md, Mf, Mϕ)
         
         let L = (w==0?IdentityOp:L(ϕcur)),
-            P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Mff * Cfw^-1)))^-1);
+            P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Mff * Cfw^-1)))^-1)
             A = L'*(Md'*(Cn^-1)*Md*L) + Mf'*Cfw^-1*Mf
             b = L'*(Md'*(Cn^-1)*Md*d)
             fcur,hist = pcg(P, A, b, i==1?0*b:(Squash*(P\fcur)), nsteps=(w==0?Ncg0:Ncg), tol=cgtol)
