@@ -7,15 +7,24 @@ using Base.Iterators: repeated
 
 @pyimport scipy.interpolate as itp
 
-function fit_wℓ(f_obs,f,f̃,Δℓ=400,s=1)
-    (ℓ,Cℓb_obs),(ℓ,Cℓb),(ℓ,Cℓb̃) = (get_Cℓ(x,which=[:BB],Δℓ=Δℓ) for x in (f_obs,f,f̃))
+"""
+Calculates geometric weights wℓ for the cooling covariance Ĉfℓ s.t.
+
+    Ĉfℓ = Cfℓ^wℓ * Cf̃ℓ^(1-wℓ)
+
+Arguments:
+* f_obs : true f̃ delensed by current ϕ estimate
+* f/f̃ : true un/lensed field
+"""
+function fit_wℓ(f_obs,f,f̃; ℓedges=[1:200:2000; 3000; 5000], s=1)
+    (ℓ,Cℓb_obs),(ℓ,Cℓb),(ℓ,Cℓb̃) = (get_Cℓ(x,which=[:BB],ℓedges=ℓedges) for x in (f_obs,f,f̃))
     iℓ = @. !isnan(Cℓb_obs[:]) & (Cℓb_obs[:] > 0)
     ℓ = round.(Int,ℓ[iℓ])
     lnCℓb_obs, lnCℓb, lnCℓb̃ = @. (log(Cℓb_obs[:][iℓ]), log(Cℓb[:][iℓ]), log(Cℓb̃[:][iℓ]))
     z = @. (lnCℓb_obs-lnCℓb̃)/(lnCℓb-lnCℓb̃)
     iz = @. !isnan(z) & (z>0)
-    itpz = itp.UnivariateSpline(ℓ[iz],log.(z[iz]),s=s)
-    min.(1,exp.(itpz(1:10000)))
+    itpz = itp.UnivariateSpline(log.(ℓ[iz]), log.(z[iz]), s=s)
+    min.(1,exp.(itpz(log.(1:10000))))
 end
 
 
