@@ -78,12 +78,21 @@ end
 plot(f::FlatS0; kwargs...) = plot([f]; kwargs...)
 
 # FlatS2
-function plot(fs::AbstractVector{<:FlatS2}; plotsize=4, which=[:Ex,:Bx], kwargs...)
+function plot(fs::AbstractVector{<:FlatS2}; plotsize=4.8, which=[:Ex,:Bx], kwargs...)
     ncol = length(which)
-    fig,axs = subplots(length(fs),ncol; figsize=(plotsize.*(ncol,length(fs))), squeeze=false)
+    fig,axs = subplots(length(fs),ncol; figsize=(plotsize.*[1.4ncol,length(fs)]), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[i,:], which; kwargs...)
     end
+    fig,axs
+end
+function plot(fs::RowVector{<:FlatS2}; plotsize=4.8, which=[:Ex,:Bx], kwargs...)
+    ncol = length(which)
+    fig,axs = subplots(ncol,length(fs); figsize=(plotsize.*[1.4length(fs),ncol]), squeeze=false)
+    for i=1:length(fs)
+        plot(fs[i], axs[:,i], which; kwargs...)
+    end
+    fig,axs
 end
 plot(f::FlatS2; kwargs...) = plot([f]; kwargs...)
 
