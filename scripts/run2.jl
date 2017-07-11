@@ -52,7 +52,9 @@ function run2(;
     ws = 1:20,
     Ncg = 100,
     Ncg0 = 5000,
-    cgtol = 1e-4)
+    cgtol = 1e-4,
+    αtol = 1e-6
+    )
     
     # Cℓs
     Cℓf̃ = Dict(k=>Cℓf[Symbol("ln_$k")] for (k,v) in Cℓf if Symbol("ln_$k") in keys(Cℓf))
@@ -128,7 +130,7 @@ function run2(;
         local α,ϕnew,lnPw
         if i!=endof(ws)
             ϕnew = Mϕ*Cϕ*(δlnΠᶠ_δfϕ(LP(ℓmax_masking_hack)*fcur,ϕcur,ds) * δfϕ_δf̃ϕ(L(ϕcur),fcur,f̃cur))[2]
-            α = (res = optimize(α->(-lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,ds,L)), T(0), T(1), abs_tol=1e-6)).minimizer
+            α = (res = optimize(α->(-lnP(1,f̃cur,(1-α)*ϕcur+α*ϕnew,ds,L)), T(0), T(1), abs_tol=αtol)).minimizer
             ϕcur = (1-α)*ϕcur+α*ϕnew
             lnPw = -res.minimum
         end
