@@ -3,14 +3,15 @@ export bcggd, cg, pcg, gdsteps
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
 """
-function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()))
+function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false)
     r = b - A*x
     p = r
     bestres = res = dot(r,r)
     bestx = x
     reshist = Vector{typeof(res)}()
 
-    @showprogress 5 "CG: " for i = 1:nsteps
+    dt = (progress==false ? Inf : progress)
+    @showprogress dt "CG: " for i = 1:nsteps
         Ap = A*p
         α = res / dot(p,Ap)
         x = x + α * p

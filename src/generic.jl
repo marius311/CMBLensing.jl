@@ -66,7 +66,8 @@ similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
-function getindex(f::F,x::Symbol) where {P,S,B,F<:Field{P,S,B}}
+getindex(f::Field,x::Symbol) = getindex(f,Val{x})
+function getindex(f::F,::Type{Val{x}}) where {x,P,S,B,F<:Field{P,S,B}}
     l = filter(S->x in fieldnames(S), subtypes(Field{P,S}))
     if (length(l)==1)
         getfield(getbasis(l[1])(f),x)

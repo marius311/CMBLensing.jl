@@ -2,6 +2,7 @@ export FlatIQUMap, FlatTEBFourier
 
 const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}
 const FlatTEBFourier{T,P} = Field2Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P}}
+const FlatS0S2{T,P} = Union{FlatIQUMap{T,P},FlatTEBFourier{T,P}}
 
 # some convenience constructors
 FlatIQUMap{T,P}(i,q,u) where {T,P} = Field2Tuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
@@ -71,3 +72,8 @@ zero(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
 
 # this version puts Inf on diagonal for inverted 0 entries, the default throws a Singular error
 inv(d::Diagonal) = Diagonal(1./d.diag)
+
+
+getindex(f::FlatS0S2{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
+getindex(f::FlatS0S2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
+getindex(f::FlatS0S2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
