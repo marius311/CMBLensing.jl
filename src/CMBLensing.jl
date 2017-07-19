@@ -26,11 +26,6 @@ import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
 import Base.LinAlg: dot, norm, isnan
 
 
-function __init__()
-    global classy = pyimport("classy")
-    # global hp = pyimport("healpy")
-end
-
 
 export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
