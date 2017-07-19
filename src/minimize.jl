@@ -3,7 +3,7 @@ export bcggd, cg, pcg, gdsteps
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
 """
-function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false)
+function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing)
     r = b - A*x
     p = r
     bestres = res = dot(r,r)
@@ -20,6 +20,9 @@ function cg(A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false)
         if res′<bestres
             bestres,bestx = res′,x
         end
+        if callback!=nothing
+            callback(i,x,res)
+        end
         push!(reshist,res)
         if res′<tol; break; end
         p = r + (res′ / res) * p
@@ -31,7 +34,10 @@ end
 """ 
 Preconditioned conjugate gradient. P should be symmetric and roughly √A⁻¹
 """
-pcg(P,A,b,x=P*b; kwargs...) = ((x,hist)=cg(P*A*P,P*b,x; kwargs...); (P*x, hist))
+pcg(P,A,b,x=P*b; callback=nothing, kwargs...) = begin
+    x, hist = cg(P*A*P, P*b, x; callback=(callback==nothing ? nothing : (i,x,res)->callback(i,P*x,res)), kwargs...)
+    P*x, hist
+end
 
 
 """
