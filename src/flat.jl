@@ -98,7 +98,7 @@ DerivBasis(::Type{<:FlatS2}) = QUFourier
 for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
-    @eval broadcast_data(::Type{$F{T,P}},::∇²Op) where {T,P} = repeated((@. FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),$(broadcast_length(F)))
+    @eval broadcast_data(::Type{$F{T,P}},::∇²Op) where {T,P} = repeated((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),$(broadcast_length(F)))
 end
 
 # bandpass
