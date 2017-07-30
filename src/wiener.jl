@@ -7,7 +7,7 @@ struct WienerFilter{tol,TS<:LinOp,TN<:LinOp} <: LinOp{Pix,Spin,Basis}
 end
 const 𝕎 = WienerFilter
 
-@∷ 𝕎(S::LinDiagOp{∷,∷,B},N::LinDiagOp{∷,∷,B}) where {B} = @. S*(S+N)^-1
+@∷ 𝕎(S::LinDiagOp{∷,∷,B},N::LinDiagOp{∷,∷,B}) where {B} = @. nan2zero(S*(S+N)^-1)
 
 𝕎(S::TS,N::TN,tol=1e-3) where {TS,TN} = 𝕎{tol,TS,TN}(S,N)
 
