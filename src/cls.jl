@@ -96,9 +96,9 @@ function class(;lmax = 8000,
     			:TE => lCl["te"] * α^2,
     			:Tϕ => tCl["tp"] * α,
     			:ϕϕ => tCl["pp"])
-        (Cℓ,C̃ℓ)
+        Dict(:f=>Cℓ,:f̃=>C̃ℓ)
     else
-        Cℓ
+        Dict(:ft=>Cℓ)
     end
 end
 
