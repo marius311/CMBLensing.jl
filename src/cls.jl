@@ -34,9 +34,9 @@ function camb(;lmax = 6000,
     α = (10^6*cp[:TCMB])^2
     toCℓ = @. 1/(ℓ*(ℓ+1)/(2π))
     Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>2π*res[:get_lens_potential_cls](lmax)[2:lmax,1]./ℓ.^4)
-    Cℓs = [merge(Cℓϕ,Dict(k=>res[:get_cmb_power_spectra]()[x][2:lmax,i].*toCℓ.*α 
-                          for (i,k) in enumerate([:TT,:EE,:BB,:TE])))
-           for x in ["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]]
+    Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>res[:get_cmb_power_spectra]()[v][2:lmax,i].*toCℓ.*α 
+                                 for (i,x) in enumerate([:TT,:EE,:BB,:TE])))
+           for (k,v) in Dict(:fs=>"unlensed_scalar",:f̃s=>"lensed_scalar",:ft=>"tensor",:f=>"unlensed_total",:f̃=>"total"))
                
 end
 
