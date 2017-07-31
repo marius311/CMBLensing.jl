@@ -30,6 +30,7 @@ function run2(;
     ws = 1:20,
     Ncg = 100,
     Ncg0 = 5000,
+    progress = 10,
     cgtol = 1e-4,
     αtol = 1e-6,
     αmax = 0.3,
@@ -104,7 +105,7 @@ function run2(;
             P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Mff * Cfw^-1)))^-1)
             A = L'*(Md'*(Cn^-1)*Md*L) + Mf'*Cfw^-1*Mf
             b = L'*(Md'*(Cn^-1)*Md*d)
-            fcur,hist = pcg(P, A, b, i==1?0*b:(Squash*(P\fcur)), nsteps=(w==0?Ncg0:Ncg), tol=cgtol)
+            fcur,hist = pcg(P, A, b, i==1?0*b:(Squash*(P\fcur)), nsteps=(w==0?Ncg0:Ncg), tol=cgtol, progress=progress)
             f̃cur = L*fcur
         end
 
