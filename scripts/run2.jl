@@ -27,13 +27,12 @@ function run2(;
     μKarcminT = 1,
     beamFWHM = 3,
     ℓknee = 100,
-    ws = 1:20,
-    Ncg = 100,
-    Ncg0 = 5000,
+    ws = linspace(0,1,10),
+    Ncg = 1000,
+    cgtol = 1e-3,
     progress = 10,
-    cgtol = 1e-4,
     αtol = 1e-6,
-    αmax = 0.3,
+    αmax = 0.3
     )
     
     # Cℓs
@@ -86,7 +85,7 @@ function run2(;
     ϕcur = 0ϕ
     local hist, fcur, f̃cur
     
-    for (i,w) in enumerate(ws)
+    for (i,w,Ncg,cgtol) in tuple.(eachindex(ws),ws,Ncg,cgtol)
         
         # set cooling weights
         if w==:auto || isa(w,Vector)
@@ -105,7 +104,7 @@ function run2(;
             P = nan2zero.(sqrtm((nan2zero.(Mdf * Cn^-1) .+ nan2zero.(Mff * Cfw^-1)))^-1)
             A = L'*(Md'*(Cn^-1)*Md*L) + Mf'*Cfw^-1*Mf
             b = L'*(Md'*(Cn^-1)*Md*d)
-            fcur,hist = pcg(P, A, b, i==1?0*b:(Squash*(P\fcur)), nsteps=(w==0?Ncg0:Ncg), tol=cgtol, progress=progress)
+            fcur,hist = pcg(P, A, b, i==1?0*b:(Squash*(P\fcur)), nsteps=Ncg, tol=cgtol, progress=progress)
             f̃cur = L*fcur
         end
 
@@ -118,7 +117,7 @@ function run2(;
             lnPw = -res.minimum
         end
         
-        # also compouate lnP at t=1 for diagnostics
+        # also compute lnP at t=1 for diagnostics
         lnP1 = lnP(1,f̃cur,ϕcur,DataSet(d, Cn, Cf, Cϕ, Md, Mf, Mϕ),L)
         
         # print / store stuff
