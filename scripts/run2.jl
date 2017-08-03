@@ -79,7 +79,7 @@ function run2(;
 
     target_lnP = mean(let n=simulate(Cn); -n⋅(Md'*(Cn\(Md*n)))/2 end for i=1:100)
     @show target_lnP
-    rundat = @dictpack Θpix nside T r r_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee
+    rundat = @dictpack Θpix nside T r r_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee Mdr Mdf Mff
 
     trace = []
     ϕcur = 0ϕ
