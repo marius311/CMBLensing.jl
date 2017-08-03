@@ -2,6 +2,7 @@ using JLD
 using CMBLensing
 using CMBLensing: @dictpack, jrk4, δlnΠᶠ_δfϕ, cache, LP, HP
 using Optim
+using Parameters
 using PyCall
 using Base.Iterators: repeated
 
@@ -32,7 +33,8 @@ function run2(;
     cgtol = 1e-3,
     progress = 10,
     αtol = 1e-6,
-    αmax = 0.3
+    αmax = 0.3,
+    resume = nothing,
     )
     
     # Cℓs
@@ -81,11 +83,24 @@ function run2(;
     @show target_lnP
     rundat = @dictpack Θpix nside T r r_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee Mdr Mdf Mff
 
-    trace = []
-    ϕcur = 0ϕ
     local hist, fcur, f̃cur
+    if resume==nothing
+        trace = []
+        ϕcur = 0ϕ
+        i₀ = 0
+    else
+        for (k,v) in resume["rundat"]
+            if isa(v,Number) && !(k in [:target_lnP]) && v!=rundat[k]
+                warn("Parameter '$k' differs between current run ($(rundat[k])) and the one being resumed ($v)")
+            end
+        end
+        trace = resume["trace"]
+        @unpack ϕcur, fcur, f̃cur = trace[end]
+        i₀ = length(trace)
+    end
     
-    for (i,w,Ncg,cgtol) in tuple.(eachindex(ws),ws,Ncg,cgtol)
+    
+    for (i,w,Ncg,cgtol) in tuple.(i₀+eachindex(ws),ws,Ncg,cgtol)
         
         # set cooling weights
         if w==:auto || isa(w,Vector)
