@@ -149,7 +149,7 @@ function run2(;
             
     end
     
-    @printf("%.1fσ from expected",(target_lnP - trace[end][:lnP1])/sqrt(-target_lnP))
+    @printf("%.1fσ from expected\n",(target_lnP - trace[end][:lnP1])/sqrt(-target_lnP))
     
     f̃cur, fcur, ϕcur, trace, rundat
     
