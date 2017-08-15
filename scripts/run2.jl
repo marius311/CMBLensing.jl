@@ -99,7 +99,9 @@ function run2(;
         i₀ = length(trace)
     end
     
+    outfile!=nothing && mkpath(dirname(outfile))
     
+    # Start the run...
     for (i,w,Ncg,cgtol) in tuple.(i₀+eachindex(ws),ws,Ncg,cgtol)
         
         # set cooling weights
