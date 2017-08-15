@@ -18,10 +18,10 @@ function run2(;
     outfile = nothing,
     seed = nothing,
     mask = nothing,
-    r = 0.05,
-    r_data = 0.05,
-    Cℓ = camb(lmax=6900,r=r),
-    Cℓ_data = (r==r_data ? Cℓ : camb(lmax=6900,r=r_data)),
+    θ = Dict(:r=>0.05),
+    θ_data = Dict(:r=>0.05),
+    Cℓ = camb(lmax=6900; θ...),
+    Cℓ_data = (θ==θ_data ? Cℓ : camb(lmax=6900; θ_data...)),
     use = :TEB,
     ℓmax_data = 3000,
     ℓmax_masking_hack = 10000,
@@ -81,7 +81,7 @@ function run2(;
 
     target_lnP = mean(let n=simulate(Cn); -n⋅(Md'*(Cn\(Md*n)))/2 end for i=1:100)
     @show target_lnP
-    rundat = @dictpack Θpix nside T r r_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee Mdr Mdf Mff
+    rundat = @dictpack Θpix nside T θ θ_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee Mdr Mdf Mff
 
     local hist, fcur, f̃cur
     if resume==nothing
