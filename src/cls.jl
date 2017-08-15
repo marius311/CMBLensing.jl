@@ -30,7 +30,7 @@ function camb(;lmax = 6000,
     res = camb[:get_results](cp)
     
     
-    ℓ = collect(2:lmax)
+    ℓ = collect(1:lmax-1)
     α = (10^6*cp[:TCMB])^2
     toCℓ = @. 1/(ℓ*(ℓ+1)/(2π))
     Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>2π*res[:get_lens_potential_cls](lmax)[2:lmax,1]./ℓ.^4)
