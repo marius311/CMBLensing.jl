@@ -4,7 +4,7 @@ export class, noisecls, camb
 
 function camb(;lmax = 6000, 
                 r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
-                Θs = 0.0104098, logA = 3.043, nₛ = 0.968602,
+                Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
                 k_pivot = 0.002)
 
     camb = pyimport(:camb)
@@ -15,6 +15,7 @@ function camb(;lmax = 6000,
         cosmomc_theta = Θs,
         H0 = nothing,
         ns = nₛ,
+        nt = nₜ,
         As = exp(logA)*1e-10,
         pivot_scalar = k_pivot,
         pivot_tensor = k_pivot,
