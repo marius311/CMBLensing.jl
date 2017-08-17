@@ -5,6 +5,7 @@ export class, noisecls, camb
 function camb(;lmax = 6000, 
                 r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
                 Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
+                Aϕϕ = 1, 
                 k_pivot = 0.002)
 
     camb = pyimport(:camb)
@@ -34,7 +35,7 @@ function camb(;lmax = 6000,
     ℓ = collect(1:lmax-1)
     α = (10^6*cp[:TCMB])^2
     toCℓ = @. 1/(ℓ*(ℓ+1)/(2π))
-    Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>2π*res[:get_lens_potential_cls](lmax)[2:lmax,1]./ℓ.^4)
+    Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>Aϕϕ*2π*res[:get_lens_potential_cls](lmax)[2:lmax,1]./ℓ.^4)
     Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>res[:get_cmb_power_spectra]()[v][2:lmax,i].*toCℓ.*α 
                                  for (i,x) in enumerate([:TT,:EE,:BB,:TE])))
            for (k,v) in Dict(:fs=>"unlensed_scalar",:f̃s=>"lensed_scalar",:ft=>"tensor",:f=>"unlensed_total",:f̃=>"total"))
