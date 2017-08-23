@@ -143,3 +143,5 @@ ud_grade(f::FlatS2{T,P},θnew) where {T,P} = FlatS2QUMap((ud_grade(FlatS0Map{T,P
 
 getindex(f::FlatS2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
 getindex(f::FlatS2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
+getindex(f::FlatS2{T,P},::Type{Val{:Q}}) where {T,P} = FlatS0Map{T,P}(f[:Qx])
+getindex(f::FlatS2{T,P},::Type{Val{:U}}) where {T,P} = FlatS0Map{T,P}(f[:Ux])
