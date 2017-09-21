@@ -118,3 +118,27 @@ function plot(fs::RowVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=4.8, whi
     fig,axs
 end
 plot(f::Field2Tuple{<:FlatS0,<:FlatS2}; kwargs...) = plot([f]; kwargs...)
+
+
+
+function animate(fields::Vector{<:FlatS0{T,P}}, interval=50, units=:deg) where {T,Θ,N,P<:Flat{Θ,N}}
+    l = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
+    img = imshow(fields[1][:Tx],cmap="RdBu_r",extent=(-l,l,-l,l))
+    ax = gca()
+    @pydef type MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
+        __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*"°"
+    end
+    ax[:xaxis][:set_major_formatter](MyFmt())
+    ax[:yaxis][:set_major_formatter](MyFmt())
+    ax[:set_ylabel]("Dec")
+    ax[:set_xlabel]("RA")
+    ax[:tick_params](labeltop=false, labelbottom=true)
+    
+    ani = pyimport("matplotlib.animation")[:FuncAnimation](gcf(), 
+        i->(img[:set_data](fields[i][:Tx]);(img,)), 
+        1:length(fields),
+        interval=interval, blit=true
+        )
+    close()
+    HTML(ani[:to_html5_video]())
+end
