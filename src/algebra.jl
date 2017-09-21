@@ -90,6 +90,7 @@ Ac_mul_B(x::Field, y::Field) = x*y
 
 
 Ac_mul_B(A::LinOp,f::Field) = f*A
+ctranspose(L::LinOp) = FuncOp(op=x->L'*x, opᴴ=x->L*x, op⁻¹=x->L'\x, op⁻ᴴ=x->L\x)
 
 
 ### basis conversion
