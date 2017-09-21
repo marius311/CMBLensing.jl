@@ -4,10 +4,11 @@ the basis in which it's diagonal.
 """
 struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
     f::F
-    FullDiagOp(f::F) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f)
+    unsafe_invert::Bool
+    FullDiagOp(f::F, unsafe_invert=true) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f,unsafe_invert)
 end
 for op=(:*,:\)
-    @eval ($op)(O::FullDiagOp{F}, f::F) where {F} = $(Symbol(:.,op))(O.f,f)
+    @eval ($op)(O::FullDiagOp{F}, f::F) where {F} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,f)) : $(Symbol(:.,op))(O.f,f)
 end
 *(f::Field,O::FullDiagOp) = O*f
 sqrtm(f::FullDiagOp) = sqrt.(f)
@@ -15,7 +16,7 @@ simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
 literal_pow(^,op::FullDiagOp,::Type{Val{-1}}) = inv(op)
-inv(op::FullDiagOp) = FullDiagOp(1./op.f)
+inv(op::FullDiagOp) = FullDiagOp(op.unsafe_invert ? nan2inf.(1./op.f) : 1./op.f, op.unsafe_invert)
 ctranspose(f::FullDiagOp) = f
 
 

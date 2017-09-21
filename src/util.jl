@@ -47,6 +47,8 @@ end
 
 nan2zero{T}(x::T) = !isfinite(x)?zero(T):x
 nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
+nan2inf{T}(x::T) = !isfinite(x)?T(Inf):x
+
 
 """ Return a tuple with the expression repeated n times """
 macro repeated(ex,n)
