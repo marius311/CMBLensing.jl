@@ -35,6 +35,7 @@ function run2(;
     αtol = 1e-6,
     αmax = 0.3,
     resume = nothing,
+    quiet = false
     )
     
     # Cℓs
@@ -80,7 +81,7 @@ function run2(;
     d = f̃ + simulate(Cn)
 
     target_lnP = mean(let n=simulate(Cn); -n⋅(Md'*(Cn\(Md*n)))/2 end for i=1:100)
-    @show target_lnP
+    !quiet && @show target_lnP
     rundat = @dictpack Θpix nside T θ θ_data μKarcminT d target_lnP Cℓ Cℓ_data Cℓn f f̃ ϕ beamFWHM ℓknee Mdr Mdf Mff
 
     local hist, fcur, f̃cur
@@ -140,10 +141,10 @@ function run2(;
         # print / store stuff
         if i!=endof(ws)
             push!(trace, @dictpack Cfw f̃cur fcur ϕcur ϕnew lnPw lnP1 α hist w)
-            @printf("%i %.4f %.2f %.2f %i %.4f\n",i,w500,lnPw,lnP1,length(hist),α)
+            !quiet && @printf("%i %.4f %.2f %.2f %i %.4f\n",i,w500,lnPw,lnP1,length(hist),α)
         else
             push!(trace, @dictpack Cfw f̃cur fcur ϕcur lnPw=>lnP1 lnP1 hist w)
-            @printf("%i %.4f %.2f %i\n",i,w500,lnP1,length(hist))
+            !quiet && @printf("%i %.4f %.2f %i\n",i,w500,lnP1,length(hist))
         end
         if w==:auto; trace[end][:wℓ]=wℓ; end
         
@@ -151,7 +152,7 @@ function run2(;
             
     end
     
-    @printf("%.1fσ from expected\n",(target_lnP - trace[end][:lnP1])/sqrt(-target_lnP))
+    !quiet && @printf("%.1fσ from expected\n",(target_lnP - trace[end][:lnP1])/sqrt(-target_lnP))
     
     f̃cur, fcur, ϕcur, trace, rundat
     
