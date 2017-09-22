@@ -32,10 +32,10 @@ function plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cma
     
     # some logic to automatically get upper/lower limits
     if vlim==:sym
-        vmax = quantile(abs.(m[!isnan.(m)][:]),0.999)
+        vmax = quantile(abs.(m[@. !isnan(m)][:]),0.999)
         vmin = -vmax
     elseif vlim==:asym
-        vmin, vmax = (quantile(m[!isnan.(m)][:],q) for q=(0.001,0.999))
+        vmin, vmax = (quantile(m[@. !isnan(m)][:],q) for q=(0.001,0.999))
     elseif isa(vlim,Tuple)
         vmin, vmax = vlim
     else
@@ -43,7 +43,7 @@ function plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cma
         vmin = -vmax
     end
        
-    m[isinf(m)]=NaN
+    m[isinf.(m)]=NaN
     
     cax = ax[:matshow](m; vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
     cbar && gcf()[:colorbar](cax,ax=ax)
