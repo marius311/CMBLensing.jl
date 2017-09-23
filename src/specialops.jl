@@ -63,8 +63,8 @@ struct BandPassOp{T<:Vector} <: LinDiagOp{Pix,Spin,DerivBasis}
     ℓ::T
     Wℓ::T
 end
-HP(ℓ,Δℓ=50) = BandPassOp(collect(0.:10000), [zeros(ℓ-Δℓ); @.((cos(linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
-LP(ℓ,Δℓ=50) = BandPassOp(collect(0.:(ℓ+Δℓ-1)), [ones(ℓ-Δℓ); @.(cos(linspace(0,π,2Δℓ))+1)/2])
+HP(ℓ,Δℓ=50) = BandPassOp(collect(0.:10000), [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
+LP(ℓ,Δℓ=50) = BandPassOp(collect(0.:(ℓ+Δℓ-1)), [ones(ℓ-Δℓ); @.(cos($linspace(0,π,2Δℓ))+1)/2])
 *(op::BandPassOp,f::Field) = op .* Ð(f)
 (::Type{FullDiagOp{F}})(b::BandPassOp) where {F<:Field} = FullDiagOp(F(broadcast_data(F,b)...))
 
