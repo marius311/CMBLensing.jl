@@ -69,6 +69,7 @@ end
 # remove the need for this
 one(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
 zero(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
+/(n::Number, d::Diagonal{<:Number}) = Diagonal(n./d.diag)
 
 # this version puts Inf on diagonal for inverted 0 entries, the default throws a Singular error
 inv(d::Diagonal) = Diagonal(1./d.diag)
