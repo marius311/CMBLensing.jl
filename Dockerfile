@@ -1,32 +1,32 @@
-FROM ubuntu:16.04
+FROM alpine:edge
 
-RUN apt-get update \
-    && apt-get install -y \
+RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories \
+    && apk add --update \
         curl \
-        cython3 \
+        freetype-dev \
+        g++ \
         gfortran \
-        hdf5-tools \
-        libcfitsio2 \
-        libgsl-dev \
-        python3-matplotlib \
-        python3-numpy \
-        python3-pip \
-        python3-scipy \
-        python3-zmq \
-    && pip3 install --no-cache-dir notebook==5.* jupyter_contrib_nbextensions==0.3.1 \
+        hdf5@testing \
+        julia \
+        libpng-dev \
+        make \
+        mbedtls \
+        musl-dev \
+        openblas-dev \
+        py-numpy-dev \
+        py3-numpy-f2py \
+        py3-six \
+        py3-zmq \
+        python3 \
+    && pip3 install --no-cache-dir notebook==5.* jupyter_contrib_nbextensions==0.3.1 matplotlib \
     && jupyter contrib nbextension install \
-    && jupyter nbextension enable toc2/main --system \
-    && rm -rf /var/lib/apt/lists/*
-    
-# install julia 0.6.1
-RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/0.6/julia-0.6.1-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
-    && ln -s /opt/julia/bin/julia /usr/local/bin
+    && jupyter nbextension enable toc2/main --system
 
 # install CAMB
-RUN mkdir /opt/camb \
-    && curl -L https://github.com/cmbant/camb/tarball/0.1.6.1 | tar zxf - -C /opt/camb --strip=1 \
-    && cd /opt/camb/pycamb \
+RUN mkdir -p /root/camb \
+    && curl -L https://github.com/marius311/camb/tarball/scipy_optional | tar zxf - -C /root/camb --strip-components=1 \
+    && sed -i -e "s/-fopenmp//g" /root/camb/Makefile \
+    && cd /root/camb/pycamb \
     && python3 setup.py install
 
 # setup unprivileged user needed for mybinder.org
