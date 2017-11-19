@@ -2,3 +2,5 @@
 !src
 !scripts
 !REQUIRE
+!nb
+nb/.ipynb_checkpoints
