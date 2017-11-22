@@ -50,5 +50,6 @@ include("likelihood.jl")
 include("wiener.jl")
 include("minimize.jl")
 include("masking.jl")
+include("quadratic_estimate.jl")
 
 end

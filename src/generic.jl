@@ -16,7 +16,7 @@ the lensing basis is Map for S0 but QUMap for S2.
 """
 abstract type Basislike <: Basis end
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
-(::Type{B})(a::AbstractArray{<:Field}) where {B<:Basislike} = B.(a)
+(::Type{B})(a::AbstractArray{<:Field}) where {B<:Basis} = B.(a)
 
 
 # spin types

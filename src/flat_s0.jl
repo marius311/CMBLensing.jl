@@ -2,7 +2,7 @@
 # this file defines a flat-sky pixelized spin-0 map (like T or ϕ)
 # and operators on this map
 
-export FlatS0Fourier, FlatS0Map
+export FlatS0Fourier, FlatS0Map, FlatS0
 
 abstract type Map <: Basis end
 abstract type Fourier <: Basis end

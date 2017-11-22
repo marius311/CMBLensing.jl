@@ -5,7 +5,7 @@
 export
     QUMap, EBMap, QUFourier, EBFourier,
     FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
-    FlatS2, FlatS2QU, FlatS2Map, FlatS2Fourier
+    FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
 
 abstract type QUMap <: Basis end
 abstract type EBMap <: Basis end
