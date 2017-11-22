@@ -4,6 +4,15 @@ using Combinatorics: levicivita
 
 sinv(x) = nan2zero.(1./x)
 
+macro sym(ex)
+    # todo: write this such that it converts a function f(i,j,k,..) which is
+    # assumed to be symmetric in its arguments into a memoized function such
+    # that each unique set of parameters is only calculated once
+    :($(esc(ex)))
+end
+
+
+
 """
 Compute quadratic estimate for ϕ given data, d, and signal, lensed signal,
 and noise covariances Cf, Cf̃, and Cn, respectively. If signal covariance Cϕ is
@@ -71,12 +80,4 @@ function get_L̅_L²(f)
     L̅  = (@SVector [∇[1] .+ 0Ð(f), ∇[2] .+ 0Ð(f)])
     L² = FullDiagOp(L̅'L̅)
     L̅,L²
-end
-
-
-macro sym(ex)
-    # todo: write this such that it converts a function f(i,j,k,..) which is
-    # assumed to be symmetric in its arguments into a memoized function such
-    # that each unique set of parameters is only calculated once
-    :($(esc(ex)))
 end
