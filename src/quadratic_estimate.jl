@@ -32,12 +32,12 @@ function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
     AL = 2π * L² * sinv(L̅' * Fourier(term1 + term2) * L̅)
     
     ϕL = -AL*(L²\∫d²l)
+    Nϕ = FullDiagOp(abs.(AL*inv(L²)))
     
     if Cϕ != nothing
-        Nϕ = FullDiagOp(abs.(AL*inv(L²)))
         Cϕ * inv(Cϕ + Nϕ) * ϕL
     else
-        ϕL
+        ϕL, Nϕ
     end
 
 end
@@ -49,10 +49,9 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
 
     ϵ(x...) = levicivita([x...])
     
-    getCEB(C) = FullDiagOp(FlatS0Fourier{T,P}(C.f.El)), FullDiagOp(FlatS0Fourier{T,P}(C.f.Bl))
-    CE,CB   = getCEB(Cf)
-    CẼ,CB̃   = getCEB(Cf̃)
-    CEn,CBn = getCEB(Cn)
+    CE,CB   = Cf[:E], Cf[:B]
+    CẼ,CB̃   = Cf̃[:E], Cf̃[:B]
+    CEn,CBn = Cn[:E], Cn[:B]
 
     # quadratic estimate
     @sym E(i,j,k) = Map(L²\L̅[i]*L̅[j]*L̅[k]*(CE*inv(CẼ+CEn)*d[:E]))
@@ -65,12 +64,12 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     AL = π * L² * sinv(sum(L̅[i]*L̅[j] * Fourier(sum(ϵ(k,n,3) * ϵ(m,p,3) * E2(i,j,k,m) * B2(n,p) for k=1:2,m=1:2,n=1:2,p=1:2)) for i=1:2,j=1:2))
     
     ϕL = AL*(L²\∫d²l)
+    Nϕ = FullDiagOp(abs.(AL*inv(L²)))
     
     if Cϕ != nothing
-        Nϕ = FullDiagOp(abs.(AL*inv(L²)))
-        Cϕ * inv(Cϕ + Nϕ) * ϕL
+        (Cϕ * inv(Cϕ + Nϕ) * ϕL), ((1+Nϕ\Cϕ).^2)\(Nϕ\Cϕ)
     else
-        ϕL
+        ϕL, Nϕ
     end
     
 end
