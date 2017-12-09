@@ -31,23 +31,21 @@ bad to read either.
 
 export FieldTuple
 
-*(args::Union{_,Symbol,Int}...) where {_<:Symbol} = Symbol(args...)
-
 Ns = [2,3] # which FieldNTuples to generate
 
 for N in Ns
     
     let 
-        local f(i) = :f*i
-        local F(i) = :F*i
-        local B(i) = :B*i
+        local f(i,p="") = Symbol("f$i$p")
+        local F(i,p="") = Symbol("F$i$p")
+        local B(i,p="") = Symbol("B$i$p")
         local (fs, Fs, Bs) = @. f(1:N), F(1:N), B(1:N)
-        local (Fas, Fbs) = @. (F(1:N)*:a), F(1:N)*:b
-        local (FNT, BNT)= (:Field*N*:Tuple, :Basis*N*:Tuple)
+        local (Fas, Fbs) = @. F(1:N,"a"), F(1:N,"b")
+        local (FNT, BNT)= (Symbol("Field$(N)Tuple"), Symbol("Basis$(N)Tuple"))
 
         (q = (quote
         
-            abstract type $(:Basis*N*:Tuple){$((:($(B(i))<:Basis) for i=1:N)...)} <: Basis end
+            abstract type $BNT{$((:($(B(i))<:Basis) for i=1:N)...)} <: Basis end
             
             # 
             # I really wish I could define this just as 
@@ -55,12 +53,14 @@ for N in Ns
             # but this doesn't exist in Julia (yet?), so instead I use this "hack"
             # see also: https://discourse.julialang.org/t/could-julia-have-implicit-type-parameters/2914/5
             # 
-            @∷ struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{Pix,Spin,$(:Basis*N*:Tuple){$(Bs...)}} 
-                $((:($(:f*i)::$(:F*i)) for i=1:N)...)
+            @∷ struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{Pix,Spin,$BNT{$(Bs...)}} 
+                $((:($(f(i))::$(F(i))) for i=1:N)...)
                 # todo:
-                $FNT($((:($(:f*i)::$(:F*i)) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
-                $FNT{$(Fs...),$(Bs...)}($((:($(:f*i)::$(:F*i)) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+                $FNT($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+                $FNT{$(Fs...),$(Bs...)}($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
             end
+            
+            FieldTuple($((f(i) for i=1:N)...)) = $FNT($((f(i) for i=1:N)...))
             
             shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "{$(join(map(shortname,[$(Fs...)]),","))}"
             
@@ -77,7 +77,7 @@ for N in Ns
             containertype(::$FNT{$(Fs...)}) where {$(Fs...)} = $FNT{$((:(containertype($(F(i)))) for i=1:N)...)}
             containertype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT{$(Fs...)}
             function promote_containertype(::Type{$FNT{$(Fas...)}}, ::Type{$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)}
-                $FNT{$((:(promote_containertype($(F(i)*:a), $(F(i)*:b))) for i=1:N)...)}
+                $FNT{$((:(promote_containertype($(F(i,"a")), $(F(i,"b")))) for i=1:N)...)}
             end
             @symarg function promote_containertype{F<:Field,$(Fs...)}(::Type{F},::Type{$FNT{$(Fs...)}})
                 $FNT{$((:(promote_containertype(F,$(F(i)))) for i=1:N)...)}
@@ -95,7 +95,7 @@ for N in Ns
 
             # promotion / conversion
             function promote_rule(::Type{<:$FNT{$(Fas...)}},::Type{<:$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)} 
-                $FNT{$((:(promote_type($(F(i)*:a), $(F(i)*:b))) for i=1:N)...)}
+                $FNT{$((:(promote_type($(F(i,"a")), $(F(i,"b")))) for i=1:N)...)}
             end
             (::Type{<:$FNT{$(Fs...)}})(f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
             convert(::Type{<:$FNT{$(Fs...)}},f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
@@ -147,11 +147,7 @@ end
 # for other fields. hopefully we eventually can get rid of this
 containertype(::Type{F}) where {F<:Field} = F
     
-# convenience constructors, FieldTuple(...)
-@eval const FieldNTuple = Union{$((:Field*N*:Tuple for N=Ns)...)}
-for N in Ns
-    @eval FieldTuple($((:f*i for i=1:N)...)) = $(:Field*N*:Tuple)($((:f*i for i=1:N)...))
-end
+@eval const FieldNTuple = Union{$((Symbol("Field$(N)Tuple") for N=Ns)...)}
 
 # propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
 pixstd(f::FieldNTuple) = mean(pixstd.(fieldvalues(f)))
