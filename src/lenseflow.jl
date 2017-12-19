@@ -33,7 +33,7 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 """ ODE velocity for LenseFlow """
 velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
-velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ ⨳ $Ð(@⨳ $Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(@⨳ $Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))))
 
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
 *(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
@@ -87,8 +87,8 @@ function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field,
     M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
 
     v_f_δf_δϕ′[1] .= @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    v_f_δf_δϕ′[2] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
-    v_f_δf_δϕ′[3] .= Ł(@⨳ ∇ᵀ ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇ᵀ ⨳ ((∇ᵀ ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
+    v_f_δf_δϕ′[2] .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
+    v_f_δf_δϕ′[3] .= Ł(@⨳ ∇' ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇' ⨳ ((∇' ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
 
 end
 
@@ -105,7 +105,7 @@ cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁} =
     
 # here we use the precomputation:
 velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  L.p[Float16(t)]' ⨳ Ł(∇*f))
-velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇ᵀ ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
+velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
 # no specialized version for these (yet):
 negδvelocityᴴ!(v_f_δf_δϕ′, L::CachedLenseFlow, args...) = negδvelocityᴴ!(v_f_δf_δϕ′, L.L, args...)
 δvelocity!(v_f_δf, L::CachedLenseFlow, args...) = δvelocity!(v_f_δf, L.L, args...)

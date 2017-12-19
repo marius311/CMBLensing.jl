@@ -75,12 +75,6 @@ will work though.
 """
 macro ⨳(ex)
     
-    # recurse thru turning ∇ᵀ into ∇' 
-    # (we use ∇ᵀ instead of ∇' b/c of a syntax highlighting bug in Juno which
-    # hopefully gets fixed soon...)
-    convert∇(ex) = isexpr(ex) ? (map!(convert∇,ex.args,ex.args); ex) : (ex==:(∇ᵀ) ? :(∇') : ex) #'
-    ex = convert∇(ex)
-    
     # check if ex is of the form $(...) and if so allocate a temporary
     # variable to store the result of (...)
     temps = :(begin end) 

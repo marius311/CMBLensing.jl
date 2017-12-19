@@ -27,7 +27,6 @@ const Ð = DerivBasis
 struct ∂{s} <: LinDiagOp{Pix,Spin,DerivBasis} end
 const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
-const ∇ᵀ = RowVector(∇)
 *(∂::∂, f::Field) = ∂ .* Ð(f)
 function gradhess(f)
     (∂xf,∂yf)=∇*Ð(f)
