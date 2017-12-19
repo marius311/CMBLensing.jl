@@ -64,8 +64,3 @@ _getindex(L::LenseOp, ::→{t1,t2}) where {t1,t2} = error("Lensing from time $t1
 
 include("powerlens.jl")
 include("lenseflow.jl")
-
-struct NoLensing <: LenseOp end
-*(::NoLensing, f::Field) = f
-*(f::Field, ::NoLensing) = f
-_getindex(L::LenseOp, ::→) = L
