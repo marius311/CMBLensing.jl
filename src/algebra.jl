@@ -59,7 +59,6 @@ for op in (:*,:/)
     for (T1,T2) in ((:T,:Scalar),(:Scalar,:T),(:T,:T)), T in (:Field,:LinDiagOp)
         @eval ($op)(a::$T1, b::$T2) where {T<:$T} = broadcast($(op),a,b)
     end
-    @eval ($op)(a::Field, b::Field) = error("Fields must be put into same basis before they can be multiplied.")
 end
 ^(f::Field,n::Real) = f.^n
 ^(f::Field,n::Int) = f.^n #needed to avoid ambiguity error
@@ -103,7 +102,8 @@ convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
 
 # convert Fields to right basis before feeding into a LinOp
 for op=(:*,:\)
-    @eval @∷ ($op){B1,B2}(O::LinOp{∷,∷,B1}, f::Field{∷,∷,B2}) = $(op)(O,B1(f))
+    @eval @∷ ($op)(O::LinOp{∷,∷,B1}, f::Field{∷,∷,B2}) where {B1,B2} = $(op)(O,B1(f))
+    @eval @∷ ($op)(O::LinOp{∷,∷,B},  f::Field{∷,∷,B}) where {B} = throw(MethodError($op,(typeof(O),typeof(f))))
 end
 
 

@@ -8,7 +8,7 @@ struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
     FullDiagOp(f::F, unsafe_invert=true) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f,unsafe_invert)
 end
 for op=(:*,:\)
-    @eval ($op)(O::FullDiagOp{F}, f::F) where {F} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,f)) : $(Symbol(:.,op))(O.f,f)
+    @eval @∷ ($op)(O::FullDiagOp{<:Field{∷,∷,B}}, f::Field{∷,∷,B}) where {B} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,f)) : $(Symbol(:.,op))(O.f,f)
 end
 *(f::Field,O::FullDiagOp) = O*f
 sqrtm(f::FullDiagOp) = sqrt.(f)
