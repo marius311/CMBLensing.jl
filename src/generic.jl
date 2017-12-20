@@ -56,6 +56,7 @@ should return a tuple of data which can be broadcasted together with the data of
 field of type F.
 """
 abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
+*(f::Field, O::LinDiagOp) = O*f
 
 
 
