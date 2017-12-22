@@ -74,9 +74,39 @@ fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,
 pixstd(f::FlatS0Map) = sqrt(var(f.Tx))
 pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
 
-# up/down grading map resolution
-function ud_grade(f::FlatS0{T,P},θnew) where {T,θ,N,P<:Flat{θ,N}}
-    @assert θnew>θ && isinteger(θnew//θ) "Can only downgrade in integer steps"
-    fac = round(Int,θnew/θ)
-    FlatS0Map{T,Flat{θnew,N÷fac}}(mapslices(mean,reshape(f[:Tx],(fac,N÷fac,fac,N÷fac)),(1,3))[1,:,1,:])
+
+"""
+    ud_grade(f::Field, θnew, mode=:real, deconv_pixwin=true, anti_aliasing=true)
+
+Downgrades field `f` to new resolution `θnew` (only in integer steps). Two modes
+are available: 
+
+    *`:map`     : Downgrade by averaging pixels in map-space.
+    *`:fourier` : Downgrade by truncating the Fourier grid
+    
+For `:map` mode, two additional options are possible. If `deconv_pixwin` is
+true, deconvolves the pixel window function from the downgraded map so the
+spectrum of the new and old maps are the same. If `anti_aliasing` is true,
+filters out frequencies above Nyquist prior to down-sampling. 
+
+"""
+function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true) where {T,θ,N}
+    (θnew>θ && isinteger(θnew//θ)) || throw(ArgumentError("Can only downgrade in integer steps"))
+    (mode in [:map,:fourier]) || throw(ArgumentError("`mode` should be either `:map` or `:fourier`"))
+    fac = θnew÷θ
+    Nnew = N÷fac
+    Pnew = Flat{θnew,Nnew}
+    if mode==:map
+        AA = anti_aliasing ? LP(FFTgrid(T,Pnew).nyq,0) : IdentityOp
+        fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
+        if deconv_pixwin
+            @unpack Δx,k = FFTgrid(T,Pnew)
+            Wk =  @. ifelse(k==0, 1, sin(k*Δx/2) / sin(k*Δx/2/fac) / fac)
+            AA * FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1])
+        else
+            fnew
+        end
+    else
+        FlatS0Fourier{T,Pnew}(f[:Tl][1:Nnew÷2+1, [1:Nnew÷2; (end-Nnew÷2+1):end]])
+    end
 end

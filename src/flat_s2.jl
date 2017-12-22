@@ -139,7 +139,7 @@ Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*
 pixstd{T,P}(f::FlatS2Map{T,P}) = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
 pixstd{T,P}(f::FlatS2Fourier{T,P}) = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
 
-ud_grade(f::FlatS2{T,P},θnew) where {T,P} = FlatS2QUMap((ud_grade(FlatS0Map{T,P}(f[x]),θnew) for x=[:Qx,:Ux])...)
+ud_grade(f::FlatS2{T,P}, args...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...)) for x=[:Q,:U])...)
 
 getindex(f::FlatS2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
 getindex(f::FlatS2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
