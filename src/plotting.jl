@@ -56,7 +56,7 @@ end
 # with the real part on the upper half and the imaginary part mirrored on the
 # bottom, with a row of NaN's inbetween to visually separate
 function plot(m::AbstractMatrix{Complex{T}}; kwargs...) where {T}
-    plot(log10.(abs.([real(m); fill(NaN,size(m,2))'; imag(m[end:-1:1,:])])); kwargs...)
+    plot(log10.(abs.(ifftshift(unfold(m)))); vlim=(nothing,nothing), cmap=nothing, kwargs...)
 end
 
 # FlatS0
