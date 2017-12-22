@@ -84,12 +84,9 @@ transpose(f::Field) = f
 # `y=x'; y*x` doesn't work. in this case, the `y*x` does *not* do this transpose
 # multiplication.
 # this is the fallback:
-Ac_mul_B(x::Field, y::Field) = x*y
+# Ac_mul_B(x::Field, y::Field) = x*y
 
 
-
-Ac_mul_B(A::LinOp,f::Field) = f*A
-ctranspose(L::LinOp) = FuncOp(op=x->L'*x, opᴴ=x->L*x, op⁻¹=x->L'\x, op⁻ᴴ=x->L\x)
 
 
 ### basis conversion
@@ -117,7 +114,7 @@ struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pi
 end
 # the cases in which to create a lazy op
 for op in (:+, :-, :*, :Ac_mul_B)
-    @eval           ($op)(a::LinOp, b::LinOp)  = LazyBinaryOp($op,a,b)
+    @eval         ($op)(a::LinOp, b::LinOp)  = LazyBinaryOp($op,a,b)
     @eval @symarg ($op)(a::LinOp, b::Scalar) = LazyBinaryOp($op,a,b)
 end
 /(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)

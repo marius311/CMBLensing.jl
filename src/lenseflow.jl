@@ -37,10 +37,8 @@ velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳
 
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
 *(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
-\(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₁, t₀)
 *(f::Field, L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₁, t₀)
-\(f::Field, L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₀, t₁)
-
+inv(L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = L[t₁→t₀]
 
 ## LenseFlow Jacobian operators
 
@@ -109,6 +107,9 @@ velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ �
 # no specialized version for these (yet):
 negδvelocityᴴ!(v_f_δf_δϕ′, L::CachedLenseFlow, args...) = negδvelocityᴴ!(v_f_δf_δϕ′, L.L, args...)
 δvelocity!(v_f_δf, L::CachedLenseFlow, args...) = δvelocity!(v_f_δf, L.L, args...)
+
+# changing integration endpoints causes a re-caching
+_getindex(L::CachedLenseFlow, ::→{t₀,t₁}) where {t₀,t₁} = cache(L.L[t₀→t₁])
 
 
 """

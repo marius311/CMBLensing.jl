@@ -32,7 +32,6 @@ end
 
 
 
-literal_pow(^,cv::FlatTEBCov,::Type{Val{-1}}) = inv(cv)
 inv(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(inv(cv.ΣTE),1./cv.ΣB)
 sqrtm(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(nan2zero.(sqrtm(cv.ΣTE)),sqrt.(cv.ΣB))
 
