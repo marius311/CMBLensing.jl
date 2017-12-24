@@ -2,35 +2,34 @@ export FlatIQUMap, FlatTEBFourier
 
 const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}}
 const FlatTEBFourier{T,P} = Field2Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P}}
-const FlatS0S2{T,P} = Union{FlatIQUMap{T,P},FlatTEBFourier{T,P}}
+const FlatS02{T,P} = Union{FlatIQUMap{T,P},FlatTEBFourier{T,P}}
 
 # some convenience constructors
 FlatIQUMap{T,P}(i,q,u) where {T,P} = Field2Tuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
 FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
 
 
-struct FlatTEBCov{T,P} <: LinDiagOp{P,Spin,Basis2Tuple{Fourier,EBFourier}}
+struct FlatTEBCov{T,P} <: LinOp{P,S02,Basis2Tuple{Fourier,EBFourier}}
     ΣTE :: SMatrix{2,2,Diagonal{T},4}
     ΣB :: Matrix{T}
 end
 
-function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓEE, CℓBB, CℓTE) where {T,P}
-    Σ(Cℓ) = Diagonal(Cℓ_2D(P,ℓ,Cℓ)[:])
-    FlatTEBCov{T,P}(
-        @SMatrix([Σ(CℓTT) Σ(CℓTE);
-                  Σ(CℓTE) Σ(CℓEE)]),
-        Cℓ_2D(P,ℓ,CℓBB)
-    )
+# convenience constructor
+function FlatTEBCov{T,P}(ΣTT::AbstractMatrix, ΣTE::AbstractMatrix, ΣEE::AbstractMatrix, ΣBB::AbstractMatrix) where {T,P}
+    D(Σ) = Diagonal(Σ[:])
+    FlatTEBCov{T,P}(@SMatrix([D(ΣTT) D(ΣTE); D(ΣTE) D(ΣEE)]), ΣBB)
 end
+
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓEE, CℓBB, CℓTE) where {T,P}
+    FlatTEBCov{T,P}(Cℓ_2D.(P,[ℓ],[CℓTT,CℓTE,CℓEE,CℓBB])...)
+end
+
+ctranspose(Σ::FlatTEBCov) = Σ
 
 function *(cv::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any,N}} 
     (t,e),b = (cv.ΣTE * [f.f1.Tl[:], f.f2.El[:]]), cv.ΣB .* f.f2.Bl
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
-\(cv::FlatTEBCov, f::FlatTEBFourier) = inv(cv)*f
-
-
-
 
 inv(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(inv(cv.ΣTE),1./cv.ΣB)
 sqrtm(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(nan2zero.(sqrtm(cv.ΣTE)),sqrt.(cv.ΣB))
@@ -74,6 +73,6 @@ zero(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
 inv(d::Diagonal) = Diagonal(1./d.diag)
 
 
-getindex(f::FlatS0S2{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
-getindex(f::FlatS0S2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
-getindex(f::FlatS0S2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
+getindex(f::FlatS02{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
+getindex(f::FlatS02{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
+getindex(f::FlatS02{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])

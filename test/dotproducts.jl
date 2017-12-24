@@ -13,7 +13,7 @@ using CMBLensing
     ##
     f0, f1 = (FlatS2QUMap(randn(nside,nside),randn(nside,nside),1) for i=1:2)
     @test f0⋅f1 ≈ EBFourier(f0)⋅EBFourier(f1) ≈ QUFourier(f0)⋅QUFourier(f1) ≈ f0⋅EBFourier(f1) ≈ f0⋅QUFourier(f1)
-    @test_broken f0⋅f0 ≈ EBMap(f0)⋅EBMap(f0)
+    @test_broken f0⋅f0 ≈ EBMap(f0)⋅EBMap(f0) # why broken ???
     ##
 
 end

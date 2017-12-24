@@ -87,26 +87,23 @@ transpose(f::Field) = f
 # Ac_mul_B(x::Field, y::Field) = x*y
 
 
-
-
 ### basis conversion
 
-# B(f) where B is a basis converts f to that basis
-(::Type{B})(f::Field{P,S,B}) where {P,S,B} = f
-#todo: probably want to have convert(::Type{T},..)::T rather than the following...
-convert(::Type{F}, f::Field{P,S,B1}) where {P,S,B1,B2,F<:Field{P,S,B2}} = B2(f)
+# B(f) where B is a basis converts f to that basis. This is the fallback if the
+# field is already in the right basis.
+@∷ (::Type{B})(f::Field{∷,∷,B}) where {B} = f
 
+# F(f) where F is some Field type defaults to just using the basis conversion
+# and asserting that we end up with the right type, F
+@∷ convert(::Type{F}, f::Field{∷,∷,B1}) where {B1,B2,F<:Field{∷,∷,B2}} = B2(f)::F
 
-# convert Fields to right basis before feeding into a LinOp
-for op=(:*,:\)
-    @eval @∷ ($op)(O::LinOp{∷,∷,B1}, f::Field{∷,∷,B2}) where {B1,B2} = $(op)(O,B1(f))
-    @eval @∷ ($op)(O::LinOp{∷,∷,B},  f::Field{∷,∷,B}) where {B} = throw(MethodError($op,(typeof(O),typeof(f))))
-end
 
 
 ### lazy evaluation
-# i.e. creating new operators which don't actually evaluate anything until
-# they've been multiplied by a field
+
+# we use LazyBinaryOps to create new operators composed from other operators
+# which don't actually evaluate anything until they've been multiplied by a
+# field
 struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
     a::A
     b::B
@@ -132,7 +129,10 @@ end
 ctranspose(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,ctranspose(lz.b),ctranspose(lz.a))
 
 
+
+
 ### linear algebra of Vectors and Matrices of Fields
+
 include("broadcast_expand.jl")
 
 const Field2DVector = SVector{2,<:FieldOpScal}

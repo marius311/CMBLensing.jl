@@ -14,9 +14,9 @@ abstract type S02 <: Spin end
 abstract type Field{P<:Pix, S<:Spin, B<:Basis} end
 
 
-# A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð.
-# For any particular types of fields, these might be different actual bases, e.g.
-# the lensing basis is Map for S0 but QUMap for S2.
+# A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
+# particular types of fields, these might be different actual bases, e.g. the
+# lensing basis is Map for S0 but QUMap for S2.
 abstract type Basislike <: Basis end
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
 (::Type{B})(a::AbstractArray{<:Field}) where {B<:Basis} = B.(a)
@@ -25,57 +25,82 @@ abstract type Basislike <: Basis end
 
 ### LinOp
 
-# A LinOp{P,S,B} represents a linear operator acting on a field with a
-# particular pixelization scheme P and spin S. The meaning of the basis (B) is
-# not necessarliy the basis the operator is stored in, rather it specifies that
-# fields should be converted to basis B before being acted on by the operator.
+#
+# A LinOp{P,S,B} represents a linear operator which acts on a field with a
+# particular pixelization scheme P and spin S. The meaning of basis B is not
+# that the operator is stored in this basis, but rather that fields should be
+# converted to this basis before the operator is applied.
 # 
-# LinOps should implement some/all of the following:
+# In the simplest case, LinOps should implement *, inv, and ctranspose. 
 # 
-#     * *(::LinOp, ::Field) - the action of the operataor
-#     * *(::Field, ::LinOp) - the action of the transpose operator (called by L'*f, fallback calls ctranspose)
-#     * (same for \)
-#     * inv(::LinOp) - the inverse operator (automatically called by L^-1)
-#     * ctranspose(::LinOp) - the conjugate transpose (alternatively, one could define *(::Field, ::LinOp) directly)
+#     * *(::LinOp, ::Field) - apply the operator
+#     * inv(::LinOp) - return the inverse operator (called by L^-1 and L\f)
+#     * ctranspose(::LinOp) - return the conjugate transpose operator (called by L'*f and L'\f)
+# 
+# These three functions are used by default in the following fallbacks. These
+# fallbacks can be overriden with more efficient implementations of the
+# following functions if desired.
+#
+#     * *(::Field, ::LinOp) - apply the transpose operator
+#     * \(::LinOp, ::Field) - apply the inverse operator
+#     * Ac_ldiv_B(::LinOp, ::Field) - apply the inverse transpose operator
+#
+# Note that *(::Field, ::LinOp) implies the transpose operation and it is this
+# function rather than Ac_mul_B(::LinOp, ::Field) which we choose to have LinOps
+# optionally override. 
+# 
+# Other functions which can be implemented:
+#
 #     * sqrtm(L::LinOp) - the sqrt of the operator s.t. sqrtm(L)*sqrtm(L) = L
 # 
+#
 # By default, LinOps receive the following functionality:
 # 
-#     * Automatic conversion: Operations like A*f where A is a LinOp and f is a
-#       Field first converts f to A's basis, then calls the * function
+#     * Automatic basis conversion: L * f first converts f to L's basis, then
+#     applies *, so that LinOps only need to implement *(::LinOp, ::F) where F
+#     is a type already in the correct basis. 
 # 
 #     * Lazy evaluation: C = A + B returns a LazyBinaryOp object which when
-#       applied to a field, C*f, computes A*f + B*f.
+#     applied to a field, C*f, computes A*f + B*f.
 # 
 #     * Vector conversion: Af = A[~f] returns an object which when acting on an
-#       AbstractVector, Af * v, converts v to a Field, then applies A.
+#     AbstractVector, Af * v, converts v to a Field, then applies A.
 # 
 abstract type LinOp{P<:Pix, S<:Spin, B<:Basis} end
 
-# by design, we chose to request that inv and *(::Field, LinOp) be implemented,
-# and call those from literal_pow and Ac_mul_B
+# Assuming *, inv, and ctranspose are implemented, the following fallbacks make
+# everything work, or can be overriden by individual LinOps with more efficient
+# versions.
 literal_pow(::typeof(^), L::LinOp, ::Type{Val{-1}}) = inv(L)
 Ac_mul_B(L::LinOp, f::Field) = f*L
-
-# these are fallbacks such that if inv and ctranpose are implemented everything
-# works, but LinOps are welcome to implement these directly with more efficient
-# versions
 *(f::Field, L::LinOp) = ctranspose(L)*f
 \(L::LinOp, f::Field) = inv(L)*f
 Ac_ldiv_B(L::LinOp, f::Field) = f*inv(L)
 
+# automatic basis conversion
+for op=(:*,:\)
+    @eval @∷ ($op)(L::LinOp{∷,∷,B}, f::Field) where {B} = $op(L,B(f))
+end
+
 
 ### LinDiagOp
 
+#
 # LinDiagOp{P,S,B} is an operator which is diagonal in basis B. This is
-# imporant because it means we can do fast broadcasting between these
+# important because it means we can do fast broadcasting between these
 # operators and other fields which are also in basis B.
 # 
 # Each LinDiagOp needs to implement broadcast_data(::Type{F}, L::LinDiagOp) which
 # should return a tuple of data which can be broadcast together with the data of a
 # field of type F.
+#
 abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
 ctranspose(L::LinDiagOp) = L
+
+# automatic basis conversion & broadcasting
+for op=(:*,:\)
+    @eval @∷ ($op)(L::LinDiagOp{∷,∷,B}, f::Field) where {B} = broadcast($op,L,B(f))
+end
 
 
 

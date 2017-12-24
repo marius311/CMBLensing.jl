@@ -4,9 +4,8 @@ export FΦTuple, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, Ł, LenseOp
 abstract type LenseOp <: LinOp{Pix,Spin,Basis} end
 
 # For each Field type, lensing algorithms needs to know the basis in which
-# lensing is a remapping. E.g. for FlatS0 and FlatS2 this is Map and QUMap,
-# respectively. Fields should implement their own LenseBasis(::Type{F}) to
-# specify.
+# lensing is a remapping. E.g. for FlatS0 it's Map but for FlatS2 it's QUMap.
+# Fields implement their own LenseBasis(::Type{F}) to specify.
 abstract type LenseBasis <: Basislike end
 const Ł = LenseBasis
 

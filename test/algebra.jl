@@ -1,48 +1,71 @@
-push!(LOAD_PATH, pwd()*"/src")
-using Base.Test
-using CMBLensing
-using MacroTools
+include("general.jl")
 
-# checks on error thrown and is type-stable
-macro mytest(ex) :(@test (@inferred ($(esc(ex))); true)) end
-macro mytest2(ex) :(@test ($(esc(ex)); true)) end
-macro mytest(F,ex) :(@test (((@inferred ($(esc(ex))))::$(esc(F))); true)) end
+using CMBLensing: LP, SymmetricFuncOp, FlatS02, FlatTEBCov
     
-    
-f0 = FlatS0Map(rand(4,4))
-f2 = FlatS2QUMap(rand(4,4),rand(4,4))
-f02 = FieldTuple(f0,f2)
+N = 4
+
+f0   = FlatS0Map(rand(N,N))
+f2   = FlatS2QUMap(rand(N,N),rand(N,N))
+f02  = FieldTuple(f0,f2)
 f220 = FieldTuple(f2,f2,f0)
-fn = FieldTuple(f02,f02)
+fn   = FieldTuple(f02,f02)
 
 @testset "Basic Algebra" begin
     for f in (f0,f2,f02,f220,fn)
+        
         F = typeof(f)
+        L = FullDiagOp(f)
+        
         @testset "$(shortname(typeof(f)))" begin
-            @mytest F f+1
-            @mytest F 2*f
-            @mytest F f+f
-            @mytest F f*f
-            @mytest F FullDiagOp(f)*f
-            @mytest F FullDiagOp(f)*Ð(f)
-            @mytest F FullDiagOp(f)*Ł(f)
             
-            @mytest f+Ð(f)
-            @mytest f+Ł(f)
-            @mytest ∂x*f
-            @mytest ∂x*FullDiagOp(f)*f
-            @mytest ∂x.*FullDiagOp(Ð(f)).*Ð(f)
-            @mytest simulate(FullDiagOp(f))
+            # field algebra
+            @test_noerr @inferred f+1
+            @test_noerr @inferred 2*f
+            @test_noerr @inferred f+f
+            @test_noerr @inferred f*f
             
-            @mytest f⋅f
-            @mytest f'*f    
+            # field basis conversion
+            @test_noerr @inferred f+Ð(f)
+            @test_noerr @inferred f+Ł(f)
             
-            # @mytest2 (@. f = 2f + 3f)
-            # @mytest2 (@. f = 2*∂x*f + 3*∂y*f)
+            # type-stable operators on fields
+            for L in (FullDiagOp(f), FullDiagOp(Ð(f)), ∂x, ∇², LP(500))
+                @test_noerr @inferred L*f
+                @test_noerr @inferred L\f
+                @test_noerr @inferred f*L
+                @test_noerr @inferred L'*f
+                @test_noerr @inferred L'\f
+            end
+            
+            # TEB specific
+            if isa(f,FlatS02)
+                let L = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N))
+                    @test_noerr @inferred L*f
+                    @test_noerr @inferred L\f
+                    @test_noerr @inferred f*L
+                    @test_noerr @inferred L'*f
+                    @test_noerr @inferred L'\f
+                end
+            end
+            
+            # not-type-stable operators on fields
+            for L in (SymmetricFuncOp(op=(x->2x), op⁻¹=(x->x/2)),)
+                @test_noerr L*f
+                @test_noerr L\f
+                @test_noerr f*L
+                @test_noerr L'*f
+                @test_noerr L'\f
+            end
+
+            @test_noerr @inferred(f⋅f)::Real
+            @test_noerr @inferred(Ac_mul_B(f,f))::FlatS0Map
+            
+            # broadcasting
+            @test_noerr (@. f = 2f + 3f)
         end
     end
     @testset "S0/S2" begin
-        @mytest f0*f2
-        @mytest f0*f02
+        @test_noerr f0*f2
+        @test_noerr f0*f02
     end
 end

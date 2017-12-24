@@ -4,7 +4,7 @@ import Base: ==
 ==(x,y,z,ws...) = x==y && ==(y,z,ws...)
 
 """
-Simply replaces every occurence of ∷ with <:Any
+Simply replaces every occurence of ∷ with `<:Any`
 """
 macro ∷(ex)
     esc(postwalk(x->(x==:(∷) ? :(<:Any) : x),ex))

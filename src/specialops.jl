@@ -9,7 +9,7 @@ struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
     FullDiagOp(f::F, unsafe_invert=true) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f,unsafe_invert)
 end
 for op=(:*,:\)
-    @eval @∷ ($op)(O::FullDiagOp{<:Field{∷,∷,B}}, f::Field{∷,∷,B}) where {B} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,f)) : $(Symbol(:.,op))(O.f,f)
+    @eval ($op)(O::FullDiagOp{F}, f::Field) where {F} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,F(f))) : $(Symbol(:.,op))(O.f,F(f))
 end
 sqrtm(f::FullDiagOp) = sqrt.(f)
 simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
@@ -30,7 +30,6 @@ const Ð = DerivBasis
 struct ∂{s} <: LinDiagOp{Pix,Spin,DerivBasis} end
 const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
-*(∂::∂, f::Field) = ∂ .* Ð(f)
 function gradhess(f)
     (∂xf,∂yf)=∇*Ð(f)
     ∂xyf = ∂x*∂yf
@@ -39,7 +38,6 @@ end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 struct ∇²Op <: LinDiagOp{Pix,Spin,DerivBasis} end
 const ∇² = ∇²Op()
-*(∇²::∇²Op, f::Field) = ∇² .* Ð(f)
 
 
 ### FuncOp
@@ -76,8 +74,6 @@ end
 BandPassOp(ℓ,Wℓ) = BandPassOp(promote(collect(ℓ),collect(Wℓ))...)
 HP(ℓ,Δℓ=50) = BandPassOp(0:10000,    [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
 LP(ℓ,Δℓ=50) = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($linspace(0,π,2Δℓ))+1)/2])
-*(op::BandPassOp,f::Field) = op .* Ð(f)
-(::Type{FullDiagOp{F}})(b::BandPassOp) where {F<:Field} = FullDiagOp(F(broadcast_data(F,b)...))
 
 
 # An Op which turns all NaN's to zero

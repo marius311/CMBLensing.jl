@@ -74,7 +74,7 @@ Returns a tuple of (ireal, iimag, negks) where these are
     iimag = map(k->(negk(k)!=k && !k_in_ks(negk(k)) || (k[1]>0 || k[2]>0)), ks)
     indexof(k) = (mod(k[2],n)+1, mod(k[1],n)+1)
     inegks = indexof.(negk.(ks))
-    inegks[!k_in_ks.(negk.(ks))] = (0,0)
+    inegks[.!k_in_ks.(negk.(ks))] = (0,0)
     ireal,iimag,inegks#,ks,negk.(ks)#,k_in_ks.(negk.(ks)),map(k->k_in_ks(negk(k)),ks)
 end
 
