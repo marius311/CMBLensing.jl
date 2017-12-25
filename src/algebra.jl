@@ -109,25 +109,32 @@ struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pi
     b::B
     LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
 end
-# the cases in which to create a lazy op
+# creating LazyBinaryOps
 for op in (:+, :-, :*, :Ac_mul_B)
     @eval         ($op)(a::LinOp, b::LinOp)  = LazyBinaryOp($op,a,b)
     @eval @symarg ($op)(a::LinOp, b::Scalar) = LazyBinaryOp($op,a,b)
 end
 /(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
--(op::LinOp) = -1 * op
 ^(op::LinOp, n::Int) = LazyBinaryOp(^,op,n)
-# evaluation rules when finally applying a lazy op to a field
+-(op::LinOp) = -1 * op
+# evaluating LazyBinaryOps
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
-*(f::Field, lz::LazyBinaryOp{*}) = (f*lz.a)*lz.b
 *(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
-ctranspose(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,ctranspose(lz.b),ctranspose(lz.a))
+ctranspose(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,ctranspose(lz.b),ctranspose(lz.a))
 
+# a generic lazy ctranspose
+struct LazyHermitian{A<:LinOp} <: LinOp{Pix,Spin,Basis}
+    a::A
+end
+ctranspose(L::LinOp) = LazyHermitian(L)
+ctranspose(L::LazyHermitian) = L.a
+*(L::LazyHermitian, f::Field) = L.a'*f
+inv(L::LazyHermitian) = LazyHermitian(inv(L))
 
 
 
