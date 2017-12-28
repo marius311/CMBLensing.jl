@@ -11,8 +11,9 @@ struct LenseFlow{I<:ODESolver,t₀,t₁,F<:Field} <: LenseFlowOp{I,t₀,t₁}
     Hϕ::SMatrix{2,2,F,4}
 end
 
-LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0.,1.}(Map(ϕ), gradhess(ϕ)...)
-LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(ϕ,∇ϕ,Hϕ)
+LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0,1}(ϕ)
+LenseFlow{I,t₀,t₁}(ϕ::Field{<:Any,<:S0}) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(Map(ϕ), gradhess(ϕ)...)
+LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,float(t₀),float(t₁),F}(ϕ,∇ϕ,Hϕ)
 LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 
 # the ODE solvers
