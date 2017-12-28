@@ -14,11 +14,10 @@ abstract type EBFourier <: Basis end
 
 
 struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
-    Ex::Matrix
+    Ex::Matrix{T}
     Bx::Matrix{T}
     FlatS2EBMap{T,P}(Ex, Bx) where {T,P} = new(checkmap(P,Ex),checkmap(P,Bx))
 end
-
 
 struct FlatS2EBFourier{T<:Real,P<:Flat} <: Field{P,S2,EBFourier}
     El::Matrix{Complex{T}}
