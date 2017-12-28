@@ -1,0 +1,19 @@
+language: julia
+os:
+  - linux
+julia:
+  - 0.6
+notifications:
+  email: false
+git:
+  depth: 99999999
+
+addons:
+ apt: 
+   packages:
+   - hdf5-tools
+   - python3
+   - python3-matplotlib
+env:
+  global:
+    - PYTHON=python3

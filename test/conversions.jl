@@ -1,20 +1,15 @@
-push!(LOAD_PATH, pwd()*"/src")
-using Base.Test
-import Base: ≈
-using CMBLensing
-##
-
-# test bases conversions
+include("general.jl")
 
 nside = 65
 T = Float64
 P = Flat{1,nside}
 
+import Base: ≈
 ≈(a::Field,b::Field) = all(broadcast((a,b)->(≈(a,b; atol=1e-6)),a[:],b[:]))
 
 @testset "FlatS2 basis conversion" begin
     bases = [QUMap, EBMap, QUFourier, EBFourier] 
-    for B1=bases, B2=bases
+    for B1 in bases, B2 in bases
         if B1!=B2
             @eval @test begin 
                 f = FlatS2QUMap{T,P}((rand(T,nside,nside) for i=1:2)...)

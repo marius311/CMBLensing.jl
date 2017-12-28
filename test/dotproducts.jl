@@ -1,6 +1,5 @@
-push!(LOAD_PATH, pwd()*"/src")
-using Base.Test
-using CMBLensing
+include("general.jl")
+
 
 @testset "dot products" begin
 

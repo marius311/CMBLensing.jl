@@ -1,6 +1,7 @@
 # CMBLensing.jl
 
 [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?filepath=nb%2Fjointmax_128example%2Fjointmax_128example.ipynb)
+[![Build Status](https://travis-ci.org/marius311/CMBLensing.jl.svg?branch=master)](https://travis-ci.org/marius311/CMBLensing.jl)
 
 
 This repository contains tools written in the [Julia](https://julialang.org/) language to analyze the gravitationally lensed Cosmic Microwave Background, and includes an implementation of the `LenseFlow`  algorithm as described in [Millea, Anderes, & Wandelt (2017)](https://arxiv.org/abs/1708.06753). 
