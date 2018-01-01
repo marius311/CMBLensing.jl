@@ -7,11 +7,6 @@ export
     FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
     FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
 
-abstract type QUMap <: Basis end
-abstract type EBMap <: Basis end
-abstract type QUFourier <: Basis end
-abstract type EBFourier <: Basis end
-
 
 struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
     Ex::Matrix{T}
@@ -138,7 +133,7 @@ Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*
 pixstd{T,P}(f::FlatS2Map{T,P}) = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
 pixstd{T,P}(f::FlatS2Fourier{T,P}) = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
 
-ud_grade(f::FlatS2{T,P}, args...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...)) for x=[:Q,:U])...)
+ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
 
 getindex(f::FlatS2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
 getindex(f::FlatS2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])

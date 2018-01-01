@@ -1,4 +1,4 @@
-export bcggd, cg, pcg, gdsteps
+export bcggd, cg, pcg, pcg2, gdsteps
 
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 
@@ -39,6 +39,38 @@ pcg(P,A,b,x=P*b; callback=nothing, kwargs...) = begin
     P*x, hist
 end
 
+""" 
+Preconditioned conjugate gradient. M should be ≈ A, and M \ x should be fast. 
+"""
+function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing)
+    r = b - A*x
+    z = M \ r
+    p = z
+    bestres = res = dot(r,z)
+    bestx = x
+    reshist = Vector{typeof(res)}()
+
+    dt = (progress==false ? Inf : progress)
+    @showprogress dt "CG: " for i = 1:nsteps
+        Ap = A*p
+        α = res / dot(p,Ap)
+        x = x + α * p
+        r = r - α * Ap
+        z = M \ r
+        res′ = dot(r,z)
+        if res′<bestres
+            bestres,bestx = res′,x
+        end
+        if callback!=nothing
+            callback(i,x,res)
+        end
+        push!(reshist,res)
+        if res′<tol; break; end
+        p = z + (res′ / res) * p
+        res = res′
+    end
+    bestx, reshist
+end
 
 """
 Do Ngd gradient descent steps, with Ncg conjugate gradient steps towards solving

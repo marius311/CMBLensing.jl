@@ -81,6 +81,8 @@ const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},FlatIQUMap{T,P}}
 const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},FlatTEBFourier{T,P}}
 const FlatField{T,P} = Union{FlatMap{T,P},FlatFourier{T,P}}
 
+FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
+
 # generic eltype
 eltype(::Type{<:FlatField{T}}) where {T} = T
 

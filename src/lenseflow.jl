@@ -112,6 +112,9 @@ negδvelocityᴴ!(v_f_δf_δϕ′, L::CachedLenseFlow, args...) = negδvelocity�
 # changing integration endpoints causes a re-caching
 _getindex(L::CachedLenseFlow, ::→{t₀,t₁}) where {t₀,t₁} = cache(L.L[t₀→t₁])
 
+# ud_grading lenseflow ud_grades the ϕ map
+ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))
+ud_grade(L::CachedLenseFlow, args...; kwargs...)  = cache(ud_grade(L.L,args...;kwargs...))
 
 """
 Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀

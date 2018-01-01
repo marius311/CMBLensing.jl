@@ -166,4 +166,4 @@ getindex(f::FieldNTuple, i::Union{Int,UnitRange{Int}}) = (f...)[i]
 
 getindex(f::Field2Tuple{<:Field{<:Any,<:S0},<:Field{<:Any,<:S2}},s::Symbol) = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
 
-ud_grade(ft::FieldNTuple,args...) = FieldTuple((ud_grade(f,args...) for f in ft)...)
+ud_grade(ft::FieldNTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)

@@ -4,9 +4,6 @@
 
 export FlatS0Fourier, FlatS0Map, FlatS0
 
-abstract type Map <: Basis end
-abstract type Fourier <: Basis end
-
 struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
     Tx::Matrix{T}
     FlatS0Map{T,P}(Tx::AbstractMatrix) where {T,P} = new{T,P}(checkmap(P,Tx))
@@ -78,8 +75,8 @@ pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))
 """
     ud_grade(f::Field, θnew, mode=:real, deconv_pixwin=true, anti_aliasing=true)
 
-Downgrades field `f` to new resolution `θnew` (only in integer steps). Two modes
-are available: 
+Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).
+Two downgrade modes `dmode` are available: 
 
     *`:map`     : Downgrade by averaging pixels in map-space.
     *`:fourier` : Downgrade by truncating the Fourier grid
@@ -89,24 +86,36 @@ true, deconvolves the pixel window function from the downgraded map so the
 spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
+One single upgrade mode `umode` is available:
+
+    *`:map` : Upgrade by duplicating pixels in map space.
+
 """
-function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true) where {T,θ,N}
-    (θnew>θ && isinteger(θnew//θ)) || throw(ArgumentError("Can only downgrade in integer steps"))
-    (mode in [:map,:fourier]) || throw(ArgumentError("`mode` should be either `:map` or `:fourier`"))
-    fac = θnew÷θ
-    Nnew = N÷fac
-    Pnew = Flat{θnew,Nnew}
-    if mode==:map
-        AA = anti_aliasing ? LP(FFTgrid(T,Pnew).nyq,0) : IdentityOp
-        fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
-        if deconv_pixwin
-            @unpack Δx,k = FFTgrid(T,Pnew)
-            Wk =  @. ifelse(k==0, 1, sin(k*Δx/2) / sin(k*Δx/2/fac) / fac)
-            AA * FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1])
+function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew; dmode=:map, deconv_pixwin=false, anti_aliasing=false, umode=:map) where {T,θ,N}
+    θnew==θ && return f
+    (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
+    if θnew>θ
+        # downgrade
+        (dmode in [:map,:fourier]) || throw(ArgumentError("`dmode` should be either `:map` or `:fourier`"))
+        fac = θnew÷θ
+        Nnew = N÷fac
+        Pnew = Flat{θnew,Nnew}
+        if dmode==:map
+            AA = anti_aliasing ? LP(FFTgrid(T,Pnew).nyq) : IdentityOp
+            fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
+            if deconv_pixwin
+                @unpack Δx,k = FFTgrid(T,Pnew)
+                Wk =  @. ifelse(k==0, 1, sin(k*Δx/2) / sin(k*Δx/2/fac) / fac)
+                FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1])
+            else
+                fnew
+            end
         else
-            fnew
+            FlatS0Fourier{T,Pnew}(f[:Tl][1:(Nnew÷2+1), [1:Nnew÷2; (end-Nnew÷2+1):end]])
         end
     else
-        FlatS0Fourier{T,Pnew}(f[:Tl][1:Nnew÷2+1, [1:Nnew÷2; (end-Nnew÷2+1):end]])
+        # upgrade
+        fac = θ÷θnew
+        FlatS0Map{T,Flat{θnew,N*fac}}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
     end
 end

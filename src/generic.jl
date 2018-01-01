@@ -4,15 +4,22 @@ abstract type Pix end
 abstract type Spin end
 abstract type Basis end
 
+# All fields are a subtype of this. 
+abstract type Field{P<:Pix, S<:Spin, B<:Basis} end
+
 # Spin types, "S0" is spin-0, i.e. a scalar map. "S2" is spin-2 like QU, and S02
 # is a tuple of S0 and S2 like TQU. 
 abstract type S0 <: Spin end
 abstract type S2 <: Spin end
 abstract type S02 <: Spin end
 
-# All fields are a subtype of this. 
-abstract type Field{P<:Pix, S<:Spin, B<:Basis} end
-
+# Basis types
+abstract type Map <: Basis end
+abstract type Fourier <: Basis end
+abstract type QUMap <: Basis end
+abstract type EBMap <: Basis end
+abstract type QUFourier <: Basis end
+abstract type EBFourier <: Basis end
 
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
 # particular types of fields, these might be different actual bases, e.g. the
@@ -113,6 +120,7 @@ similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
 getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
+getbasis(::F) where {F<:Field} = getbasis(F)
 getindex(f::Union{Field,LinOp},x::Symbol) = getindex(f,Val{x})
 function getindex(f::F,::Type{Val{x}}) where {x,P,S,B,F<:Field{P,S,B}}
     l = filter(S->x in fieldnames(S), subtypes(Field{P,S}))

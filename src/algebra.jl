@@ -126,6 +126,7 @@ end
 *(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
 ctranspose(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,ctranspose(lz.b),ctranspose(lz.a))
+ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 
 # a generic lazy ctranspose
 struct LazyHermitian{A<:LinOp} <: LinOp{Pix,Spin,Basis}
@@ -135,6 +136,7 @@ ctranspose(L::LinOp) = LazyHermitian(L)
 ctranspose(L::LazyHermitian) = L.a
 *(L::LazyHermitian, f::Field) = L.a'*f
 inv(L::LazyHermitian) = LazyHermitian(inv(L))
+ud_grade(lz::LazyHermitian, args...; kwargs...) = LazyHermitian(ud_grade(lz.a,args...; kwargs...))
 
 
 
@@ -173,3 +175,5 @@ end
 # needed by ODE.jl
 norm(f::Field) = +(norm.(broadcast_data(containertype(f),f))...)
 isnan(::Field) = false
+
+ud_grade(s::Scalar, args...; kwargs...) = s

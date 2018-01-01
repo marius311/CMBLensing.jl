@@ -16,6 +16,8 @@ simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
 inv(op::FullDiagOp) = FullDiagOp(op.unsafe_invert ? nan2inf.(1./op.f) : 1./op.f, op.unsafe_invert)
+@∷ ud_grade(O::FullDiagOp{<:Field{∷,∷,Fourier}}, θnew) = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:fourier)))
+@∷ ud_grade(O::FullDiagOp{<:Field{∷,∷,Map}},θnew)      = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:map,deconv_pixwin=false,anti_aliasing=false)))
 
 
 
@@ -51,9 +53,9 @@ const ∇² = ∇²Op()
     op⁻ᴴ = nothing
 end
 SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
-@∷ *(op::FuncOp, f::Field) = op.op   != nothing ? op.op(f)   : error("op*f not implemented")
-@∷ *(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
-@∷ \(op::FuncOp, f::Field) = op.op⁻¹ != nothing ? op.op⁻¹(f) : error("op\\f not implemented")
+*(op::FuncOp, f::Field) = op.op   != nothing ? op.op(f)   : error("op*f not implemented")
+*(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
+\(op::FuncOp, f::Field) = op.op⁻¹ != nothing ? op.op⁻¹(f) : error("op\\f not implemented")
 ctranspose(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
 const IdentityOp = FuncOp(repeated(identity,4)...)
 inv(op::FuncOp) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
@@ -74,6 +76,7 @@ end
 BandPassOp(ℓ,Wℓ) = BandPassOp(promote(collect(ℓ),collect(Wℓ))...)
 HP(ℓ,Δℓ=50) = BandPassOp(0:10000,    [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
 LP(ℓ,Δℓ=50) = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($linspace(0,π,2Δℓ))+1)/2])
+ud_grade(b::BandPassOp, args...; kwargs...) = b
 
 
 # An Op which turns all NaN's to zero
