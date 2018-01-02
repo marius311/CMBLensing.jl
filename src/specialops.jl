@@ -3,10 +3,10 @@
 # A LinDiagOp which is stored explicitly as all of its diagonal coefficients in
 # the basis in which it's diagonal. Additionally, `unsafe_invert=true` makes it
 # so we don't have to worry about inverting such ops which have zero-entries. 
-struct FullDiagOp{F<:Field,P,S,B} <: LinDiagOp{P,S,B}
+struct FullDiagOp{F<:Field,B,S,P} <: LinDiagOp{B,S,P}
     f::F
     unsafe_invert::Bool
-    FullDiagOp(f::F, unsafe_invert=true) where {P,S,B,F<:Field{P,S,B}} = new{F,P,S,B}(f,unsafe_invert)
+    FullDiagOp(f::F, unsafe_invert=true) where {B,S,P,F<:Field{B,S,P}} = new{F,B,S,P}(f,unsafe_invert)
 end
 for op=(:*,:\)
     @eval ($op)(O::FullDiagOp{F}, f::Field) where {F} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,F(f))) : $(Symbol(:.,op))(O.f,F(f))
@@ -16,8 +16,8 @@ simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
 broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
 containertype(op::FullDiagOp) = containertype(op.f)
 inv(op::FullDiagOp) = FullDiagOp(op.unsafe_invert ? nan2inf.(1./op.f) : 1./op.f, op.unsafe_invert)
-@∷ ud_grade(O::FullDiagOp{<:Field{∷,∷,Fourier}}, θnew) = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:fourier)))
-@∷ ud_grade(O::FullDiagOp{<:Field{∷,∷,Map}},θnew)      = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:map,deconv_pixwin=false,anti_aliasing=false)))
+ud_grade(O::FullDiagOp{<:Field{Fourier}}, θnew) = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:fourier)))
+ud_grade(O::FullDiagOp{<:Field{Map}},θnew)      = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:map,deconv_pixwin=false,anti_aliasing=false)))
 
 
 
@@ -29,7 +29,7 @@ inv(op::FullDiagOp) = FullDiagOp(op.unsafe_invert ? nan2inf.(1./op.f) : 1./op.f,
 
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
-struct ∂{s} <: LinDiagOp{Pix,Spin,DerivBasis} end
+struct ∂{s} <: LinDiagOp{DerivBasis,Spin,Pix} end
 const ∂x,∂y= ∂{:x}(),∂{:y}()
 const ∇ = @SVector [∂x,∂y]
 function gradhess(f)
@@ -38,7 +38,7 @@ function gradhess(f)
     @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
 end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
-struct ∇²Op <: LinDiagOp{Pix,Spin,DerivBasis} end
+struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
 const ∇² = ∇²Op()
 
 
@@ -46,7 +46,7 @@ const ∇² = ∇²Op()
 
 # An Op which applies some arbitrary function to its argument.
 # Transpose and/or inverse operations which are not specified will return an error.
-@with_kw struct FuncOp <: LinOp{Pix,Spin,Basis}
+@with_kw struct FuncOp <: LinOp{Basis,Spin,Pix}
     op   = nothing
     opᴴ  = nothing
     op⁻¹ = nothing
@@ -69,7 +69,7 @@ inv(op::FuncOp) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
 # broadcast_data(::Type{F}, ::BandPassOp) to describe how this is actually
 # applied. 
 
-struct BandPassOp{T<:Vector} <: LinDiagOp{Pix,Spin,DerivBasis}
+struct BandPassOp{T<:Vector} <: LinDiagOp{DerivBasis,Spin,Pix}
     ℓ::T
     Wℓ::T
 end

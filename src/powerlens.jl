@@ -12,7 +12,7 @@
 
 export PowerLens
 
-@∷ struct PowerLens{N,F<:Field{∷,<:S0}} <: LenseOp
+struct PowerLens{N,F<:Field{<:Any,<:S0}} <: LenseOp
     ∂xϕⁱ::Dict{Int,Union{Int,F}}
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end

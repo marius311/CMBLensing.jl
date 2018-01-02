@@ -5,7 +5,7 @@ abstract type Spin end
 abstract type Basis end
 
 # All fields are a subtype of this. 
-abstract type Field{P<:Pix, S<:Spin, B<:Basis} end
+abstract type Field{B<:Basis, S<:Spin, P<:Pix} end
 
 # Spin types, "S0" is spin-0, i.e. a scalar map. "S2" is spin-2 like QU, and S02
 # is a tuple of S0 and S2 like TQU. 
@@ -33,7 +33,7 @@ abstract type Basislike <: Basis end
 ### LinOp
 
 #
-# A LinOp{P,S,B} represents a linear operator which acts on a field with a
+# A LinOp{B,S,P} represents a linear operator which acts on a field with a
 # particular pixelization scheme P and spin S. The meaning of basis B is not
 # that the operator is stored in this basis, but rather that fields should be
 # converted to this basis before the operator is applied.
@@ -73,7 +73,7 @@ abstract type Basislike <: Basis end
 #     * Vector conversion: Af = A[~f] returns an object which when acting on an
 #     AbstractVector, Af * v, converts v to a Field, then applies A.
 # 
-abstract type LinOp{P<:Pix, S<:Spin, B<:Basis} end
+abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 
 # Assuming *, inv, and ctranspose are implemented, the following fallbacks make
 # everything work, or can be overriden by individual LinOps with more efficient
@@ -86,14 +86,14 @@ Ac_ldiv_B(L::LinOp, f::Field) = f*inv(L)
 
 # automatic basis conversion
 for op=(:*,:\)
-    @eval @∷ ($op)(L::LinOp{∷,∷,B}, f::Field) where {B} = $op(L,B(f))
+    @eval ($op)(L::LinOp{B}, f::Field) where {B} = $op(L,B(f))
 end
 
 
 ### LinDiagOp
 
 #
-# LinDiagOp{P,S,B} is an operator which is diagonal in basis B. This is
+# LinDiagOp{B,S,P} is an operator which is diagonal in basis B. This is
 # important because it means we can do fast broadcasting between these
 # operators and other fields which are also in basis B.
 # 
@@ -101,12 +101,12 @@ end
 # should return a tuple of data which can be broadcast together with the data of a
 # field of type F.
 #
-abstract type LinDiagOp{P,S,B} <: LinOp{P,S,B} end
+abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
 ctranspose(L::LinDiagOp) = L
 
 # automatic basis conversion & broadcasting
 for op=(:*,:\)
-    @eval @∷ ($op)(L::LinDiagOp{∷,∷,B}, f::Field) where {B} = broadcast($op,L,B(f))
+    @eval ($op)(L::LinDiagOp{B}, f::Field) where {B} = broadcast($op,L,B(f))
 end
 
 
@@ -119,11 +119,11 @@ zero(::F) where {F<:Field} = zero(F)
 similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
-getbasis(::Type{F}) where {P,S,B,F<:Field{P,S,B}} = B
+getbasis(::Type{<:Field{B}}) where {B} = B
 getbasis(::F) where {F<:Field} = getbasis(F)
 getindex(f::Union{Field,LinOp},x::Symbol) = getindex(f,Val{x})
-function getindex(f::F,::Type{Val{x}}) where {x,P,S,B,F<:Field{P,S,B}}
-    l = filter(S->x in fieldnames(S), subtypes(Field{P,S}))
+function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
+    l = filter(S->x in fieldnames(S), subtypes(Field{<:Any,S,P}))
     if (length(l)==1)
         getfield(getbasis(l[1])(f),x)
     elseif (length(l)==0)

@@ -91,11 +91,11 @@ transpose(f::Field) = f
 
 # B(f) where B is a basis converts f to that basis. This is the fallback if the
 # field is already in the right basis.
-@∷ (::Type{B})(f::Field{∷,∷,B}) where {B} = f
+(::Type{B})(f::Field{B}) where {B} = f
 
 # F(f) where F is some Field type defaults to just using the basis conversion
 # and asserting that we end up with the right type, F
-@∷ convert(::Type{F}, f::Field{∷,∷,B1}) where {B1,B2,F<:Field{∷,∷,B2}} = B2(f)::F
+convert(::Type{F}, f::Field{B1}) where {B1,B2,F<:Field{B2}} = B2(f)::F
 
 
 
@@ -104,7 +104,7 @@ transpose(f::Field) = f
 # we use LazyBinaryOps to create new operators composed from other operators
 # which don't actually evaluate anything until they've been multiplied by a
 # field
-struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Pix,Spin,Basis}
+struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Basis,Spin,Pix}
     a::A
     b::B
     LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
@@ -129,7 +129,7 @@ ctranspose(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,ctranspose(lz.b),ctra
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 
 # a generic lazy ctranspose
-struct LazyHermitian{A<:LinOp} <: LinOp{Pix,Spin,Basis}
+struct LazyHermitian{A<:LinOp} <: LinOp{Basis,Spin,Pix}
     a::A
 end
 ctranspose(L::LinOp) = LazyHermitian(L)

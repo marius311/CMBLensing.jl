@@ -9,7 +9,7 @@ FlatIQUMap{T,P}(i,q,u) where {T,P} = Field2Tuple(FlatS0Map{T,P}(i),FlatS2QUMap{T
 FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
 
 
-struct FlatTEBCov{T,P} <: LinOp{P,S02,Basis2Tuple{Fourier,EBFourier}}
+struct FlatTEBCov{T,P} <: LinOp{Basis2Tuple{Fourier,EBFourier},S02,P}
     ΣTE :: SMatrix{2,2,Diagonal{T},4}
     ΣB :: Matrix{T}
 end

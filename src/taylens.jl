@@ -18,7 +18,7 @@ end
 
 
 
-@∷ function Taylens{N}(ϕ::FlatS0{T,P}) where {N,T,P}
+function Taylens{N}(ϕ::FlatS0{T,P}) where {N,T,P}
 
     g = FFTgrid(T,P)
     Nside = g.nside

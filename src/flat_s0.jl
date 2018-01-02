@@ -4,12 +4,12 @@
 
 export FlatS0Fourier, FlatS0Map, FlatS0
 
-struct FlatS0Map{T<:Real,P<:Flat} <: Field{P,S0,Map}
+struct FlatS0Map{T<:Real,P<:Flat} <: Field{Map,S0,P}
     Tx::Matrix{T}
     FlatS0Map{T,P}(Tx::AbstractMatrix) where {T,P} = new{T,P}(checkmap(P,Tx))
 end
 
-struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{P,S0,Fourier}
+struct FlatS0Fourier{T<:Real,P<:Flat} <: Field{Fourier,S0,P}
     Tl::Matrix{Complex{T}}
     FlatS0Fourier{T,P}(Tl::AbstractMatrix) where {T,P} = new{T,P}(checkfourier(P,Tl))
 end

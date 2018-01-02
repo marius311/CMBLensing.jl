@@ -49,15 +49,15 @@ for N in Ns
             
             # 
             # I really wish I could define this just as 
-            # Field2Tuple{F1<:Field{∷,∷,B1},F2<:Field{∷,∷,B2}} <: Field{Pix,Spin,Basis2Tuple{B1,B2}}
+            # Field2Tuple{F1<:Field{B1},F2<:Field{B2}} <: Field{Basis2Tuple{B1,B2},Spin,Pix}
             # but this doesn't exist in Julia (yet?), so instead I use this "hack"
             # see also: https://discourse.julialang.org/t/could-julia-have-implicit-type-parameters/2914/5
             # 
-            @∷ struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{Pix,Spin,$BNT{$(Bs...)}} 
+            struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{$BNT{$(Bs...)},Spin,Pix} 
                 $((:($(f(i))::$(F(i))) for i=1:N)...)
                 # todo:
-                $FNT($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
-                $FNT{$(Fs...),$(Bs...)}($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{∷,∷,$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+                $FNT($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
+                $FNT{$(Fs...),$(Bs...)}($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
             end
             
             FieldTuple($((f(i) for i=1:N)...)) = $FNT($((f(i) for i=1:N)...))

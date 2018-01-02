@@ -8,25 +8,25 @@ export
     FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
 
 
-struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{P,S2,EBMap}
+struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{EBMap,S2,P}
     Ex::Matrix{T}
     Bx::Matrix{T}
     FlatS2EBMap{T,P}(Ex, Bx) where {T,P} = new(checkmap(P,Ex),checkmap(P,Bx))
 end
 
-struct FlatS2EBFourier{T<:Real,P<:Flat} <: Field{P,S2,EBFourier}
+struct FlatS2EBFourier{T<:Real,P<:Flat} <: Field{EBFourier,S2,P}
     El::Matrix{Complex{T}}
     Bl::Matrix{Complex{T}}
     FlatS2EBFourier{T,P}(El, Bl) where {T,P} = new(checkfourier(P,El),checkfourier(P,Bl))
 end
 
-struct FlatS2QUMap{T<:Real,P<:Flat} <: Field{P,S2,QUMap}
+struct FlatS2QUMap{T<:Real,P<:Flat} <: Field{QUMap,S2,P}
     Qx::Matrix{T}
     Ux::Matrix{T}
     FlatS2QUMap{T,P}(Qx,Ux) where {T,P} = new(checkmap(P,Qx),checkmap(P,Ux))
 end
 
-struct FlatS2QUFourier{T<:Real,P<:Flat} <: Field{P,S2,QUFourier}
+struct FlatS2QUFourier{T<:Real,P<:Flat} <: Field{QUFourier,S2,P}
     Ql::Matrix{Complex{T}}
     Ul::Matrix{Complex{T}}
     FlatS2QUFourier{T,P}(Ql,Ul) where {T,P} = new(checkfourier(P,Ql),checkfourier(P,Ul))
