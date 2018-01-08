@@ -1,6 +1,6 @@
 include("general.jl")
 
-using CMBLensing: LP, SymmetricFuncOp, FlatS02, FlatTEBCov
+using CMBLensing: LP, SymmetricFuncOp, FlatS02, FlatTEBCov, LazyBinaryOp
     
 N = 4
 
@@ -56,6 +56,11 @@ fn   = FieldTuple(f02,f02)
                 @test_noerr L'*f
                 @test_noerr L'\f
             end
+            
+            # FullDiagOp explicit and lazy operations
+            @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ł(f)))::FullDiagOp
+            @test_noerr @inferred(2*FullDiagOp(Ł(f)))::FullDiagOp
+            @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ð(f)))::LazyBinaryOp
 
             @test_noerr @inferred(f⋅f)::Real
             @test_noerr @inferred(Ac_mul_B(f,f))::FlatS0Map

@@ -4,8 +4,7 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
-using ImageFiltering
-using Images
+using Images: feature_transform, imfilter, Kernel
 using Interpolations
 using MacroTools: @capture, postwalk, isexpr
 using ODE
@@ -13,7 +12,7 @@ using Parameters
 using ProgressMeter
 using PyCall
 using PyPlot
-using StaticArrays
+using StaticArrays: StaticArray, SMatrix, @SMatrix, SVector, @SVector
 using StatsBase
 include("RFFTVectors.jl"); using .RFFTVectors
 

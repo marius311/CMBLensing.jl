@@ -100,8 +100,9 @@ function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew; dmode=:map, deconv_pixwin=fals
         fac = θnew÷θ
         Nnew = N÷fac
         Pnew = Flat{θnew,Nnew}
+        nyq = FFTgrid(T,Pnew).nyq
+        AA = anti_aliasing ? LP(nyq,nyq*0.1) : IdentityOp
         if dmode==:map
-            AA = anti_aliasing ? LP(FFTgrid(T,Pnew).nyq) : IdentityOp
             fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
             if deconv_pixwin
                 @unpack Δx,k = FFTgrid(T,Pnew)
@@ -111,7 +112,7 @@ function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew; dmode=:map, deconv_pixwin=fals
                 fnew
             end
         else
-            FlatS0Fourier{T,Pnew}(f[:Tl][1:(Nnew÷2+1), [1:Nnew÷2; (end-Nnew÷2+1):end]])
+            FlatS0Fourier{T,Pnew}((AA*f)[:Tl][1:(Nnew÷2+1), [1:Nnew÷2; (end-Nnew÷2+1):end]])
         end
     else
         # upgrade

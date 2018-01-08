@@ -110,6 +110,14 @@ for op=(:*,:\)
 end
 
 
+### Scalars
+
+# scalars which are allowed in our expressions must be real because we
+# implicitly assume our maps are real, and addition/multiplication by a complex
+# number, even of the fourier transform, would break this.
+const Scalar = Real
+const FieldOpScal = Union{Field,LinOp,Scalar}
+
 
 ### Other generic stuff
 

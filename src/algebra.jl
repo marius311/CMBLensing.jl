@@ -3,12 +3,6 @@ import Base: broadcast, broadcast!
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
-# scalars which are allowed in our expressions must be real because we
-# implicitly assume our maps are real, and addition/multiplication by a complex
-# number, even of the fourier transform, would break this.
-const Scalar = Real
-const FieldOpScal = Union{Field,LinOp,Scalar}
-
 # the data which is broadcast over for Fields and Scalars
 # (other objects can define their own methods for this, allowing a single type
 # of object to be broadcast with many different types of Fields)
@@ -50,20 +44,18 @@ broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
 end
 
 
-### old-style (slow) non-broadcasted algebra
-
-for T in (:Field,:LinDiagOp), op in (:+,:-), (T1,T2) in ((T,:Scalar),(:Scalar,T),(T,T))
+# non-broadcasted algebra on fields just uses the broadcasted versions
+# (although in a less efficient way than if you were to directly use
+# broadcasting)
+for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
     @eval ($op)(a::$T1, b::$T2) = broadcast($(op),promote(a,b)...)
 end
-for op in (:*,:/)
-    for (T1,T2) in ((:T,:Scalar),(:Scalar,:T),(:T,:T)), T in (:Field,:LinDiagOp)
-        @eval ($op)(a::$T1, b::$T2) where {T<:$T} = broadcast($(op),a,b)
-    end
+for op in (:*,:/), (T1,T2) in ((:F,:Scalar),(:Scalar,:F),(:F,:F))
+    @eval ($op)(a::$T1, b::$T2) where {F<:Field} = broadcast($(op),a,b)
 end
-^(f::Field,n::Real) = f.^n
-^(f::Field,n::Int) = f.^n #needed to avoid ambiguity error
 -(f::Field) = .-(f)
 dot(a::Field,b::Field) = dot(promote(a,b)...)
+
 
 
 ### transposing
@@ -75,17 +67,6 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 # (otherwise the expression doesn't make sense). since we can always infer this,
 # we don't actually have a "TransposedField" object or anything like that.
 transpose(f::Field) = f
-
-# there is one exception, sometimes we write f1' * f2 with f1 and f2 as Fields
-# (this comes up in the transposed lensing operators). for S0 this means Tx .*
-# Tx, for S2 it means Qx .* Qx + Ux .* Ux, etc... in these cases, we overload
-# the '* operator (Ac_mul_B). since we don't have a TransposedField object, this
-# means we can't store the transpose of a field then later multiply it, i.e.
-# `y=x'; y*x` doesn't work. in this case, the `y*x` does *not* do this transpose
-# multiplication.
-# this is the fallback:
-# Ac_mul_B(x::Field, y::Field) = x*y
-
 
 ### basis conversion
 

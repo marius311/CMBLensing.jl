@@ -1,24 +1,32 @@
 ### FullDiagOp
 
-# A LinDiagOp which is stored explicitly as all of its diagonal coefficients in
-# the basis in which it's diagonal. Additionally, `unsafe_invert=true` makes it
-# so we don't have to worry about inverting such ops which have zero-entries. 
+# A FullDiagOp is a LinDiagOp which is stored explicitly as all of its diagonal
+# coefficients in the basis in which it's diagonal. It also has the convenient
+# `unsafe_invert` option which, if true, makes it so we don't have to worry
+# about inverting such operators which have zero-entries. 
 struct FullDiagOp{F<:Field,B,S,P} <: LinDiagOp{B,S,P}
     f::F
     unsafe_invert::Bool
     FullDiagOp(f::F, unsafe_invert=true) where {B,S,P,F<:Field{B,S,P}} = new{F,B,S,P}(f,unsafe_invert)
 end
 for op=(:*,:\)
-    @eval ($op)(O::FullDiagOp{F}, f::Field) where {F} = O.unsafe_invert ? nan2zero.($(Symbol(:.,op))(O.f,F(f))) : $(Symbol(:.,op))(O.f,F(f))
+    @eval ($op)(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.($(Symbol(:.,op))(L.f,F(f))) : $(Symbol(:.,op))(L.f,F(f))
+end
+# non-broadcasted algebra on FullDiagOps
+for op in (:+,:-,:*,:\,:/)
+    @eval ($op)(L::FullDiagOp, s::Scalar)           = FullDiagOp($op(L.f, s))
+    @eval ($op)(s::Scalar,     L::FullDiagOp)       = FullDiagOp($op(s,   L.f))
+    # ops with FullDiagOps only produce a FullDiagOp if the two are in the same basis
+    @eval ($op)(La::F, Lb::F) where {F<:FullDiagOp} = FullDiagOp($op(La.f,Lb.f))
+    # if they're not, we will fall back to creating a LazyBinaryOp (see algebra.jl)
 end
 sqrtm(f::FullDiagOp) = sqrt.(f)
-simulate(Σ::FullDiagOp{F}) where {F} = sqrtm(Σ) .* F(white_noise(F))
-broadcast_data(::Type{F}, op::FullDiagOp{F}) where {F} = broadcast_data(F,op.f)
-containertype(op::FullDiagOp) = containertype(op.f)
-inv(op::FullDiagOp) = FullDiagOp(op.unsafe_invert ? nan2inf.(1./op.f) : 1./op.f, op.unsafe_invert)
-ud_grade(O::FullDiagOp{<:Field{Fourier}}, θnew) = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:fourier)))
-ud_grade(O::FullDiagOp{<:Field{Map}},θnew)      = FullDiagOp(getbasis(O.f)(ud_grade((O.unsafe_invert ? nan2zero.(O.f) : O.f),θnew,dmode=:map,deconv_pixwin=false,anti_aliasing=false)))
-
+simulate(L::FullDiagOp{F}) where {F} = sqrtm(L) .* F(white_noise(F))
+broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
+containertype(L::FullDiagOp) = containertype(L.f)
+inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1./L.f) : 1./L.f, L.unsafe_invert)
+ud_grade(L::FullDiagOp{<:Field{Fourier}}, θnew) = FullDiagOp(getbasis(L.f)(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier)))
+ud_grade(L::FullDiagOp{<:Field{Map}},θnew)      = FullDiagOp(getbasis(L.f)(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,deconv_pixwin=false,anti_aliasing=false)))
 
 
 ### Derivative ops
