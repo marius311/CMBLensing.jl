@@ -29,23 +29,14 @@ fn   = FieldTuple(f02,f02)
             @test_noerr @inferred f+Ł(f)
             
             # type-stable operators on fields
-            for L in (FullDiagOp(f), FullDiagOp(Ð(f)), ∂x, ∇², LP(500))
+            Ls = Any[FullDiagOp(f), FullDiagOp(Ð(f)), ∂x, ∇², LP(500)]
+            isa(f,FlatS02) && push!(Ls, FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N)))
+            for L in Ls
                 @test_noerr @inferred L*f
                 @test_noerr @inferred L\f
                 @test_noerr @inferred f*L
                 @test_noerr @inferred L'*f
                 @test_noerr @inferred L'\f
-            end
-            
-            # TEB specific
-            if isa(f,FlatS02)
-                let L = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N))
-                    @test_noerr @inferred L*f
-                    @test_noerr @inferred L\f
-                    @test_noerr @inferred f*L
-                    @test_noerr @inferred L'*f
-                    @test_noerr @inferred L'\f
-                end
             end
             
             # not-type-stable operators on fields
