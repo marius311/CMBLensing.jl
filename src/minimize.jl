@@ -39,37 +39,54 @@ pcg(P,A,b,x=P*b; callback=nothing, kwargs...) = begin
     P*x, hist
 end
 
-""" 
-Preconditioned conjugate gradient. M should be ≈ A, and M \ x should be fast. 
+
 """
-function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing)
+    pcg2(M, A, b, x=M\\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+
+Compute x = A\\b (where A is positive definite) by conjugate gradient. M is the
+preconditioner and should approximate A, and M \\ x should be fast.
+
+The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol` (where r
+is the residual A*x-b at that step), whichever occurs first.
+
+Info from the iterations of the solver can be returned if `hist` is specified.
+`hist` can be `:x`, `:res`, or a tuple `(:x,:res)`, specifying which of `x` (the
+estimated solution) and/or `res` (the norm of the residual of this solution) to
+include. `histmod` can be used to include every N-th iteration only. 
+"""
+function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
     r = b - A*x
     z = M \ r
     p = z
     bestres = res = dot(r,z)
     bestx = x
-    reshist = Vector{typeof(res)}()
+    _hist = []
 
     dt = (progress==false ? Inf : progress)
     @showprogress dt "CG: " for i = 1:nsteps
-        Ap = A*p
-        α = res / dot(p,Ap)
-        x = x + α * p
-        r = r - α * Ap
-        z = M \ r
+        Ap   = A*p
+        α    = res / dot(p,Ap)
+        x    = x + α * p
+        r    = r - α * Ap
+        z    = M \ r
         res′ = dot(r,z)
-        if res′<bestres
-            bestres,bestx = res′,x
+        p    = z + (res′ / res) * p
+        res  = res′
+        
+        if res<bestres
+            bestres,bestx = res,x
         end
         if callback!=nothing
             callback(i,x,res)
         end
-        push!(reshist,res)
-        if res′<tol; break; end
-        p = z + (res′ / res) * p
-        res = res′
+        if hist!=nothing && (i%histmod)==0
+            push!(_hist, getindex.(@(dictpack(x,res)),hist))
+        end
+        if res<tol
+            break
+        end
     end
-    bestx, reshist
+    hist == nothing ? bestx : (bestx, vcat(_hist...))
 end
 
 """
