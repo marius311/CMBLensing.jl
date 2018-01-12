@@ -73,10 +73,10 @@ pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))
 
 
 """
-    ud_grade(f::Field, θnew, mode=:real, deconv_pixwin=true, anti_aliasing=true)
+    ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)
 
 Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).
-Two downgrade modes `dmode` are available: 
+Two downgrade modes are available specified by the `mode` argument: 
 
     *`:map`     : Downgrade by averaging pixels in map-space.
     *`:fourier` : Downgrade by truncating the Fourier grid
@@ -86,23 +86,27 @@ true, deconvolves the pixel window function from the downgraded map so the
 spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
-One single upgrade mode `umode` is available:
+One single upgrade mode is available:
 
     *`:map` : Upgrade by duplicating pixels in map space.
 
 """
-function ud_grade(f::FlatS0{T,Flat{θ,N}}, θnew; dmode=:map, deconv_pixwin=false, anti_aliasing=false, umode=:map) where {T,θ,N}
+function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_aliasing=true) where {T,θ,N,P<:Flat{θ,N}}
     θnew==θ && return f
     (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
+    fac = θnew > θ ? θnew÷θ : θ÷θnew
+    Nnew = N * θ ÷ θnew
+    Pnew = Flat{θnew,Nnew}
     if θnew>θ
         # downgrade
         (dmode in [:map,:fourier]) || throw(ArgumentError("`dmode` should be either `:map` or `:fourier`"))
-        fac = θnew÷θ
-        Nnew = N÷fac
-        Pnew = Flat{θnew,Nnew}
-        nyq = FFTgrid(T,Pnew).nyq
-        AA = anti_aliasing ? LP(nyq,nyq*0.1) : IdentityOp
-        if dmode==:map
+        if anti_aliasing
+            kmask = ifelse.(abs(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
+            AA = FullDiagOp(FlatS0Fourier{T,P}(kmask[1:N÷2+1] .* kmask'))
+        else
+            AA = 1
+        end
+        if mode==:map
             fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
             if deconv_pixwin
                 @unpack Δx,k = FFTgrid(T,Pnew)
