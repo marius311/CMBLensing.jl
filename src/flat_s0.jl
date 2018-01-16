@@ -99,9 +99,9 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_ali
     Pnew = Flat{θnew,Nnew}
     if θnew>θ
         # downgrade
-        (dmode in [:map,:fourier]) || throw(ArgumentError("`dmode` should be either `:map` or `:fourier`"))
+        (mode in [:map,:fourier]) || throw(ArgumentError("Available downgrade modes: [:map,:fourier]"))
         if anti_aliasing
-            kmask = ifelse.(abs(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
+            kmask = ifelse.(abs.(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
             AA = FullDiagOp(FlatS0Fourier{T,P}(kmask[1:N÷2+1] .* kmask'))
         else
             AA = 1
@@ -120,6 +120,7 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_ali
         end
     else
         # upgrade
+        (mode in [:map]) || throw(ArgumentError("Available upgrade modes: [:map]"))
         fac = θ÷θnew
         FlatS0Map{T,Flat{θnew,N*fac}}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
     end
