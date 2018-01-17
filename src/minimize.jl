@@ -50,7 +50,14 @@ The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol` (wh
 is the residual A*x-b at that step), whichever occurs first.
 
 Info from the iterations of the solver can be returned if `hist` is specified.
-`hist` can be `:x`, `:res`, or a tuple `(:x,:res)`, specifying which of `x` (the
+`hist` can be one or a tuple of:
+
+    * `:i` - current iteration number
+    * `:x` - current solution
+    * `:r` - current residual r=A*x-b
+    * `:res` - the norm of r
+    * `:t` - the time elapsed (in seconds) since the start of the algorithm
+
 estimated solution) and/or `res` (the norm of the residual of this solution) to
 include. `histmod` can be used to include every N-th iteration only. 
 """
@@ -61,6 +68,7 @@ function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false,
     bestres = res = dot(r,z)
     bestx = x
     _hist = []
+    t₀ = time()
 
     dt = (progress==false ? Inf : progress)
     @showprogress dt "CG: " for i = 1:nsteps
@@ -72,6 +80,7 @@ function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false,
         res′ = dot(r,z)
         p    = z + (res′ / res) * p
         res  = res′
+        t    = time() - t₀
         
         if res<bestres
             bestres,bestx = res,x
@@ -80,7 +89,7 @@ function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false,
             callback(i,x,res)
         end
         if hist!=nothing && (i%histmod)==0
-            push!(_hist, getindex.(@(dictpack(x,res)),hist))
+            push!(_hist, getindex.(@(dictpack(i,x,r,res,t)),hist))
         end
         if res<tol
             break
