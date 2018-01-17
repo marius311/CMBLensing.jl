@@ -10,7 +10,12 @@ f02  = FieldTuple(f0,f2)
 f220 = FieldTuple(f2,f2,f0)
 fn   = FieldTuple(f02,f02)
 
+##
+
 @testset "Basic Algebra" begin
+    
+    LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N))
+
     for f in (f0,f2,f02,f220,fn)
         
         F = typeof(f)
@@ -30,7 +35,7 @@ fn   = FieldTuple(f02,f02)
             
             # type-stable operators on fields
             Ls = Any[FullDiagOp(f), FullDiagOp(Ð(f)), ∂x, ∇², LP(500)]
-            isa(f,FlatS02) && push!(Ls, FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N)))
+            isa(f,FlatS02) && push!(Ls, LTEB)
             for L in Ls
                 @test_noerr @inferred L*f
                 @test_noerr @inferred L\f
@@ -59,6 +64,10 @@ fn   = FieldTuple(f02,f02)
             # broadcasting
             @test_noerr (@. f = 2f + 3f)
         end
+        
+        @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
+        @test_noerr @inferred(1 * LTEB)::FlatTEBCov
+        @test_noerr @inferred(LTEB / 3)::FlatTEBCov
     end
     @testset "S0/S2" begin
         @test_noerr f0*f2

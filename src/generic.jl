@@ -139,7 +139,7 @@ function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
     else
         error("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
     end
-end 
+end
 
 
 function get_Cℓ(args...; kwargs...) end

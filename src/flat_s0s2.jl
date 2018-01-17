@@ -12,6 +12,8 @@ FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS
 struct FlatTEBCov{T,P} <: LinOp{Basis2Tuple{Fourier,EBFourier},S02,P}
     ΣTE :: SMatrix{2,2,Diagonal{T},4}
     ΣB :: Matrix{T}
+    unsafe_invert :: Bool
+    FlatTEBCov{T,P}(ΣTE,ΣB,unsafe_invert=true) where {T,P} = new{T,P}(ΣTE,ΣB,unsafe_invert)
 end
 
 # convenience constructor
@@ -31,14 +33,14 @@ function *(cv::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
 
-inv(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(inv(cv.ΣTE),1./cv.ΣB)
-sqrtm(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}(nan2zero.(sqrtm(cv.ΣTE)),sqrt.(cv.ΣB))
+inv(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}((cv.unsafe_invert ? (nan2zero.(inv(cv.ΣTE)), nan2zero.(1./cv.ΣB)) : (inv(cv.ΣTE), 1/cv.ΣB))...)
+sqrtm(cv::FlatTEBCov{T,P}) where {T,P} = FlatTEBCov{T,P}((cv.unsafe_invert ? nan2zero.(sqrtm(cv.ΣTE)) : sqrtm(cv.ΣTE)), sqrt.(cv.ΣB))
 
 simulate(cv::FlatTEBCov{T,P}) where {T,P} = sqrtm(cv) * white_noise(FlatTEBFourier{T,P})
 
 # arithmetic with FlatTEBCov and scalars
 broadcast_data(::Type{FlatTEBCov},s::Scalar) = repeated(s)
-broadcast_data(::Type{FlatTEBCov},cv::FlatTEBCov) = fieldvalues(cv)
+broadcast_data(::Type{FlatTEBCov},cv::FlatTEBCov) = (cv.ΣTE, cv.ΣB)
 function broadcast(f,args::Union{_,FlatTEBCov{T,P},Scalar}...) where {T,P,_<:FlatTEBCov{T,P}}
     FlatTEBCov{T,P}(map(broadcast, repeated(f), map(broadcast_data, repeated(FlatTEBCov), args)...)...)
 end
@@ -54,7 +56,15 @@ end
     )
 end
 
-
+# non-broadcasted algebra on FlatTEBCov's
+for op in (:*,:\,:/)
+    @eval ($op)(L::FlatTEBCov, s::Scalar)           = broadcast($op,L,s)
+    @eval ($op)(s::Scalar,     L::FlatTEBCov)       = broadcast($op,s,L)
+end
+for op in (:+,:-)
+    @eval ($op)(La::F, Lb::F) where {F<:FlatTEBCov} = broadcast($op,La,Lb)
+end
+    
 function get_Cℓ(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
     Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
     (Cℓs[1][1], hcat(last.(Cℓs)...))
