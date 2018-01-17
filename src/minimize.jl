@@ -61,17 +61,20 @@ Info from the iterations of the solver can be returned if `hist` is specified.
 estimated solution) and/or `res` (the norm of the residual of this solution) to
 include. `histmod` can be used to include every N-th iteration only. 
 """
-function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+    gethist() = getindex.(@dictpack(i,x,r,res,t),hist)
+    t₀ = time()
+    i = 1
     r = b - A*x
     z = M \ r
     p = z
     bestres = res = dot(r,z)
     bestx = x
-    _hist = []
-    t₀ = time()
+    t    = time() - t₀
+    _hist = [gethist()]
 
     dt = (progress==false ? Inf : progress)
-    @showprogress dt "CG: " for i = 1:nsteps
+    @showprogress dt "CG: " for i = 2:nsteps
         Ap   = A*p
         α    = res / dot(p,Ap)
         x    = x + α * p
@@ -89,13 +92,13 @@ function pcg2(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false,
             callback(i,x,res)
         end
         if hist!=nothing && (i%histmod)==0
-            push!(_hist, getindex.(@(dictpack(i,x,r,res,t)),hist))
+            push!(_hist, gethist())
         end
         if res<tol
             break
         end
     end
-    hist == nothing ? bestx : (bestx, vcat(_hist...))
+    hist == nothing ? bestx : (bestx, _hist)
 end
 
 """
