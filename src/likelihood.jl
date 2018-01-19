@@ -26,16 +26,20 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 #
 
 
+# mixing matrix for mixed parametrization
+D_mix(Cf::FullDiagOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt((Cf+σ²len)/Cf))
 
 
 # Stores variables needed to construct the likelihood
-struct DataSet{Td,TCn,TCf,TCϕ,TM,TB}
-    d  :: Td      # data
-    Cn :: TCn     # noise covariance
-    Cf :: TCf     # (unlensed) field covariance
-    Cϕ :: TCϕ     # ϕ covariance
-    M  :: TM      # user mask
-    B  :: TB      # beam and instrumental transfer functions
+@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TM,TB,TD}
+    d  :: Td                 # data
+    Cn :: TCn                # noise covariance
+    Cf :: TCf                # unlensed field covariance
+    Cf̃ :: TCf̃                # lensed field covariance
+    Cϕ :: TCϕ                # ϕ covariance
+    M  :: TM   = 1           # user mask
+    B  :: TB   = 1           # beam and instrumental transfer functions
+    D  :: TD   = D_mix(Cf)   # mixing matrix for mixed parametrization
 end
 
 
@@ -43,12 +47,14 @@ end
 
 
 doc"""
-    lnP(t::Real, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
-    lnP(t::Real, fₜ, ϕ, ds, L::LenseOp) 
+    lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
+    lnP(t, fₜ, ϕ, ds, L::LenseOp) 
 
-Compute the log posterior probability as a function of the field, $f_t$, at some
-time $t$ (where $t=0$ corresponds to the unlensed parametrization and $t=1$ to
-the lensed one) and the lensing potential, $ϕ$. 
+Compute the log posterior probability as a function of the field, $f_t$, and the
+lensing potential, $ϕ$. The subscript $t$ can refer to either a "time", e.g.
+$t=0$ corresponds to the unlensed parametrization and $t=1$ to the lensed one,
+or can be `:mix` correpsonding to the mixed parametrization. In all cases, the
+argument `fₜ` should then be $f$ in that particular parametrization.
 
 The log posterior is defined such that, 
 
@@ -57,34 +63,48 @@ The log posterior is defined such that,
                                 + f^\dagger \mathcal{C_f}^{-1} f + \phi^\dagger \mathcal{C_\phi}^{-1} \mathcal{\phi}
 ```
 
-The argument `ds` should be a `DataSet` and stores the masks, data, and
-covariances needed. `L` can be a type of lensing like `PowerLens` or
+The argument `ds` should be a `DataSet` and stores the masks, data, mixing
+matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
-lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
+lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
+lnP(t,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
+
+# log posterior in the unlensed or lensed parametrization
 function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     @unpack Cn,Cf,Cϕ,M,B,d = ds
     Δ = d-M*B*L[t→1]*fₜ
     f = L[t→0]*fₜ
     -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
 end
+# log posterior in the mixed parametrization
+lnP(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̆), ϕ, ds, L))
+
 
 
 ## likelihood gradients
 
 doc"""
 
-    δlnP_δfϕₜ(t::Real, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
-    δlnP_δfϕₜ(t::Real, fₜ, ϕ, ds, L::LenseOp)
+    δlnP_δfϕₜ(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
+    δlnP_δfϕₜ(t, fₜ, ϕ, ds, L::LenseOp)
 
 Compute a gradient of the log posterior probability. See `lnP` for definition of
 arguments of this function. 
 
 The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
-δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
-δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L)
+δlnP_δfϕₜ(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,L(ϕ))
+δlnP_δfϕₜ(t,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,L)
+
+# derivatives of the three posterior probability terms at the times at which
+# they're easy to take (used below)
+δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
+δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
+
+
+# log posterior gradient the lensed or unlensed parametrization
 function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ
@@ -93,12 +113,20 @@ function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
       + δlnΠᶠ_δfϕ(f,ϕ,ds) * δfϕ_δfϕₜ(L,f,fₜ,Val{t})
       + δlnΠᶲ_δfϕ(f,ϕ,ds))
 end
+# log posterior gradient in the mixed parametrization
+function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
 
-# derivatives of the three posterior probability terms at the times at which
-# they're easy to take
-δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
-δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
+    @unpack D = ds
+    L⁻¹f̆ = L \ f̆
+    f = D \ L⁻¹f̆
+
+    # gradient w.r.t. (f,ϕ)
+    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
+    
+    # chain rule
+    FieldTuple(δlnP_δf * D^-1, δlnP_δϕ) * δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆)
+end
+
 
 
 
