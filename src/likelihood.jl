@@ -42,18 +42,24 @@ end
 ## likelihood 
 
 
-"""
-    lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow)
-    lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) 
+doc"""
+    lnP(t::Real, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
+    lnP(t::Real, fₜ, ϕ, ds, L::LenseOp) 
 
-Compute the log posterior probability as a function of the field, fₜ, at time t,
-and ϕ. The log posterior is defined such that, 
+Compute the log posterior probability as a function of the field, $f_t$, at some
+time $t$ (where $t=0$ corresponds to the unlensed parametrization and $t=1$ to
+the lensed one) and the lensing potential, $ϕ$. 
 
-     `-2 ln P(f,ϕ|d) = (d - M*B*L*f̃)ᴴ*Cn⁻¹*(d - M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
+The log posterior is defined such that, 
 
-The argument `ds` should be a `DataSet` and store the masks, data, and
+```math
+-2 \ln \mathcal{P}(f,ϕ\,|\,d) = (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f})^{\dagger} \mathcal{C_n}^{-1} (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f}) \
+                                + f^\dagger \mathcal{C_f}^{-1} f + \phi^\dagger \mathcal{C_\phi}^{-1} \mathcal{\phi}
+```
+
+The argument `ds` should be a `DataSet` and stores the masks, data, and
 covariances needed. `L` can be a type of lensing like `PowerLens` or
-`LenseFlow`, or an already constructed LenseOp.
+`LenseFlow`, or an already constructed `LenseOp`.
 """
 lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
 lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
@@ -67,14 +73,15 @@ end
 
 ## likelihood gradients
 
-"""
+doc"""
 
-    δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow)
-    δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,L::LenseOp)
+    δlnP_δfϕₜ(t::Real, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
+    δlnP_δfϕₜ(t::Real, fₜ, ϕ, ds, L::LenseOp)
 
-Compute a gradient of the log posterior probability with respect to the field f
-and at some time t and the lensing potential ϕ. See `lnP` for definition of
-arguments.
+Compute a gradient of the log posterior probability. See `lnP` for definition of
+arguments of this function. 
+
+The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
 δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
 δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L)
