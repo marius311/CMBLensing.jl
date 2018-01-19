@@ -3,6 +3,8 @@ import PyPlot: plot
 
 export plot
 
+plotsize₀ = 4
+
 pretty_name(s::Symbol) = pretty_name(string(s))
 pretty_name(s::String) = s[1:1]*" "*(Dict('x'=>"map",'l'=>"fourier")[s[2]])
 
@@ -60,61 +62,61 @@ function plot(m::AbstractMatrix{Complex{T}}; kwargs...) where {T}
 end
 
 # FlatS0
-function plot(fs::AbstractMatrix{<:FlatS0}; plotsize=4.8, which=[:Tx], kwargs...)
+function plot(fs::AbstractMatrix{<:FlatS0}; plotsize=plotsize₀, which=[:Tx], kwargs...)
     (length(which)==1) || throw(ArgumentError("Can't plot matrix of FlatS0's with multiple components, $(which)"))
     fig,axs = subplots(size(fs)...; figsize=plotsize.*[1.4*size(fs,2),size(fs,1)], squeeze=false)
     for i=eachindex(fs)
         plot(fs[i], [axs[i]], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
-function plot(fs::AbstractVector{<:FlatS0}; plotsize=4, which=[:Tx], kwargs...)
-    fig,axs = subplots(length(fs), length(which); figsize=plotsize.*(length(which),length(fs)), squeeze=false)
+function plot(fs::AbstractVector{<:FlatS0}; plotsize=plotsize₀, which=[:Tx], kwargs...)
+    fig,axs = subplots(length(fs), length(which); figsize=plotsize.*(1.4*length(which),length(fs)), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[i,:], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
 plot(f::FlatS0; kwargs...) = plot([f]; kwargs...)
 
 # FlatS2
-function plot(fs::AbstractVector{<:FlatS2}; plotsize=4.8, which=[:Ex,:Bx], kwargs...)
+function plot(fs::AbstractVector{<:FlatS2}; plotsize=plotsize₀, which=[:Ex,:Bx], kwargs...)
     ncol = length(which)
     fig,axs = subplots(length(fs),ncol; figsize=(plotsize.*[1.4ncol,length(fs)]), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[i,:], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
-function plot(fs::RowVector{<:FlatS2}; plotsize=4.8, which=[:Ex,:Bx], kwargs...)
+function plot(fs::RowVector{<:FlatS2}; plotsize=plotsize₀, which=[:Ex,:Bx], kwargs...)
     ncol = length(which)
     fig,axs = subplots(ncol,length(fs); figsize=(plotsize.*[1.4length(fs),ncol]), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[:,i], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
 plot(f::FlatS2; kwargs...) = plot([f]; kwargs...)
 
 # FieldTuple{<:FlatS0,<:FlatS2} (i.e., TEB)
-function plot(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}, axs, which; kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
-    for (ax,k) in zip(axs,which)
-        m = string(k)[1]=='T' ? f.f1[k] : f.f2[k]
-        ax = plot(m; ax=ax, title="$(pretty_name(k)) ($(N)x$(N) @ $(Θ)')", kwargs...)
-    end
-end
-function plot(fs::AbstractVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=4, which=[:Tx,:Ex,:Bx], kwargs...)
-    fig,axs = subplots(length(fs),length(which); figsize=(plotsize.*(length(which),length(fs))), squeeze=false)
+function plot(fs::AbstractVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=plotsize₀, which=[:Tx,:Ex,:Bx], kwargs...)
+    fig,axs = subplots(length(fs),length(which); figsize=(plotsize.*(1.4length(which),length(fs))), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[i,:], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
-function plot(fs::RowVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=4.8, which=[:Tx,:Ex,:Bx], kwargs...)
+function plot(fs::RowVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=plotsize₀, which=[:Tx,:Ex,:Bx], kwargs...)
     fig,axs = subplots(length(which), length(fs); figsize=(plotsize.*[1.4length(fs),length(which)]), squeeze=false)
     for i=1:length(fs)
         plot(fs[i], axs[:,i], which; kwargs...)
     end
+    tight_layout(w_pad=-10)
     fig,axs
 end
 plot(f::Field2Tuple{<:FlatS0,<:FlatS2}; kwargs...) = plot([f]; kwargs...)
