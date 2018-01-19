@@ -62,7 +62,7 @@ estimated solution) and/or `res` (the norm of the residual of this solution) to
 include. `histmod` can be used to include every N-th iteration only. 
 """
 function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
-    gethist() = getindex.(@dictpack(i,x,r,res,t),hist)
+    gethist() = hist == nothing ? nothing : getindex.(@dictpack(i,x,r,res,t),hist)
     t₀ = time()
     i = 1
     r = b - A*x

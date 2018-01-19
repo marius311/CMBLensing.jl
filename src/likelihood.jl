@@ -1,34 +1,80 @@
 export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 
 
-"""
-Stores variables needed to construct the likelihood
-"""
-struct DataSet{Td,TCN,TCf,TCϕ,TMd,TMf,TMϕ}; d::Td; CN::TCN; Cf::TCf; Cϕ::TCϕ; Md::TMd; Mf::TMf; Mϕ::TMϕ; end
+# 
+# This file contains function which compute things dealing with the posterior
+# probability of f and ϕ given data, d. 
+# 
+# By definition, we take as our data model
+# 
+#     `d = M * B * L * f + n`
+#
+# where M, B, and L are the mask, beam/instrumental transfer functions, and
+# lensing operators. Note this means that the noise n is defined as being
+# unbeamed, and also is unmasked. If we're using simulated data, its easy to not
+# mask the noise. For runs with real data, the noise outside the mask should be
+# filled in with a realization of the noise. 
+#
+# Under this data model, the posterior probability is, 
+# 
+#     `-2 ln P(f,ϕ|d) = (d - M*B*L*f̃)ᴴ*Cn⁻¹*(d - M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
+#
+# The various covariances and M, B, and d are stored in a `DataSet` structure. 
+#
+# Below are also functions to compute derivatives of this likelihood, as well as
+# a Wiener filter of the data (since that's `argmax_f P(f|ϕ,d)`).
+#
+
+
+
+
+# Stores variables needed to construct the likelihood
+struct DataSet{Td,TCn,TCf,TCϕ,TM,TB}
+    d  :: Td      # data
+    Cn :: TCn     # noise covariance
+    Cf :: TCf     # (unlensed) field covariance
+    Cϕ :: TCϕ     # ϕ covariance
+    M  :: TM      # user mask
+    B  :: TB      # beam and instrumental transfer functions
+end
+
+
+## likelihood 
+
 
 """
-The log posterior probability, lnP, s.t.
+    lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow)
+    lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) 
 
--2lnP(f,ϕ) = (d - f̃)ᵀ*CN⁻¹*(d - f̃) + fᵀ*Cf⁻¹*f + ϕᵀ*Cϕ⁻¹*ϕ
+Compute the log posterior probability as a function of the field, fₜ, at time t,
+and ϕ. The log posterior is defined such that, 
 
-# Arguments:
-* f : the T/E/B field at time t
-* t : the time at which f is specified (i.e. t=0 means f is the unlensed field, t=1 means f is the lensed field)
-* ϕ : the lensing potential
-* ds : the DataSet (includes the data and signal/noise covariances)
-* L : the Lensing operator to use
+     `-2 ln P(f,ϕ|d) = (d - M*B*L*f̃)ᴴ*Cn⁻¹*(d - M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
+
+The argument `ds` should be a `DataSet` and store the masks, data, and
+covariances needed. `L` can be a type of lensing like `PowerLens` or
+`LenseFlow`, or an already constructed LenseOp.
 """
 lnP(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
 lnP(t::Real,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
-lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t} = lnP(ds.d-L[t→1]*fₜ, L[t→0]*fₜ, ϕ, ds)
-lnP(Δ,f,ϕ,ds) = (@unpack CN,Cf,Cϕ,Md,Mf,Mϕ=ds; -(Δ⋅(Md'*(CN\(Md*Δ))) + f⋅(Mf'*(Cf\(Mf*f))) + ϕ⋅(Mϕ'*(Cϕ\(Mϕ*ϕ))))/2)
+function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
+    @unpack Cn,Cf,Cϕ,M,B,d = ds
+    Δ = d-M*B*L[t→1]*fₜ
+    f = L[t→0]*fₜ
+    -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
+end
+
+
+## likelihood gradients
 
 """
-Gradient of the log posterior probability with
-respect to the field f and lensing potential ϕ. See `lnP` for definition of
-arguments.
 
-Returns :
+    δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow)
+    δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,L::LenseOp)
+
+Compute a gradient of the log posterior probability with respect to the field f
+and at some time t and the lensing potential ϕ. See `lnP` for definition of
+arguments.
 """
 δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L(ϕ))
 δlnP_δfϕₜ(t::Real,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{float(t)},fₜ,ϕ,ds,L)
@@ -43,37 +89,37 @@ end
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take
-δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack Md,CN,d=ds; FieldTuple(Md'*(CN\(Md*(d-f̃))), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Mf,Cf=ds;   FieldTuple(-Mf'*(Cf\(Mf*f))   , zero(Φ)))
-δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Mϕ,Cϕ=ds;   FieldTuple(zero(F)            , -Mϕ'*(Cϕ\(Mϕ*ϕ))))
+δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
+δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
 
 
-## Hessian
 
-""" Joing (f,ϕ) noise covariance """
-function ℕ(ds) 
-    @unpack Md,CN=ds
-    SymmetricFuncOp(  op = fϕ->FieldTuple(Md*(CN*fϕ[1]),0fϕ[2]), 
-                    op⁻¹ = fϕ->FieldTuple(Md*(CN\fϕ[1]),0fϕ[2]))
-end
-""" Joint (f,ϕ) signal covariances """
-function 𝕊(ds) 
-    @unpack Mf,Cf,Mϕ,Cϕ=ds
-    SymmetricFuncOp(op   = fϕ->FieldTuple(Mf*(Cf*fϕ[1]),Mϕ*(Cϕ*fϕ[2])),
-                    op⁻¹ = fϕ->FieldTuple(Mf*(Cf\fϕ[1]),Mϕ*(Cϕ\fϕ[2])))
-end
+## wiener filter
+
 
 """
-Arguments:
-* L : Lensing operator to use for converting fₜ to t=0 and/or t=1
-* LJ : Lensing operator (of possible lower accuracy) to use in Jacobian calculation
-* (others same as above)
+    wf(d::FlatField{T,P}, Cn, Cf, Cf̃, M, L, K, B) where {T,θ,N,P\<:Flat{θ,N}
+
+Computes the Wiener filter of data d under the data model, 
+
+    `d = M * B * L * f + n`
+    
+where Cn, Cf, and Cf̃ are the noise, signal, and lensed signal covariances, M is
+a mask, and B is the beam/instrumental transfer functions.
+
+The Wiener filter is performed in the most optimal form we've found (so far).
+
 """
-HlnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow,::Type{LJ}=LenseFlow{ode4{2}}) where {L,LJ} = HlnP(Val{float(t)},fₜ,ϕ,ds,L(ϕ),LJ(ϕ)) 
-HlnP(t,fₜ,ϕ,ds,L::LenseOp,LJ::LenseOp) = HlnP(Val{float(t)},fₜ,ϕ,ds,L,LJ) 
-HlnP(::Type{Val{1.}},f̃,ϕ,ds,L::LenseOp,LJ::LenseOp) = let δfϕ_δf̃ϕ = δfϕ_δf̃ϕ(LJ,L\f̃,f̃)
-    - (ℕ(ds)^-1 + δfϕ_δf̃ϕ' * (𝕊(ds)^-1 * δfϕ_δf̃ϕ))
-end
-HlnP(::Type{Val{0.}},f,ϕ,ds,L::LenseOp,LJ::LenseOp) = let δf̃ϕ_δfϕ = δf̃ϕ_δfϕ(LJ,L*f,f)
-    - (δf̃ϕ_δfϕ' * (ℕ(ds)^-1 * δf̃ϕ_δfϕ) + 𝕊(ds)^-1)
+function lensing_wiener_filter(ds::DataSet, L; kwargs...)
+    
+    @unpack d, Cn, Cf, M, B = ds
+    
+    pcg2(
+        (Cf^-1) + (Cn^-1),
+        (Cf^-1) + L'*B'*M'*(Cn^-1)*M*B*L,
+        L'*B'*M'*(Cn^-1)*d;
+        kwargs...
+    )
+    
 end
