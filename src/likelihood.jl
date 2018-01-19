@@ -98,15 +98,28 @@ end
 ## wiener filter
 
 
-"""
-    wf(d::FlatField{T,P}, Cn, Cf, Cf̃, M, L, K, B) where {T,θ,N,P\<:Flat{θ,N}
+doc"""
+    wf(ds, L; kwargs...)
 
-Computes the Wiener filter of data d under the data model, 
+Computes the Wiener filter of data $d$ at a fixed $\phi$, defined as, 
 
-    `d = M * B * L * f + n`
+```math
+{\rm argmax}_f \mathcal{P}(f\,|\,\phi,d)
+```
+
+The data model assumed is, 
+
+```math
+d = \mathcal{M} \mathcal{B} \mathcal{L} \, f + n
+```
+
+Note that the noise is defined as un-debeamed and also unmasked (so it needs to
+be filled in outside the mask if using real data). The mask, $\mathcal{M}$, can
+be any composition of real and/or fourier space diagonal operators.
     
-where Cn, Cf, and Cf̃ are the noise, signal, and lensed signal covariances, M is
-a mask, and B is the beam/instrumental transfer functions.
+The argument `ds::DataSet` stores the mask, $\mathcal{M}$, the beam/instrumental
+transfer functions, $\mathcal{B}$, as well as the various covariances which are
+needed.
 
 The Wiener filter is performed in the most optimal form we've found (so far).
 
