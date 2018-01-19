@@ -77,9 +77,8 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_s0s2.jl")
 
-const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},FlatIQUMap{T,P}}
-const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},FlatTEBFourier{T,P}}
-const FlatField{T,P} = Union{FlatMap{T,P},FlatFourier{T,P}}
+const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},Field2Tuple{<:FlatS0Fourier{T,P},<:FlatS2Fourier{T,P}}}
+const FlatField{T,P} = Union{FlatS0{T,P},FlatS2{T,P},FlatS02{T,P}}
 
 FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
 
