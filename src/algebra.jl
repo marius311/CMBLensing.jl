@@ -20,7 +20,7 @@ containertype(ct1, ct2) = promote_containertype(containertype(ct1), containertyp
 @inline containertype(ct1, ct2, cts...) = promote_containertype(containertype(ct1), containertype(ct2, cts...))
 promote_containertype(::Type{F}, ::Type{F}) where {F<:Field} = F
 promote_containertype(::Type{Any}, ::Type{Any}) = Any
-@symarg promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
+@commutative promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
 promote_containertype(::Type{F1}, ::Type{F2}) where {F1,F2} = error("Can't broadcast together $(shortname(F1)) and $(shortname(F2)).
 Try not using broadcasting or converting them to the same basis by hand.") #fall-back
 
@@ -92,8 +92,9 @@ struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Ba
 end
 # creating LazyBinaryOps
 for op in (:+, :-, :*, :Ac_mul_B)
-    @eval         ($op)(a::LinOp, b::LinOp)  = LazyBinaryOp($op,a,b)
-    @eval @symarg ($op)(a::LinOp, b::Scalar) = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::LinOp,  b::LinOp)  = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::LinOp,  b::Scalar) = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::Scalar, b::LinOp)  = LazyBinaryOp($op,a,b)
 end
 /(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
 ^(op::LinOp, n::Int) = LazyBinaryOp(^,op,n)

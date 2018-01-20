@@ -96,11 +96,11 @@ FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
 eltype(::Type{<:FlatField{T}}) where {T} = T
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-@symarg promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
-@symarg promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
+@commutative promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
+@commutative promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = repeated(broadcast_data(F0,f)...,2)
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = repeated(broadcast_data(F0,f)...,2)
-@symarg *(a::FlatS0Map, b::FlatS2Map) = a.*b
+@commutative *(a::FlatS0Map, b::FlatS2Map) = a.*b
 
 
 # derivatives

@@ -79,10 +79,10 @@ for N in Ns
             function promote_containertype(::Type{$FNT{$(Fas...)}}, ::Type{$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)}
                 $FNT{$((:(promote_containertype($(F(i,"a")), $(F(i,"b")))) for i=1:N)...)}
             end
-            @symarg function promote_containertype{F<:Field,$(Fs...)}(::Type{F},::Type{$FNT{$(Fs...)}})
+            @commutative function promote_containertype{F<:Field,$(Fs...)}(::Type{F},::Type{$FNT{$(Fs...)}})
                 $FNT{$((:(promote_containertype(F,$(F(i)))) for i=1:N)...)}
             end
-            @symarg *(a::Field,b::$FNT) = a.*b
+            @commutative *(a::Field,b::$FNT) = a.*b
             *(a::$FNT,b::$FNT) = a.*b 
 
             # Reconstruct FieldNTuple from broadcasted data

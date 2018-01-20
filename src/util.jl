@@ -26,7 +26,7 @@ end
 
 
 """
-@symarg f(a::T1,b::T2) = body
+@commutative f(a::T1,b::T2) = body
 
 is equivalent to
 
@@ -35,13 +35,13 @@ f(b::T2,a::T1) = body
 
 TODO: phase out use of this entirely, it tends to lead to ambiguities....
 """
-macro symarg(ex)
+macro commutative(ex)
     if @capture ex ((f_(a_::T1_,b_::T2_) = body_) | (function f_(a_::T1_,b_::T2_) body_ end))
         esc(:($f($a::$T1,$b::$T2)=$body; $f($b::$T2,$a::$T1)=$body))
     elseif @capture ex ((f_(::T1_,::T2_) = body_) | (function f_(::T1_,::T2_) body_ end))
         esc(:($f(::$T1,::$T2)=$body; $f(::$T2,::$T1)=$body))
     else
-        error("@symarg couldn't understand function.")
+        error("@commutative couldn't understand function definition.")
     end
 end
 
