@@ -93,10 +93,9 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
 
-function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB)
-    g = FFTgrid(T,P)
-    n = g.nside÷2+1
-    FullDiagOp(FlatS2EBFourier{T,P}(Cℓ_2D(ℓ, CℓEE, g.r)[1:n,:], Cℓ_2D(ℓ, CℓBB, g.r)[1:n,:]))
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB; mask_nyquist=true) where {T,θ,N,P<:Flat{θ,N}}
+    _Mnyq = mask_nyquist ? Mnyq : identity
+    FullDiagOp(FlatS2EBFourier{T,P}((_Mnyq(T,P,Cℓ_2D(P,ℓ, Cℓ)[1:(N÷2+1),:]) for Cℓ in (CℓEE,CℓBB))...))
 end
 
 function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}

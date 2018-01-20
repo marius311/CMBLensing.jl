@@ -22,8 +22,9 @@ function FlatTEBCov{T,P}(ΣTT::AbstractMatrix, ΣTE::AbstractMatrix, ΣEE::Abstr
     FlatTEBCov{T,P}(@SMatrix([D(ΣTT) D(ΣTE); D(ΣTE) D(ΣEE)]), ΣBB)
 end
 
-function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓEE, CℓBB, CℓTE) where {T,P}
-    FlatTEBCov{T,P}(Cℓ_2D.(P,[ℓ],[CℓTT,CℓTE,CℓEE,CℓBB])...)
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓEE, CℓBB, CℓTE; mask_nyquist=true) where {T,P}
+    _Mnyq = mask_nyquist ? Mnyq : identity
+    FlatTEBCov{T,P}(_Mnyq.(T,P,Cℓ_2D.(P,[ℓ],[CℓTT,CℓTE,CℓEE,CℓBB]))...)
 end
 
 ctranspose(Σ::FlatTEBCov) = Σ
