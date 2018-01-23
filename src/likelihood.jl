@@ -104,7 +104,7 @@ The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
 
 
-# log posterior gradient the lensed or unlensed parametrization
+# log posterior gradient in the lensed or unlensed parametrization
 function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ
@@ -159,14 +159,15 @@ needed.
 The Wiener filter is performed in the most optimal form we've found (so far).
 
 """
-function lensing_wiener_filter(ds::DataSet, L; kwargs...)
+function lensing_wiener_filter(ds::DataSet, L; guess=nothing, kwargs...)
     
     @unpack d, Cn, Cf, M, B = ds
     
     pcg2(
-        (Cf^-1) + (Cn^-1),
+        (Cf^-1) + B'*(Cn^-1)*B,
         (Cf^-1) + L'*B'*M'*(Cn^-1)*M*B*L,
-        L'*B'*M'*(Cn^-1)*d;
+        L'*B'*M'*(Cn^-1)*d,
+        guess==nothing ? 0d : guess;
         kwargs...
     )
     
