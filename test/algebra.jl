@@ -65,10 +65,13 @@ fn   = FieldTuple(f02,f02)
             @test_noerr (@. f = 2f + 3f)
         end
         
-        @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
-        @test_noerr @inferred(1 * LTEB)::FlatTEBCov
-        @test_noerr @inferred(LTEB / 3)::FlatTEBCov
     end
+    
+    @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
+    @test_noerr @inferred(LTEB + 1)::FlatTEBCov
+    @test_noerr @inferred(1 * LTEB)::FlatTEBCov
+    @test_noerr @inferred(LTEB / 3)::FlatTEBCov
+    
     @testset "S0/S2" begin
         @test_noerr f0*f2
         @test_noerr f0*f02
