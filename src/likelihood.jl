@@ -163,7 +163,7 @@ The Wiener filter is performed in the most optimal form we've found (so far).
 """
 function lensing_wiener_filter(ds::DataSet, L; guess=nothing, kwargs...)
     
-    @unpack d, Cn, Cf, M, B = ds
+    @unpack d, Cn, Cn̂, Cf, M, B, B̂ = ds
     
     pcg2(
         (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
