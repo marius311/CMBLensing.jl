@@ -31,12 +31,14 @@ D_mix(Cf::FullDiagOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt((Cf+σ²len)/C
 
 
 # Stores variables needed to construct the likelihood
-@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TM,TB,TD}
+@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD}
     d  :: Td                 # data
     Cn :: TCn                # noise covariance
     Cf :: TCf                # unlensed field covariance
     Cf̃ :: TCf̃                # lensed field covariance
     Cϕ :: TCϕ                # ϕ covariance
+    Cn̂ :: TCn̂  = Cn          # approximate noise covariance, diagonal in same basis as Cf
+    B̂  :: TB̂   = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     M  :: TM   = 1           # user mask
     B  :: TB   = 1           # beam and instrumental transfer functions
     D  :: TD   = D_mix(Cf)   # mixing matrix for mixed parametrization
@@ -164,7 +166,7 @@ function lensing_wiener_filter(ds::DataSet, L; guess=nothing, kwargs...)
     @unpack d, Cn, Cf, M, B = ds
     
     pcg2(
-        (Cf^-1) + B'*(Cn^-1)*B,
+        (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
         (Cf^-1) + L'*B'*M'*(Cn^-1)*M*B*L,
         L'*B'*M'*(Cn^-1)*d,
         guess==nothing ? 0d : guess;
