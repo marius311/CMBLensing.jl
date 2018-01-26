@@ -92,25 +92,61 @@ function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field,
 end
 
 
-# Version of LenseFlow that does more precomputation and 
-#  is thus faster if repeatedly called with the same ϕ
-#  (but is slower for a one-time call)
+## CachedLenseFlow
+
+# This is a version of LenseFlow that precomputes the inverse magnification
+# matrix, M⁻¹, and the p vector, p = M⁻¹⋅∇ϕ, when it is constructed. The regular
+# version of LenseFlow computes these on the fly during the integration, which
+# is faster if you only apply the lensing operator or its Jacobian once.
+# However, *this* version is faster is you apply the operator or its Jacobian
+# several times for a given ϕ. This is useful, for example, during Wiener
+# filtering with a fixed ϕ, or computing the likelihood gradient which involves
+# lensing and 1 or 2 (depending on parametrization) Jacobian evaluations all
+# with the same ϕ.
+
+
 struct CachedLenseFlow{N,t₀,t₁,F<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
-    L::LenseFlow{jrk4{N},t₀,t₁,F}
-    p::Dict{Float16,SVector{2,F}}
+    L   :: LenseFlow{jrk4{N},t₀,t₁,F}
+    p   :: Dict{Float16,SVector{2,F}}
+    M⁻¹ :: Dict{Float16,SMatrix{2,2,F}}
 end
-cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁} =
-    CachedLenseFlow(L,Dict(Float16(t)=>inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ for t=linspace(t₀,t₁,2N+1)))
-    
-# here we use the precomputation:
-velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  L.p[Float16(t)]' ⨳ Ł(∇*f))
+CachedLenseFlow{N}(ϕ) where {N} = cache(LenseFlow{jrk4{N}}(ϕ))
+function cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁}
+    ts = linspace(t₀,t₁,2N+1)
+    p, M⁻¹ = Dict(), Dict()
+    for (t,τ) in zip(ts,Float16.(ts))
+        M⁻¹[τ] = inv(𝕀 + t*L.Hϕ)
+        p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
+    end
+    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹)
+end
+
+# velocities for CachedLenseFlow which use the precomputed quantities:
+velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  @⨳ L.p[Float16(t)]' ⨳ $Ł(∇*f))
 velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
+function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+
+    Łδf        = Ł(δf)
+    M⁻¹        = L.M⁻¹[Float16(t)]
+    ∇f         = Ł(∇*Ð(f))
+    M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
+    M⁻¹_∇ϕ     = L.p[Float16(t)]
+
+    v_f_δf_δϕ′.f1 .= @⨳ M⁻¹_∇ϕ' ⨳ ∇f
+    v_f_δf_δϕ′.f2 .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
+    # split into two terms due to inference limit:
+    tmp = @⨳ ∇' ⨳ $Ð(M⁻¹_δfᵀ_∇f)
+    tmp .+= @⨳ t*(∇' ⨳ ((∇' ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
+    v_f_δf_δϕ′.f3 .= Ł(tmp)
+
+end
 # no specialized version for these (yet):
-negδvelocityᴴ!(v_f_δf_δϕ′, L::CachedLenseFlow, args...) = negδvelocityᴴ!(v_f_δf_δϕ′, L.L, args...)
 δvelocity!(v_f_δf, L::CachedLenseFlow, args...) = δvelocity!(v_f_δf, L.L, args...)
 
-# changing integration endpoints causes a re-caching
-_getindex(L::CachedLenseFlow, ::→{t₀,t₁}) where {t₀,t₁} = cache(L.L[t₀→t₁])
+# changing integration endpoints causes a re-caching (although swapping them does not)
+_getindex(L::CachedLenseFlow{N,t₀,t₁}, ::→{t₀,t₁}) where {t₀,t₁,N} = L
+_getindex(L::CachedLenseFlow{N,t₁,t₀}, ::→{t₀,t₁}) where {t₀,t₁,N} = CachedLenseFlow(L.L[t₀→t₁],L.p,L.M⁻¹)
+_getindex(L::CachedLenseFlow,          ::→{t₀,t₁}) where {t₀,t₁}   = cache(L.L[t₀→t₁])
 
 # ud_grading lenseflow ud_grades the ϕ map
 ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))
