@@ -7,10 +7,21 @@ T = Float32
 nside = 256
 P = Flat{3,nside}
 ϕ = FlatS0Map{T,P}(randn(nside,nside))/1e7
-f = FlatIQUMap{T,P}(@repeated(randn(nside,nside),3)...)
-L = LenseFlow{jrk4{7}}
+f = FlatS2QUMap{T,P}(@repeated(randn(nside,nside),2)...)
+L = LenseFlow{jrk4{7}}(ϕ)
+cL = cache(L)
+J = δf̃ϕ_δfϕ(L,L*f,f)
+cJ = δf̃ϕ_δfϕ(cL,cL*f,f)
+fϕ = FieldTuple(f,ϕ)
 ##
-myshow(s) = (println("== "*s*" =="); t->(show(STDOUT,MIME("text/plain"),t); println()))
+myshow(s) = (print_with_color(:light_green,"=== "*s*" ===\n"); t->(show(STDOUT,MIME("text/plain"),t); println()))
 ##
-(@benchmark $(cache(L(ϕ))) * $f) |> myshow("LenseFlow")
-(@benchmark $f * $(cache(L(ϕ)))) |> myshow("TransposeFlow")
+(@benchmark $L * $f)   |> myshow("Lense")
+(@benchmark $f * $L)   |> myshow("Transpose Lense")
+(@benchmark $J * $fϕ)  |> myshow("Jacobian")
+(@benchmark $fϕ * $J)  |> myshow("Transpose Jacobian")
+##
+(@benchmark $cL * $f)  |> myshow("Cached Lense")
+(@benchmark $f * $cL)  |> myshow("Cached Transpose Lense")
+(@benchmark $cJ * $fϕ) |> myshow("Cached Jacobian")
+(@benchmark $fϕ * $cJ) |> myshow("Cached Transpose Jacobian")
