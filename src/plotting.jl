@@ -123,7 +123,7 @@ plot(f::Field2Tuple{<:FlatS0,<:FlatS2}; kwargs...) = plot([f]; kwargs...)
 
 
 
-function animate(fields::Vector{<:FlatS0{T,P}}, interval=50, units=:deg) where {T,Θ,N,P<:Flat{Θ,N}}
+function animate(fields::Vector{<:FlatS0{T,P}}; interval=50, units=:deg, motionblur=true) where {T,Θ,N,P<:Flat{Θ,N}}
     l = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     img = imshow(fields[1][:Tx],cmap="RdBu_r",extent=(-l,l,-l,l))
     ax = gca()
@@ -135,9 +135,16 @@ function animate(fields::Vector{<:FlatS0{T,P}}, interval=50, units=:deg) where {
     ax[:set_ylabel]("Dec")
     ax[:set_xlabel]("RA")
     ax[:tick_params](labeltop=false, labelbottom=true)
+    n = length(fields)
+    
+    if motionblur == true
+        motionblur = [1, 0.7, 0.2]
+    elseif motionblur == false
+        motionblur = [1]
+    end
     
     ani = pyimport("matplotlib.animation")[:FuncAnimation](gcf(), 
-        i->(img[:set_data](fields[i][:Tx]);(img,)), 
+        i->(img[:set_data](sum(x*fields[mod1(i-j+1,n)][:Tx] for (j,x) in enumerate(motionblur)) / sum(motionblur));(img,)), 
         1:length(fields),
         interval=interval, blit=true
         )
