@@ -34,9 +34,9 @@ D_mix(Cf::FullDiagOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt((Cf+σ²len)/C
 @with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD}
     d  :: Td                 # data
     Cn :: TCn                # noise covariance
-    Cf :: TCf                # unlensed field covariance
-    Cf̃ :: TCf̃                # lensed field covariance
     Cϕ :: TCϕ                # ϕ covariance
+    Cf :: TCf                # unlensed field covariance
+    Cf̃ :: TCf̃  = nothing     # lensed field covariance (not always needed)
     Cn̂ :: TCn̂  = Cn          # approximate noise covariance, diagonal in same basis as Cf
     B̂  :: TB̂   = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     M  :: TM   = 1           # user mask

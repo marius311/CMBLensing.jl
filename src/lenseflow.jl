@@ -1,5 +1,5 @@
 
-export LenseFlow
+export LenseFlow, CachedLenseFlow
 
 abstract type ODESolver end
 
@@ -120,6 +120,7 @@ function cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁}
     end
     CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹)
 end
+cache(L::CachedLenseFlow) = L
 
 # velocities for CachedLenseFlow which use the precomputed quantities:
 velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  @⨳ L.p[Float16(t)]' ⨳ $Ł(∇*f))
