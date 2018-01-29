@@ -9,28 +9,28 @@ pretty_name(s::Symbol) = pretty_name(string(s))
 pretty_name(s::String) = s[1:1]*" "*(Dict('x'=>"map",'l'=>"fourier")[s[2]])
 
 # generic plotting some components of a FlatField
-function plot(f::FlatField{T,P}, axs, which; units=:deg, ticklabels=true, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
+function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
     x = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     extent = [-x,x,-x,x]
-    for (ax,k) in zip(axs,which)
-        plot(f[k]; ax=ax, extent=extent, title="$(pretty_name(k)) ($(N)x$(N) @ $(Θ)')", kwargs...)
-        if ticklabels
-            @pydef type MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
-                __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
-            end
-            ax[:xaxis][:set_major_formatter](MyFmt())
-            ax[:yaxis][:set_major_formatter](MyFmt())
-            ax[:set_ylabel]("Dec")
-            ax[:set_xlabel]("RA")
-            ax[:tick_params](labeltop=false, labelbottom=true)
-        else
-            ax[:tick_params](labeltop=false, labelleft=false)
+    (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(Θ)')")
+    (vlim == nothing) && (vlim=:sym)
+    _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
+    if ticklabels
+        @pydef type MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
+            __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
         end
+        ax[:xaxis][:set_major_formatter](MyFmt())
+        ax[:yaxis][:set_major_formatter](MyFmt())
+        ax[:set_ylabel]("Dec")
+        ax[:set_xlabel]("RA")
+        ax[:tick_params](labeltop=false, labelbottom=true)
+    else
+        ax[:tick_params](labeltop=false, labelleft=false)
     end
 end
 
-# plotting a real matrix
-function plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cmap="RdBu_r", cbar=true, kwargs...)
+# plotting a map
+function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cmap="RdBu_r", cbar=true, kwargs...)
     
     # some logic to automatically get upper/lower limits
     if vlim==:sym
@@ -53,99 +53,63 @@ function plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cma
     ax
 end
 
-# plotting a complex matrix 
-# we assume its a ~N×2N matrix (like a real FFT), and create a new ~2N×2N matrix
-# with the real part on the upper half and the imaginary part mirrored on the
-# bottom, with a row of NaN's inbetween to visually separate
-function plot(m::AbstractMatrix{Complex{T}}; kwargs...) where {T}
-    plot(log10.(abs.(ifftshift(unfold(m)))); vlim=(nothing,nothing), cmap=nothing, kwargs...)
+# plotting fourier coefficients 
+function _plot(m::AbstractMatrix{<:Complex}; kwargs...)
+    _plot(log10.(abs.(ifftshift(unfold(m)))); vlim=(nothing,nothing), cmap=nothing, kwargs...)
 end
-
-# FlatS0
-function plot(fs::AbstractMatrix{<:FlatS0}; plotsize=plotsize₀, which=[:Tx], kwargs...)
-    (length(which)==1) || throw(ArgumentError("Can't plot matrix of FlatS0's with multiple components, $(which)"))
-    fig,axs = subplots(size(fs)...; figsize=plotsize.*[1.4*size(fs,2),size(fs,1)], squeeze=false)
-    for i=eachindex(fs)
-        plot(fs[i], [axs[i]], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-function plot(fs::AbstractVector{<:FlatS0}; plotsize=plotsize₀, which=[:Tx], kwargs...)
-    fig,axs = subplots(length(fs), length(which); figsize=plotsize.*(1.4*length(which),length(fs)), squeeze=false)
-    for i=1:length(fs)
-        plot(fs[i], axs[i,:], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-plot(f::FlatS0; kwargs...) = plot([f]; kwargs...)
-
-# FlatS2
-function plot(fs::AbstractVector{<:FlatS2}; plotsize=plotsize₀, which=[:Ex,:Bx], kwargs...)
-    ncol = length(which)
-    fig,axs = subplots(length(fs),ncol; figsize=(plotsize.*[1.4ncol,length(fs)]), squeeze=false)
-    for i=1:length(fs)
-        plot(fs[i], axs[i,:], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-function plot(fs::RowVector{<:FlatS2}; plotsize=plotsize₀, which=[:Ex,:Bx], kwargs...)
-    ncol = length(which)
-    fig,axs = subplots(ncol,length(fs); figsize=(plotsize.*[1.4length(fs),ncol]), squeeze=false)
-    for i=1:length(fs)
-        plot(fs[i], axs[:,i], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-plot(f::FlatS2; kwargs...) = plot([f]; kwargs...)
-
-# FieldTuple{<:FlatS0,<:FlatS2} (i.e., TEB)
-function plot(fs::AbstractVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=plotsize₀, which=[:Tx,:Ex,:Bx], kwargs...)
-    fig,axs = subplots(length(fs),length(which); figsize=(plotsize.*(1.4length(which),length(fs))), squeeze=false)
-    for i=1:length(fs)
-        plot(fs[i], axs[i,:], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-function plot(fs::RowVector{<:Field2Tuple{<:FlatS0,<:FlatS2}}; plotsize=plotsize₀, which=[:Tx,:Ex,:Bx], kwargs...)
-    fig,axs = subplots(length(which), length(fs); figsize=(plotsize.*[1.4length(fs),length(which)]), squeeze=false)
-    for i=1:length(fs)
-        plot(fs[i], axs[:,i], which; kwargs...)
-    end
-    tight_layout(w_pad=-10)
-    fig,axs
-end
-plot(f::Field2Tuple{<:FlatS0,<:FlatS2}; kwargs...) = plot([f]; kwargs...)
 
 
 
-function animate(fields::Vector{<:FlatS0{T,P}}; interval=50, units=:deg, motionblur=true) where {T,Θ,N,P<:Flat{Θ,N}}
-    l = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
-    img = imshow(fields[1][:Tx],cmap="RdBu_r",extent=(-l,l,-l,l))
-    ax = gca()
-    @pydef type MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
-        __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*"°"
-    end
-    ax[:xaxis][:set_major_formatter](MyFmt())
-    ax[:yaxis][:set_major_formatter](MyFmt())
-    ax[:set_ylabel]("Dec")
-    ax[:set_xlabel]("RA")
-    ax[:tick_params](labeltop=false, labelbottom=true)
-    n = length(fields)
+"""
+    plot(f::Field; kwargs...)
+    plot(fs::VecOrMat{\<:Field}; kwarg...)
     
-    if motionblur == true
-        motionblur = [1, 0.7, 0.2]
-    elseif motionblur == false
-        motionblur = [1]
+Plotting fields. 
+"""
+plot(f::Field; kwargs...) = plot([f]; kwargs...)
+function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(F), title=nothing, vlim=nothing, kwargs...) where {F<:Field}
+    fs = fs[:,:]
+    (which isa Vector) || (which = [which])
+    if size(fs,2)==1
+        which = reshape(which,1,:)
+        (m,n) = size(fs,1), length(which)
+    elseif size(fs,1)==1
+        (m,n) = length(which), size(fs,2)
+    else
+        length(which)==1 || throw(ArgumentError("If plotting a matrix of fields, `which` must be a single key."))
+        (m,n) = size(fs)
     end
+    fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
+    _plot.(fs,axs,which,title,vlim; kwargs...)
+    tight_layout(w_pad=-10)
+    fig,axs,which
+end
+default_which(::Type{<:FlatS0})  = [:Tx]
+default_which(::Type{<:FlatS2})  = [:Ex,:Bx]
+default_which(::Type{<:FlatS02}) = [:Tx,:Ex,:Bx]
+default_which(::Any) = throw(ArgumentError("Must specify `which` by hand for $S field."))
+
+
+"""
+    animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=true, kwargs...)
+
+"""
+animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, kwargs...)
+    fig, axs, which = plot(first.(fields); kwargs...)
+    motionblur = (motionblur == true) ? [1, 0.7, 0.2] : (motionblur == false) ? [1] : motionblur
     
-    ani = pyimport("matplotlib.animation")[:FuncAnimation](gcf(), 
-        i->(img[:set_data](sum(x*fields[mod1(i-j+1,n)][:Tx] for (j,x) in enumerate(motionblur)) / sum(motionblur));(img,)), 
-        1:length(fields),
+    ani = pyimport("matplotlib.animation")[:FuncAnimation](fig, 
+        i->begin
+            for (f,ax,k) in tuple.(fields,axs,which)
+                if length(f)>1
+                    img = ax[:images][1]
+                    img[:set_data](sum(x*f[mod1(i-j+1,length(f))][k] for (j,x) in enumerate(motionblur)) / sum(motionblur))
+                end
+            end
+            first.(getindex.(axs,:images))[:]
+        end, 
+        1:maximum(length.(fields)[:]),
         interval=interval, blit=true
         )
     close()
