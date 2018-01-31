@@ -101,7 +101,7 @@ function run3(;
         
         # f step
         let L = (i==1 ? IdentityOp : cache(L(ϕcur)))
-            fcur,hist = lensing_wiener_filter(ds, L, guess=(i==1 ? nothing : fcur), tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=true)
+            fcur,hist = lensing_wiener_filter(ds, L, guess=(i==1 ? nothing : fcur), tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
             f̆cur = L * D * fcur
         end
 
