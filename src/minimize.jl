@@ -46,20 +46,19 @@ end
 Compute x = A\\b (where A is positive definite) by conjugate gradient. M is the
 preconditioner and should approximate A, and M \\ x should be fast.
 
-The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol` (where r
-is the residual A*x-b at that step), whichever occurs first.
+The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol`
+(where `r=A*x-b` is the residual  at that step), whichever occurs first.
 
 Info from the iterations of the solver can be returned if `hist` is specified.
 `hist` can be one or a tuple of:
 
-    * `:i` - current iteration number
-    * `:x` - current solution
-    * `:r` - current residual r=A*x-b
-    * `:res` - the norm of r
-    * `:t` - the time elapsed (in seconds) since the start of the algorithm
+* `:i` - current iteration number
+* `:x` - current solution
+* `:r` - current residual r=A*x-b
+* `:res` - the norm of r
+* `:t` - the time elapsed (in seconds) since the start of the algorithm
 
-estimated solution) and/or `res` (the norm of the residual of this solution) to
-include. `histmod` can be used to include every N-th iteration only. 
+`histmod` can be used to include every N-th iteration only in `hist`. 
 """
 function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
     gethist() = hist == nothing ? nothing : getindex.(@dictpack(i,x,r,res,t),hist)
