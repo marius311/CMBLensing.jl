@@ -136,13 +136,10 @@ end
 
 
 doc"""
-    wf(ds, L; kwargs...)
+    lensing_wiener_filter(ds::DataSet, L, which=:wf)
 
-Computes the Wiener filter of data $d$ at a fixed $\phi$, defined as, 
-
-```math
-{\rm argmax}_f \mathcal{P}(f\,|\,\phi,d)
-```
+Computes the Wiener filter at fixed $\phi$, i.e. the best-fit of
+$\mathcal{P}(f\,|\,\phi,d)$, or a sample from this posterior. 
 
 The data model assumed is, 
 
@@ -158,17 +155,30 @@ The argument `ds::DataSet` stores the mask, $\mathcal{M}$, the beam/instrumental
 transfer functions, $\mathcal{B}$, as well as the various covariances which are
 needed.
 
-The Wiener filter is performed in the most optimal form we've found (so far).
+The `which` parameter controls which operation to do and can be one of three
+things:
+
+* `:wf` - Compute the Wiener filter
+* `:sample` - Compute a sample from the posterior
+* `:fluctuation` - Compute a fluctuation around the mean (i.e. a sample minus the Wiener filter)
 
 """
-function lensing_wiener_filter(ds::DataSet, L; guess=nothing, kwargs...)
+function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwargs...) where F
     
     @unpack d, Cn, Cn̂, Cf, M, B, B̂ = ds
+    
+    b = 0
+    if (which in (:wf, :sample))
+        b += L'*B'*M'*(Cn^-1)*d
+    end
+    if (which in (:fluctuation, :sample))
+        b += sqrtm(Cf)\white_noise(F) + L'*B'*M'*(sqrtm(Cn)\white_noise(F))
+    end
     
     pcg2(
         (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
         (Cf^-1) + L'*B'*M'*(Cn^-1)*M*B*L,
-        L'*B'*M'*(Cn^-1)*d,
+        b,
         guess==nothing ? 0d : guess;
         kwargs...
     )
