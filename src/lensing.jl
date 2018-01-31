@@ -45,7 +45,6 @@ end
 inv(J::δfϕₛ_δfϕₜ{s,t}) where {s,t} = δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ)
 
 
-
 # some syntactic sugar for making lensing operators that lense from time t1 to t2
 struct →{t1,t2} end
 →(t1::Real,t2::Real) = →{float(t1),float(t2)}()
@@ -54,6 +53,13 @@ getindex(L::LenseOp, ::→{0.,1.}) = L
 getindex(L::LenseOp, i::→)  = _getindex(L,i)
 _getindex(L::LenseOp, ::→{t1,t2}) where {t1,t2} = error("Lensing from time $t1 to $t2 with $(typeof(L)) is not implemented.")
 
+struct NoLensing <: LenseOp end
+NoLensing(ϕ) = NoLensing()
+*(::NoLensing, f::Field) = f
+ctranspose(L::NoLensing) = L
+inv(L::NoLensing) = L
+_getindex(L::NoLensing, i::→) = L
+δfϕₛ_δfϕₜ{t₀,t₁}(L::NoLensing,::Any,::Any) where {t₀,t₁} = IdentityOp
 
 include("powerlens.jl")
 include("lenseflow.jl")
