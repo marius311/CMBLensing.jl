@@ -162,12 +162,12 @@ Arguments
 function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
-    k₁, k₂, k₃, k₄ = @repeated(similar(y₀),4)
+    k₁, k₂, k₃, k₄, y₂, y₃, y₄ = @repeated(similar(y₀),7)
     for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
         @! k₁ = F!(t, y)
-        @! k₂ = F!(t + (h/2), y + (h/2)*k₁)
-        @! k₃ = F!(t + (h/2), y + (h/2)*k₂)
-        @! k₄ = F!(t +   (h), y +   (h)*k₃)
+        @! k₂ = F!(t + (h/2), (@. y₂ = y + (h/2)*k₁))
+        @! k₃ = F!(t + (h/2), (@. y₃ = y + (h/2)*k₂))
+        @! k₄ = F!(t +   (h), (@. y₄ = y +   (h)*k₃))
         @. y += h*(k₁ + 2k₂ + 2k₃ + k₄)/6
     end
     return y
