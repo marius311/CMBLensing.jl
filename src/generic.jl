@@ -130,10 +130,10 @@ copy(f::Field) = deepcopy(f)
 getbasis(::Type{<:Field{B}}) where {B} = B
 getbasis(::F) where {F<:Field} = getbasis(F)
 getindex(f::Union{Field,LinOp},x::Symbol) = getindex(f,Val{x})
-function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
+@generated function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
     l = filter(S->x in fieldnames(S), subtypes(Field{<:Any,S,P}))
     if (length(l)==1)
-        getfield(getbasis(l[1])(f),x)
+        :(getfield($(getbasis(l[1]))(f),x))
     elseif (length(l)==0)
         error("No subtype of $F has a field $x")
     else
