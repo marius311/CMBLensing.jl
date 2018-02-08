@@ -95,9 +95,12 @@ default_which(::Any) = throw(ArgumentError("Must specify `which` by hand for $S 
 
 """
 animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, kwargs...)
+animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, annonate=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); kwargs...)
     motionblur = (motionblur == true) ? [1, 0.7, 0.2] : (motionblur == false) ? [1] : motionblur
+    
+    if (annonate!=nothing); annonate(fig,axs,which); end
     
     ani = pyimport("matplotlib.animation")[:FuncAnimation](fig, 
         i->begin
