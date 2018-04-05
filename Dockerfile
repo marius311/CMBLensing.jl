@@ -18,7 +18,7 @@ RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/re
         py3-six \
         py3-zmq \
         python3 \
-    && pip3 install --no-cache-dir notebook==5.* jupyter_contrib_nbextensions==0.3.1 matplotlib \
+    && pip3 install --no-cache-dir notebook==5.4.0 tornado==4.5.3 jupyter_contrib_nbextensions==0.3.1 matplotlib \
     && jupyter contrib nbextension install \
     && jupyter nbextension enable toc2/main --system
 
