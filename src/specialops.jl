@@ -25,8 +25,10 @@ simulate(L::FullDiagOp{F}) where {F} = sqrtm(L) .* F(white_noise(F))
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
 containertype(L::FullDiagOp) = containertype(L.f)
 inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1./L.f) : 1./L.f, L.unsafe_invert)
-ud_grade(L::FullDiagOp{<:FlatFourier}, θnew) = FullDiagOp(getbasis(L.f)(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
-ud_grade(L::FullDiagOp{<:FlatMap}, θnew)     = FullDiagOp(getbasis(L.f)(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,    deconv_pixwin=false,anti_aliasing=false)))
+ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUFourier}} = 
+    FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
+ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} = 
+    FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,    deconv_pixwin=false,anti_aliasing=false)))
 
 
 ### Derivative ops
