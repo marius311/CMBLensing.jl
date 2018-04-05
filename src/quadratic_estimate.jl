@@ -14,6 +14,9 @@ end
 
 
 """
+
+    ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
+
 Compute quadratic estimate for ϕ given data, d, and signal, lensed signal,
 and noise covariances Cf, Cf̃, and Cn, respectively. If signal covariance Cϕ is
 given, the result is Wiener filtered.
