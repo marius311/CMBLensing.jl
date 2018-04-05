@@ -96,9 +96,9 @@ default_which(::Any) = throw(ArgumentError("Must specify `which` by hand for $S 
 """
 animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, annonate=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); kwargs...)
-    motionblur = (motionblur == true) ? [1, 0.7, 0.2] : (motionblur == false) ? [1] : motionblur
+    motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
     if (annonate!=nothing); annonate(fig,axs,which); end
     
@@ -116,5 +116,8 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
         interval=interval, blit=true
         )
     close()
+    if filename!=nothing
+        ani[:save](filename)
+    end
     HTML(ani[:to_html5_video]())
 end
