@@ -29,7 +29,7 @@ function Taylens{N}(ϕ::FlatS0{T,P}) where {N,T,P}
 
     # nearest pixel displacement
     indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
-    di, dj = (round(Int,d/g.Δx) for d=(dx,dy))
+    di, dj = (round.(Int,d/g.Δx) for d=(dx,dy))
     i = indexwrap.(di .+ (1:Nside)', Nside)
     j = indexwrap.(dj .+ (1:Nside) , Nside)
 
@@ -40,7 +40,7 @@ function Taylens{N}(ϕ::FlatS0{T,P}) where {N,T,P}
     kα = Dict{Any,Matrix{Complex{T}}}()
     xα = Dict{Any,Matrix{T}}()
     for n in 1:N, α₁ in 0:n
-        kα[n,α₁] = im ^ n .* g.k' .^ α₁ .* g.k[1:round(Int,Nside/2+1)] .^ (n - α₁)
+        kα[n,α₁] = im ^ n .* g.k' .^ α₁ .* g.k[1:Nside÷2+1] .^ (n - α₁)
         xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
     end
 
