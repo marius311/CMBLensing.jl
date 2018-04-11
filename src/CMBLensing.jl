@@ -31,7 +31,7 @@ export
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade,
-    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, BandPassOp, FuncOp, lensing_wiener_filter, animate
+    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate
 
 include("util.jl")
 include("generic.jl")
@@ -45,6 +45,7 @@ include("vec_conv.jl")
 include("plotting.jl")
 include("cls.jl")
 include("likelihood.jl")
+include("sampling.jl")
 include("minimize.jl")
 include("masking.jl")
 include("quadratic_estimate.jl")
