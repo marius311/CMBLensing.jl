@@ -13,7 +13,7 @@ RUN apt-get update \
         python3-pip \
         python3-scipy \
         python3-zmq \
-    && pip3 install --no-cache-dir notebook==5.* jupyter_contrib_nbextensions==0.3.1 \
+    && pip3 install --no-cache-dir notebook==5.4.0 tornado==4.5.3 jupyter_contrib_nbextensions==0.3.1 \
     && jupyter contrib nbextension install \
     && jupyter nbextension enable toc2/main --system \
     && rm -rf /var/lib/apt/lists/*
@@ -33,13 +33,16 @@ RUN mkdir /opt/camb \
 ENV NB_USER bayes
 ENV NB_UID 1000
 ENV HOME /home/${NB_USER}
-RUN adduser -Du ${NB_UID} ${NB_USER}
+RUN adduser --disabled-password --gecos "Default user" --uid ${NB_UID} ${NB_USER}
 
-# install CMBLensing dependencies and precompile
+# add CMBLensing dependencies
 COPY REQUIRE $HOME/.julia/v0.6/CMBLensing/REQUIRE
+# add dependencies for Jupyter for this Docker container
+RUN echo "IJulia" >> $HOME/.julia/v0.6/CMBLensing/REQUIRE
 RUN chown -R $NB_USER $HOME && chgrp -R $NB_USER $HOME
 USER ${NB_USER}
-RUN julia -e 'ENV["PYTHON"]="python3"; Pkg.add("IJulia"); for p in Pkg.available() try @eval using $(Symbol(p)); println(p); end; end'
+# install and precompile everything
+RUN julia -e 'ENV["PYTHON"]="python3"; Pkg.resolve(); for p in Pkg.available() try @eval using $(Symbol(p)); println(p); end; end'
 
 # install CMBLensing itself (do so separately here to improve Docker caching)
 COPY . $HOME/.julia/v0.6/CMBLensing
