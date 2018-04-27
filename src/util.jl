@@ -131,3 +131,14 @@ macro tmap(f,args...)
         end
     end
 end
+
+
+# these allow inv and sqrtm of SMatrices of Diagonals to work correctly, which
+# we use for the T-E block of the covariance. hopefully some of this can be cut
+# down on in the futue with some PRs into StaticArrays.
+import StaticArrays: arithmetic_closure
+import Base: sqrt, inv, /
+arithmetic_closure(::Type{Diagonal{T}}) where {T} = Diagonal{arithmetic_closure(T)}
+sqrt(d::Diagonal) = Diagonal(sqrt.(diag(d)))
+inv(d::Diagonal) = Diagonal(1./d.diag)
+/(a::Number, b::Diagonal) = Diagonal(a./diag(b))

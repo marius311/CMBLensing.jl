@@ -71,6 +71,8 @@ fn   = FieldTuple(f02,f02)
     @test_noerr @inferred(LTEB + 1)::FlatTEBCov
     @test_noerr @inferred(1 * LTEB)::FlatTEBCov
     @test_noerr @inferred(LTEB / 3)::FlatTEBCov
+    @test_noerr @inferred simulate(LTEB)
+    @test_noerr @inferred LTEB \ f02
     
     @testset "S0/S2" begin
         @test_noerr f0*f2

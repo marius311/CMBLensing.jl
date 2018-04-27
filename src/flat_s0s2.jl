@@ -82,13 +82,3 @@ end
 getindex(f::FlatS02{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
 getindex(f::FlatS02{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
 getindex(f::FlatS02{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
-
-
-# these are needed for StaticArrays to invert the 2x2 TE block matrix correctly
-# we can hopefully remove this pending some sort of PR into StaticArrays to
-# remove the need for this
-one(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
-zero(::Type{Diagonal{T}}) where {T} = Diagonal(Vector{T}(0))
-/(n::Number, d::Diagonal{<:Number}) = Diagonal(n./d.diag)
-# this version puts Inf on diagonal for inverted 0 entries, the default throws a Singular error
-inv(d::Diagonal) = Diagonal(1./d.diag)
