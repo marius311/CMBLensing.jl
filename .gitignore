@@ -6,7 +6,6 @@ gitignore
 .ipynb_checkpoints
 .tags
 .vscode
-dat/set*
-dat/run*
+dat
 scratch
 **Untitled*.ipynb

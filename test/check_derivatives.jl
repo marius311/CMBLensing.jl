@@ -5,14 +5,14 @@ import Base: ≈
 ≈(a::Field,b::Field) = pixstd(a-b)<1e-4
 
 ## calc Cℓs and store in Main since I reload CMBLensing alot during development
-cls = isdefined(Main,:cls) ? Main.cls : @eval Main cls=$(class(lmax=6000,r=0.05))
+Cℓ = isdefined(Main,:Cℓ) ? Main.Cℓ : @eval Main Cℓ=$(class(lmax=6000,r=0.05))
 ## set up the types of maps
-Θpix, nside, T = 3, 65, Float64
+Θpix, nside, T = 4, 195, Float32
 P = Flat{Θpix,nside}
 ## covariances
-Cf = Cℓ_to_cov(T,P,S0,S2,cls[:ℓ],cls[:tt],   cls[:te],   cls[:ee],   cls[:bb])
-Cf̃ = Cℓ_to_cov(T,P,S0,S2,cls[:ℓ],cls[:ln_tt],   cls[:ln_te],   cls[:ln_ee],   cls[:ln_bb])
-Cϕ = Cℓ_to_cov(T,P,S0,   cls[:ℓ],cls[:ϕϕ])
+Cf = Cℓ_to_cov(T,P,S2, Cℓ[:f][:ℓ], Cℓ[:f][:EE], Cℓ[:f][:BB])
+Cf̃ = Cℓ_to_cov(T,P,S2, Cℓ[:f̃][:ℓ], Cℓ[:f̃][:EE], Cℓ[:f̃][:BB])
+Cϕ = Cℓ_to_cov(T,P,S0, Cℓ[:f][:ℓ], Cℓ[:f][:ϕϕ])
 μKarcminT = 1
 Ωpix = deg2rad(Θpix/60)^2
 CN = FullDiagOp(FlatIQUMap{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside,nside)),3)...))
@@ -24,6 +24,7 @@ FlatS2EBFourier{T,P}(repeated(fill(μKarcminT^2 * Ωpix,(nside÷2+1,nside)),2)..
 f = Ł(simulate(Cf))
 ϕ = Ł(simulate(Cϕ))
 δfϕ,δfϕ′ = (δf,δϕ),(δf′,δϕ′) = @repeated(Ł(FieldTuple(simulate(Cf),simulate(Cϕ))),2)
+sqrtm(Cf.ΣTE)
 ##
 ϵ = 1e-7
 
