@@ -3,8 +3,15 @@ export @repeated, nan2zero
 import Base: ==
 ==(x,y,z,ws...) = x==y && ==(y,z,ws...)
 
+
+""" 
+Return the type's fields as a tuple
 """
-Simply replaces every occurence of ∷ with `<:Any`
+@generated fieldvalues(x) = :(tuple($((:(x.$f) for f=fieldnames(x))...)))
+
+
+"""
+Replaces every occurence of ∷ with `<:Any`
 """
 macro ∷(ex)
     esc(postwalk(x->(x==:(∷) ? :(<:Any) : x),ex))

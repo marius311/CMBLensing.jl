@@ -121,7 +121,7 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 
 ### Other generic stuff
 
-shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
+shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""),"Main."=>"")
 
 zero(::F) where {F<:Field} = zero(F)
 similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)

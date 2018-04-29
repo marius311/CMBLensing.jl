@@ -6,7 +6,7 @@ Nside(::Type{P}) where {_,N,P<:Flat{_,N}} = N
 Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
 
 
-struct FFTgrid{dm, T}
+struct FFTgrid{dm, T, F}
     period::T
     nside::Int64
     Δx::T
@@ -16,7 +16,7 @@ struct FFTgrid{dm, T}
     k::Vector{T}
     r::Array{T,dm}
     sincos2ϕ::Tuple{Array{T,dm},Array{T,dm}}
-    FFT::FFTW.ScaledPlan{T,FFTW.rFFTWPlan{T,-1,false,dm},T}
+    FFT::F
 end
 
 
@@ -30,7 +30,7 @@ end
 function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
     Δx  = period/nside
     FFTW.set_num_threads(Sys.CPU_CORES)
-    FFT = T((Δx/√(2π))^dm) * plan_rfft(rand(T,fill(nside,dm)...); flags=flags, timelimit=timelimit)
+    FFT = T((Δx/√(2π))^dm) * plan_rfft(Array{T}(fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
     x,k = (ifftshift(-nside÷2:(nside-1)÷2),) .* [Δx,Δℓ]'
@@ -107,11 +107,11 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} =
 # derivatives
 DerivBasis(::Type{<:FlatS0}) = Fourier
 DerivBasis(::Type{<:FlatS2}) = QUFourier
-for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
-    @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
-    @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
-    @eval broadcast_data(::Type{$F{T,P}},::∇²Op) where {T,P} = repeated((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),$(broadcast_length(F)))
-end
+# for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
+#     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
+#     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
+#     @eval broadcast_data(::Type{$F{T,P}},::∇²Op) where {T,P} = repeated((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),$(broadcast_length(F)))
+# end
 
 # bandpass
 function broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}}

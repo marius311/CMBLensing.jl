@@ -4,7 +4,6 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
-using Images: feature_transform, imfilter, Kernel
 using Interpolations
 using MacroTools: @capture, postwalk, isexpr
 using ODE
@@ -40,14 +39,14 @@ include("algebra.jl")
 include("field_tuples.jl")
 include("lensing.jl")
 include("flat.jl")
-include("taylens.jl")
-include("vec_conv.jl")
-include("plotting.jl")
-include("cls.jl")
-include("likelihood.jl")
-include("sampling.jl")
-include("minimize.jl")
-include("masking.jl")
-include("quadratic_estimate.jl")
+# include("taylens.jl")
+# include("vec_conv.jl")
+# include("plotting.jl")
+# include("cls.jl")
+# include("likelihood.jl")
+# include("sampling.jl")
+# include("minimize.jl")
+# # include("masking.jl")
+# include("quadratic_estimate.jl")
 
 end

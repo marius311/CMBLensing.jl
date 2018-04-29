@@ -1,52 +1,41 @@
-import Base: broadcast, broadcast!
-
+import Base.Broadcast: BroadcastStyle, materialize, materialize!, broadcastable
+using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
 # the data which is broadcast over for Fields and Scalars
-# (other objects can define their own methods for this, allowing a single type
-# of object to be broadcast with many different types of Fields)
-@generated fieldvalues(x) = :(tuple($((:(x.$f) for f=fieldnames(x))...)))
-@generated function broadcast_length(::Type{F}) where {F} length(fieldnames(F)) end
-broadcast_data(::Type{F}, n::Scalar) where {F<:Field} = repeated(n,broadcast_length(F))
-broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
-broadcast_data(::Type{F}, f::T) where {F,T} = error("Can't broadcast a $(shortname(T)) as a $(shortname(F)).
-Try not using broadcasting or converting $(shortname(F)) to the right basis by hand.") #fall-back
+field_data(f::Field) = fieldvalues(f)
+field_data(L::FullDiagOp) = field_data(L.f)
+field_data(s::Scalar) = s
 
-# get the type of the final result in a type stable way (adapted from broadcast.jl)
-containertype(::F) where {F<:Field} = F
-containertype(::T) where {T<:Union{LinDiagOp,Scalar}} = Any
-containertype(ct1, ct2) = promote_containertype(containertype(ct1), containertype(ct2))
-@inline containertype(ct1, ct2, cts...) = promote_containertype(containertype(ct1), containertype(ct2, cts...))
-promote_containertype(::Type{F}, ::Type{F}) where {F<:Field} = F
-promote_containertype(::Type{Any}, ::Type{Any}) = Any
-@commutative promote_containertype{F<:Field}(::Type{F}, ::Type{Any}) = F
-promote_containertype(::Type{F1}, ::Type{F2}) where {F1,F2} = error("Can't broadcast together $(shortname(F1)) and $(shortname(F2)).
-Try not using broadcasting or converting them to the same basis by hand.") #fall-back
+# rules for deciding the result type of a broadcast involving Fields and FullDiagOps
+broadcastable(f::Union{Field,FullDiagOp}) = f
+BroadcastStyle(::Type{F}) where {F<:Union{Field,FullDiagOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,FullDiagOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::Style{<:FullDiagOp{F}}) where {F<:Field} = Style{F}()
+BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
+BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
-
-# the actual broadcast functions which broadcast operations down to the
-# underlying data as returned by broadcast_data. at least one Field must be
-# present so we can infer the final type of the result
-broadcast(op, args::Union{_,Field,LinDiagOp,Scalar}...) where {_<:Field} = _broadcast(op,args...)
-# if there's no fields but at least one FullDiagOp we can still infer the final
-# type (which will be a FullDiagOp of some kind)
-broadcast(op, args::Union{_,LinDiagOp,Scalar}...) where {_<:FullDiagOp} = FullDiagOp(_broadcast(op,args...))
-function _broadcast(op, args...)
-    F = containertype(args...)
-    F(@tmap(broadcast, repeated(op), map(broadcast_data, repeated(F), args)...)...)
+# forward the broadcast down to the Field's field_data
+function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
+    @unpack f, args = flatten(bc)
+    F(broadcast.(f, map(field_data,args)...)...)
 end
-
-broadcast!(op, X::Field, args::Union{Field,LinDiagOp,Scalar}...) = begin
-    F = containertype(X)
-    @tmap(broadcast!, repeated(op), broadcast_data(F,X), map(broadcast_data, repeated(F), args)...)
-    X
+function materialize!(dest, bc::Broadcasted{Style{F}}) where {F<:Field}
+    @unpack f, args = flatten(bc)
+    broadcast!.(f, field_data(dest), map(field_data,args)...)
+    dest
 end
+# for broadcasts involving only FullDiagOps, do the operation on the Fields then
+# wrap in a FullDiagOp
+materialize(bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
+    FullDiagOp(materialize(convert(Broadcasted{Style{F}}, bc)))
+materialize!(dest, bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
+    (materialize!(dest.f, convert(Broadcasted{Style{F}}, bc)); dest)
 
 
-# non-broadcasted algebra on fields just uses the broadcasted versions
-# (although in a less efficient way than if you were to directly use
-# broadcasting)
+
+# non-broadcasted algebra on fields does automatic promotion then uses broadcasting
 for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
     @eval ($op)(a::$T1, b::$T2) = broadcast($(op),promote(a,b)...)
 end
