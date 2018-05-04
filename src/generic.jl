@@ -146,3 +146,9 @@ function get_Cℓ(args...; kwargs...) end
 get_αℓⁿCℓ(α=1,n=0,args...; kwargs...) = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. (α*ℓ^n*Cℓ)))
 get_Dℓ(args...; kwargs...)            = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. ℓ*(ℓ+1)*Cℓ/(2π)))
 get_ℓ⁴Cℓ(args...; kwargs...)          = get_αℓⁿCℓ(1,4,args...; kwargs...)
+function get_ρℓ(f1,f2; kwargs...)
+    ℓ,Cℓ1 = get_Cℓ(f1; kwargs...)
+    ℓ,Cℓ2 = get_Cℓ(f2; kwargs...)
+    ℓ,Cℓx = get_Cℓ(f1,f2; kwargs...)
+    ℓ, @. Cℓx/sqrt(Cℓ1*Cℓ2)
+end
