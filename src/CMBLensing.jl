@@ -31,7 +31,8 @@ export
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade,
-    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate
+    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
+    BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate
 
 include("util.jl")
 include("generic.jl")
