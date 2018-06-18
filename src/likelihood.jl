@@ -138,8 +138,10 @@ end
 doc"""
     lensing_wiener_filter(ds::DataSet, L, which=:wf)
 
-Computes the Wiener filter at fixed $\phi$, i.e. the best-fit of
-$\mathcal{P}(f\,|\,\phi,d)$, or a sample from this posterior. 
+Computes either, 
+* the Wiener filter at fixed $\phi$, i.e. the best-fit of
+$\mathcal{P}(f\,|\,\phi,d)$
+* a sample from $\mathcal{P}(f\,|\,\phi,d)$
 
 The data model assumed is, 
 
@@ -182,5 +184,162 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
         guess==nothing ? 0d : guess;
         kwargs...
     )
+    
+end
+
+
+doc"""
+
+    max_lnP_joint(ds::DataSet, L::Type{<:LenseOp}, nsteps=5, Nϕ=nothing, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=1, progress=false)
+
+Compute the maximum of the joint posterior, or a quasi-sample from the joint posterior. 
+
+The `ds` argument stores the data and other relevant objects for the dataset
+being considered. `L` gives which type of lensing operator to use. 
+
+`Nϕ` can optionally specify an estimate of the ϕ effective noise, and if
+provided is used to estimate a Hessian which is used in the ϕ
+quasi-Newton-Rhapson step. `Nϕ=:qe` automatically uses the quadratic estimator
+noise. 
+
+`quasi_sample` can be set to an integer seed to compute a quasi-sample from the
+posterior rather than the maximum. 
+
+The following arguments control the maximiation procedure, and can generally be
+left at their defaults:
+
+* `nsteps` - The number of iteration steps to do (each iteration updates f then updates ϕ)
+* `Ncg` - Maximum number of conjugate gradient steps during the f update
+* `cgtol` - Conjugrate gradient tolerance (will stop at cgtol or Ncg, whichever is first)
+* `αtol` - Tolerance for the linesearch in the ϕ quasi-Newton-Rhapson step, `x′ = x - α*H⁻¹*g`
+* `αmax` - Maximum value for α in the linesearch
+* `progress` - Whether to print out conjugate gradient progress.
+
+"""
+function max_lnP_joint(
+    ds;
+    L = LenseFlow,
+    nsteps = 10, 
+    Nϕ = nothing,
+    Ncg = 500,
+    cgtol = 1e-1,
+    αtol = 1e-5,
+    αmax = 1.,
+    quasi_sample = nothing, 
+    progress = false)
+    
+    @unpack d, D, Cϕ, Cf, Cf̃, Cn = ds
+    
+    fcur, f̊cur = nothing, nothing
+    ϕcur = zero(Ł(d)'Ł(d)) # fix needing to get zero(Φ) this way
+    tr = []
+    hist = nothing
+    
+    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
+    # from quadratic estimate
+    if (Nϕ == :qe); Nϕ = ϕqe(d, Cf, Cf̃, Cn)[2]; end
+    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
+    
+    
+    for i=1:nsteps
+
+        # f step
+        let L = (i==1 ? IdentityOp : cache(L(ϕcur)))
+            
+            # if we're doing a quasi_sample, set the random seed here, which controls the
+            # sample from the posterior we get from inside `lensing_wiener_filter`
+            if (quasi_sample != nothing); srand(quasi_sample); end
+            
+            fcur,hist = lensing_wiener_filter(ds, L, 
+                (quasi_sample==nothing) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
+                tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
+                
+            f̊cur = L * D * fcur
+        end
+        
+        # ϕ step
+        if i!=nsteps
+            ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f̊cur,ϕcur,ds,L))[2]
+            res = optimize(α->(-lnP(:mix,f̊cur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
+            α = res.minimizer
+            ϕcur = ϕcur+α*ϕnew
+            lnPcur = -res.minimum
+            if progress; @show i,lnPcur,length(hist),α; end
+            push!(tr,@dictpack(i,lnPcur,hist,α,ϕnew,ϕcur,fcur))
+        end
+
+    end
+
+    return f̊cur, fcur, ϕcur, tr
+    
+end
+
+
+
+doc"""
+    load_sim_dataset
+    
+Create a `DataSet` object with some simulated data. 
+
+"""
+function load_sim_dataset(;
+    θpix = throw(UndefVarError(:θpix)),
+    Nside = throw(UndefVarError(:Nside)),
+    use = throw(UndefVarError(:use)),
+    T = Float32,
+    μKarcminT = 3,
+    ℓknee = 100,
+    ℓmax_data = 3000,
+    beamFWHM = 0,
+    Cℓf = throw(UndefVarError(:Cℓf)),
+    Cℓf̃ = throw(UndefVarError(:Cℓf̃)),
+    seed = nothing,
+    M = nothing,
+    B = nothing,
+    D = nothing,
+    mask_kwargs = nothing,
+    L = LenseFlow
+    )
+    
+    # Cℓs
+    Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee)
+    
+    # types which depend on whether T/E/B
+    SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
+    F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
+    
+    # covariances
+    P = Flat{θpix,Nside}
+    Cϕ = Cℓ_to_cov(T,P,S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cf,Cf̃,Cn = (Cℓ_to_cov(T,P,SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
+    
+    # data mask
+    if (M == nothing) && (mask_kwargs != nothing)
+        M = FullDiagOp(F{T,P}(repeated(T.(sptlike_mask(Nside,θpix; mask_kwargs...)),nF)...)) * LP(ℓmax_data)
+    else
+        M = LP(ℓmax_data)
+    end
+    
+    # beam
+    if (B == nothing)
+        B = let ℓ=0:10000; Cℓ_to_cov(T,P,SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
+    end
+    
+    # mixing matrix
+    if (D == nothing); D = D_mix(Cf); end
+    
+    # simulate data
+    if (seed != nothing); srand(seed); end
+    f = simulate(Cf)
+    ϕ = simulate(Cϕ)
+    f̃ = L(ϕ)*f
+    n = simulate(Cn)
+    d = M*B*f̃ + n
+    
+    # put everything in DataSet
+    ds = DataSet(;(@dictpack d Cn Cf Cf̃ Cϕ M B D)...)
+    
+    return @dictpack f f̃ ϕ n ds T P
     
 end

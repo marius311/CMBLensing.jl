@@ -8,6 +8,7 @@ using Images: feature_transform, imfilter, Kernel
 using Interpolations
 using MacroTools: @capture, postwalk, isexpr
 using ODE
+using Optim: optimize
 using Parameters
 using ProgressMeter
 using PyCall
@@ -32,7 +33,8 @@ export
     ∂x, ∂y, ∇, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
-    BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate
+    BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
+    max_lnP_joint, load_sim_dataset
 
 include("util.jl")
 include("generic.jl")
