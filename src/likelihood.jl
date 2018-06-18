@@ -190,7 +190,7 @@ end
 
 doc"""
 
-    max_lnP_joint(ds::DataSet, L::Type{<:LenseOp}, nsteps=5, Nϕ=nothing, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=1, progress=false)
+    max_lnP_joint(ds::DataSet; L=LenseFlow, Nϕ=nothing, quasi_sample=nothing, nsteps=10, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=0.5, progress=false)
 
 Compute the maximum of the joint posterior, or a quasi-sample from the joint posterior. 
 
@@ -219,13 +219,13 @@ left at their defaults:
 function max_lnP_joint(
     ds;
     L = LenseFlow,
-    nsteps = 10, 
     Nϕ = nothing,
+    quasi_sample = nothing, 
+    nsteps = 10, 
     Ncg = 500,
     cgtol = 1e-1,
     αtol = 1e-5,
-    αmax = 1.,
-    quasi_sample = nothing, 
+    αmax = 0.5,
     progress = false)
     
     @unpack d, D, Cϕ, Cf, Cf̃, Cn = ds
