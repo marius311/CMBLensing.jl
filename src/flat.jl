@@ -76,7 +76,7 @@ Cℓ_to_cov(::Type{P}, ::Type{S}, args::Vector{T}...) where {T,P,S<:Spin} = Cℓ
 corresponds to exactly the nyquist frequency """
 function Mnyq(::Type{T},::Type{P}, M) where {T,θ,N,P<:Flat{θ,N}}
     if iseven(N)
-        inyq = first(indexin([-FFTgrid(T,P).nyq],FFTgrid(T,P).k))
+        inyq = first((1:N)[@. FFTgrid(T,P).k ≈ -FFTgrid(T,P).nyq])
         M[inyq,:] = M[:,inyq] = 0
     end
     M
