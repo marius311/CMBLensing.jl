@@ -3,41 +3,61 @@ using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
-# the data which is broadcast over for Fields and Scalars
-field_data(f::Field) = fieldvalues(f)
-field_data(L::FullDiagOp) = field_data(L.f)
-field_data(s::Scalar) = s
+# Broadcasted expressions are evaluated in three phases, hooking into the Julia
+# broadcasting API (https://docs.julialang.org/en/latest/manual/interfaces/#man-interfaces-broadcasting-1)
+# The three phases are:
 
-# rules for deciding the result type of a broadcast involving Fields and FullDiagOps
-broadcastable(f::Union{Field,FullDiagOp}) = f
-BroadcastStyle(::Type{F}) where {F<:Union{Field,FullDiagOp}} = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,FullDiagOp}} = Style{F}()
-BroadcastStyle(::Style{F}, ::Style{<:FullDiagOp{F}}) where {F<:Field} = Style{F}()
+# (1) Infer the type of the result, e.g. Field+Scalar=Field,
+# LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
+# BroadcastStyle definitions below do, and they return a Style{F} where F is
+# final result type.
+broadcastable(f::Union{Field,LinDiagOp}) = f
+BroadcastStyle(::Type{F}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::Style{<:LinDiagOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
-# forward the broadcast down to the Field's field_data
+# (2) Call broadcast_data(F,x) where x is each of the arguments being broadcasted
+# over to get the actual data which participates in the broadcast. This should
+# return a tuple and in the end we broadcast over these tuples. Different types
+# can specialize to return different things for different F's, e.g. ∂x returns a
+# different sized array depending on the Nside of F. These are a few generic
+# defitions:
+broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
+broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(L.f)
+broadcast_data(::Type{<:Field}, s::Scalar) = s
+
+# (3) Finally, forward the broadcast expression on to the data which was returned
+# and wrap the answer in the inferred result type, F.
+
+# When the result type is a Field
 function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
     @unpack f, args = flatten(bc)
-    F(broadcast.(f, map(field_data,args)...)...)
+    F(broadcast.(f, broadcast_data.(F,args)...)...)
 end
 function materialize!(dest, bc::Broadcasted{Style{F}}) where {F<:Field}
     @unpack f, args = flatten(bc)
-    broadcast!.(f, field_data(dest), map(field_data,args)...)
+    broadcast!.(f, broadcast_data(F,dest), broadcast_data.(F,args)...)
     dest
 end
-# for broadcasts involving only FullDiagOps, do the operation on the Fields then
-# wrap in a FullDiagOp
+# When the result type is a FullDiagOp
 materialize(bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
     FullDiagOp(materialize(convert(Broadcasted{Style{F}}, bc)))
 materialize!(dest, bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
     (materialize!(dest.f, convert(Broadcasted{Style{F}}, bc)); dest)
+# Fallback for things we can't broadcast, e.g. `∂x .* ∂x` alone without a field
+cant_broadcast() = error("Can't broadcast this expression.")
+materialize(bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()
+materialize!(dest, bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()
 
 
 
-# non-broadcasted algebra on fields does automatic promotion then uses broadcasting
+# non-broadcasted algebra on fields just uses the broadcasted versions
+# (although in a less efficient way than if you were to directly use
+# broadcasting)
 for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
-    @eval ($op)(a::$T1, b::$T2) = broadcast($(op),promote(a,b)...)
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2?promote:tuple)(a,b)...)
 end
 for op in (:*,:/), (T1,T2) in ((:F,:Scalar),(:Scalar,:F),(:F,:F))
     @eval ($op)(a::$T1, b::$T2) where {F<:Field} = broadcast($(op),a,b)
@@ -66,6 +86,10 @@ transpose(f::Field) = f
 # F(f) where F is some Field type defaults to just using the basis conversion
 # and asserting that we end up with the right type, F
 convert(::Type{F}, f::Field{B1}) where {B1,B2,F<:Field{B2}} = B2(f)::F
+
+# this used to be the default in 0.6, bring it back because we use F(f) alot to
+# mean convert f to a type of F
+(::Type{F})(f) where {F<:Field} = convert(F,f)
 
 
 
@@ -96,15 +120,15 @@ end
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
 *(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
-ctranspose(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,ctranspose(lz.b),ctranspose(lz.a))
+adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 
-# a generic lazy ctranspose
+# a generic lazy adjoint
 struct LazyHermitian{A<:LinOp} <: LinOp{Basis,Spin,Pix}
     a::A
 end
-ctranspose(L::LinOp) = LazyHermitian(L)
-ctranspose(L::LazyHermitian) = L.a
+adjoint(L::LinOp) = LazyHermitian(L)
+adjoint(L::LazyHermitian) = L.a
 *(L::LazyHermitian, f::Field) = L.a'*f
 inv(L::LazyHermitian) = LazyHermitian(inv(L))
 ud_grade(lz::LazyHermitian, args...; kwargs...) = LazyHermitian(ud_grade(lz.a,args...; kwargs...))

@@ -38,11 +38,11 @@ abstract type Basislike <: Basis end
 # that the operator is stored in this basis, but rather that fields should be
 # converted to this basis before the operator is applied.
 # 
-# In the simplest case, LinOps should implement *, inv, and ctranspose. 
+# In the simplest case, LinOps should implement *, inv, and adjoint. 
 # 
 #     * *(::LinOp, ::Field) - apply the operator
 #     * inv(::LinOp) - return the inverse operator (called by L^-1 and L\f)
-#     * ctranspose(::LinOp) - return the conjugate transpose operator (called by L'*f and L'\f)
+#     * adjoint(::LinOp) - return the conjugate transpose operator (called by L'*f and L'\f)
 # 
 # These three functions are used by default in the following fallbacks. These
 # fallbacks can be overriden with more efficient implementations of the
@@ -75,12 +75,12 @@ abstract type Basislike <: Basis end
 # 
 abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 
-# Assuming *, inv, and ctranspose are implemented, the following fallbacks make
+# Assuming *, inv, and adjoint are implemented, the following fallbacks make
 # everything work, or can be overriden by individual LinOps with more efficient
 # versions.
 literal_pow(::typeof(^), L::LinOp, ::Type{Val{-1}}) = inv(L)
 Ac_mul_B(L::LinOp, f::Field) = f*L
-*(f::Field, L::LinOp) = ctranspose(L)*f
+*(f::Field, L::LinOp) = adjoint(L)*f
 \(L::LinOp, f::Field) = inv(L)*f
 Ac_ldiv_B(L::LinOp, f::Field) = f*inv(L)
 
@@ -102,7 +102,7 @@ end
 # field of type F.
 #
 abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
-ctranspose(L::LinDiagOp) = L
+adjoint(L::LinDiagOp) = L
 
 # automatic basis conversion & broadcasting
 for op=(:*,:\)
@@ -121,19 +121,27 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 
 ### Other generic stuff
 
-shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""),"Main."=>"")
+
+# convenience "getter" functions for the Basis/Spin/Pix
+basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
+basis(::F) where {F<:Field} = basis(F)
+spin(::Type{<:Field{B,S,P}}) where {B,S,P} = S
+spin(::F) where {F<:Field} = spin(F)
+pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
+pix(::F) where {F<:Field} = pix(F)
+
+
+shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""), "Main."=>"")
 
 zero(::F) where {F<:Field} = zero(F)
 similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
-getbasis(::Type{<:Field{B}}) where {B} = B
-getbasis(::F) where {F<:Field} = getbasis(F)
 getindex(f::Union{Field,LinOp},x::Symbol) = getindex(f,Val{x})
 @generated function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
     l = filter(S->x in fieldnames(S), subtypes(Field{<:Any,S,P}))
     if (length(l)==1)
-        :(getfield($(getbasis(l[1]))(f),x))
+        :(getfield($(basis(l[1]))(f),x))
     elseif (length(l)==0)
         error("No subtype of $F has a field $x")
     else

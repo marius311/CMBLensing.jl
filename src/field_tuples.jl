@@ -1,169 +1,60 @@
-#= 
-
-This file defines "FieldNTuples", arbitrary tuples of fields
-
-To keep things type-stable, until a solution to
-https://discourse.julialang.org/t/is-there-a-way-to-forward-getindex-for-tuples-in-a-type-stable-way/2889
-comes along, we generate parametric structs for each "N" with a loop and @eval.
-i.e., the code below generates more-or-less, 
-
-struct Field2Tuple{F1,F2}
-    f1::F1
-    f2::F2
-end
-
-struct Field3Tuple{F1,F2,F3}
-    f1::F1
-    f2::F2
-    f2::F3
-end
-
-etc..., along with all of the necessary functions for each. 
-
-Due to this, the code below can be a bit obtuse; you can also take a look at
-docs/field_2tuples.jl which is the version explicitly written out for 2-tuples,
-which this file is a generalization of. Additionally, you can uncomment the
-"println" line below to just directly print the generate code, which is not too
-bad to read either. 
-
-=#
-
-
 export FieldTuple
 
-Ns = [2,3] # which FieldNTuples to generate
+abstract type BasisTuple{T} <: Basis end
+abstract type SpinTuple{T} <: Spin end
+abstract type PixTuple{T} <: Pix end
 
-for N in Ns
-    
-    let 
-        local f(i,p="") = Symbol("f$i$p")
-        local F(i,p="") = Symbol("F$i$p")
-        local B(i,p="") = Symbol("B$i$p")
-        local (fs, Fs, Bs) = @. f(1:N), F(1:N), B(1:N)
-        local (Fas, Fbs) = @. F(1:N,"a"), F(1:N,"b")
-        local (FNT, BNT)= (Symbol("Field$(N)Tuple"), Symbol("Basis$(N)Tuple"))
-
-        (q = (quote
-        
-            abstract type $BNT{$((:($(B(i))<:Basis) for i=1:N)...)} <: Basis end
-            
-            # 
-            # I really wish I could define this just as 
-            # Field2Tuple{F1<:Field{B1},F2<:Field{B2}} <: Field{Basis2Tuple{B1,B2},Spin,Pix}
-            # but this doesn't exist in Julia (yet?), so instead I use this "hack"
-            # see also: https://discourse.julialang.org/t/could-julia-have-implicit-type-parameters/2914/5
-            # 
-            struct $FNT{$((:($(F(i))<:Field) for i=1:N)...),$(Bs...)} <: Field{$BNT{$(Bs...)},Spin,Pix} 
-                $((:($(f(i))::$(F(i))) for i=1:N)...)
-                # todo:
-                $FNT($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
-                $FNT{$(Fs...),$(Bs...)}($((:($(f(i))::$(F(i))) for i=1:N)...)) where {$(Bs...),$((:($(F(i))<:Field{$(B(i))}) for i=1:N)...)} = new{$(Fs...),$(Bs...)}($(fs...))
-            end
-            
-            FieldTuple($((f(i) for i=1:N)...)) = $FNT($((f(i) for i=1:N)...))
-            
-            shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "{$(join(map(shortname,[$(Fs...)]),","))}"
-            
-            # Field2Tuple's data
-            broadcast_length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(broadcast_length($(F(i)))) for i=1:N)...))
-            broadcast_data(::Type{$FNT{$(Fs...)}}, f::$FNT) where {$(Fs...)}  = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f.$(f(i))))) for i=1:N)...))
-            # How to broadcast other things as a Field2Tuple
-            broadcast_data(::Type{$FNT{$(Fs...)}}, f::Union{Field,LinOp}) where {$(Fs...)} = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f))) for i=1:N)...))
-            # needed for ambiguity (todo: get rid of needing this...)
-            broadcast_data(::Type{$FNT{$(Fs...)}}, op::FullDiagOp) where {$(Fs...)} = broadcast_data($FNT{$(Fs...)},op.f)
-
-
-            # the final data type when broadcasting things with Field2Tuple
-            containertype(::$FNT{$(Fs...)}) where {$(Fs...)} = $FNT{$((:(containertype($(F(i)))) for i=1:N)...)}
-            containertype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT{$(Fs...)}
-            function promote_containertype(::Type{$FNT{$(Fas...)}}, ::Type{$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)}
-                $FNT{$((:(promote_containertype($(F(i,"a")), $(F(i,"b")))) for i=1:N)...)}
-            end
-            @commutative function promote_containertype{F<:Field,$(Fs...)}(::Type{F},::Type{$FNT{$(Fs...)}})
-                $FNT{$((:(promote_containertype(F,$(F(i)))) for i=1:N)...)}
-            end
-            @commutative *(a::Field,b::$FNT) = a.*b
-            *(a::$FNT,b::$FNT) = a.*b 
-
-            # Reconstruct FieldNTuple from broadcasted data
-            function (::Type{<:$FNT{$(Fs...)}})(args...) where {$(Fs...)}
-                lens = broadcast_length.([$(Fs...)])
-                starts = [1; cumsum(lens)[1:end-1]+1]
-                ends = starts + lens - 1
-                $FNT($((:($(F(i))(args[starts[$i]:ends[$i]]...)) for i=1:N)...))
-            end
-
-            # promotion / conversion
-            function promote_rule(::Type{<:$FNT{$(Fas...)}},::Type{<:$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)} 
-                $FNT{$((:(promote_type($(F(i,"a")), $(F(i,"b")))) for i=1:N)...)}
-            end
-            (::Type{<:$FNT{$(Fs...)}})(f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
-            convert(::Type{<:$FNT{$(Fs...)}},f::$FNT) where {$(Fs...)} = $FNT($((:($(F(i))(f.$(f(i)))) for i=1:N)...))
-
-            # Basis conversions
-            (::Type{$BNT{$(Bs...)}})(f::$FNT) where {$(Bs...)} = $FNT($((:($(B(i))(f.$(f(i)))) for i=1:N)...))
-            (::Type{B})(f::$FNT) where {B<:Basis} = $FNT($((:(B(f.$(f(i)))) for i=1:N)...))
-            (::Type{B})(f::$FNT) where {B<:Basislike} = $FNT($((:(B(f.$(f(i)))) for i=1:N)...)) #needed for ambiguity
-
-            # dot product
-            dot(a::$FNT, b::$FNT) = +($((:(dot(a.$(f(i)),b.$(f(i)))) for i=1:N)...))
-
-            # transpose multiplication (todo: optimize...)
-            Ac_mul_B(a::$FNT,b::$FNT) = +($((:(Ac_mul_B(a.$(f(i)),b.$(f(i)))) for i=1:N)...))
-
-            # for simulating
-            white_noise(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT($((:(white_noise($(F(i)))) for i=1:N)...))
-
-            zero(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT($((:(zero($(F(i)))) for i=1:N)...))
-
-            eltype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = promote_type($((:(eltype($(F(i)))) for i=1:N)...))
-
-            # vector conversion
-            getindex(f::$FNT,::Colon) = vcat($((:(f.$(f(i))[:]) for i=1:N)...))
-            function fromvec(::Type{F}, vec::AbstractVector) where {$(Fs...),F<:$FNT{$(Fs...)}}
-                lens = length.([$(Fs...)])
-                starts = [1; cumsum(lens)[1:end-1]+1]
-                ends = starts + lens - 1
-                F( $((:(fromvec($(F(i)),(@view vec[starts[$i]:ends[$i]]))) for i=1:N)...) )
-            end
-            length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(length($(F(i)))) for i=1:N)...))
-            
-            # makes them iterable to allow unpacking, splatting, etc....
-            # todo: i think for some reason only the first item is type stable?
-            start(f::$FNT) = Val{1}
-            next{i}(f::$FNT,::Type{Val{i}}) = getfield(f,i), Val{i+1}
-            done{i}(::$FNT,::Type{Val{i}}) = i>$N
-
-
-        end)) # |> println    # ...uncomment to print generated code
-        eval(q)
-        
-    end
-    
+struct FieldTuple{FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} <: Field{B,S,P}
+    fs::FS
+end
+FieldTuple{FS,B,S,P}(fs::Field...) where {FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} = FieldTuple{FS,B,S,P}(fs)
+FieldTuple{FS,B,S,P}(ft::FieldTuple) where {FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} = convert(FieldTuple{FS,B,S,P}, ft)
+function FieldTuple(fs::Field...)
+    B = BasisTuple{Tuple{map(basis,fs)...}}
+    S = SpinTuple{Tuple{map(spin,fs)...}}
+    P = PixTuple{Tuple{map(pix,fs)...}}
+    FieldTuple{typeof(fs),B,S,P}(fs)
 end
 
-# containertype(::Type{T}) as opposed to containertype(::T) is only used from
-# this file and only because of the "hack" mentioned above, hence we need this
-# for other fields. hopefully we eventually can get rid of this
-containertype(::Type{F}) where {F<:Field} = F
-    
-@eval const FieldNTuple = Union{$((Symbol("Field$(N)Tuple") for N=Ns)...)}
+shortname(::Type{<:FieldTuple{FS}}) where {FS} = "FieldTuple{$(join(map(shortname,FS.parameters),","))}"
 
-# propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
-pixstd(f::FieldNTuple) = mean(pixstd.(fieldvalues(f)))
-pixstd(arr::AbstractArray{<:Field}) = mean(pixstd.(arr))
-pixstd(x,::Int) = pixstd(x)
-    
-    
-# allows some super simple convenience stuff with normal tuples of Fields (but
-# not as powerful as FieldTuples)
-(::Type{Tuple{F1,F2}})(fs::NTuple{2,Field}) where {F1,F2} = (F1(fs[1]),F2(fs[2]))
-(::Type{Tuple{F1,F2,F3}})(fs::NTuple{3,Field}) where {F1,F2,F3} = (F1(fs[1]),F2(fs[2]),F3(fs[3]))
-dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
+# broadcasting
+broadcast_length(::Type{<:FieldTuple{FS}}) where {FS} = nfields(FS)
+broadcast_data(::Type{FT}, ft::FT) where {FS,FT<:FieldTuple{FS}} = ft.fs
+broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = tuple(repeated(f,nfields(FS))...)
+@commutative promote_containertype{FT<:FieldTuple,F<:Field}(::Type{FT}, ::Type{F}) = FT
+promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # needed for ambiguity
 
-# warning: not type-stable and basically can't be without changes to Julia 
-getindex(f::FieldNTuple, i::Union{Int,UnitRange{Int}}) = (f...)[i]
+# promotion / conversion
+promote_rule(::Type{<:FieldTuple{FS1}},::Type{<:FieldTuple{FS2}}) where {FS1,FS2} = 
+    FieldTuple{Tuple{map_tupleargs(promote_type,FS1,FS2)...}}
+convert(::Type{<:FieldTuple{FS}}, ft::FieldTuple) where {FS} = 
+    FieldTuple(map_tupleargs((F,f)->F(f),FS,ft.fs)...)
 
-getindex(f::Field2Tuple{<:Field{<:Any,<:S0},<:Field{<:Any,<:S2}},s::Symbol) = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
+# basis conversion
+(::Type{BasisTuple{BS}})(ft::FieldTuple) where {BS} = FieldTuple(map_tupleargs((B,f)->B(f), BS, ft.fs)...)
+(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(B.(ft.fs)...)
+(::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(B.(ft.fs)...) # needed for ambiguity
 
-ud_grade(ft::FieldNTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)
+# basic functionality
+white_noise(::Type{FT}) where {FS,FT<:FieldTuple{FS}} = FT(map_tupleargs(white_noise, FS))
+zero(::Type{FT}) where {FS,FT<:FieldTuple{FS}} = FT(map_tupleargs(zero, FS))
+dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))
+Ac_mul_B(a::FieldTuple, b::FieldTuple) = sum(map(Ac_mul_B, a.fs, b.fs))
+eltype(ft::FieldTuple) = promote_type(map(eltype,ft.fs)...)
+length(ft::FieldTuple) = sum(map(length, ft.fs))
+ud_grade(ft::FieldTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)
+
+# iterating
+start(ft::FieldTuple) = start(ft.fs)
+next(ft::FieldTuple, state) = next(ft.fs, state)
+done(ft::FieldTuple, state) = done(ft.fs, state)
+
+# indexing
+getindex(ft::FieldTuple, i::Union{Int,UnitRange}) = getindex(ft.fs, i)
+getindex(ft::FieldTuple{<:Any,<:Any,SpinTuple{Tuple{S0,S2}}}, s::Symbol) = 
+    startswith(string(s),"T") ? ft.fs[1][s] : ft.fs[2][s]
+
+# the generic * method only works if a & b are in the same basis, so we need this here
+@commutative *(a::Field, b::FieldTuple) = a.*b
+*(a::FieldTuple, b::FieldTuple) = a.*b 

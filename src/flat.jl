@@ -37,7 +37,7 @@ function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, t
     r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
     ϕ   = angle.(k' .+ im*k)[1:nside÷2+1,:]
     sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    FFTgrid{dm,T}(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
+    FFTgrid(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
 # Use generated functions to get planned FFT's only once for any given (T, Θpix,
@@ -87,8 +87,8 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_s0s2.jl")
 
-const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},Field2Tuple{<:FlatS0Fourier{T,P},<:FlatS2Fourier{T,P}}}
-const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},Field2Tuple{<:FlatS0Map{T,P},<:FlatS2Map{T,P}}}
+const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},FieldTuple{<:FlatS0Fourier{T,P},<:FlatS2Fourier{T,P}}}
+const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},FieldTuple{<:Tuple{FlatS0Map{T,P},FlatS2Map{T,P}}}}
 const FlatField{T,P} = Union{FlatS0{T,P},FlatS2{T,P},FlatS02{T,P}}
 
 FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
@@ -99,21 +99,18 @@ eltype(::Type{<:FlatField{T}}) where {T} = T
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
 @commutative promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
 @commutative promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
-broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = repeated(broadcast_data(F0,f)...,2)
-broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = repeated(broadcast_data(F0,f)...,2)
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = tuplejoin(repeated(broadcast_data(F0,f),2)...)
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = tuplejoin(repeated(broadcast_data(F0,f),2)...)
 @commutative *(a::FlatS0Map, b::FlatS2Map) = a.*b
 
 
 # derivatives
 DerivBasis(::Type{<:FlatS0}) = Fourier
 DerivBasis(::Type{<:FlatS2}) = QUFourier
-# for F in (FlatS0Fourier,FlatS2QUFourier,FlatS2EBFourier)
-#     @eval broadcast_data(::Type{$F{T,P}},::∂{:x}) where {T,P} = repeated(im * FFTgrid(T,P).k',$(broadcast_length(F)))
-#     @eval broadcast_data(::Type{$F{T,P}},::∂{:y}) where {T,P} = repeated(im * FFTgrid(T,P).k[1:Nside(P)÷2+1],$(broadcast_length(F)))
-#     @eval broadcast_data(::Type{$F{T,P}},::∇²Op) where {T,P} = repeated((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),$(broadcast_length(F)))
-# end
+@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:x}) where {T,P} = (im * FFTgrid(T,P).k',)
+@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:y}) where {T,P} = (im * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
+@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∇²Op) where {T,P} = ((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
 
 # bandpass
-function broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}}
-    repeated(Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],broadcast_length(F))
-end
+broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
+    (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],)

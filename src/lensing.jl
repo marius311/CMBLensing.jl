@@ -10,7 +10,7 @@ abstract type LenseBasis <: Basislike end
 const Ł = LenseBasis
 
 
-const FΦTuple = Field2Tuple{<:Field,<:Field{<:Any,<:S0}}
+const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}
 
 # 
 # δfϕₛ_δfϕₜ is an operator which computes the lensing jacobian between time s
@@ -56,7 +56,7 @@ _getindex(L::LenseOp, ::→{t1,t2}) where {t1,t2} = error("Lensing from time $t1
 struct NoLensing <: LenseOp end
 NoLensing(ϕ) = NoLensing()
 *(::NoLensing, f::Field) = f
-ctranspose(L::NoLensing) = L
+adjoint(L::NoLensing) = L
 inv(L::NoLensing) = L
 _getindex(L::NoLensing, i::→) = L
 δfϕₛ_δfϕₜ{t₀,t₁}(L::NoLensing,::Any,::Any) where {t₀,t₁} = IdentityOp

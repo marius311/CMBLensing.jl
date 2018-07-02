@@ -4,7 +4,8 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
-using Interpolations
+using FFTW
+using Lazy
 using MacroTools: @capture, postwalk, isexpr
 using ODE
 using Parameters
@@ -18,8 +19,8 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
-    convert,copy, done, eltype, getindex, inv, length, literal_pow, next,
-    promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
+    convert, copy, done, eltype, getindex, inv, length, linspace, literal_pow, next,
+    promote_rule, similar, size, sqrt, start, transpose, adjoint, one, zero,
     sqrtm
 import Base.LinAlg: dot, norm, isnan
 

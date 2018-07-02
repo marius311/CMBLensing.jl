@@ -55,7 +55,7 @@ function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Field, δf::Field, δϕ::Fie
 end
 
 """ ODE velocity for the Jacobian flow """
-function δvelocity!(v_f_δf::Field2Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
+function δvelocity!(v_f_δf::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
 
     @unpack ∇ϕ,Hϕ = L
     M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
@@ -77,7 +77,7 @@ end
 
 
 """ ODE velocity for the negative transpose Jacobian flow """
-function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
@@ -125,7 +125,7 @@ cache(L::CachedLenseFlow) = L
 # velocities for CachedLenseFlow which use the precomputed quantities:
 velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  @⨳ L.p[Float16(t)]' ⨳ $Ł(∇*f))
 velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
-function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
     M⁻¹        = L.M⁻¹[Float16(t)]
@@ -133,12 +133,12 @@ function negδvelocityᴴ!(v_f_δf_δϕ′::Field3Tuple, L::CachedLenseFlow, f::
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
     M⁻¹_∇ϕ     = L.p[Float16(t)]
 
-    v_f_δf_δϕ′.f1 .= @⨳ M⁻¹_∇ϕ' ⨳ ∇f
-    v_f_δf_δϕ′.f2 .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
+    v_f_δf_δϕ′.fs[1] .= @⨳ M⁻¹_∇ϕ' ⨳ ∇f
+    v_f_δf_δϕ′.fs[2] .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
     # split into two terms due to inference limit:
     tmp = @⨳ ∇' ⨳ $Ð(M⁻¹_δfᵀ_∇f)
     tmp .+= @⨳ t*(∇' ⨳ ((∇' ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
-    v_f_δf_δϕ′.f3 .= Ł(tmp)
+    v_f_δf_δϕ′.fs[3] .= Ł(tmp)
 
 end
 # no specialized version for these (yet):

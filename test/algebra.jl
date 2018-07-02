@@ -1,7 +1,8 @@
 include("general.jl")
 
 using CMBLensing: LP, SymmetricFuncOp, FlatS02, FlatTEBCov, LazyBinaryOp
-    
+
+##
 N = 4
 
 f0   = FlatS0Map(rand(N,N))
@@ -9,19 +10,21 @@ f2   = FlatS2QUMap(rand(N,N),rand(N,N))
 f02  = FieldTuple(f0,f2)
 f220 = FieldTuple(f2,f2,f0)
 fn   = FieldTuple(f02,f02)
-
+LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N))
 ##
 
 @testset "Basic Algebra" begin
     
-    LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,N),rand(N÷2+1,N))
-
-    for f in (f0,f2,f02,f220,fn)
+    for f in (f0,f2,)
         
         F = typeof(f)
         L = FullDiagOp(f)
         
-        @testset "$(shortname(typeof(f)))" begin
+        @testset "f::$(shortname(typeof(f)))" begin
+        
+            # basic conversion / construction
+            @test_noerr @inferred F(f)
+            @test F(f)==f
             
             # field algebra
             @test_noerr @inferred f+1
@@ -37,11 +40,13 @@ fn   = FieldTuple(f02,f02)
             Ls = Any[FullDiagOp(f), FullDiagOp(Ð(f)), ∂x, ∇², LP(500)]
             isa(f,FlatS02) && push!(Ls, LTEB)
             for L in Ls
-                @test_noerr @inferred L*f
-                @test_noerr @inferred L\f
-                @test_noerr @inferred f*L
-                @test_noerr @inferred L'*f
-                @test_noerr @inferred L'\f
+                @testset "L::$(shortname(typeof(L)))" begin
+                    @test_noerr @inferred L*f
+                    @test_noerr @inferred L\f
+                    @test_noerr @inferred f*L
+                    @test_noerr @inferred L'*f
+                    @test_noerr @inferred L'\f
+                end
             end
             
             # not-type-stable operators on fields
@@ -67,15 +72,15 @@ fn   = FieldTuple(f02,f02)
         
     end
     
-    @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
-    @test_noerr @inferred(LTEB + 1)::FlatTEBCov
-    @test_noerr @inferred(1 * LTEB)::FlatTEBCov
-    @test_noerr @inferred(LTEB / 3)::FlatTEBCov
-    @test_noerr @inferred simulate(LTEB)
-    @test_noerr @inferred LTEB \ f02
-    
+    # @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
+    # @test_noerr @inferred(LTEB + 1)::FlatTEBCov
+    # @test_noerr @inferred(1 * LTEB)::FlatTEBCov
+    # @test_noerr @inferred(LTEB / 3)::FlatTEBCov
+    # @test_noerr @inferred simulate(LTEB)
+    # @test_noerr @inferred LTEB \ f02
+    # 
     @testset "S0/S2" begin
         @test_noerr f0*f2
-        @test_noerr f0*f02
+        # @test_noerr f0*f02
     end
 end

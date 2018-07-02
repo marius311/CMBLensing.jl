@@ -60,7 +60,7 @@ end
 
 
 
-"""
+doc"""
     plot(f::Field; kwargs...)
     plot(fs::VecOrMat{\<:Field}; kwarg...)
     
@@ -90,7 +90,7 @@ default_which(::Type{<:FlatS02}) = [:Tx,:Ex,:Bx]
 default_which(::Any) = throw(ArgumentError("Must specify `which` by hand for $S field."))
 
 
-"""
+doc"""
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=true, kwargs...)
 
 """

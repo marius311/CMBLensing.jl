@@ -1,16 +1,21 @@
 export FlatIQUMap, FlatTEBFourier
 
-# (S0,S2) fields don't have their own struct, they just use FieldTuples
-const FlatIQUMap{T,P} = Field2Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P},Map,QUMap}
-const FlatTEBFourier{T,P} = Field2Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P},Fourier,EBFourier}
-const FlatS02{T,P} = Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}
-# some convenience constructors
-FlatIQUMap{T,P}(i,q,u) where {T,P} = Field2Tuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
-FlatTEBFourier{T,P}(t,e,b) where {T,P} = Field2Tuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
 
+# (S0,S2) fields don't need their own structs, they just use FieldTuples.
+# here we define shorthand for the 2 often used ones, but any of the 8
+# combinations of (Map,Fourier)_S0 x ((EB,QU)x(Map,Fourier))_S2 can be created
+# via FieldTuple(...)
+const FlatIQUMap{T,P} = FieldTuple{Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}},BasisTuple{Tuple{Map,QUMap}},SpinTuple{Tuple{S0,S2}},PixTuple{Tuple{P,P}}}
+const FlatTEBFourier{T,P} = FieldTuple{Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P}},BasisTuple{Tuple{Fourier,EBFourier}},SpinTuple{Tuple{S0,S2}},PixTuple{Tuple{P,P}}}
+# some convenience constructors
+FlatIQUMap{T,P}(i,q,u) where {T,P} = FieldTuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
+FlatTEBFourier{T,P}(t,e,b) where {T,P} = FieldTuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
+
+# any of the 8 possible (S0,S2) fields
+const FlatS02{T,P} = FieldTuple{<:Tuple{FlatS0{T,P},FlatS2{T,P}}}
 
 # a block TEB diagonal operator
-struct FlatTEBCov{T,P} <: LinOp{Basis2Tuple{Fourier,EBFourier},S02,P}
+struct FlatTEBCov{T,P} <: LinOp{BasisTuple{Tuple{Fourier,EBFourier}},SpinTuple{Tuple{S0,S2}},P}
     ΣTE :: SMatrix{2,2,Diagonal{T},4}
     ΣB :: Matrix{T}
     unsafe_invert :: Bool
@@ -31,10 +36,10 @@ end
 
 # applying the operator
 function *(L::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any,N}} 
-    (t,e),b = (L.ΣTE * [@view(f.f1.Tl[:]), @view(f.f2.El[:])]), L.ΣB .* f.f2.Bl
+    (t,e),b = (L.ΣTE * [@view(f.fs[1].Tl[:]), @view(f.fs[2].El[:])]), L.ΣB .* f.fs[2].Bl
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
-ctranspose(L::F) where {F<:FlatTEBCov} = F(L.ΣTE',L.ΣB)
+adjoint(L::F) where {F<:FlatTEBCov} = F(L.ΣTE',L.ΣB)
 inv(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? (nan2zero.(inv(L.ΣTE)), nan2zero.(1./L.ΣB)) : (inv(L.ΣTE), 1/L.ΣB))...)
 sqrtm(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? nan2zero.(sqrtm(L.ΣTE)) : sqrtm(L.ΣTE)), sqrt.(L.ΣB))
 simulate(L::FlatTEBCov{T,P}) where {T,P} = sqrtm(L) * white_noise(FlatTEBFourier{T,P})
@@ -59,7 +64,7 @@ function *(L::FlatTEBCov{T,P}, D::FullDiagOp{FlatTEBFourier{T,P}}) where {T,P}
     t,e,b = Diagonal(real(D.f[:Tl][:])), Diagonal(real(D.f[:El][:])), real(D.f[:Bl])
     FlatTEBCov{T,P}(L.ΣTE * [[t] [0]; [0] [e]], b .* L.ΣB)
 end
-*(D::FullDiagOp{FlatTEBFourier{T,P}}, L::FlatTEBCov{T,P}) where {T,P} = (ctranspose(L)*D)'
+*(D::FullDiagOp{FlatTEBFourier{T,P}}, L::FlatTEBCov{T,P}) where {T,P} = (adjoint(L)*D)'
 # multiplication of two FlatTEBCov
 *(La::F, Lb::F) where {F<:FlatTEBCov} = F(La.ΣTE*Lb.ΣTE, La.ΣB.*Lb.ΣB)
 
@@ -72,7 +77,7 @@ end
 +(La::F, Lb::F) where {F<:FlatTEBCov} = La .+ Lb
 
 
-function get_Cℓ(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
+function get_Cℓ(f::FlatS02{T,P}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
     Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
     (Cℓs[1][1], hcat(last.(Cℓs)...))
 end
