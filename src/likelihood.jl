@@ -202,8 +202,12 @@ provided is used to estimate a Hessian which is used in the ϕ
 quasi-Newton-Rhapson step. `Nϕ=:qe` automatically uses the quadratic estimator
 noise. 
 
-`quasi_sample` can be set to an integer seed to compute a quasi-sample from the
-posterior rather than the maximum. 
+This function can also be used to draw quasi-samples, wherein for the f step, we
+draw a sample from  P(f|ϕ) instead of maximizing it (ie instead of computing
+Wiener filter). `quasi_sample` can be set to an integer seed, in which case each
+time in the `f` step we draw a same-seeded sample. If `quasi_sample` is instead
+just `true`, then each iteration in the algorithm draws a different sample so
+the solution bounces around rather than asymptoting to a maximum. 
 
 The following arguments control the maximiation procedure, and can generally be
 left at their defaults:
@@ -250,9 +254,10 @@ function max_lnP_joint(
         # f step
         let L = (i==1 ? IdentityOp : cache(L(ϕcur)))
             
-            # if we're doing a quasi_sample, set the random seed here, which controls the
-            # sample from the posterior we get from inside `lensing_wiener_filter`
-            if (quasi_sample != nothing); srand(quasi_sample); end
+            # if we're doing a fixed quasi_sample, set the random seed here,
+            # which controls the sample from the posterior we get from inside
+            # `lensing_wiener_filter`
+            if isa(quasi_sample,Int); srand(quasi_sample); end
             
             fcur,hist = lensing_wiener_filter(ds, L, 
                 (quasi_sample==nothing) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
