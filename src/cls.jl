@@ -120,7 +120,7 @@ function camb_cl_files(filename_root)
     ℓ = sort!(intersect(scalCls[:,1], lensCls[:,1], lenspotCls[:,1]))
     
     Cℓ = Dict(:ℓ => ℓ, :BB => zeros(ℓ), (k => (@. scalCls[$findin(scalCls[:,1],ℓ),i] / (ℓ*(ℓ+1)/2π)) for (k,i) in zip([:TT,:EE,:TE],2:4))...)
-    C̃ℓ = Dict(:ℓ => ℓ, :BB => zeros(ℓ), (k => (@. lensCls[$findin(lensCls[:,1],ℓ),i] / (ℓ*(ℓ+1)/2π)) for (k,i) in zip([:TT,:EE,:TE],2:4))...)
+    C̃ℓ = Dict(:ℓ => ℓ, (k => (@. lensCls[$findin(lensCls[:,1],ℓ),i] / (ℓ*(ℓ+1)/2π)) for (k,i) in zip([:TT,:EE,:BB,:TE],2:5))...)
 
     Cℓ[:ϕϕ] = C̃ℓ[:ϕϕ] = @. lenspotCls[$findin(lenspotCls[:,1],ℓ),6] * 2π / (ℓ*(ℓ+1))^2
     
