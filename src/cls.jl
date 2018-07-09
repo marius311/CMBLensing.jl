@@ -105,6 +105,28 @@ function class(;lmax = 8000,
 end
 
 
+doc"""
+    camb_cl_files(filename_root)
+    
+Loads Cℓ's from some CAMB output files. `filename_root` should be such that
+\$(filename_root)_scalCls.dat, etc... are the CAMB data files.
+
+"""
+function camb_cl_files(filename_root)
+    scalCls    = readdlm("$(filename_root)_scalCls.dat")
+    lensCls    = readdlm("$(filename_root)_lensedCls.dat")
+    lenspotCls = readdlm("$(filename_root)_lenspotentialCls.dat")
+    
+    ℓ = sort!(intersect(scalCls[:,1], lensCls[:,1], lenspotCls[:,1]))
+    
+    Cℓ = Dict(:ℓ => ℓ, :BB => zeros(ℓ), (k => (@. scalCls[$findin(scalCls[:,1],ℓ),i] / (ℓ*(ℓ+1)/2π)) for (k,i) in zip([:TT,:EE,:TE],2:4))...)
+    C̃ℓ = Dict(:ℓ => ℓ, :BB => zeros(ℓ), (k => (@. lensCls[$findin(lensCls[:,1],ℓ),i] / (ℓ*(ℓ+1)/2π)) for (k,i) in zip([:TT,:EE,:TE],2:4))...)
+
+    Cℓ[:ϕϕ] = C̃ℓ[:ϕϕ] = @. lenspotCls[$findin(lenspotCls[:,1],ℓ),6] * 2π / (ℓ*(ℓ+1))^2
+    
+    Dict(:f=>Cℓ,:f̃=>C̃ℓ)
+end
+
 
 
 
