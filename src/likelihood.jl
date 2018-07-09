@@ -197,6 +197,9 @@ Compute the maximum of the joint posterior, or a quasi-sample from the joint pos
 The `ds` argument stores the data and other relevant objects for the dataset
 being considered. `L` gives which type of lensing operator to use. 
 
+`ϕstart` can be used to specify the starting point of the minimizer, but this is
+not necessary and otherwise it will start at ϕ=0. 
+
 `Nϕ` can optionally specify an estimate of the ϕ effective noise, and if
 provided is used to estimate a Hessian which is used in the ϕ
 quasi-Newton-Rhapson step. `Nϕ=:qe` automatically uses the quadratic estimator
@@ -226,9 +229,10 @@ is the lensing potential, and `tr` contains info about the run.
 """
 function max_lnP_joint(
     ds;
+    ϕstart = nothing,
     L = LenseFlow,
     Nϕ = nothing,
-    quasi_sample = nothing, 
+    quasi_sample = false, 
     nsteps = 10, 
     Ncg = 500,
     cgtol = 1e-1,
@@ -236,10 +240,14 @@ function max_lnP_joint(
     αmax = 0.5,
     progress = false)
     
+    if (!isa(quasi_sample,Bool) || isa(quasi_sample,Int))
+        throw(ArgumentError("quasi_sample should be true, false, or an Int."))
+    end
+    
     @unpack d, D, Cϕ, Cf, Cf̃, Cn = ds
     
     fcur, f̊cur = nothing, nothing
-    ϕcur = zero(Ł(d)'Ł(d)) # fix needing to get zero(Φ) this way
+    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Ł(d)'Ł(d)) # fix needing to get zero(Φ) this way
     tr = []
     hist = nothing
     
@@ -252,7 +260,7 @@ function max_lnP_joint(
     for i=1:nsteps
 
         # f step
-        let L = (i==1 ? IdentityOp : cache(L(ϕcur)))
+        let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache(L(ϕcur)))
             
             # if we're doing a fixed quasi_sample, set the random seed here,
             # which controls the sample from the posterior we get from inside
