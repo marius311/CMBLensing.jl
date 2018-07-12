@@ -25,10 +25,14 @@ simulate(L::FullDiagOp{F}) where {F} = sqrtm(L) .* F(white_noise(F))
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
 containertype(L::FullDiagOp) = containertype(L.f)
 inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1./L.f) : 1./L.f, L.unsafe_invert)
-ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUFourier}} = 
+ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUFourier,Basis2Tuple{Fourier,EBFourier},Basis2Tuple{Fourier,QUFourier}}} = 
     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
-ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} = 
+ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap,Basis2Tuple{Map,EBMap},Basis2Tuple{Map,QUMap}}} =
     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,    deconv_pixwin=false,anti_aliasing=false)))
+# needs to written out by hand to avoid ambiguity with field_tuples.jl:83
+# todo: figure out a better way to do this (or just wait until 0.7)
+broadcast_data(::Type{Field2Tuple{F1,F2}}, L::FullDiagOp) where {F1,F2} = broadcast_data(Field2Tuple{F1,F2},L.f)
+broadcast_data(::Type{Field3Tuple{F1,F2,F3}}, L::FullDiagOp) where {F1,F2,F3} = broadcast_data(Field2Tuple{F1,F2,F3},L.f)
 
 
 ### Derivative ops

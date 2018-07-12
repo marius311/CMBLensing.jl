@@ -64,16 +64,14 @@ for N in Ns
             
             shortname(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = "{$(join(map(shortname,[$(Fs...)]),","))}"
             
-            # Field2Tuple's data
+            # FieldTuple's data
             broadcast_length(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = +($((:(broadcast_length($(F(i)))) for i=1:N)...))
             broadcast_data(::Type{$FNT{$(Fs...)}}, f::$FNT) where {$(Fs...)}  = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f.$(f(i))))) for i=1:N)...))
-            # How to broadcast other things as a Field2Tuple
+            # How to broadcast other things as a FieldTuple
             broadcast_data(::Type{$FNT{$(Fs...)}}, f::Union{Field,LinOp}) where {$(Fs...)} = tuple($((Expr(:(...),:(broadcast_data($(F(i)),f))) for i=1:N)...))
-            # needed for ambiguity (todo: get rid of needing this...)
-            broadcast_data(::Type{$FNT{$(Fs...)}}, op::FullDiagOp) where {$(Fs...)} = broadcast_data($FNT{$(Fs...)},op.f)
 
 
-            # the final data type when broadcasting things with Field2Tuple
+            # the final data type when broadcasting things with FieldTuple
             containertype(::$FNT{$(Fs...)}) where {$(Fs...)} = $FNT{$((:(containertype($(F(i)))) for i=1:N)...)}
             containertype(::Type{<:$FNT{$(Fs...)}}) where {$(Fs...)} = $FNT{$(Fs...)}
             function promote_containertype(::Type{$FNT{$(Fas...)}}, ::Type{$FNT{$(Fbs...)}}) where {$(Fas...),$(Fbs...)}

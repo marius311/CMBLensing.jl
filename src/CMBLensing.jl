@@ -38,9 +38,9 @@ export
 
 include("util.jl")
 include("generic.jl")
+include("field_tuples.jl")
 include("specialops.jl")
 include("algebra.jl")
-include("field_tuples.jl")
 include("lensing.jl")
 include("flat.jl")
 include("taylens.jl")
