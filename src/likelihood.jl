@@ -240,7 +240,7 @@ function max_lnP_joint(
     αmax = 0.5,
     progress = false)
     
-    if (!isa(quasi_sample,Bool) || isa(quasi_sample,Int))
+    if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
     
