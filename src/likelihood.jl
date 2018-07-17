@@ -268,7 +268,7 @@ function max_lnP_joint(
             if isa(quasi_sample,Int); srand(quasi_sample); end
             
             fcur,hist = lensing_wiener_filter(ds, L, 
-                (quasi_sample==nothing) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                 guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
                 tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
                 
