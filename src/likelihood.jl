@@ -311,6 +311,7 @@ function load_sim_dataset(;
     beamFWHM = 0,
     Cℓf = throw(UndefVarError(:Cℓf)),
     Cℓf̃ = throw(UndefVarError(:Cℓf̃)),
+    Cℓn = nothing,
     seed = nothing,
     M = nothing,
     B = nothing,
@@ -320,7 +321,9 @@ function load_sim_dataset(;
     )
     
     # Cℓs
-    Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee)
+    if (Cℓn == nothing)
+        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee)
+    end
     
     # types which depend on whether T/E/B
     SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
