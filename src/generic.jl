@@ -103,6 +103,7 @@ end
 #
 abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
 ctranspose(L::LinDiagOp) = L
+Diagonal(L::LinDiagOp) = L
 
 # automatic basis conversion & broadcasting
 for op=(:*,:\)

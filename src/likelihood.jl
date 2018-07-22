@@ -27,7 +27,7 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 
 
 # mixing matrix for mixed parametrization
-D_mix(Cf::FullDiagOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt((Cf+σ²len)/Cf))
+D_mix(Cf::LinOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt(($Diagonal(Cf)+σ²len)/$Diagonal(Cf)))
 
 
 # Stores variables needed to construct the likelihood
