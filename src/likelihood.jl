@@ -351,8 +351,8 @@ function load_sim_dataset(;
     
     # simulate data
     if (seed != nothing); srand(seed); end
-    f = simulate(Cf)
     ϕ = simulate(Cϕ)
+    f = simulate(Cf)
     f̃ = L(ϕ)*f
     n = simulate(Cn)
     d = M*B*f̃ + n
