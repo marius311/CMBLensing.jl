@@ -162,6 +162,4 @@ dot(a::NTuple{N,Field},b::NTuple{N,Field}) where N = sum(a[i]⋅b[i] for i=1:N)
 # warning: not type-stable and basically can't be without changes to Julia 
 getindex(f::FieldNTuple, i::Union{Int,UnitRange{Int}}) = (f...)[i]
 
-getindex(f::Field2Tuple{<:Field{<:Any,<:S0},<:Field{<:Any,<:S2}},s::Symbol) = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
-
 ud_grade(ft::FieldNTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)

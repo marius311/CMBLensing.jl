@@ -78,7 +78,8 @@ function get_Cℓ(f::Field2Tuple{<:FlatS0{T,P},<:FlatS2{T,P}}; which=(:TT,:TE,:E
 end
 
     
-# convenience methods for getting components
+# convenience methods for getting various components
 getindex(f::FlatS02{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
 getindex(f::FlatS02{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
 getindex(f::FlatS02{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
+getindex(f::FlatS02{T,P},::Type{Val{s}}) where {T,P,s} = startswith(string(s),"T") ? f.f1[s] : f.f2[s]
