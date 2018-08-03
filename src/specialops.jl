@@ -36,21 +36,18 @@ ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} =
 # These ops just store the coordinate with respect to which a derivative is
 # being taken, and each Field type F should implement broadcast_data(::Type{F},
 # ::∂) to describe how this is actually applied. 
-
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 struct ∂{s} <: LinDiagOp{DerivBasis,Spin,Pix} end
-const ∂x,∂y= ∂{:x}(),∂{:y}()
-const ∇ = @SVector [∂x,∂y]
+struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
+struct ∇Op <: LinDiagOp{DerivBasis,Spin,Pix} end
+const ∂x,∂y,∇,∇² = ∂{:x}(),∂{:y}(),∇Op(),∇²Op()
+shortname(::Type{∂{s}}) where {s} = "∂$s"
 function gradhess(f)
     (∂xf,∂yf)=∇*Ð(f)
     ∂xyf = ∂x*∂yf
     @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
 end
-shortname(::Type{∂{s}}) where {s} = "∂$s"
-struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
-const ∇² = ∇²Op()
-
 
 ### FuncOp
 

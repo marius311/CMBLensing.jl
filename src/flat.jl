@@ -110,6 +110,7 @@ DerivBasis(::Type{<:FlatS2}) = QUFourier
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:x}) where {T,P} = (im * FFTgrid(T,P).k',)
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:y}) where {T,P} = (im * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∇²Op) where {T,P} = ((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
+*(::∇Op, f::FlatField) = @SVector[∂x*f, ∂y*f]
 
 # bandpass
 broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =

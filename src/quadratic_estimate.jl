@@ -1,7 +1,5 @@
 export ϕqe
 
-using Combinatorics: levicivita
-
 sinv(x) = nan2zero.(1./x)
 
 macro sym(ex)

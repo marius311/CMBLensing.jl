@@ -18,14 +18,14 @@ BroadcastStyle(::Style{F}, ::Style{<:LinDiagOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
-# (2) Call broadcast_data(F,x) where x is each of the arguments being broadcasted
-# over to get the actual data which participates in the broadcast. This should
-# return a tuple and in the end we broadcast over these tuples. Different types
-# can specialize to return different things for different F's, e.g. ∂x returns a
+# (2) Call broadcast_data(F,⋅) on each of the arguments being broadcasted over
+# to get the actual data which participates in the broadcast. This should return
+# a tuple and in the end we broadcast over these tuples. Different types can
+# specialize to return different things for different F's, e.g. ∂x returns a
 # different sized array depending on the Nside of F. These are a few generic
-# defitions:
+# definitions:
 broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
-broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(L.f)
+broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F, L.f)
 broadcast_data(::Type{<:Field}, s::Scalar) = s
 
 # (3) Finally, forward the broadcast expression on to the data which was returned
@@ -75,7 +75,7 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 # right of an operator. e.g. in x * Op its clear x is a transposed field
 # (otherwise the expression doesn't make sense). since we can always infer this,
 # we don't actually have a "TransposedField" object or anything like that.
-transpose(f::Field) = f
+adjoint(f::Field) = f
 
 ### basis conversion
 
@@ -140,12 +140,12 @@ ud_grade(lz::LazyHermitian, args...; kwargs...) = LazyHermitian(ud_grade(lz.a,ar
 include("broadcast_expand.jl")
 
 const Field2DVector = SVector{2,<:FieldOpScal}
-const Field2DRowVector = RowVector{<:FieldOpScal,<:ConjArray{<:FieldOpScal,1,<:Field2DVector}}
+const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
 const 𝕀 = @SMatrix [1 0; 0 1]
 ⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[2,1]*b[1]+a[2,2]*b[2]]
-⨳(a::Field2DRowVector, b::Field2DMatrix) = ((b') ⨳ (a'))'
+⨳(a::Field2DRowVector, b::Field2DMatrix) = ((b') ⨳ (a'))' 
 ⨳(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
 ⨳(a::Field2DVector, b::Field2DRowVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
 function ⨳(a::Field2DMatrix, b::Field2DMatrix)
@@ -153,7 +153,7 @@ function ⨳(a::Field2DMatrix, b::Field2DMatrix)
                  (a[2,1]*b[1,1]+a[2,2]*b[2,1]) (a[2,1]*b[1,2]+a[2,2]*b[2,2])]
 end
 
-*(a::Field2DVector, f::Field) = @SVector [a[1]*f, a[2]*f]
+*(a::Field2DVector, f::Field) = broadcast(*,a[1],f)#@SVector [a[1]*f, a[2]*f]
 *(f::Field, a::Field2DVector) = @SVector [f*a[1], f*a[2]]
 Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
 
