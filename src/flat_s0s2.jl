@@ -83,7 +83,7 @@ function get_Cℓ(f::FlatS02{T,P}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,
 end
 
     
-# convenience methods for getting components
-getindex(f::FlatS02{T,P},::Type{Val{:T}}) where {T,P} = FlatS0Map{T,P}(f[:Tx])
-getindex(f::FlatS02{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
-getindex(f::FlatS02{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
+# convenience methods for getting components as S0
+getproperty(f::FlatS02{T,P},::Val{:T}) where {T,P} = FlatS0Map{T,P}(f.Tx)
+getproperty(f::FlatS02{T,P},::Val{:E}) where {T,P} = FlatS0Map{T,P}(f.Ex)
+getproperty(f::FlatS02{T,P},::Val{:B}) where {T,P} = FlatS0Map{T,P}(f.Bx)

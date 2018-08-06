@@ -4,7 +4,7 @@ abstract type BasisTuple{T} <: Basis end
 abstract type SpinTuple{T} <: Spin end
 abstract type PixTuple{T} <: Pix end
 
-struct FieldTuple{FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} <: Field{B,S,P}
+struct FieldTuple{FS<:Tuple,B<:BasisTuple,S<:SpinTuple,P<:PixTuple} <: Field{B,S,P}
     fs::FS
 end
 FieldTuple{FS,B,S,P}(fs::Field...) where {FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} = FieldTuple{FS,B,S,P}(fs)
@@ -52,8 +52,19 @@ done(ft::FieldTuple, state) = done(ft.fs, state)
 
 # indexing
 getindex(ft::FieldTuple, i::Union{Int,UnitRange}) = getindex(ft.fs, i)
-getindex(ft::FieldTuple{<:Any,<:Any,SpinTuple{Tuple{S0,S2}}}, s::Symbol) = 
-    startswith(string(s),"T") ? ft.fs[1][s] : ft.fs[2][s]
+
+# automatically forwards properties to tuple fields
+getproperty(ft::FT, ::Val{:fs}) where {s,FS,FT<:FieldTuple{FS}} = getfield(ft,:fs)
+@generated function getproperty(ft::FT, ::Val{s}) where {s,FS,FT<:FieldTuple{FS}}
+    l = filter(((i,F),)->(s in propertynames(F)), collect(enumerate(FS.parameters)))
+    if (length(l)==1)
+        :(getproperty(ft.fs[$(l[1][1])], $(QuoteNode(s))))
+    elseif (length(l)==0)
+        error("type $(shortname(FT)) has no property $s")
+    else
+        error("Ambiguous property. Multiple types in the FieldTuple have a property $s")
+    end
+end
 
 # the generic * method only works if a & b are in the same basis, so we need this here
 @commutative *(a::Field, b::FieldTuple) = a.*b

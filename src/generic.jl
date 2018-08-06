@@ -137,15 +137,36 @@ zero(::F) where {F<:Field} = zero(F)
 similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
-getindex(f::Union{Field,LinOp},x::Symbol) = getindex(f,Val{x})
-@generated function getindex(f::F,::Type{Val{x}}) where {x,B,S,P,F<:Field{B,S,P}}
-    l = filter(S->x in fieldnames(S), subtypes(Field{<:Any,S,P}))
+
+## properties
+
+# this allows you write eg f.Tl even when f::FlatS0Map, and it automatically
+# first converts f to FlatS0Fourier *then* takes the Tl field (this is
+# type-stable and has no overhead otherwise)
+
+# under the hood, the code guesses what the given field could be converted to by
+# finding other Field types that differ only in basis, scans through the
+# fieldnames of those types, then converts to the appropriate one
+
+
+# gets other fields types which share the same spin and pixelzation, differing
+# only in basis, meaning you should be able to convert F to these types
+convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = subtypes(Field{B′,S,P} where B′)
+
+# use convertable_fields to get possible properties
+@generated propertynames(::Type{F}) where {F<:Field} = tuple(chain(fieldnames.(convertable_fields(F))...)...)
+propertynames(::F) where {F<:Field} = propertynames(F)
+
+# implement getproperty using possible conversions
+getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
+@generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
+    l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
     if (length(l)==1)
-        :(getfield($(basis(l[1]))(f),x))
+        :(getfield($(l[1])(f),s))
     elseif (length(l)==0)
-        error("No subtype of $F has a field $x")
+        error("type $F has no property $s")
     else
-        error("Ambiguous field. Multiple subtypes of $F have a field $x: $l")
+        error("Ambiguous property. Multiple types that $F could be converted to have a field $s: $l")
     end
 end
 
