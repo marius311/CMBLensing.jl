@@ -84,30 +84,27 @@ pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))
     ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)
 
 Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).
-Two downgrade modes are available specified by the `mode` argument: 
+Two modes are available specified by the `mode` argument: 
 
-    *`:map`     : Downgrade by averaging pixels in map-space.
-    *`:fourier` : Downgrade by truncating the Fourier grid
+    *`:map`     : Up/downgrade by repliacting/averaging pixels in map-space
+    *`:fourier` : Up/downgrade by extending/truncating the Fourier grid
     
 For `:map` mode, two additional options are possible. If `deconv_pixwin` is
 true, deconvolves the pixel window function from the downgraded map so the
 spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
-One single upgrade mode is available:
-
-    *`:map` : Upgrade by duplicating pixels in map space.
-
 """
 function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_aliasing=true) where {T,θ,N,P<:Flat{θ,N}}
     θnew==θ && return f
     (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
+    (mode in [:map,:fourier]) || throw(ArgumentError("Available modes: [:map,:fourier]"))
+    
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     Nnew = N * θ ÷ θnew
     Pnew = Flat{θnew,Nnew}
     if θnew>θ
         # downgrade
-        (mode in [:map,:fourier]) || throw(ArgumentError("Available downgrade modes: [:map,:fourier]"))
         if anti_aliasing
             kmask = ifelse.(abs.(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
             AA = FullDiagOp(FlatS0Fourier{T,P}(kmask[1:N÷2+1] .* kmask'))
@@ -128,8 +125,13 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_ali
         end
     else
         # upgrade
-        (mode in [:map]) || throw(ArgumentError("Available upgrade modes: [:map]"))
-        fac = θ÷θnew
-        FlatS0Map{T,Flat{θnew,N*fac}}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+        (!deconv_pixwin && !anti_aliasing) || error("deconv_pixwin and anti_aliasing not available when upgrading")
+        if mode==:map
+            FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+        else
+            fnew = Fourier(zero(FlatS0Map{T,Pnew}))
+            broadcast_setindex!(fnew.Tl, f[:Tl], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
+            fnew
+        end
     end
 end
