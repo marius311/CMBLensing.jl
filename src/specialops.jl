@@ -66,6 +66,7 @@ const ∇² = ∇²Op()
     op⁻¹ = nothing
     op⁻ᴴ = nothing
 end
+FuncOp(op::Function) = FuncOp(op=op)
 SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
 *(op::FuncOp, f::Field) = op.op   != nothing ? op.op(f)   : error("op*f not implemented")
 *(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
