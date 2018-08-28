@@ -120,6 +120,32 @@ const Scalar = Real
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
 
+### Matrix conversion
+
+# We can build explicit matrix representations of linear operators by applying
+# them to a set of basis vectors which form a complete basis (in practice this
+# is prohibitive except for fairly small maps, e.g. 16x16 pixels, but is quite
+# useful)
+
+"""
+    full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true)
+    full(::Type{F}, L::LinOp; progress=true)
+    
+Construct an explicit matrix representation of the linear operator `L` by
+applying it to a set of vectors which form a complete basis. The `Fin` and
+`Fout` types should be fields which specify the input and output bases for the
+representation (or just `F` if `L` is square and we want the same input/output
+bases)
+
+The name `full` is to be consistent with Julia's SparseArrays where `full`
+builds a full matrix from a sparse one.
+"""
+full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true) where {Fin<:Field, Fout<:Field} =
+    hcat(@showprogress(progress?1:Inf, [(Fout(L*(x=zeros(length(Fin)); x[i]=1; x)[Tuple{Fin}]))[:] for i=1:length(Fin)])...)
+full{F<:Field}(::Type{F}, L::LinOp; kwargs...) = full(F,F,L; kwargs...)
+
+
+
 ### Other generic stuff
 
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
