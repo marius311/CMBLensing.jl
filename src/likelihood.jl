@@ -337,7 +337,7 @@ function load_sim_dataset(;
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
         M = FullDiagOp(F{T,P}(repeated(T.(sptlike_mask(Nside,θpix; mask_kwargs...)),nF)...)) * LP(ℓmax_data)
-    else
+    elseif (M == nothing)
         M = LP(ℓmax_data)
     end
     
