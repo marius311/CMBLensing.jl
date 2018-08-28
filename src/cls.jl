@@ -1,14 +1,20 @@
 export class, noisecls, camb
 
-
-
-function camb(;lmax = 6000, 
-                r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
-                Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
-                Aϕϕ = 1, 
-                k_pivot = 0.002)
+function camb(;
+    ℓmax = 6000, 
+    lmax = nothing,
+    r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
+    Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
+    Aϕϕ = 1, 
+    k_pivot = 0.002)
+    
+    if lmax != nothing
+        ℓmax = lmax
+        Base.depwarn("'lmax' is deprecated as an argument to 'camb()'; use 'ℓmax' instead.", "camb")
+    end
 
     camb = pyimport(:camb)
+    ℓmax′ = min(5000,ℓmax)
     cp = camb[:set_params](
         ombh2 = ωb,
         omch2 = ωc,
@@ -20,11 +26,11 @@ function camb(;lmax = 6000,
         As = exp(logA)*1e-10,
         pivot_scalar = k_pivot,
         pivot_tensor = k_pivot,
-        lmax = lmax,
+        lmax = ℓmax′,
         r = r
     )
-    cp[:max_l_tensor] = lmax
-    cp[:max_eta_k_tensor] = 2lmax
+    cp[:max_l_tensor] = ℓmax′
+    cp[:max_eta_k_tensor] = 2ℓmax′
     cp[:WantScalars] = true
     cp[:WantTensors] = true
     cp[:DoLensing] = true
@@ -32,11 +38,12 @@ function camb(;lmax = 6000,
     res = camb[:get_results](cp)
     
     
-    ℓ = collect(1:lmax-1)
+    ℓ  = collect(2:ℓmax -1)
+    ℓ′ = collect(2:ℓmax′-1)
     α = (10^6*cp[:TCMB])^2
-    toCℓ = @. 1/(ℓ*(ℓ+1)/(2π))
-    Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>Aϕϕ*2π*res[:get_lens_potential_cls](lmax)[2:lmax,1]./ℓ.^4)
-    Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>res[:get_cmb_power_spectra]()[v][2:lmax,i].*toCℓ.*α 
+    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
+    Cℓϕ = Dict{Symbol,Vector{Float64}}(:ℓ=>ℓ, :ϕϕ=>extrapolate_Cℓs(ℓ,ℓ′,Aϕϕ*2π*res[:get_lens_potential_cls](ℓmax′)[3:ℓmax′,1]./ℓ′.^4))
+    Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>extrapolate_Cℓs(ℓ,ℓ′,res[:get_cmb_power_spectra]()[v][3:ℓmax′,i].*toCℓ′.*α)
                                  for (i,x) in enumerate([:TT,:EE,:BB,:TE])))
            for (k,v) in Dict(:fs=>"unlensed_scalar",:f̃s=>"lensed_scalar",:ft=>"tensor",:f=>"unlensed_total",:f̃=>"total"))
                
@@ -144,4 +151,14 @@ function noisecls(μKarcminT;beamFWHM=6,ℓmax=8000,ℓknee=100,αknee=3)
     end
     Cℓs[:TE]=zeros(ℓmax)
     Cℓs
+end
+
+
+function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
+    if all(Cℓ .>= 0)
+        itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Linear())
+        @. (exp(itp(log(ℓout))))
+    else
+        LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
+    end
 end
