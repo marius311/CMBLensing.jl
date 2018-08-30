@@ -75,10 +75,6 @@ fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(resha
 fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(vec2rfft(vec))
 
 
-# norms (for e.g. ODE integration error tolerance)
-pixstd(f::FlatS0Map) = sqrt(var(f.Tx))
-pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
-
 
 """
     ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)

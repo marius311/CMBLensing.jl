@@ -16,20 +16,8 @@ LenseFlow{I,t₀,t₁}(ϕ::Field{<:Any,<:S0}) where {I,t₀,t₁} = LenseFlow{I,
 LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,float(t₀),float(t₁),F}(ϕ,∇ϕ,Hϕ)
 LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 
-# the ODE solvers
-abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
-abstract type ode4{nsteps} <: ODESolver  end
+# only one single ODE solver implemented for now a simple custom RK4
 abstract type jrk4{nsteps} <: ODESolver  end
-
-function ode45{ϵr,ϵa,N,dbg}(F!,y₀,t₀,t₁) where {ϵr,ϵa,N,dbg}
-    ys = ODE.ode45(
-        (t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1),
-        norm=pixstd, reltol=ϵr, abstol=ϵa, minstep=1/N, points=((dbg[1] || dbg[2]) ? :all : :specified)
-    )
-    dbg[1] && info("ode45 took $(length(ys[2])) steps")
-    dbg[2] ? ys : ys[2][end]
-end
-ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1))[2][end]
 jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 """ ODE velocity for LenseFlow """

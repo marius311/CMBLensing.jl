@@ -148,6 +148,14 @@ full{F<:Field}(::Type{F}, L::LinOp; kwargs...) = full(F,F,L; kwargs...)
 
 ### Other generic stuff
 
+
+doc"""
+    norm²(f::Field, L::LinOp)
+    
+Shorthand for `f⋅(L\f)`, i.e. the squared-norm of `f` w.r.t. the operator `L`.
+"""
+norm²(f::Field, L::LinOp) = f⋅(L\f)
+
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(string(T),"CMBLensing.","")
 
 zero(::F) where {F<:Field} = zero(F)

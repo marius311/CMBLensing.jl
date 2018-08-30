@@ -7,7 +7,6 @@ using Base.Threads
 using Images: feature_transform, imfilter, Kernel
 using Interpolations
 using MacroTools: @capture, postwalk, isexpr
-using ODE
 using Optim: optimize
 using Parameters
 using ProgressMeter
@@ -20,10 +19,10 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
-    convert, copy, done, eltype, full, getindex, inv, length, literal_pow, logdet, next,
+    convert, copy, done, eltype, full, getindex, inv, length, literal_pow, logdet, next, 
     promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
     sqrtm
-import Base.LinAlg: dot, norm, isnan
+import Base.LinAlg: dot, isnan
 
 
 
@@ -31,10 +30,10 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
     ∂x, ∂y, ∇, ∇²,
-    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, pixstd, ud_grade,
+    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
-    max_lnP_joint, load_sim_dataset
+    max_lnP_joint, load_sim_dataset, norm²
 
 include("util.jl")
 include("generic.jl")

@@ -154,8 +154,4 @@ function inv(m::Field2DMatrix)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
 
-# needed by ODE.jl
-norm(f::Field) = +(norm.(broadcast_data(containertype(f),f))...)
-isnan(::Field) = false
-
 ud_grade(s::Scalar, args...; kwargs...) = s

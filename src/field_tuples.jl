@@ -147,11 +147,6 @@ containertype(::Type{F}) where {F<:Field} = F
     
 @eval const FieldNTuple = Union{$((Symbol("Field$(N)Tuple") for N=Ns)...)}
 
-# propagate pixstd (also some minor convenience stuff so it plays nice ODE.jl)
-pixstd(f::FieldNTuple) = mean(pixstd.(fieldvalues(f)))
-pixstd(arr::AbstractArray{<:Field}) = mean(pixstd.(arr))
-pixstd(x,::Int) = pixstd(x)
-    
     
 # allows some super simple convenience stuff with normal tuples of Fields (but
 # not as powerful as FieldTuples)
