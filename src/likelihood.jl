@@ -343,7 +343,7 @@ function load_sim_dataset(;
     
     # beam
     if (B == nothing)
-        B = let ℓ=0:10000; Cℓ_to_cov(T,P,SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
+        B = let ℓ=0:100000; Cℓ_to_cov(T,P,SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
     end
     
     # mixing matrix

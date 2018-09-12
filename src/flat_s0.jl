@@ -82,7 +82,7 @@ fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,
 Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).
 Two modes are available specified by the `mode` argument: 
 
-    *`:map`     : Up/downgrade by repliacting/averaging pixels in map-space
+    *`:map`     : Up/downgrade by replicating/averaging pixels in map-space
     *`:fourier` : Up/downgrade by extending/truncating the Fourier grid
     
 For `:map` mode, two additional options are possible. If `deconv_pixwin` is
@@ -99,6 +99,12 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     Nnew = N * θ ÷ θnew
     Pnew = Flat{θnew,Nnew}
+    
+    if deconv_pixwin
+        @unpack Δx,k = FFTgrid(T,Pnew)
+        Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
+    end
+    
     if θnew>θ
         # downgrade
         if anti_aliasing
@@ -109,21 +115,15 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
         end
         if mode==:map
             fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
-            if deconv_pixwin
-                @unpack Δx,k = FFTgrid(T,Pnew)
-                Wk =  @. ifelse(k==0, 1, sin(k*Δx/2) / sin(k*Δx/2/fac) / fac)
-                FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1])
-            else
-                fnew
-            end
+            deconv_pixwin ? FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
         else
             FlatS0Fourier{T,Pnew}((AA*f)[:Tl][1:(Nnew÷2+1), [1:Nnew÷2; (end-Nnew÷2+1):end]])
         end
     else
         # upgrade
-        (!deconv_pixwin && !anti_aliasing) || error("deconv_pixwin and anti_aliasing not available when upgrading")
         if mode==:map
-            FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+            fnew = FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+            deconv_pixwin ? FlatS0Fourier{T,Pnew}(fnew[:Tl] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
         else
             fnew = Fourier(zero(FlatS0Map{T,Pnew}))
             broadcast_setindex!(fnew.Tl, f[:Tl], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');

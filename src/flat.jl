@@ -82,6 +82,17 @@ function Mnyq(::Type{T},::Type{P}, M) where {T,θ,N,P<:Flat{θ,N}}
     M
 end
 
+doc"""
+    pixwin(θpix, ℓ)
+
+Returns the pixel window function for square flat-sky pixels of width `θpix` (in
+arcmin) evaluated at some `ℓ`s. 
+
+The pixel window function is defined so that if you start with white noise at
+infinitely high resolution and pixelize it down a resolution `θpix`, its power
+spectrum will be given by pixwin(θpix, ℓ)^2. 
+"""
+pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 
 include("flat_s0.jl")
 include("flat_s2.jl")
@@ -92,6 +103,8 @@ const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},Field2Tuple{<:FlatS0Map
 const FlatField{T,P} = Union{FlatS0{T,P},FlatS2{T,P},FlatS02{T,P}}
 
 FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
+
+
 
 # generic eltype
 eltype(::Type{<:FlatField{T}}) where {T} = T
