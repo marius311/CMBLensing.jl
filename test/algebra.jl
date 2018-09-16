@@ -72,12 +72,11 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
         
     end
     
-    # @test_noerr @inferred(LTEB + LTEB)::FlatTEBCov
-    # @test_noerr @inferred(LTEB + 1)::FlatTEBCov
-    # @test_noerr @inferred(1 * LTEB)::FlatTEBCov
-    # @test_noerr @inferred(LTEB / 3)::FlatTEBCov
-    # @test_noerr @inferred simulate(LTEB)
-    # @test_noerr @inferred LTEB \ f02
+    @test_noerr @inferred(LTEB * LTEB)::FlatTEBCov
+    @test_noerr @inferred(LTEB + 1I)::FlatTEBCov
+    @test_noerr @inferred(2 * LTEB)::FlatTEBCov
+    @test_noerr @inferred simulate(LTEB)
+    @test_noerr @inferred LTEB \ f02
     # 
     @testset "S0/S2" begin
         @test_noerr f0*f2

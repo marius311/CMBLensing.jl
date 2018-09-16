@@ -48,17 +48,6 @@ function Diagonal(L::FlatTEBCov{T,P}) where {T,N,P<:Flat{<:Any,N}}
 end
 
 
-# arithmetic with FlatTEBCov and scalars
-broadcast_data(::Type{FlatTEBCov},s::Scalar) = repeated(s)
-broadcast_data(::Type{FlatTEBCov},L::FlatTEBCov) = (L.ΣTE, L.ΣB)
-function broadcast(f,args::Union{_,FlatTEBCov{T,P},Scalar}...) where {T,P,_<:FlatTEBCov{T,P}}
-    FlatTEBCov{T,P}(map(broadcast, repeated(f), map(broadcast_data, repeated(FlatTEBCov), args)...)...)
-end
-for op in (:*,:\,:/)
-    @eval ($op)(L::FlatTEBCov, s::Scalar)           = broadcast($op,L,s)
-    @eval ($op)(s::Scalar,     L::FlatTEBCov)       = broadcast($op,s,L)
-end
-
 # multiplication by a Diag{TEB}
 function *(L::FlatTEBCov{T,P}, D::FullDiagOp{FlatTEBFourier{T,P}}) where {T,P}
     t,e,b = Diagonal(real(D.f[:Tl][:])), Diagonal(real(D.f[:El][:])), real(D.f[:Bl])
@@ -69,13 +58,12 @@ end
 *(La::F, Lb::F) where {F<:FlatTEBCov} = F(La.ΣTE*Lb.ΣTE, La.ΣB.*Lb.ΣB)
 
 
-# adding FlatTEBCov's and/or scalars
-# (subtraction not implemented since that could break positive-definiteness)
-@commutative function +{F<:FlatTEBCov}(L::F, s::Scalar) 
-    F([[Diagonal(diag(L.ΣTE[1,1]).+s)] [L.ΣTE[1,2]]; [L.ΣTE[2,1]] [Diagonal(diag(L.ΣTE[2,2]).+s)]], L.ΣB.+s)
-end
-+(La::F, Lb::F) where {F<:FlatTEBCov} = La .+ Lb
-
+# simple arithmetic with scalars
++(s::UniformScaling{<:Scalar}, L::FlatTEBCov) = L + s
++(L::F, s::UniformScaling{<:Scalar}) where {F<:FlatTEBCov} =
+    F([[Diagonal(diag(L.ΣTE[1,1]).+s.λ)] [L.ΣTE[1,2]]; [L.ΣTE[2,1]] [Diagonal(diag(L.ΣTE[2,2]).+s.λ)]], L.ΣB.+s.λ, L.unsafe_invert)
+*(s::Scalar, L::FlatTEBCov) = L * s
+*(L::F, s::Scalar) where {F<:FlatTEBCov} = F(L.ΣTE .* s, L.ΣB .* s, L.unsafe_invert)
 
 function get_Cℓ(f::FlatS02{T,P}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
     Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]

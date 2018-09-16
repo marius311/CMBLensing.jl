@@ -16,7 +16,6 @@ BroadcastStyle(::Type{F}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
 BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
 BroadcastStyle(::Style{F}, ::Style{<:LinDiagOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
-BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
 # (2) Call broadcast_data(F,⋅) on each of the arguments being broadcasted over

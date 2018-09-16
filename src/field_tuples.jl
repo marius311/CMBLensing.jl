@@ -24,6 +24,7 @@ broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} 
 broadcast_data(::Type{FT}, L::FullDiagOp{FT}) where {FS,FT<:FieldTuple{FS}} = L.f.fs
 @commutative promote_containertype{FT<:FieldTuple,F<:Field}(::Type{FT}, ::Type{F}) = FT
 promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # needed for ambiguity
+BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 
 # promotion / conversion
 promote_rule(::Type{<:FieldTuple{FS1}},::Type{<:FieldTuple{FS2}}) where {FS1,FS2} = 
