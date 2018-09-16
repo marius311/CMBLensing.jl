@@ -7,17 +7,19 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 # 
 # By definition, we take as our data model
 # 
-#     `d = M * B * L * f + n`
+#     `d = P * M * B * L * f + n`
 #
 # where M, B, and L are the mask, beam/instrumental transfer functions, and
-# lensing operators. Note this means that the noise n is defined as being
+# lensing operators, and P is a pixelization operator. Since we track P, 
+# it means we can estimate the fields on a higher resolution than the data. 
+# Note also that this form means that the noise n is defined as being
 # unbeamed, and also is unmasked. If we're using simulated data, its easy to not
 # mask the noise. For runs with real data, the noise outside the mask should be
 # filled in with a realization of the noise. 
 #
 # Under this data model, the posterior probability is, 
 # 
-#     `-2 ln P(f,ϕ|d) = (d - M*B*L*f̃)ᴴ*Cn⁻¹*(d - M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
+#     `-2 ln P(f,ϕ|d) = (d - P*M*B*L*f̃)ᴴ*Cn⁻¹*(d - P*M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
 #
 # The various covariances and M, B, and d are stored in a `DataSet` structure. 
 #
@@ -31,7 +33,7 @@ D_mix(Cf::LinOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt(($Diagonal(Cf)+σ²
 
 
 # Stores variables needed to construct the likelihood
-@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD}
+@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TP}
     d  :: Td                 # data
     Cn :: TCn                # noise covariance
     Cϕ :: TCϕ                # ϕ covariance
@@ -42,6 +44,7 @@ D_mix(Cf::LinOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt(($Diagonal(Cf)+σ²
     M  :: TM   = 1           # user mask
     B  :: TB   = 1           # beam and instrumental transfer functions
     D  :: TD   = D_mix(Cf)   # mixing matrix for mixed parametrization
+    P  :: TP   = 1           # pixelization operator to estimate field on higher res than data
 end
 
 
@@ -74,8 +77,8 @@ lnP(t,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
 
 # log posterior in the unlensed or lensed parametrization
 function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
-    @unpack Cn,Cf,Cϕ,M,B,d = ds
-    Δ = d-M*B*L[t→1]*fₜ
+    @unpack Cn,Cf,Cϕ,M,P,B,d = ds
+    Δ = d-M*P*B*L[t→1]*fₜ
     f = L[t→0]*fₜ
     -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
 end
@@ -101,9 +104,9 @@ The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used below)
-δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
-δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
+δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Φ)))
+δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;         FieldTuple(-Cf\f                    , zero(Φ)))
+δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -Cϕ\ϕ))
 
 
 # log posterior gradient in the lensed or unlensed parametrization
@@ -167,21 +170,21 @@ things:
 """
 function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwargs...) where F
     
-    @unpack d, Cn, Cn̂, Cf, M, B, B̂ = ds
+    @unpack d, Cn, Cn̂, Cf, M, B, P, B̂ = ds
     
     b = 0
     if (which in (:wf, :sample))
-        b += L'*B'*M'*(Cn^-1)*d
+        b += L'*B'*P'*M'*(Cn^-1)*d
     end
     if (which in (:fluctuation, :sample))
-        b += sqrtm(Cf)\white_noise(F) + L'*B'*M'*(sqrtm(Cn)\white_noise(F))
+        b += sqrtm(Cf)\white_noise(F) + L'*B'*P'*M'*(sqrtm(Cn)\white_noise(F))
     end
     
     pcg2(
         (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
-        (Cf^-1) + L'*B'*M'*(Cn^-1)*M*B*L,
+        (Cf^-1) + L'*B'*P'*M'*(Cn^-1)*M*P*B*L,
         b,
-        guess==nothing ? 0d : guess;
+        guess==nothing ? 0*b : guess;
         kwargs...
     )
     
@@ -244,16 +247,16 @@ function max_lnP_joint(
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
     
-    @unpack d, D, Cϕ, Cf, Cf̃, Cn = ds
+    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
     fcur, f̊cur = nothing, nothing
-    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Ł(d)'Ł(d)) # fix needing to get zero(Φ) this way
+    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(simulate(Cϕ)) # fix needing to get zero(Φ) this way
     tr = []
     hist = nothing
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(d, Cf, Cf̃, Cn)[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(zero(simulate(Cf)), Cf, Cf̃, Cn̂)[2]; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
     
@@ -302,6 +305,7 @@ Create a `DataSet` object with some simulated data.
 """
 function load_sim_dataset(;
     θpix = throw(UndefVarError(:θpix)),
+    θpix_data = θpix,
     Nside = throw(UndefVarError(:Nside)),
     use = throw(UndefVarError(:use)),
     T = Float32,
@@ -320,30 +324,39 @@ function load_sim_dataset(;
     L = LenseFlow
     )
     
+    # the biggest ℓ on the 2D fourier grid
+    ℓmax = round(Int,ceil(√2*FFTgrid(T,Flat{θpix,Nside}).nyq))
+    
     # Cℓs
     if (Cℓn == nothing)
-        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee)
+        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, ℓmax=ℓmax)
     end
     
     # types which depend on whether T/E/B
     SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
     F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
     
+    # pixelization
+    P = (θpix_data == θpix) ? 1 : FuncOp(
+        op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
+        opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
+    )
+    
     # covariances
-    P = Flat{θpix,Nside}
-    Cϕ = Cℓ_to_cov(T,P,S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
-    Cf,Cf̃,Cn = (Cℓ_to_cov(T,P,SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
+    Cϕ       =  Cℓ_to_cov(T,Flat{θpix,Nside},S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cf,Cf̃,Cn̂ = (Cℓ_to_cov(T,Flat{θpix,Nside},SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
+    Cn       =  Cℓ_to_cov(T,Flat{θpix_data,Nside÷(θpix_data÷θpix)},SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
-        M = FullDiagOp(F{T,P}(repeated(T.(sptlike_mask(Nside,θpix; mask_kwargs...)),nF)...)) * LP(ℓmax_data)
+        M = LP(ℓmax_data) * FullDiagOp(F{T,Flat{θpix_data,Nside÷(θpix_data÷θpix)}}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
     elseif (M == nothing)
         M = LP(ℓmax_data)
     end
     
     # beam
     if (B == nothing)
-        B = let ℓ=0:100000; Cℓ_to_cov(T,P,SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
+        B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Flat{θpix,Nside},SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
     end
     
     # mixing matrix
@@ -355,10 +368,10 @@ function load_sim_dataset(;
     f = simulate(Cf)
     f̃ = L(ϕ)*f
     n = simulate(Cn)
-    d = M*B*f̃ + n
+    d = M*P*B*f̃ + n
     
     # put everything in DataSet
-    ds = DataSet(;(@dictpack d Cn Cf Cf̃ Cϕ M B D)...)
+    ds = DataSet(;(@dictpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
     
     return @dictpack f f̃ ϕ n ds T P
     
