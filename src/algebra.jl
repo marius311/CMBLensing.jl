@@ -9,13 +9,14 @@ using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 
 # (1) Infer the type of the result, e.g. Field+Scalar=Field,
 # LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
-# BroadcastStyle definitions below do, and they return a Style{F} where F is
+# BroadcastStyle definitions below do, and they return a Style{F} where F is the
 # final result type.
 broadcastable(f::Union{Field,LinDiagOp}) = f
 BroadcastStyle(::Type{F}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
 BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
 BroadcastStyle(::Style{F}, ::Style{<:LinDiagOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
+BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
 # (2) Call broadcast_data(F,⋅) on each of the arguments being broadcasted over
@@ -28,25 +29,37 @@ broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F, L.f)
 broadcast_data(::Type{<:Field}, s::Scalar) = s
 
-# (3) Finally, forward the broadcast expression on to the data which was returned
-# and wrap the answer in the inferred result type, F.
+# (3) Finally, we intercept the broadcast machinery at the materialize function,
+# and modify the Broadcasted object there to replace all the args with
+# broadcast_data(F,arg), and then forward the broadcast one level deeper to
+# the tuples returned by broadcast_data.
 
-# When the result type is a Field
+# recursively replaces all arguments in a Broadcasted object with new_arg(arg)
+# e.g. replace_bc_args(Broadcasted(+,(1,2)), x->2x) = Broadcasted(+,(2,4))
+replace_bc_args(bc::Broadcasted, new_arg) = Broadcasted(bc.f, map(replace_bc_args, bc.args, map(_->new_arg, bc.args)))
+replace_bc_args(arg, new_arg) = new_arg(arg)
+# forward the broadcast one level "deeper", eg here is what happens when you
+# then apply materialize to the output of this function:
+# materialize(deepen_bc(Broadcasted(+,((1,2),(3,4))))) =  (Broadcasted(+,(1,3)), Broadcasted(+,(2,4)))
+deepen_bc(bc::Broadcasted) = Broadcasted((x...)->Broadcasted(bc.f, tuple(x...)), map(deepen_bc, bc.args))
+deepen_bc(x) = x
+
+# now the custom materialize functions, these ones for when the result type is a Field
 function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
-    @unpack f, args = flatten(bc)
-    F(broadcast.(f, broadcast_data.(F,args)...)...)
+    rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
+    F(map(materialize, materialize(deepen_bc(rbc)))...)
 end
-function materialize!(dest, bc::Broadcasted{Style{F}}) where {F<:Field}
-    @unpack f, args = flatten(bc)
-    broadcast!.(f, broadcast_data(F,dest), broadcast_data.(F,args)...)
+function materialize!(dest::F, bc::Broadcasted) where {F<:Field}
+    rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
+    map(materialize!, broadcast_data(F,dest), materialize(deepen_bc(rbc)))
     dest
 end
-# When the result type is a FullDiagOp
+# and for when the result type is a FullDiagOp
 materialize(bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
     FullDiagOp(materialize(convert(Broadcasted{Style{F}}, bc)))
 materialize!(dest, bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
     (materialize!(dest.f, convert(Broadcasted{Style{F}}, bc)); dest)
-# Fallback for things we can't broadcast, e.g. `∂x .* ∂x` alone without a field
+# fallback for things we can't broadcast, e.g. `∂x .* ∂x` alone without a field
 cant_broadcast() = error("Can't broadcast this expression.")
 materialize(bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()
 materialize!(dest, bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()

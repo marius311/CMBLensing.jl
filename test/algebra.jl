@@ -15,7 +15,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
 
 @testset "Basic Algebra" begin
     
-    for f in (f0,f2,)
+    for f in (f0,f2,f02,f220,fn)
         
         F = typeof(f)
         L = FullDiagOp(f)
@@ -81,6 +81,6 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
     # 
     @testset "S0/S2" begin
         @test_noerr f0*f2
-        # @test_noerr f0*f02
+        @test_noerr f0*f02
     end
 end

@@ -7,8 +7,8 @@ abstract type PixTuple{T} <: Pix end
 struct FieldTuple{FS<:Tuple,B<:BasisTuple,S<:SpinTuple,P<:PixTuple} <: Field{B,S,P}
     fs::FS
 end
-FieldTuple{FS,B,S,P}(fs::Field...) where {FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} = FieldTuple{FS,B,S,P}(fs)
-FieldTuple{FS,B,S,P}(ft::FieldTuple) where {FS<:Tuple,B<:Basis,S<:Spin,P<:Pix} = convert(FieldTuple{FS,B,S,P}, ft)
+FieldTuple{FS,B,S,P}(fs::Field...) where {FS<:Tuple,B<:BasisTuple,S<:SpinTuple,P<:PixTuple} = FieldTuple{FS,B,S,P}(fs)
+FieldTuple{FS,B,S,P}(ft::FieldTuple) where {FS<:Tuple,B<:BasisTuple,S<:SpinTuple,P<:PixTuple} = convert(FieldTuple{FS,B,S,P}, ft)
 function FieldTuple(fs::Field...)
     B = BasisTuple{Tuple{map(basis,fs)...}}
     S = SpinTuple{Tuple{map(spin,fs)...}}
@@ -19,9 +19,9 @@ end
 shortname(::Type{<:FieldTuple{FS}}) where {FS} = "FieldTuple{$(join(map(shortname,FS.parameters),","))}"
 
 # broadcasting
-broadcast_length(::Type{<:FieldTuple{FS}}) where {FS} = nfields(FS)
 broadcast_data(::Type{FT}, ft::FT) where {FS,FT<:FieldTuple{FS}} = ft.fs
-broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = tuple(repeated(f,nfields(FS))...)
+broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = ntuple(_->f,nfields(FS))
+broadcast_data(::Type{FT}, L::FullDiagOp{FT}) where {FS,FT<:FieldTuple{FS}} = L.f.fs
 @commutative promote_containertype{FT<:FieldTuple,F<:Field}(::Type{FT}, ::Type{F}) = FT
 promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # needed for ambiguity
 
@@ -33,8 +33,8 @@ convert(::Type{<:FieldTuple{FS}}, ft::FieldTuple) where {FS} =
 
 # basis conversion
 (::Type{BasisTuple{BS}})(ft::FieldTuple) where {BS} = FieldTuple(map_tupleargs((B,f)->B(f), BS, ft.fs)...)
-(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(B.(ft.fs)...)
-(::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(B.(ft.fs)...) # needed for ambiguity
+(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B,ft.fs)...)
+(::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B,ft.fs)...) # needed for ambiguity
 
 # basic functionality
 white_noise(::Type{FT}) where {FS,FT<:FieldTuple{FS}} = FT(map_tupleargs(white_noise, FS))
