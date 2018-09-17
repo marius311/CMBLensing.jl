@@ -20,11 +20,11 @@ for op in (:+,:-,:*,:\,:/)
     @eval ($op)(La::F, Lb::F) where {F<:FullDiagOp} = FullDiagOp($op(La.f,Lb.f))
     # if they're not, we will fall back to creating a LazyBinaryOp (see algebra.jl)
 end
-sqrtm(f::FullDiagOp) = sqrt.(f)
-simulate(L::FullDiagOp{F}) where {F} = sqrtm(L) .* F(white_noise(F))
+sqrt(f::FullDiagOp) = sqrt.(f)
+simulate(L::FullDiagOp{F}) where {F} = sqrt(L) .* F(white_noise(F))
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
 containertype(L::FullDiagOp) = containertype(L.f)
-inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1./L.f) : 1./L.f, L.unsafe_invert)
+inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1 ./ L.f) : 1 ./ L.f, L.unsafe_invert)
 ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUFourier}} = 
     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
 ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} = 
@@ -64,7 +64,7 @@ SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
 *(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
 \(op::FuncOp, f::Field) = op.op⁻¹ != nothing ? op.op⁻¹(f) : error("op\\f not implemented")
 adjoint(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
-const IdentityOp = FuncOp(repeated(identity,4)...)
+const IdentityOp = FuncOp(@repeated(identity,4)...)
 inv(op::FuncOp) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
 
 

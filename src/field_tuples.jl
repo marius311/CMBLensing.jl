@@ -22,7 +22,8 @@ shortname(::Type{<:FieldTuple{FS}}) where {FS} = "FieldTuple{$(join(map(shortnam
 broadcast_data(::Type{FT}, ft::FT) where {FS,FT<:FieldTuple{FS}} = ft.fs
 broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = ntuple(_->f,nfields(FS))
 broadcast_data(::Type{FT}, L::FullDiagOp{FT}) where {FS,FT<:FieldTuple{FS}} = L.f.fs
-@commutative promote_containertype{FT<:FieldTuple,F<:Field}(::Type{FT}, ::Type{F}) = FT
+promote_containertype(::Type{FT}, ::Type{F}) where {FT<:FieldTuple,F<:Field} = FT
+promote_containertype(::Type{F}, ::Type{FT}) where {FT<:FieldTuple,F<:Field} = FT
 promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # needed for ambiguity
 BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 
@@ -68,5 +69,6 @@ getproperty(ft::FT, ::Val{:fs}) where {s,FS,FT<:FieldTuple{FS}} = getfield(ft,:f
 end
 
 # the generic * method only works if a & b are in the same basis, so we need this here
-@commutative *(a::Field, b::FieldTuple) = a.*b
+*(a::Field, b::FieldTuple) = a.*b
+*(b::FieldTuple, a::Field) = a.*b
 *(a::FieldTuple, b::FieldTuple) = a.*b 

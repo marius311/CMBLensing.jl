@@ -18,7 +18,7 @@ Convert a vector produced by rfft2vec back into a complex matrix.
 function vec2rfft(v::AbstractVector{<:Real})
     n = round(Int,sqrt(length(v)))
     m = n÷2+1
-    nreal = (n^2)÷2 + (iseven(n)?2:1)
+    nreal = (n^2)÷2 + (iseven(n) ? 2 : 1)
     ireal,iimag,inegks = fftsyms(Val{m},Val{n})
     A = fill(NaN+im*NaN,m,n)
     A[ireal] = v[1:nreal]

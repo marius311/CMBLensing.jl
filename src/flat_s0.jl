@@ -17,25 +17,25 @@ end
 const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
 
 # convenience constructors
-FlatS0Map{T}(Tx::Matrix{T},Θpix=Θpix₀) = FlatS0Map{T,Flat{Θpix,size(Tx,2)}}(Tx)
-FlatS0Fourier{T}(Tl::Matrix{Complex{T}},Θpix=Θpix₀) = FlatS0Fourier{T,Flat{Θpix,size(Tl,2)}}(Tl)
+FlatS0Map(Tx::Matrix{T},Θpix=Θpix₀) where {T} = FlatS0Map{T,Flat{Θpix,size(Tx,2)}}(Tx)
+FlatS0Fourier(Tl::Matrix{Complex{T}},Θpix=Θpix₀) where {T} = FlatS0Fourier{T,Flat{Θpix,size(Tl,2)}}(Tl)
 
 # basis conversion
-promote_rule{T,P}(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) = FlatS0Map{T,P}
+promote_rule(::Type{FlatS0Map{T,P}}, ::Type{FlatS0Fourier{T,P}}) where {T,P} = FlatS0Map{T,P}
 
 
-Fourier{T,P}(f::FlatS0Map{T,P}) = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
-Map{T,P}(f::FlatS0Fourier{T,P}) = FlatS0Map{T,P}(ℱ{P}\f.Tl)
+Fourier(f::FlatS0Map{T,P}) where {T,P} = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
+Map(f::FlatS0Fourier{T,P}) where {T,P} = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
 
-LenseBasis{F<:FlatS0}(::Type{F}) = Map
+LenseBasis(::Type{<:FlatS0}) = Map
 
 function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,P}}
     FlatS0Map{T,P}(randn(Nside,Nside) / FFTgrid(T,P).Δx)
 end
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
-function Cℓ_to_cov{T,P}(::Type{T}, ::Type{P}, ::Type{S0}, ℓ, CℓTT)
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ℓ, CℓTT) where {T,P}
     g = FFTgrid(T,P)
     FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
 end
@@ -68,19 +68,19 @@ end
 
 
 # vector conversion
-length{T,P}(::Type{<:FlatS0{T,P}}) = Nside(P)^2
+length(::Type{<:FlatS0{T,P}}) where {T,P} = Nside(P)^2
 getindex(f::FlatS0Map,::Colon) = f.Tx[:]
 getindex(f::FlatS0Fourier,::Colon) = rfft2vec(f.Tl)
-fromvec{T,P}(::Type{FlatS0Map{T,P}}, vec::AbstractVector) = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
-fromvec{T,P}(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) = FlatS0Fourier{T,P}(vec2rfft(vec))
+fromvec(::Type{FlatS0Map{T,P}},     vec::AbstractVector) where {T,P} = FlatS0Map{T,P}(reshape(vec,(Nside(P),Nside(P))))
+fromvec(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) where {T,P} = FlatS0Fourier{T,P}(vec2rfft(vec))
 
 
 # norms (for e.g. ODE integration error tolerance)
 pixstd(f::FlatS0Map) = sqrt(var(f.Tx))
-pixstd{T,Θ,N}(f::FlatS0Fourier{T,Flat{Θ,N}}) = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
+pixstd(f::FlatS0Fourier{T,Flat{Θ,N}}) where {T,Θ,N} = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
 
 
-"""
+@doc doc"""
     ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)
 
 Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).

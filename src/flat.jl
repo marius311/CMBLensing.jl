@@ -27,10 +27,10 @@ end
 * `nside::Int`: the number of pixels in one side of the map
 * `dm::Integer=2`: the number of dimensions (i.e. 2 for map)
 """
-function FFTgrid{T<:Real}(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5)
+function FFTgrid(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5) where {T<:Real}
     Δx  = period/nside
     FFTW.set_num_threads(Sys.CPU_CORES)
-    FFT = T((Δx/√(2π))^dm) * plan_rfft(Array{T}(fill(nside,dm)...); flags=flags, timelimit=timelimit)
+    FFT = T((Δx/√(2π))^dm) * plan_rfft(Array{T}(undef,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
     x,k = (ifftshift(-nside÷2:(nside-1)÷2),) .* [Δx,Δℓ]'
@@ -50,20 +50,20 @@ end
 
 abstract type ℱ{P} end
 
-*{T,P}(::Type{ℱ{P}},x::Matrix{T}) = FFTgrid(T,P).FFT * x
-\{T,P}(::Type{ℱ{P}},x::Matrix{Complex{T}}) = FFTgrid(T,P).FFT \ x
+*(::Type{ℱ{P}},x::Matrix{T}) where {T,P} = FFTgrid(T,P).FFT * x
+\(::Type{ℱ{P}},x::Matrix{Complex{T}}) where {T,P} = FFTgrid(T,P).FFT \ x
 
 
 # Check map and fourier coefficient arrays are the right size
-function checkmap{T,P}(::Type{P},A::AbstractMatrix{T})
+function checkmap(::Type{P},A::AbstractMatrix{T}) where {T,P}
     @assert ==(Nside(P),size(A)...) "Wrong size for a map."
     A
 end
-checkfourier{T<:Real,P}(::Type{P},A::AbstractMatrix{T}) = checkfourier(P,complex(A))
-function checkfourier{T,P}(::Type{P},A::AbstractMatrix{Complex{T}})
+checkfourier(::Type{P},A::AbstractMatrix{T}) where {T<:Real,P} = checkfourier(P,complex(A))
+function checkfourier(::Type{P},A::AbstractMatrix{Complex{T}}) where {T,P}
     n,m = size(A)
     @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
-    #todo: check symmetries
+    #could check symmetries here?
     A
 end
 
@@ -97,11 +97,11 @@ FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
 eltype(::Type{<:FlatField{T}}) where {T} = T
 
 # we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-@commutative promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
-@commutative promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
-broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = tuplejoin(repeated(broadcast_data(F0,f),2)...)
-broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Fourier, F0<:FlatS0Fourier} = tuplejoin(repeated(broadcast_data(F0,f),2)...)
-@commutative *(a::FlatS0Map, b::FlatS2Map) = a.*b
+# @commutative promote_containertype{F0<:FlatS0Map,F2<:FlatS2Map}(::Type{F0},::Type{F2}) = F2
+# @commutative promote_containertype{F0<:FlatS0Fourier,F2<:FlatS2Fourier}(::Type{F0},::Type{F2}) = F2
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = (broadcast_data(F0,f),)
+*(f0::FlatS0Map, f2::FlatS2Map) = f0 .* f2
+*(f2::FlatS2Map, f0::FlatS2Map) = f0 .* f2
 
 
 # derivatives

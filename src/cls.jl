@@ -118,7 +118,7 @@ function noisecls(μKarcminT;beamFWHM=6,ℓmax=8000,ℓknee=100,αknee=3)
     Nℓ1f = @. 1 + (ℓknee/ℓ)^αknee
     Cℓs = Dict{Symbol,Any}(:ℓ=>ℓ)
     for x in [:TT,:EE,:BB]
-        Cℓs[x]=fill((x==:TT?1:2)*(deg2rad(μKarcminT/60))^2,ℓmax) .* Bℓ .* Nℓ1f
+        Cℓs[x]=fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax) .* Bℓ .* Nℓ1f
     end
     Cℓs[:TE]=zeros(ℓmax)
     Cℓs

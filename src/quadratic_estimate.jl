@@ -1,6 +1,6 @@
 export ϕqe
 
-sinv(x) = nan2zero.(1./x)
+sinv(x) = nan2zero.(1 ./ x)
 
 macro sym(ex)
     # todo: write this such that it converts a function f(i,j,k,..) which is
@@ -19,7 +19,6 @@ Compute quadratic estimate for ϕ given data, d, and signal, lensed signal,
 and noise covariances Cf, Cf̃, and Cn, respectively. If signal covariance Cϕ is
 given, the result is Wiener filtered.
 """
-# XX estimator where X∈[T,E,B]
 function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
 
     L̅,L² = get_L̅_L²(d)

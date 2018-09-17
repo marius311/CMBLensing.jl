@@ -19,7 +19,7 @@ end
 
 function PowerLens{N}(ϕ) where {N}
     ∂xϕ, ∂yϕ = Ł(∂x*ϕ), Ł(∂y*ϕ)
-    PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0?1:∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
+    PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 
 """ Create from an existing PowerLens operator one that lenses by -ϕ instead. """
@@ -108,10 +108,10 @@ function δ²f̃_δϕ²(L::PowerLens{N,F}, f::Field, w::Field, v::Field) where {
     r = Ð(zero(F))
     @threadsum for n in 1:N, (a,b) in zip(0:n,n:-1:0)
         ∂ⁿfᴴ_w = @. $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
-        @. r += -(  ((a<2)        ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᴴ_w)))
-                  + ((a<1 || b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_w)))
-                  + ((b<2)        ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᴴ_w)))
-                  + ((a<1 || b<1) ? 0 : (∂y * $Ð(@. ∂xv * a * b     * L.∂yϕⁱ[b-1] * L.∂xϕⁱ[a-1] * ∂ⁿfᴴ_w))))
+        @. r += -(  ((a<2)       ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᴴ_w)))
+                  + ((a<1 | b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_w)))
+                  + ((b<2)       ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᴴ_w)))
+                  + ((a<1 | b<1) ? 0 : (∂y * $Ð(@. ∂xv * a * b     * L.∂yϕⁱ[b-1] * L.∂xϕⁱ[a-1] * ∂ⁿfᴴ_w))))
     end
     r
 end

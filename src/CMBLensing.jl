@@ -4,9 +4,10 @@ using Base.Iterators: repeated
 using Base.Threads
 using Combinatorics: levicivita
 using FFTW
-using Iterators
+using LinearAlgebra
 using Lazy
 using MacroTools: @capture, postwalk, isexpr
+using Markdown
 using ODE
 using Parameters
 using ProgressMeter
@@ -18,11 +19,11 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 
 
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
+import Base: +, -, *, \, /, ^, ~, Ac_mul_B, Ac_ldiv_B, broadcast,
     convert, copy, done, eltype, getindex, inv, length, linspace, literal_pow, next,
     promote_rule, similar, size, sqrt, start, transpose, adjoint, one, zero,
-    sqrtm, getproperty, propertynames
-import Base.LinAlg: dot, norm, isnan
+    getproperty, propertynames
+import LinearAlgebra: dot, norm, isnan
 
 
 

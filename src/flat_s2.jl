@@ -40,38 +40,38 @@ const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
 # convenience constructors
 for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
-    @eval ($F){T}(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀) = ($F){T,Flat{Θpix,size(a,2)}}(a,b)
+    @eval ($F)(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀) where {T} = ($F){T,Flat{Θpix,size(a,2)}}(a,b)
 end
 FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q[:Tx],U[:Tx])
 
 
-LenseBasis{F<:FlatS2}(::Type{F}) = QUMap
+LenseBasis(::Type{<:FlatS2}) = QUMap
 
-QUFourier{T,P}(f::FlatS2QUMap{T,P}) = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
-QUFourier{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier
-function QUFourier{T,P}(f::FlatS2EBFourier{T,P})
+QUFourier(f::FlatS2QUMap{T,P})     where {T,P} = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
+QUFourier(f::FlatS2EBMap{T,P})     where {T,P} = f |> EBFourier |> QUFourier
+QUFourier(f::FlatS2EBFourier{T,P}) where {T,P} = begin
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
     Ql = @. - f.El * cos2ϕ + f.Bl * sin2ϕ
     Ul = @. - f.El * sin2ϕ - f.Bl * cos2ϕ
     FlatS2QUFourier{T,P}(Ql,Ul)
 end
 
-QUMap{T,P}(f::FlatS2QUFourier{T,P}) = FlatS2QUMap{T,P}(ℱ{P}\f.Ql, ℱ{P}\f.Ul)
-QUMap{T,P}(f::FlatS2EBMap{T,P}) = f |> EBFourier |> QUFourier |> QUMap
-QUMap{T,P}(f::FlatS2EBFourier{T,P}) = f |> QUFourier |> QUMap
+QUMap(f::FlatS2QUFourier{T,P}) where {T,P} = FlatS2QUMap{T,P}(ℱ{P}\f.Ql, ℱ{P}\f.Ul)
+QUMap(f::FlatS2EBMap{T,P})     where {T,P} = f |> EBFourier |> QUFourier |> QUMap
+QUMap(f::FlatS2EBFourier{T,P}) where {T,P} = f |> QUFourier |> QUMap
 
-EBFourier{T,P}(f::FlatS2EBMap{T,P}) = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f.Bx)
-EBFourier{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier
-function EBFourier{T,P}(f::FlatS2QUFourier{T,P})
+EBFourier(f::FlatS2EBMap{T,P})     where {T,P} = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f.Bx)
+EBFourier(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier
+EBFourier(f::FlatS2QUFourier{T,P}) where {T,P} = begin
     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
     El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
     Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
     FlatS2EBFourier{T,P}(El,Bl)
 end
 
-EBMap{T,P}(f::FlatS2EBFourier{T,P}) = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P}\f.Bl)
-EBMap{T,P}(f::FlatS2QUMap{T,P}) = f |> QUFourier |> EBFourier |> EBMap
-EBMap{T,P}(f::FlatS2QUFourier{T,P}) = f |> EBFourier |> EBMap
+EBMap(f::FlatS2EBFourier{T,P}) where {T,P} = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P}\f.Bl)
+EBMap(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier |> EBMap
+EBMap(f::FlatS2QUFourier{T,P}) where {T,P} = f |> EBFourier |> EBMap
 
 # basically we always err on the side of keeping things in the QU and Map (could
 # be further explored if this is the most optimal choice given the operations we
@@ -86,7 +86,7 @@ rules = Dict(
 )
 
 for ((F1,F2),Tout) in rules
-    @eval promote_rule{T,P}(::Type{$F1{T,P}},::Type{$F2{T,P}})=$Tout{T,P}
+    @eval promote_rule(::Type{$F1{T,P}},::Type{$F2{T,P}}) where {T,P} = $Tout{T,P}
 end
 
 function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
@@ -116,7 +116,7 @@ dot(a::F,b::F) where {T,P,F<:FlatS2Map{T,P}} = (a[:] ⋅ b[:]) * FFTgrid(T,P).Δ
 end
 
 # vector conversions
-length{T,P}(::Type{<:FlatS2{T,P}}) = 2Nside(P)^2
+length(::Type{<:FlatS2{T,P}}) where {T,P} = 2Nside(P)^2
 @generated getindex(f::FlatS2Map,::Colon) = :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
 @generated getindex(f::FlatS2Fourier,::Colon) = :(vcat($((:(rfft2vec(f.$x)) for x in fieldnames(f))...)))
 function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Map}
@@ -126,11 +126,11 @@ end
 fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(vec[1:end÷2]), vec2rfft(vec[end÷2+1:end]))
 
 
-Ac_mul_B{T,P}(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
+Ac_mul_B(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) where {T,P} = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
 
 # norms (for e.g. ODE integration error tolerance)
-pixstd{T,P}(f::FlatS2Map{T,P}) = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
-pixstd{T,P}(f::FlatS2Fourier{T,P}) = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
+pixstd(f::FlatS2Map{T,P})     where {T,P} = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
+pixstd(f::FlatS2Fourier{T,P}) where {T,P} = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
 
 ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
 

@@ -40,9 +40,9 @@ function *(L::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any,
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
 adjoint(L::F) where {F<:FlatTEBCov} = F(L.ΣTE',L.ΣB)
-inv(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? (nan2zero.(inv(L.ΣTE)), nan2zero.(1./L.ΣB)) : (inv(L.ΣTE), 1/L.ΣB))...)
-sqrtm(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? nan2zero.(sqrtm(L.ΣTE)) : sqrtm(L.ΣTE)), sqrt.(L.ΣB))
-simulate(L::FlatTEBCov{T,P}) where {T,P} = sqrtm(L) * white_noise(FlatTEBFourier{T,P})
+inv(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? (nan2zero.(inv(L.ΣTE)), nan2zero.(1 ./ L.ΣB)) : (inv(L.ΣTE), 1 ./ L.ΣB))...)
+sqrt(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? nan2zero.(sqrt(L.ΣTE)) : sqrt(L.ΣTE)), sqrt.(L.ΣB))
+simulate(L::FlatTEBCov{T,P}) where {T,P} = sqrt(L) * white_noise(FlatTEBFourier{T,P})
 function Diagonal(L::FlatTEBCov{T,P}) where {T,N,P<:Flat{<:Any,N}}
     FullDiagOp(FlatTEBFourier{T,P}(reshape.(diag.([L.ΣTE[1,1], L.ΣTE[2,2]]),[(N÷2+1,N)])..., L.ΣB))
 end

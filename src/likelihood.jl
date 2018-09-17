@@ -48,7 +48,7 @@ end
 ## likelihood 
 
 
-doc"""
+@doc doc"""
     lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
     lnP(t, fₜ, ϕ, ds, L::LenseOp) 
 
@@ -86,7 +86,7 @@ lnP(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̆),
 
 ## likelihood gradients
 
-doc"""
+@doc doc"""
 
     δlnP_δfϕₜ(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
     δlnP_δfϕₜ(t, fₜ, ϕ, ds, L::LenseOp)
@@ -101,9 +101,9 @@ The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used below)
-δlnL_δf̃ϕ{Φ}(f̃,ϕ::Φ,ds)  = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
-δlnΠᶠ_δfϕ{Φ}(f,ϕ::Φ,ds) = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
-δlnΠᶲ_δfϕ{F}(f::F,ϕ,ds) = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
+ δlnL_δf̃ϕ(f̃,    ϕ::Φ, ds) where {Φ} = (@unpack M,B,Cn,d=ds; FieldTuple(M'*B'*(Cn\(d-M*B*f̃)), zero(Φ)))
+δlnΠᶠ_δfϕ(f,    ϕ::Φ, ds) where {Φ} = (@unpack Cf=ds;       FieldTuple(-Cf\f               , zero(Φ)))
+δlnΠᶲ_δfϕ(f::F, ϕ,    ds) where {F} = (@unpack Cϕ=ds;       FieldTuple(zero(F)             , -Cϕ\ϕ))
 
 
 # log posterior gradient in the lensed or unlensed parametrization
@@ -135,7 +135,7 @@ end
 ## wiener filter
 
 
-doc"""
+@doc doc"""
     lensing_wiener_filter(ds::DataSet, L, which=:wf)
 
 Computes the Wiener filter at fixed $\phi$, i.e. the best-fit of
@@ -172,7 +172,7 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
         b += L'*B'*M'*(Cn^-1)*d
     end
     if (which in (:fluctuation, :sample))
-        b += sqrtm(Cf)\white_noise(F) + L'*B'*M'*(sqrtm(Cn)\white_noise(F))
+        b += sqrt(Cf)\white_noise(F) + L'*B'*M'*(sqrt(Cn)\white_noise(F))
     end
     
     pcg2(

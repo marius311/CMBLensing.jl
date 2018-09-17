@@ -58,7 +58,7 @@ abstract type Basislike <: Basis end
 # 
 # Other functions which can be implemented:
 #
-#     * sqrtm(L::LinOp) - the sqrt of the operator s.t. sqrtm(L)*sqrtm(L) = L
+#     * sqrt(L::LinOp) - the sqrt of the operator s.t. sqrt(L)*sqrt(L) = L
 # 
 #
 # By default, LinOps receive the following functionality:

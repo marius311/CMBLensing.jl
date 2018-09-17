@@ -52,9 +52,9 @@ macro commutative(ex)
     end
 end
 
-nan2zero{T}(x::T) = !isfinite(x)?zero(T):x
+nan2zero(x::T) where {T} = !isfinite(x) ? zero(T) : x
 nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
-nan2inf{T}(x::T) = !isfinite(x)?T(Inf):x
+nan2inf(x::T) where {T} = !isfinite(x) ? T(Inf) : x
 
 
 """ Return a tuple with the expression repeated n times """
@@ -140,15 +140,14 @@ macro tmap(f,args...)
 end
 
 
-# these allow inv and sqrtm of SMatrices of Diagonals to work correctly, which
+# these allow inv and sqrt of SMatrices of Diagonals to work correctly, which
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
 import StaticArrays: arithmetic_closure
 import Base: sqrt, inv, /
 arithmetic_closure(::Type{Diagonal{T}}) where {T} = Diagonal{arithmetic_closure(T)}
-sqrt(d::Diagonal) = Diagonal(sqrt.(diag(d)))
-inv(d::Diagonal) = Diagonal(1./d.diag)
-/(a::Number, b::Diagonal) = Diagonal(a./diag(b))
+inv(d::Diagonal) = Diagonal(1 ./ d.diag)
+/(a::Number, b::Diagonal) = Diagonal(a ./ diag(b))
 
 
 # some usefule tuple manipulation functions
