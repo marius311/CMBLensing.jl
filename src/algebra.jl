@@ -136,14 +136,16 @@ adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 
 # a generic lazy adjoint
-struct LazyHermitian{A<:LinOp} <: LinOp{Basis,Spin,Pix}
-    a::A
+# note: the adjoint of a LinOp{B,S,P} is not necessarily ::LinOp{B,S,P}
+# (consider e.g. the pixelization operator which produces a different P)
+struct AdjointLinOp{L<:LinOp} <: LinOp{Basis,Spin,Pix} 
+    op::L
 end
-adjoint(L::LinOp) = LazyHermitian(L)
-adjoint(L::LazyHermitian) = L.a
-*(L::LazyHermitian, f::Field) = L.a'*f
-inv(L::LazyHermitian) = LazyHermitian(inv(L))
-ud_grade(lz::LazyHermitian, args...; kwargs...) = LazyHermitian(ud_grade(lz.a,args...; kwargs...))
+adjoint(L::LinOp) = AdjointLinOp(L)
+adjoint(L::AdjointLinOp) = L.a
+*(L::AdjointLinOp, f::Field) = L.a'*f
+inv(L::AdjointLinOp) = AdjointLinOp(inv(L))
+ud_grade(lz::AdjointLinOp, args...; kwargs...) = AdjointLinOp(ud_grade(lz.a,args...; kwargs...))
 
 
 

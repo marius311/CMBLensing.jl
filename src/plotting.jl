@@ -16,7 +16,7 @@ function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=tru
     (vlim == nothing) && (vlim=:sym)
     _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
-        @pydef type MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
+        @pydef mutable struct MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
             __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
         end
         ax[:xaxis][:set_major_formatter](MyFmt())

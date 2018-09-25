@@ -102,7 +102,7 @@ end
 # field of type F.
 #
 abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
-adjoint(L::LinDiagOp) = L #TODO: actually this isnt true unless is also hermitian
+transpose(L::LinDiagOp) = L
 
 # automatic basis conversion & broadcasting
 for op=(:*,:\)

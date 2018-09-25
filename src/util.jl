@@ -166,22 +166,6 @@ map_tupleargs(f,::Type{<:Tuple{}}...) = ()
 map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 
 
-# provide the interpolation API that Interpolations.jl would, but implement via
-# numpy, since Interpolations.jl is currently broken on 0.7. Once its fixed, we
-# should just be able to remove this code and replace with `using Interpolations.jl` 
-# with no other changes to main code.
-const np = PyNULL()
-@init copy!(np, pyimport("numpy"))
-struct Interpolation
-    xp
-    fp
-end
-interpolate((xp,),fp,_) = Interpolation(xp,fp)
-getindex(itp::Interpolation, x::AbstractArray{<:Any,N}) where {N} = np[:interp](x,itp.xp,itp.fp,left=0,right=0)::Array{Float64,N}
-extrapolate(itp, v) = itp
-Gridded(args...) = nothing
-Linear(args...) = nothing
-
 # I really don't like that 0.7 got rid of the much more succinct `linspace`, so
 # bring it back
 linspace(start,stop,length::Integer) = range(start,stop=stop,length=length)
