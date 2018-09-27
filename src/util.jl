@@ -78,6 +78,22 @@ macro dictpack(exs...)
     :(Dict($((kv(ex) for ex=exs)...)))
 end
 
+""" 
+Pack some variables in a named tuple 
+
+```
+> x = 3
+> y = 4
+> @dictpack x y z=>5
+(x=3,y=4,z=5)
+```
+"""
+macro ntpack(exs...)
+    kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
+    kv(ex) = esc(ex)
+    Expr(:tuple, (kv(ex) for ex=exs)...)
+end
+
 
 """
 Take an expression like

@@ -128,10 +128,6 @@ fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(ve
 
 Ac_mul_B(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) where {T,P} = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
 
-# norms (for e.g. ODE integration error tolerance)
-pixstd(f::FlatS2Map{T,P})     where {T,P} = mean(@. pixstd(FlatS0Map{T,P}(getfield(f,[1,2]))))
-pixstd(f::FlatS2Fourier{T,P}) where {T,P} = mean(@. pixstd(FlatS0Fourier{T,P}(getfield(f,[1,2]))))
-
 ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
 
 getindex(f::FlatS2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])

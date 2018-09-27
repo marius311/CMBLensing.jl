@@ -48,6 +48,10 @@ function gradhess(f)
     ∂xyf = ∂x*∂yf
     @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
 end
+shortname(::Type{∂{s}}) where {s} = "∂$s"
+struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
+const ∇² = ∇²Op()
+
 
 ### FuncOp
 

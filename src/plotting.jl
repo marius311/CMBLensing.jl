@@ -5,24 +5,35 @@ export plot
 
 plotsize₀ = 4
 
-pretty_name(s::Symbol) = pretty_name(string(s))
-pretty_name(s::String) = s[1:1]*" "*(Dict('x'=>"map",'l'=>"fourier")[s[2]])
+pretty_name(s::Symbol) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
+pretty_name(::Val{s},::Val{:x}) where {s} = "$s map"
+pretty_name(::Val{s},::Val{:l}) where {s} = "$s fourier"
 
 # generic plotting some components of a FlatField
 function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
-    x = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
+    if string(k)[2] == 'x'
+        x = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
+    else
+        x = FFTgrid(f).nyq
+    end
     extent = [-x,x,-x,x]
     (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(Θ)')")
     (vlim == nothing) && (vlim=:sym)
-    _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
+    _plot(getproperty(f,k); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
-        @pydef mutable struct MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
-            __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
+        if string(k)[2] == 'x'
+            @pydef mutable struct MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
+                __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
+            end
+            ax[:xaxis][:set_major_formatter](MyFmt())
+            ax[:yaxis][:set_major_formatter](MyFmt())
+            ax[:set_xlabel]("RA")
+            ax[:set_ylabel]("Dec")
+        else
+            ax[:set_xlabel](raw"$\ell_x$")
+            ax[:set_ylabel](raw"$\ell_y$")
+            ax[:tick_params](axis="x", rotation=45)
         end
-        ax[:xaxis][:set_major_formatter](MyFmt())
-        ax[:yaxis][:set_major_formatter](MyFmt())
-        ax[:set_ylabel]("Dec")
-        ax[:set_xlabel]("RA")
         ax[:tick_params](labeltop=false, labelbottom=true)
     else
         ax[:tick_params](labeltop=false, labelleft=false)

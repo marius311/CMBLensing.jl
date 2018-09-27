@@ -5,6 +5,7 @@ using Base.Threads
 using FFTW
 using Images: feature_transform, imfilter, Kernel
 using Interpolations
+using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
 using Optim: optimize
 using Parameters
@@ -18,9 +19,9 @@ include("RFFTVectors.jl"); using .RFFTVectors
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
-    convert, copy, done, eltype, full, getindex, inv, length, literal_pow, logdet, next, 
+    convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, logdet, next, 
     promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
-    sqrtm
+    sqrt, adjoint
 import Base.LinAlg: dot, isnan
 
 

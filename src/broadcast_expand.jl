@@ -1,4 +1,5 @@
 
+using MacroTools: @q
 #
 # we want to be able to write expressions involving Vector/Matrix{<:Field}, and
 # have the result be efficiently broacasted, i.e. I write, 
@@ -77,55 +78,56 @@ macro ⨳(ex)
     
     # check if ex is of the form $(...) and if so allocate a temporary
     # variable to store the result of (...)
-    temps = :(begin end) 
+    temps = @q begin end
     function checktemp!(ex)
-        pushtemp!(ex) = (temp=gensym(); push!(temps.args,:($temp = $(esc(ex)))); temp)
+        pushtemp!(ex) = (temp=gensym(); push!(temps.args,:($temp = $ex)); temp)
         if isexpr(ex) && ex.head==:$
             pushtemp!(ex.args[1])
         elseif isexpr(ex) && ex.head==:call && isexpr(ex.args[1]) && ex.args[1].head==:$
             pushtemp!(Expr(:call,ex.args[1].args[1],ex.args[2:end]...))
         else
-            esc(ex)
+            ex
         end
     end
     
     function visit(ex)
-        if @capture(ex, a_' ⨳ inv(𝕀 + t_*J_) ⨳ c_)
+        if @capture(ex, a_' ⨳ inv(I + t_*J_) ⨳ c_)
             a,J,c,t = checktemp!.((a,J,c,t))
-            quote
+            @q begin
                 ((($a[1]*(1+$t*$J[2,2])-$t*$a[2]*$J[1,2])*$c[1] 
                  +($a[2]*(1+$t*$J[1,1])-$t*$a[1]*$J[2,1])*$c[2])
                 / ((1+$t*$J[1,1])*(1+$t*$J[2,2]) - $t^2*$J[2,1]*$J[1,2]))
             end
-        elseif @capture(ex, a_ * (inv(𝕀 + t_*J_) ⨳ c_))
+        elseif @capture(ex, a_ * (inv(I + t_*J_) ⨳ c_))
             a,J,c,t = checktemp!.((a,J,c,t))
             push!(temps.args,:(det = @. (1+$t*$J[1,1])*(1+$t*$J[2,2]) - $t^2*$J[2,1]*$J[1,2]))
-            quote
+            @q begin
                 @SVector [$a * ((1+$t*$J[2,2])*$c[1] - $t*$J[1,2]*$c[2]) / det,
                           $a * ((1+$t*$J[1,1])*$c[2] - $t*$J[2,1]*$c[1]) / det]
             end
         elseif @capture(ex, b_' ⨳ (a_' ⨳ A_)')
             A,a,b = checktemp!.((A,a,b))
-            :($b[1]*($a[1]*$A[1,1]+$a[2]*$A[2,1]) + $b[2]*($a[1]*$A[1,2]+$a[2]*$A[2,2]))
+            @q $b[1]*($a[1]*$A[1,1]+$a[2]*$A[2,1]) + $b[2]*($a[1]*$A[1,2]+$a[2]*$A[2,2])
         elseif @capture(ex, a_' ⨳ A_ ⨳ b_)
             A,a,b = checktemp!.((A,a,b))
-            :(  $a[1]*$A[1,1]*$b[1] + $a[1]*$A[1,2]*$b[2] 
-              + $a[2]*$A[2,1]*$b[1] + $a[2]*$A[2,2]*$b[2])
+            @q (  $a[1]*$A[1,1]*$b[1] + $a[1]*$A[1,2]*$b[2] 
+                + $a[2]*$A[2,1]*$b[1] + $a[2]*$A[2,2]*$b[2])
         elseif @capture(ex, a_' ⨳ b_)
             a,b = checktemp!.((a,b))
-            :($a[1]*$b[1] + $a[2]*$b[2])
+            @q $a[1]*$b[1] + $a[2]*$b[2]
         elseif @capture(ex, A_ ⨳ b_)
             A,b = checktemp!.((A,b))
-            :(@SVector [$A[1,1]*$b[1] + $A[1,2]*$b[2],
-                        $A[2,1]*$b[1] + $A[2,2]*$b[2]])
+            @q @SVector[$A[1,1]*$b[1] + $A[1,2]*$b[2],
+                        $A[2,1]*$b[1] + $A[2,2]*$b[2]]
         else
-            isexpr(ex) ? (map!(visit,ex.args,ex.args); ex) : esc(ex)
+            isexpr(ex) ? (map!(visit,ex.args,ex.args); ex) : ex
         end
     end
     
-    quote
-        $temps
-        @. $(visit(ex))
+    @q begin
+        $(__source__)
+        $(esc(temps))
+        @. $(esc(visit(ex)))
     end
     
 end

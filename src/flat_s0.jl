@@ -75,39 +75,38 @@ fromvec(::Type{FlatS0Map{T,P}},     vec::AbstractVector) where {T,P} = FlatS0Map
 fromvec(::Type{FlatS0Fourier{T,P}}, vec::AbstractVector) where {T,P} = FlatS0Fourier{T,P}(vec2rfft(vec))
 
 
-# norms (for e.g. ODE integration error tolerance)
-pixstd(f::FlatS0Map) = sqrt(var(f.Tx))
-pixstd(f::FlatS0Fourier{T,Flat{Θ,N}}) where {T,Θ,N} = sqrt(sum(2abs2(f.Tl[2:N÷2,:]))+sum(abs2(f.Tl[1,:]))) / N^2 / deg2rad(Θ/60)^2 * 2π
 
-
-@doc doc"""
+"""
     ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)
 
 Up- or down-grades field `f` to new resolution `θnew` (only in integer steps).
-Two downgrade modes are available specified by the `mode` argument: 
+Two modes are available specified by the `mode` argument: 
 
-    *`:map`     : Downgrade by averaging pixels in map-space.
-    *`:fourier` : Downgrade by truncating the Fourier grid
+    *`:map`     : Up/downgrade by replicating/averaging pixels in map-space
+    *`:fourier` : Up/downgrade by extending/truncating the Fourier grid
     
 For `:map` mode, two additional options are possible. If `deconv_pixwin` is
 true, deconvolves the pixel window function from the downgraded map so the
 spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
-One single upgrade mode is available:
-
-    *`:map` : Upgrade by duplicating pixels in map space.
-
 """
-function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_aliasing=true) where {T,θ,N,P<:Flat{θ,N}}
+function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,θ,N,P<:Flat{θ,N}}
     θnew==θ && return f
     (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
+    (mode in [:map,:fourier]) || throw(ArgumentError("Available modes: [:map,:fourier]"))
+    
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     Nnew = N * θ ÷ θnew
     Pnew = Flat{θnew,Nnew}
+    
+    if deconv_pixwin
+        @unpack Δx,k = FFTgrid(T,Pnew)
+        Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
+    end
+    
     if θnew>θ
         # downgrade
-        (mode in [:map,:fourier]) || throw(ArgumentError("Available downgrade modes: [:map,:fourier]"))
         if anti_aliasing
             kmask = ifelse.(abs.(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
             AA = FullDiagOp(FlatS0Fourier{T,P}(kmask[1:N÷2+1] .* kmask'))
@@ -116,20 +115,19 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=true, anti_ali
         end
         if mode==:map
             fnew = FlatS0Map{T,Pnew}(mapslices(mean,reshape((AA*f)[:Tx],(fac,Nnew,fac,Nnew)),(1,3))[1,:,1,:])
-            if deconv_pixwin
-                @unpack Δx,k = FFTgrid(T,Pnew)
-                Wk =  @. ifelse(k==0, 1, sin(k*Δx/2) / sin(k*Δx/2/fac) / fac)
-                FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1])
-            else
-                fnew
-            end
+            deconv_pixwin ? FlatS0Fourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
         else
             FlatS0Fourier{T,Pnew}((AA*f)[:Tl][1:(Nnew÷2+1), [1:Nnew÷2; (end-Nnew÷2+1):end]])
         end
     else
         # upgrade
-        (mode in [:map]) || throw(ArgumentError("Available upgrade modes: [:map]"))
-        fac = θ÷θnew
-        FlatS0Map{T,Flat{θnew,N*fac}}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+        if mode==:map
+            fnew = FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+            deconv_pixwin ? FlatS0Fourier{T,Pnew}(fnew[:Tl] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
+        else
+            fnew = Fourier(zero(FlatS0Map{T,Pnew}))
+            broadcast_setindex!(fnew.Tl, f[:Tl], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
+            fnew
+        end
     end
 end

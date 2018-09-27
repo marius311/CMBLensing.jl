@@ -27,6 +27,7 @@ BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F, L.f)
 broadcast_data(::Type{<:Field}, s::Scalar) = s
+broadcast_data(::Any, x::Ref) = (x,) 
 
 # (3) Finally, we intercept the broadcast machinery at the materialize function,
 # and modify the Broadcasted object there to replace all the args with
@@ -157,7 +158,6 @@ const Field2DVector = SVector{2,<:FieldOpScal}
 const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
-const 𝕀 = @SMatrix [1 0; 0 1]
 ⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[2,1]*b[1]+a[2,2]*b[2]]
 ⨳(a::Field2DRowVector, b::Field2DMatrix) = ((b') ⨳ (a'))' 
 ⨳(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
@@ -175,14 +175,13 @@ Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
 # maybe a StaticArrays bug....
 broadcast(::Type{B},a::StaticArray) where {B<:Basis} = map(x->B(x),a)
 
+# helps StaticArrays infer various results correctly:
+Base.promote_type(::Type{F}, ::Type{T}) where {F<:Field, T} = Base._return_type(+,Tuple{F,T})
+
 function inv(m::Field2DMatrix)
     a,b,c,d = m
     invdet = @. 1/(a*d-b*c)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
-
-# needed by ODE.jl
-norm(f::Field) = +(norm.(broadcast_data(containertype(f),f))...)
-isnan(::Field) = false
 
 ud_grade(s::Scalar, args...; kwargs...) = s

@@ -103,6 +103,8 @@ end
 #
 abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
 transpose(L::LinDiagOp) = L
+Diagonal(L::LinDiagOp) = L
+
 
 # automatic basis conversion & broadcasting
 for op=(:*,:\)
@@ -118,9 +120,39 @@ end
 const Scalar = Real
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
+### Matrix conversion
+
+# We can build explicit matrix representations of linear operators by applying
+# them to a set of basis vectors which form a complete basis (in practice this
+# is prohibitive except for fairly small maps, e.g. 16x16 pixels, but is quite
+# useful)
+
+"""
+    full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true)
+    full(::Type{F}, L::LinOp; progress=true)
+    
+Construct an explicit matrix representation of the linear operator `L` by
+applying it to a set of vectors which form a complete basis. The `Fin` and
+`Fout` types should be fields which specify the input and output bases for the
+representation (or just `F` if `L` is square and we want the same input/output
+bases)
+
+The name `full` is to be consistent with Julia's SparseArrays where `full`
+builds a full matrix from a sparse one.
+"""
+full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true) where {Fin<:Field, Fout<:Field} =
+    hcat(@showprogress(progress?1:Inf, [(Fout(L*(x=zeros(length(Fin)); x[i]=1; x)[Tuple{Fin}]))[:] for i=1:length(Fin)])...)
+full{F<:Field}(::Type{F}, L::LinOp; kwargs...) = full(F,F,L; kwargs...)
+
 
 ### Other generic stuff
 
+doc"""
+    norm²(f::Field, L::LinOp)
+    
+Shorthand for `f⋅(L\f)`, i.e. the squared-norm of `f` w.r.t. the operator `L`.
+"""
+norm²(f::Field, L::LinOp) = f⋅(L\f)
 
 # convenience "getter" functions for the Basis/Spin/Pix
 basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
@@ -154,7 +186,7 @@ copy(f::Field) = deepcopy(f)
 convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = subtypes(Field{B′,S,P} where B′)
 
 # use convertable_fields to get possible properties
-@generated propertynames(::Type{F}) where {F<:Field} = tuple(chain(fieldnames.(convertable_fields(F))...)...)
+@generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
 propertynames(::F) where {F<:Field} = propertynames(F)
 
 # implement getproperty using possible conversions
@@ -169,9 +201,19 @@ getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
         error("Ambiguous property. Multiple types that $F could be converted to have a field $s: $l")
     end
 end
+function getindex(f::Field, s::Symbol)
+    Base.depwarn("Syntax: f[:$s] is deprecated. Use f.$s or getproperty(f,:$s) instead.", "getindex")
+    getproperty(f,Val(s))
+end
 
 
 function get_Cℓ(args...; kwargs...) end
 get_αℓⁿCℓ(α=1,n=0,args...; kwargs...) = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. (α*ℓ^n*Cℓ)))
 get_Dℓ(args...; kwargs...)            = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. ℓ*(ℓ+1)*Cℓ/(2π)))
 get_ℓ⁴Cℓ(args...; kwargs...)          = get_αℓⁿCℓ(1,4,args...; kwargs...)
+function get_ρℓ(f1,f2; kwargs...)
+    ℓ,Cℓ1 = get_Cℓ(f1; kwargs...)
+    ℓ,Cℓ2 = get_Cℓ(f2; kwargs...)
+    ℓ,Cℓx = get_Cℓ(f1,f2; kwargs...)
+    ℓ, @. Cℓx/sqrt(Cℓ1*Cℓ2)
+end

@@ -16,25 +16,13 @@ LenseFlow{I,t₀,t₁}(ϕ::Field{<:Any,<:S0}) where {I,t₀,t₁} = LenseFlow{I,
 LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,float(t₀),float(t₁),F}(ϕ,∇ϕ,Hϕ)
 LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 
-# the ODE solvers
-abstract type ode45{reltol,abstol,maxsteps,debug} <: ODESolver  end
-abstract type ode4{nsteps} <: ODESolver  end
+# only one single ODE solver implemented for now a simple custom RK4
 abstract type jrk4{nsteps} <: ODESolver  end
-
-function ode45{ϵr,ϵa,N,dbg}(F!,y₀,t₀,t₁) where {ϵr,ϵa,N,dbg}
-    ys = ODE.ode45(
-        (t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1),
-        norm=pixstd, reltol=ϵr, abstol=ϵa, minstep=1/N, points=((dbg[1] || dbg[2]) ? :all : :specified)
-    )
-    dbg[1] && info("ode45 took $(length(ys[2])) steps")
-    dbg[2] ? ys : ys[2][end]
-end
-ode4{N}(F!,y₀,t₀,t₁) where {N} = ODE.ode4((t,y)->(v=similar(y₀); F!(v,t,y); v), y₀, linspace(t₀,t₁,N+1))[2][end]
 jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
-
+@macroexpand @⨳ L.∇ϕ' ⨳ inv(I + t*L.Hϕ) ⨳ $Ł(∇*Ð(f))
 """ ODE velocity for LenseFlow """
-velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(𝕀 + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
-velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(@⨳ $Ł(f) * (inv(𝕀 + t*L.Hϕ) ⨳ L.∇ϕ))))
+velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(I + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(@⨳ $Ł(f) * (inv(I + t*L.Hϕ) ⨳ L.∇ϕ))))
 
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
 *(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
@@ -58,7 +46,7 @@ end
 function δvelocity!(v_f_δf::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
 
     @unpack ∇ϕ,Hϕ = L
-    M⁻¹ = Ł(inv(𝕀 + t*Hϕ))
+    M⁻¹ = Ł(inv(I + t*Hϕ))
     ∇f  = Ł(∇*f)
     ∇δf = Ł(∇*δf)
 
@@ -80,7 +68,7 @@ end
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
-    M⁻¹        = Ł(inv(𝕀 + t*L.Hϕ))
+    M⁻¹        = Ł(inv(I + t*L.Hϕ))
     ∇f         = Ł(∇*Ð(f))
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
     M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
@@ -115,7 +103,7 @@ function cache(L::LenseFlow{jrk4{N},t₀,t₁}) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
     for (t,τ) in zip(ts,Float16.(ts))
-        M⁻¹[τ] = inv(𝕀 + t*L.Hϕ)
+        M⁻¹[τ] = inv(I + t*L.Hϕ)
         p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
     end
     CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹)
