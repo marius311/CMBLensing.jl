@@ -30,6 +30,29 @@ abstract type Basislike <: Basis end
 
 
 
+### Adjoint Fields
+
+# Fields implicitly have pixel indices which run from 1:Npix and "spin" indices
+# which run e.g. from 1:3 labelling (I,Q,U) in the case of an S02 Field.
+# Additionally, we may have vectors of fields like ∇*f which have an additional
+# index labeling the component. By choice, we chose to make the Julia `'` symbol
+# only take the adjoint of the spin and vector components, but not of the pixel.
+# This means that f' * f will return a spin-0 field. To fully transpose and
+# contract all indices, one would use the `⋅` function, f⋅f, which yields a
+# scalar, as expected.
+
+# Much like base, doing an adjoint like `f'` just creates a wrapper around the
+# field to keep track of things. Adjoint fields have very limited functionality
+# implemented as compared to normal fields, so its best to work with normal
+# fields and only take the adjoint at the end if you need it.
+struct AdjointField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
+    f :: F
+end
+adjoint(f::Field) = AdjointField(f)
+*(a::AdjointField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
+
+
+
 ### LinOp
 
 #
