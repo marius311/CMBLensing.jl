@@ -3,26 +3,33 @@ module CMBLensing
 using Base.Iterators: repeated
 using Base.Threads
 using FFTW
-using Images: feature_transform, imfilter, Kernel
+using Images: feature_transform, imfilter
+using Images.Kernel
+using InteractiveUtils
 using Interpolations
+using Lazy: @switch
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
+using Markdown
 using Optim: optimize
 using Parameters
 using ProgressMeter
 using PyCall
 using PyPlot
+using Random
+using Random: seed!
 using StaticArrays: StaticArray, SMatrix, @SMatrix, SVector, @SVector
+using Statistics
 using StatsBase
 include("RFFTVectors.jl"); using .RFFTVectors
 
 
 
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
-    convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, logdet, next, 
+    convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, next, 
     promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
     sqrt, adjoint
-import Base.LinAlg: dot, isnan
+import LinearAlgebra: dot, isnan, logdet
 
 
 

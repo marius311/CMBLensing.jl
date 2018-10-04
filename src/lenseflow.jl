@@ -11,31 +11,35 @@ struct LenseFlow{I<:ODESolver,t₀,t₁,F<:Field} <: LenseFlowOp{I,t₀,t₁}
     Hϕ::SMatrix{2,2,F,4}
 end
 
-LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I} = LenseFlow{I,0,1}(ϕ)
+# constructors
+LenseFlow{I}(ϕ::Field{<:Any,<:S0}) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
+LenseFlow{n}(ϕ::Field{<:Any,<:S0}) where {n} = LenseFlow{jrk4{n},0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ::Field{<:Any,<:S0}) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(Map(ϕ), gradhess(ϕ)...)
 LenseFlow{I,t₀,t₁}(ϕ::F,∇ϕ,Hϕ) where {I,t₀,t₁,F} = LenseFlow{I,float(t₀),float(t₁),F}(ϕ,∇ϕ,Hϕ)
 LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 
-# only one single ODE solver implemented for now a simple custom RK4
+# only one single ODE solver implemented for now, a simple custom RK4
 abstract type jrk4{nsteps} <: ODESolver  end
 jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
-@macroexpand @⨳ L.∇ϕ' ⨳ inv(I + t*L.Hϕ) ⨳ $Ł(∇*Ð(f))
-""" ODE velocity for LenseFlow """
-velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= @⨳ L.∇ϕ' ⨳ inv(I + t*L.Hϕ) ⨳ $Ł(∇*Ð(f)))
-velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(@⨳ $Ł(f) * (inv(I + t*L.Hϕ) ⨳ L.∇ϕ))))
 
+# todo, remove this `→` crap
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
-*(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!(v,L,f,t), Ł(f), t₀, t₁)
-*(f::Field, L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L,f,t), Ł(f), t₁, t₀)
+
+# L*f and L'*f does ODE integration over the velocities deined below
+*(L::LenseFlowOp{I,t₀,t₁},          f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₀, t₁)
+*(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₁, t₀)
+# inverse lensing just runs the ODE in reverse
 inv(L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = L[t₁→t₀]
-
-## LenseFlow Jacobian operators
-
+# LenseFlow Jacobian operators
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
 *(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)
 
 
-## Jacobian
+# lensing velocities
+ velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= L.∇ϕ' * inv(I + t*L.Hϕ) * Ł(∇*f))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(∇' * (Ł(f) * (inv(I + t*L.Hϕ) * L.∇ϕ))))
+
+# Jacobian velocities
 
 """ (δfϕₛ(fₜ,ϕ)/δfϕₜ) * (δf,δϕ) """
 function δfϕₛ_δfϕₜ(L::LenseFlowOp{I}, fₜ::Field, δf::Field, δϕ::Field, s::Real, t::Real) where {I}
@@ -69,13 +73,13 @@ function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::LenseFlow, f::Field, 
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(I + t*L.Hϕ))
-    ∇f         = Ł(∇*Ð(f))
-    M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
-    M⁻¹_∇ϕ     = Ł(M⁻¹ ⨳ L.∇ϕ)
+    ∇f         = Ł(∇*f)
+    M⁻¹_δfᵀ_∇f = Ł(M⁻¹ * (Łδf' * ∇f))
+    M⁻¹_∇ϕ     = Ł(M⁻¹ * L.∇ϕ)
 
-    v_f_δf_δϕ′[1] .= @⨳ L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
-    v_f_δf_δϕ′[2] .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
-    v_f_δf_δϕ′[3] .= Ł(@⨳ ∇' ⨳ $Ð(M⁻¹_δfᵀ_∇f) + t*(∇' ⨳ ((∇' ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))')))
+    v_f_δf_δϕ′[1] .= L.∇ϕ' * M⁻¹ * ∇f
+    v_f_δf_δϕ′[2] .= Ł(∇' * (Łδf * M⁻¹_∇ϕ))
+    v_f_δf_δϕ′[3] .= Ł(∇' * (M⁻¹_δfᵀ_∇f) + t*(∇' * (∇' * (M⁻¹_∇ϕ * M⁻¹_δfᵀ_∇f'))'))
 
 end
 

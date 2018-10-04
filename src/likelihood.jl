@@ -51,7 +51,7 @@ end
 ## likelihood 
 
 
-doc"""
+@doc doc"""
     lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
     lnP(t, fₜ, ϕ, ds, L::LenseOp) 
 
@@ -89,7 +89,7 @@ lnP(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̆),
 
 ## likelihood gradients
 
-doc"""
+@doc doc"""
 
     δlnP_δfϕₜ(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
     δlnP_δfϕₜ(t, fₜ, ϕ, ds, L::LenseOp)
@@ -126,10 +126,10 @@ function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
     f = D \ L⁻¹f̆
 
     # gradient w.r.t. (f,ϕ)
-    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
+    return δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    FieldTuple(δlnP_δf * D^-1, δlnP_δϕ) * δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆)
+    FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ) *  δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆) #TODO: fix transposing
 end
 
 
@@ -138,7 +138,7 @@ end
 ## wiener filter
 
 
-doc"""
+@doc doc"""
     lensing_wiener_filter(ds::DataSet, L, which=:wf)
 
 Computes either, 
@@ -191,7 +191,7 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
 end
 
 
-doc"""
+@doc doc"""
 
     max_lnP_joint(ds::DataSet; L=LenseFlow, Nϕ=nothing, quasi_sample=nothing, nsteps=10, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=0.5, progress=false)
 
@@ -241,6 +241,7 @@ function max_lnP_joint(
     cgtol = 1e-1,
     αtol = 1e-5,
     αmax = 0.5,
+    cache_function = cache,
     progress = false)
     
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
@@ -263,12 +264,12 @@ function max_lnP_joint(
     for i=1:nsteps
 
         # f step
-        let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache(L(ϕcur)))
+        let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕcur)))
             
             # if we're doing a fixed quasi_sample, set the random seed here,
             # which controls the sample from the posterior we get from inside
             # `lensing_wiener_filter`
-            if isa(quasi_sample,Int); srand(quasi_sample); end
+            if isa(quasi_sample,Int); seed!(quasi_sample); end
             
             fcur,hist = lensing_wiener_filter(ds, L, 
                 (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
@@ -297,7 +298,7 @@ end
 
 
 
-doc"""
+@doc doc"""
     load_sim_dataset
     
 Create a `DataSet` object with some simulated data. 
@@ -321,7 +322,8 @@ function load_sim_dataset(;
     B = nothing,
     D = nothing,
     mask_kwargs = nothing,
-    L = LenseFlow
+    L = LenseFlow,
+    ∂mode = fourier∂
     )
     
     # the biggest ℓ on the 2D fourier grid
@@ -341,32 +343,34 @@ function load_sim_dataset(;
         op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
         opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
     )
+    Pix      = Flat{θpix,Nside,∂mode}
+    Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
     
     # covariances
-    Cϕ       =  Cℓ_to_cov(T,Flat{θpix,Nside},S0, Cℓf[:ℓ], Cℓf[:ϕϕ])
-    Cf,Cf̃,Cn̂ = (Cℓ_to_cov(T,Flat{θpix,Nside},SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
-    Cn       =  Cℓ_to_cov(T,Flat{θpix_data,Nside÷(θpix_data÷θpix)},SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
+    Cϕ       =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cf,Cf̃,Cn̂ = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
+    Cn       =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
-        M = LP(ℓmax_data) * FullDiagOp(F{T,Flat{θpix_data,Nside÷(θpix_data÷θpix)}}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
+        M = LP(ℓmax_data) * FullDiagOp(F{T,Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
     elseif (M == nothing)
         M = LP(ℓmax_data)
     end
     
     # beam
     if (B == nothing)
-        B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Flat{θpix,Nside},SS..., ℓ, ((k==:TE ? 0.*ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
+        B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., ℓ, ((k==:TE ? 0 .* ℓ : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
     end
     
     # mixing matrix
     if (D == nothing); D = D_mix(Cf); end
     
     # simulate data
-    if (seed != nothing); srand(seed); end
+    if (seed != nothing); seed!(seed); end
     ϕ = simulate(Cϕ)
     f = simulate(Cf)
-    f̃ = f#L(ϕ)*f
+    f̃ = L(ϕ)*f
     n = simulate(Cn)
     d = M*P*B*f̃ + n
     

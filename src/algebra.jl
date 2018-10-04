@@ -11,10 +11,11 @@ using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 # LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
 # BroadcastStyle definitions below do, and they return a Style{F} where F is the
 # final result type.
-broadcastable(f::Union{Field,LinDiagOp}) = f
-BroadcastStyle(::Type{F}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinDiagOp}} = Style{F}()
-BroadcastStyle(::Style{F}, ::Style{<:LinDiagOp}) where {F<:Field} = Style{F}()
+broadcastable(f::Union{Field,LinOp}) = f
+BroadcastStyle(::Type{F}) where {F<:Union{Field,LinOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinOp}} = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{1}) where {F<:Union{Field,LinOp}} = Style{DefaultArrayStyle{1}}()
+BroadcastStyle(::Style{F}, ::Style{<:LinOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 
@@ -102,7 +103,7 @@ convert(::Type{F}, f::Field{B1}) where {B1,B2,F<:Field{B2}} = B2(f)::F
 
 # this used to be the default in 0.6, bring it back because we use F(f) alot to
 # mean convert f to a type of F
-(::Type{F})(f) where {F<:Field} = convert(F,f)
+(::Type{F})(f::Field) where {F<:Field} = convert(F,f)
 
 
 
@@ -132,21 +133,21 @@ end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
 *(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
-*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), f, fill(lz.a,abs(lz.b)))
+*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 
 # a generic lazy adjoint
 # note: the adjoint of a LinOp{B,S,P} is not necessarily ::LinOp{B,S,P}
 # (consider e.g. the pixelization operator which produces a different P)
-struct AdjointLinOp{L<:LinOp} <: LinOp{Basis,Spin,Pix} 
+struct AdjOp{L<:LinOp} <: LinOp{Basis,Spin,Pix} 
     op::L
 end
-adjoint(L::LinOp) = AdjointLinOp(L)
-adjoint(L::AdjointLinOp) = L.a
-*(L::AdjointLinOp, f::Field) = L.a'*f
-inv(L::AdjointLinOp) = AdjointLinOp(inv(L))
-ud_grade(lz::AdjointLinOp, args...; kwargs...) = AdjointLinOp(ud_grade(lz.a,args...; kwargs...))
+adjoint(L::LinOp) = AdjOp(L)
+adjoint(L::AdjOp) = L.op
+# *(L::AdjOp, f::Field) = L.op'*f
+inv(L::AdjOp) = AdjOp(inv(L))
+ud_grade(lz::AdjOp, args...; kwargs...) = AdjOp(ud_grade(lz.a,args...; kwargs...))
 
 
 
@@ -154,29 +155,20 @@ ud_grade(lz::AdjointLinOp, args...; kwargs...) = AdjointLinOp(ud_grade(lz.a,args
 
 include("broadcast_expand.jl")
 
+# get rid of most of this?:
 const Field2DVector = SVector{2,<:FieldOpScal}
 const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
 
-⨳(a::Field2DMatrix, b::Field2DVector) = @. @SVector [a[1,1]*b[1]+a[1,2]*b[2], a[2,1]*b[1]+a[2,2]*b[2]]
-⨳(a::Field2DRowVector, b::Field2DMatrix) = ((b') ⨳ (a'))' 
-⨳(a::Field2DRowVector, b::Field2DVector) = @. a[1]*b[1] + a[2]*b[2]
-⨳(a::Field2DVector, b::Field2DRowVector) = @SMatrix [a[1]*b[1] a[1]*b[2]; a[2]*b[1] a[2]*b[2]]
-function ⨳(a::Field2DMatrix, b::Field2DMatrix)
-    @. @SMatrix [(a[1,1]*b[1,1]+a[1,2]*b[2,1]) (a[1,1]*b[1,2]+a[1,2]*b[2,2]);
-                 (a[2,1]*b[1,1]+a[2,2]*b[2,1]) (a[2,1]*b[1,2]+a[2,2]*b[2,2])]
-end
-
-*(a::Field2DVector, f::Field) = broadcast(*,a[1],f)#@SVector [a[1]*f, a[2]*f]
-*(f::Field, a::Field2DVector) = @SVector [f*a[1], f*a[2]]
-Ac_mul_B(f::Field, a::Field2DVector) = @SVector [f'*a[1], f'*a[2]]
-
-# need this for type stability when converting bases of StaticArrays, seems like
-# maybe a StaticArrays bug....
-broadcast(::Type{B},a::StaticArray) where {B<:Basis} = map(x->B(x),a)
+*(v::Field2DVector, f::Field) = v .* Ref(f)
+*(f::Field, v::Field2DVector) = Ref(f) .* v
 
 # helps StaticArrays infer various results correctly:
-Base.promote_type(::Type{F}, ::Type{T}) where {F<:Field, T} = Base._return_type(+,Tuple{F,T})
+promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
+arithmetic_closure(::F) where {F<:Field} = F
+using LinearAlgebra: matprod
+Base.promote_op(::typeof(adjoint), ::Type{T}) where {T<:∂} = T
+Base.promote_op(::typeof(matprod), ::Type{<:∂}, ::Type{<:F}) where {F<:Field} = Base._return_type(*, Tuple{∂{:x},F})
 
 function inv(m::Field2DMatrix)
     a,b,c,d = m

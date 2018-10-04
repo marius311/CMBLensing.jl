@@ -21,6 +21,7 @@ for op in (:+,:-,:*,:\,:/)
     # if they're not, we will fall back to creating a LazyBinaryOp (see algebra.jl)
 end
 sqrt(f::FullDiagOp) = sqrt.(f)
+adjoint(f::FullDiagOp) = conj.(f)
 simulate(L::FullDiagOp{F}) where {F} = sqrt(L) .* F(white_noise(F))
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
 containertype(L::FullDiagOp) = containertype(L.f)
@@ -38,18 +39,17 @@ ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} =
 # ::∂) to describe how this is actually applied. 
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
-struct ∂{s} <: LinDiagOp{DerivBasis,Spin,Pix} end
-struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
-struct ∇Op <: LinDiagOp{DerivBasis,Spin,Pix} end
+struct ∂{s} <: LinOp{DerivBasis,Spin,Pix} end
+struct ∇²Op <: LinOp{DerivBasis,Spin,Pix} end
+struct ∇Op <: LinOp{DerivBasis,Spin,Pix} end
 const ∂x,∂y,∇,∇² = ∂{:x}(),∂{:y}(),∇Op(),∇²Op()
-shortname(::Type{∂{s}}) where {s} = "∂$s"
 function gradhess(f)
     (∂xf,∂yf)=∇*Ð(f)
     ∂xyf = ∂x*∂yf
     @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
 end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
-struct ∇²Op <: LinDiagOp{DerivBasis,Spin,Pix} end
+struct ∇²Op <: LinOp{DerivBasis,Spin,Pix} end
 const ∇² = ∇²Op()
 
 
@@ -80,7 +80,9 @@ inv(op::FuncOp) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
 # broadcast_data(::Type{F}, ::BandPassOp) to describe how this is actually
 # applied. 
 
-struct BandPassOp{T<:Vector} <: LinDiagOp{DerivBasis,Spin,Pix}
+abstract type HarmonicBasis <: Basislike end
+
+struct BandPassOp{T<:Vector} <: LinDiagOp{HarmonicBasis,Spin,Pix}
     ℓ::T
     Wℓ::T
 end
@@ -88,7 +90,7 @@ BandPassOp(ℓ,Wℓ) = BandPassOp(promote(collect(ℓ),collect(Wℓ))...)
 HP(ℓ,Δℓ=50) = BandPassOp(0:10000,    [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
 LP(ℓ,Δℓ=50) = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($linspace(0,π,2Δℓ))+1)/2])
 ud_grade(b::BandPassOp, args...; kwargs...) = b
-
+adjoint(L::BandPassOp) = L
 
 # An Op which turns all NaN's to zero
 const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))

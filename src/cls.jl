@@ -112,7 +112,7 @@ function class(;lmax = 8000,
 end
 
 
-doc"""
+@doc doc"""
     camb_cl_files(filename_root)
     
 Loads Cℓ's from some CAMB output files. `filename_root` should be such that
@@ -156,7 +156,7 @@ end
 
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
     if all(Cℓ .>= 0)
-        itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Linear())
+        itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
         @. (exp(itp(log(ℓout))))
     else
         LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)

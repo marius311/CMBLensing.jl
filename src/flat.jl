@@ -1,7 +1,10 @@
 export Flat, FFTgrid, FlatIQUMap, get_Cℓ
 
 # a flat sky pixelization with `Nside` pixels per side and pixels of width `Θpix` arcmins
-abstract type Flat{Θpix,Nside} <: Pix end
+abstract type ∂modes end
+struct fourier∂ <: ∂modes end
+struct map∂ <: ∂modes end
+abstract type Flat{Θpix,Nside,∂mode} <: Pix end
 Nside(::Type{P}) where {_,N,P<:Flat{_,N}} = N
 Θpix₀ = 1 # default angular resolution used by a number of convenience constructors
 
@@ -29,7 +32,7 @@ end
 """
 function FFTgrid(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5) where {T<:Real}
     Δx  = period/nside
-    FFTW.set_num_threads(Sys.CPU_CORES)
+    FFTW.set_num_threads(Sys.CPU_THREADS)
     FFT = T((Δx/√(2π))^dm) * plan_rfft(Array{T}(undef,fill(nside,dm)...); flags=flags, timelimit=timelimit)
     Δℓ  = 2π/period
     nyq = 2π/(2Δx)
@@ -82,7 +85,7 @@ function Mnyq(::Type{T},::Type{P}, M) where {T,θ,N,P<:Flat{θ,N}}
     M
 end
 
-doc"""
+@doc doc"""
     pixwin(θpix, ℓ)
 
 Returns the pixel window function for square flat-sky pixels of width `θpix` (in
@@ -115,13 +118,50 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = (broadc
 *(f2::FlatS2Map, f0::FlatS2Map) = f0 .* f2
 
 
-# derivatives
-DerivBasis(::Type{<:FlatS0}) = Fourier
-DerivBasis(::Type{<:FlatS2}) = QUFourier
+HarmonicBasis(::Type{<:FlatS0}) = Fourier
+
+# repesentation of ∇ for FlatFields
+*(::∇Op, f::FlatField) = @SVector[∂x*f, ∂y*f]
+*(::AdjOp{∇Op}, v::SVector{<:Any,<:FlatField}) = @SVector[∂x,∂y]' * v
+*(::AdjOp{∇Op}, v::SMatrix{<:Any,<:Any,<:FlatField}) = (@SMatrix[∂x ∂y] * v)[1,:]'
+
+# fourier space derivatives
+DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
+DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:x}) where {T,P} = (im * FFTgrid(T,P).k',)
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:y}) where {T,P} = (im * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
 @generated broadcast_data(::Type{<:FlatFourier{T,P}},::∇²Op) where {T,P} = ((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
-*(::∇Op, f::FlatField) = @SVector[∂x*f, ∂y*f]
+*(L::Union{∂,∇²Op}, f::FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}) where {T,θ,N} = L .* f
+
+# map space derivatives
+DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
+DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
+function *(::∂{s}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {s,T,θ,N}
+    f′ = similar(f)
+    n,m = size(f.Tx)
+    @unpack Δx = FFTgrid(f)
+    if s==:x
+        @inbounds for j=2:m-1
+            @simd for i=1:n
+                f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
+            end
+        end
+        @inbounds for i=1:n
+            f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
+            f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
+        end
+    else
+        @inbounds for j=1:n
+            @simd for i=2:m-1
+                f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
+            end
+            f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
+            f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
+        end
+    end
+    f′
+end
+
 
 # bandpass
 broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =

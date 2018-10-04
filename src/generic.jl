@@ -45,11 +45,11 @@ abstract type Basislike <: Basis end
 # field to keep track of things. Adjoint fields have very limited functionality
 # implemented as compared to normal fields, so its best to work with normal
 # fields and only take the adjoint at the end if you need it.
-struct AdjointField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
+struct AdjField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
     f :: F
 end
-adjoint(f::Field) = AdjointField(f)
-*(a::AdjointField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
+adjoint(f::Field) = AdjField(f)
+*(a::AdjField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
 
 
 
@@ -65,7 +65,7 @@ adjoint(f::Field) = AdjointField(f)
 # 
 #     * *(::LinOp, ::Field) - apply the operator
 #     * inv(::LinOp) - return the inverse operator (called by L^-1 and L\f)
-#     * adjoint(::LinOp) - return the conjugate transpose operator (called by L'*f and L'\f)
+#     * adjoint(::LinOp) - return the conjugate transpose operator
 # 
 # These three functions are used by default in the following fallbacks. These
 # fallbacks can be overriden with more efficient implementations of the
@@ -101,16 +101,15 @@ abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 # Assuming *, inv, and adjoint are implemented, the following fallbacks make
 # everything work, or can be overriden by individual LinOps with more efficient
 # versions.
-literal_pow(::typeof(^), L::LinOp, ::Type{Val{-1}}) = inv(L)
-Ac_mul_B(L::LinOp, f::Field) = f*L
-*(f::Field, L::LinOp) = adjoint(L)*f
+literal_pow(::typeof(^), L::LinOp, ::Val{-1}) = inv(L)
 \(L::LinOp, f::Field) = inv(L)*f
-Ac_ldiv_B(L::LinOp, f::Field) = f*inv(L)
 
 # automatic basis conversion
 for op=(:*,:\)
-    @eval ($op)(L::LinOp{B}, f::Field) where {B} = $op(L,B(f))
+    @eval ($op)(L::LinOp{B1}, f::Field{B2}) where {B1,B2} = $op(L,ensure_changed(f,B1(f)))
 end
+ensure_changed(f1::Field{B},  f2::Field{B})  where {B} = error("Automatic basis conversion failed. Probably this operator's * or \\ is not defined.")
+ensure_changed(f1::Field{B1}, f2::Field{B2}) where {B1,B2} = f2
 
 
 ### LinDiagOp
@@ -127,9 +126,6 @@ end
 abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
 transpose(L::LinDiagOp) = L
 Diagonal(L::LinDiagOp) = L
-
-
-# automatic basis conversion & broadcasting
 for op=(:*,:\)
     @eval ($op)(L::LinDiagOp{B}, f::Field) where {B} = broadcast($op,L,B(f))
 end
@@ -164,13 +160,13 @@ The name `full` is to be consistent with Julia's SparseArrays where `full`
 builds a full matrix from a sparse one.
 """
 full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true) where {Fin<:Field, Fout<:Field} =
-    hcat(@showprogress(progress?1:Inf, [(Fout(L*(x=zeros(length(Fin)); x[i]=1; x)[Tuple{Fin}]))[:] for i=1:length(Fin)])...)
-full{F<:Field}(::Type{F}, L::LinOp; kwargs...) = full(F,F,L; kwargs...)
+    hcat(@showprogress(progress ? 1 : Inf, [(Fout(L*(x=zeros(length(Fin)); x[i]=1; x)[Tuple{Fin}]))[:] for i=1:length(Fin)])...)
+full(::Type{F}, L::LinOp; kwargs...) where {F<:Field} = full(F,F,L; kwargs...)
 
 
 ### Other generic stuff
 
-doc"""
+@doc doc"""
     norm²(f::Field, L::LinOp)
     
 Shorthand for `f⋅(L\f)`, i.e. the squared-norm of `f` w.r.t. the operator `L`.
@@ -216,7 +212,9 @@ propertynames(::F) where {F<:Field} = propertynames(F)
 getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
 @generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
     l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
-    if (length(l)==1)
+    if s in fieldnames(F)
+        :(getfield(f,s))
+    elseif (length(l)==1)
         :(getfield($(l[1])(f),s))
     elseif (length(l)==0)
         error("type $F has no property $s")
