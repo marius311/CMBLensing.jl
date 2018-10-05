@@ -60,26 +60,35 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
                 @test_noerr L'\f
             end
             
+            v = @SVector[f,f]
+            M = @SMatrix[f f; f f]
+            
             # stuff with ∇
             @test eltype(∇) == eltype(∇')
             @test_noerr @inferred ∇ * f
-            @test_noerr @inferred ∇' * (∇*f)
+            @test_noerr @inferred ∇' * v
+            @test_noerr @inferred ∇' * (∇' * M)'
+            
             @test_noerr @inferred gradhess(f)
             
-            v = @SVector[f,f]
-            M = @SMatrix[f f; f f]
+            # vectors
             @test_noerr @inferred ∇' * M
             @test_noerr @inferred v' * M
             @test_noerr @inferred M * v
+            @test_noerr @inferred f' * v
+            if f isa FlatS0Map
+                @test_noerr @inferred v * v'
+            end
             
             
             # FullDiagOp explicit and lazy operations
             @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ł(f)))::FullDiagOp
             @test_noerr @inferred(2*FullDiagOp(Ł(f)))::FullDiagOp
             @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ð(f)))::LazyBinaryOp
+            @test FullDiagOp(Ł(f))^-1 isa FullDiagOp
 
             @test_noerr @inferred(f⋅f)::Real
-            @test_noerr @inferred(Ac_mul_B(f,f))::FlatS0Map
+            @test_noerr @inferred(f'*f)::FlatS0Map
             
             # broadcasting
             @test_noerr (@. f = 2f + 3f)

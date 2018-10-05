@@ -29,7 +29,7 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 *(L::LenseFlowOp{I,t₀,t₁},          f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₀, t₁)
 *(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₁, t₀)
 # inverse lensing just runs the ODE in reverse
-inv(L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = L[t₁→t₀]
+\(L::LenseFlowOp{I,t₀,t₁}, f::Field) where {I,t₀,t₁} = L[t₁→t₀] * f
 # LenseFlow Jacobian operators
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}, fϕ::FΦTuple) where {s,t} = δfϕₛ_δfϕₜ(J.L,Ł(J.fₜ),Ł(fϕ)...,s,t)
 *(fϕ::FΦTuple, J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp}) where {s,t} = δfϕₛ_δfϕₜᴴ(J.L,Ł(J.fₛ),Ł(fϕ)...,s,t)

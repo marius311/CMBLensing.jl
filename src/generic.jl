@@ -54,6 +54,7 @@ end
 adjoint(f::Field) = AdjField(f)
 adjoint(f::AdjField) = f.f
 *(a::AdjField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
+*(a::Field{<:Any,S0}, b::AdjField{<:Any,<:S0}) = a * b.f
 
 
 

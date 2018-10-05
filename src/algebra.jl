@@ -113,7 +113,9 @@ for op in (:+, :-, :*)
     @eval ($op)(a::Scalar, b::LinOp)  = LazyBinaryOp($op,a,b)
 end
 /(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
+literal_pow(::typeof(^), op::LinOp, ::Val{-1}) = inv(op)
 literal_pow(::typeof(^), op::LinOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
+inv(op::LinOp) = LazyBinaryOp(^,op,-1)
 -(op::LinOp) = -1 * op
 # evaluating LazyBinaryOps
 for op in (:+, :-)
@@ -150,7 +152,7 @@ const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
 const Field2DMatrix = StaticMatrix{2,2,<:FieldOpScal}
 # useful since v .* f is not type stable ()
 *(v::Field2DVector, f::Field) = @SVector[v[1]*f, v[2]*f]
-*(f::Field, v::Field2DVector) = @SVector[v[1]*f, v[2]*f]
+*(f::Field, v::Field2DVector) = @SVector[f*v[1], f*v[2]]
 # until StaticArrays better implements adjoints
 *(v::Field2DRowVector, M::Field2DMatrix) = @SVector[v'[1]*M[1,1] + v'[1]*M[2,1], v'[2]*M[1,2] + v'[2]*M[2,2]]'
 # and until StaticArrays better implements invereses... 

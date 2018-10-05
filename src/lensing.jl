@@ -42,7 +42,7 @@ end
 δfϕ_δf̃ϕ(L,f,f̃) = δfϕₛ_δfϕₜ{0.,1.}(L,f,f̃)
 δf̃ϕ_δfϕ(L,f̃,f) = δfϕₛ_δfϕₜ{1.,0.}(L,f̃,f)
 # inverse Jacobians are the same as switching time t and s
-inv(J::δfϕₛ_δfϕₜ{s,t}) where {s,t} = δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ)
+\(J::δfϕₛ_δfϕₜ{s,t}, f::Field) where {s,t} = δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ) * f
 
 
 # some syntactic sugar for making lensing operators that lense from time t1 to t2
@@ -56,8 +56,8 @@ _getindex(L::LenseOp, ::→{t1,t2}) where {t1,t2} = error("Lensing from time $t1
 struct NoLensing <: LenseOp end
 NoLensing(ϕ) = NoLensing()
 *(::NoLensing, f::Field) = f
+\(::NoLensing, f::Field) = f
 adjoint(L::NoLensing) = L
-inv(L::NoLensing) = L
 _getindex(L::NoLensing, i::→) = L
 δfϕₛ_δfϕₜ{t₀,t₁}(L::NoLensing,::Any,::Any) where {t₀,t₁} = IdentityOp
 
