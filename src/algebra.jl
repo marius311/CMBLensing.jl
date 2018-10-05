@@ -137,30 +137,34 @@ inv(L::AdjOp) = AdjOp(inv(L))
 ud_grade(lz::AdjOp, args...; kwargs...) = AdjOp(ud_grade(lz.a,args...; kwargs...))
 
 
+include("broadcast_expand.jl")
 
 ### linear algebra of Vectors and Matrices of Fields
 
-include("broadcast_expand.jl")
+# alot of work needed here to make various StaticArray stuff work / infer
+# correctly... maybe at some point evaluate if its really worth it?
 
-# get rid of most of this?:
-const Field2DVector = SVector{2,<:FieldOpScal}
+
+const Field2DVector = StaticVector{2,<:FieldOpScal}
 const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
-const Field2DMatrix = SMatrix{2,2,<:FieldOpScal}
-
-*(v::Field2DVector, f::Field) = v .* Ref(f)
-*(f::Field, v::Field2DVector) = Ref(f) .* v
-
-# helps StaticArrays infer various results correctly:
-promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
-arithmetic_closure(::F) where {F<:Field} = F
-using LinearAlgebra: matprod
-Base.promote_op(::typeof(adjoint), ::Type{T}) where {T<:∂} = T
-Base.promote_op(::typeof(matprod), ::Type{<:∂}, ::Type{<:F}) where {F<:Field} = Base._return_type(*, Tuple{∂{:x},F})
-
+const Field2DMatrix = StaticMatrix{2,2,<:FieldOpScal}
+# useful since v .* f is not type stable ()
+*(v::Field2DVector, f::Field) = @SVector[v[1]*f, v[2]*f]
+*(f::Field, v::Field2DVector) = @SVector[v[1]*f, v[2]*f]
+# until StaticArrays better implements adjoints
+*(v::Field2DRowVector, M::Field2DMatrix) = @SVector[v'[1]*M[1,1] + v'[1]*M[2,1], v'[2]*M[1,2] + v'[2]*M[2,2]]'
+# and until StaticArrays better implements invereses... 
 function inv(m::Field2DMatrix)
     a,b,c,d = m
     invdet = @. 1/(a*d-b*c)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
+
+# helps StaticArrays infer various results correctly:
+promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
+arithmetic_closure(::F) where {F<:Field} = F
+using LinearAlgebra: matprod
+Base.promote_op(::typeof(adjoint), ::Type{T}) where {T<:∇i} = T
+Base.promote_op(::typeof(matprod), ::Type{<:∇i}, ::Type{<:F}) where {F<:Field} = Base._return_type(*, Tuple{∇i{0,true},F})
 
 ud_grade(s::Scalar, args...; kwargs...) = s

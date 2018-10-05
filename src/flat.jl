@@ -120,45 +120,47 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = (broadc
 
 HarmonicBasis(::Type{<:FlatS0}) = Fourier
 
-# repesentation of ∇ for FlatFields
-*(::∇Op, f::FlatField) = @SVector[∂x*f, ∂y*f]
-*(::AdjOp{∇Op}, v::SVector{<:Any,<:FlatField}) = @SVector[∂x,∂y]' * v
-*(::AdjOp{∇Op}, v::SMatrix{<:Any,<:Any,<:FlatField}) = (@SMatrix[∂x ∂y] * v)[1,:]'
-
 # fourier space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
-@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:x}) where {T,P} = (im * FFTgrid(T,P).k',)
-@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∂{:y}) where {T,P} = (im * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
-@generated broadcast_data(::Type{<:FlatFourier{T,P}},::∇²Op) where {T,P} = ((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
+@generated function broadcast_data(::Type{<:FlatFourier{T,P}}, ::∇i{coord}) where {coord,T,P}
+    @switch coord begin
+        0; ((@. im * FFTgrid(T,P).k'),)
+        1; ((@. im * FFTgrid(T,P).k[1:Nside(P)÷2+1]),)
+    end
+    # (2,2); $((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
+end
 for op in (:*, :\)
-    @eval ($op)(L::Union{∂,∇²Op}, f::FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}) where {T,θ,N} = broadcast($op, L, f)
+    @eval ($op)(∇i::∇i, f::FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}) where {T,θ,N} = broadcast($op, ∇i, f)
 end
 
 # map space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
-function *(::∂{s}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {s,T,θ,N}
+function *(::∇i{coord}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {coord,T,θ,N}
     f′ = similar(f)
     n,m = size(f.Tx)
     @unpack Δx = FFTgrid(f)
-    if s==:x
-        @inbounds for j=2:m-1
-            @simd for i=1:n
-                f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
+    @switch coord begin
+        0; begin # ∂/∂x
+            @inbounds for j=2:m-1
+                @simd for i=1:n
+                    f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
+                end
+            end
+            @inbounds for i=1:n
+                f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
+                f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
             end
         end
-        @inbounds for i=1:n
-            f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
-            f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
-        end
-    else
-        @inbounds for j=1:n
-            @simd for i=2:m-1
-                f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
+        1; begin # ∂/∂y
+            @inbounds for j=1:n
+                @simd for i=2:m-1
+                    f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
+                end
+                f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
+                f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
             end
-            f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
-            f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
         end
     end
     f′

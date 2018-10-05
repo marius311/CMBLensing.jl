@@ -18,7 +18,7 @@ using PyCall
 using PyPlot
 using Random
 using Random: seed!
-using StaticArrays: StaticArray, SMatrix, @SMatrix, SVector, @SVector
+using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
 include("RFFTVectors.jl"); using .RFFTVectors

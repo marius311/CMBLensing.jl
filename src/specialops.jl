@@ -39,19 +39,17 @@ ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} =
 # ::∂) to describe how this is actually applied. 
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
-struct ∂{s} <: LinOp{DerivBasis,Spin,Pix} end
-struct ∇²Op <: LinOp{DerivBasis,Spin,Pix} end
-struct ∇Op <: LinOp{DerivBasis,Spin,Pix} end
-const ∂x,∂y,∇,∇² = ∂{:x}(),∂{:y}(),∇Op(),∇²Op()
+struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
 function gradhess(f)
-    (∂xf,∂yf)=∇*Ð(f)
-    ∂xyf = ∂x*∂yf
-    @SVector([∂xf,∂yf]), @SMatrix([∂x*∂xf ∂xyf; ∂xyf ∂y*∂yf])
+    g = ∇ⁱ*f
+    g, @SMatrix[∇₀*g[1] ∇₁*g[1]; ∇₀*g[2] ∇₁*g[2]]
 end
-shortname(::Type{∂{s}}) where {s} = "∂$s"
-struct ∇²Op <: LinOp{DerivBasis,Spin,Pix} end
-const ∇² = ∇²Op()
-adjoint(L::∇²Op) = L
+const ∇⁰, ∇¹, ∇₀, ∇₁ = ∇i{0,false}(), ∇i{1,false}(), ∇i{0,true}(), ∇i{1,true}()
+struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
+getindex(::∇Op{covariant}, i::Int) where {covariant} = ∇i{i-1,covariant}()
+const ∇ⁱ = ∇Op{false}()
+const ∇ᵢ = ∇Op{true}()
+const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 
 
 ### FuncOp

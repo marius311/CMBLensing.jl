@@ -36,8 +36,8 @@ inv(L::LenseFlowOp{I,t₀,t₁}) where {I,t₀,t₁} = L[t₁→t₀]
 
 
 # lensing velocities
- velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= L.∇ϕ' * inv(I + t*L.Hϕ) * Ł(∇*f))
-velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(∇' * (Ł(f) * (inv(I + t*L.Hϕ) * L.∇ϕ))))
+ velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= L.∇ϕ' * inv(I + t*L.Hϕ) * Ł(∇ᵢ*f))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(∇ᵢ' * (Ł(f) * (inv(I + t*L.Hϕ) * L.∇ϕ))))
 
 # Jacobian velocities
 
