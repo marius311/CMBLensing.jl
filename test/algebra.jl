@@ -43,9 +43,11 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
                 @testset "L::$(shortname(typeof(L)))" begin
                     @test_noerr @inferred L*f
                     @test_noerr @inferred L\f
-                    @test_noerr @inferred f*L
-                    @test_noerr @inferred L'*f
-                    @test_noerr @inferred L'\f
+                    if L!=∂x
+                        @test_noerr @inferred f'*L
+                        @test_noerr @inferred L'*f
+                        @test_noerr @inferred L'\f
+                    end
                 end
             end
             

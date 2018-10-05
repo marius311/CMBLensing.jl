@@ -51,6 +51,7 @@ end
 shortname(::Type{∂{s}}) where {s} = "∂$s"
 struct ∇²Op <: LinOp{DerivBasis,Spin,Pix} end
 const ∇² = ∇²Op()
+adjoint(L::∇²Op) = L
 
 
 ### FuncOp

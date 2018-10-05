@@ -80,17 +80,6 @@ end
 dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 
-
-### transposing
-
-# our fields implicitly are column vectors, so transposing them technically
-# should turn them into some sort of row vector object, but we can always tell
-# if a field is supposed to be transposed depending on if its to the left or
-# right of an operator. e.g. in x * Op its clear x is a transposed field
-# (otherwise the expression doesn't make sense). since we can always infer this,
-# we don't actually have a "TransposedField" object or anything like that.
-adjoint(f::Field) = f
-
 ### basis conversion
 
 # B(f) where B is a basis converts f to that basis. This is the fallback if the
@@ -118,13 +107,13 @@ struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Ba
     LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
 end
 # creating LazyBinaryOps
-for op in (:+, :-, :*, :Ac_mul_B)
+for op in (:+, :-, :*)
     @eval ($op)(a::LinOp,  b::LinOp)  = LazyBinaryOp($op,a,b)
     @eval ($op)(a::LinOp,  b::Scalar) = LazyBinaryOp($op,a,b)
     @eval ($op)(a::Scalar, b::LinOp)  = LazyBinaryOp($op,a,b)
 end
 /(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
-^(op::LinOp, n::Int) = LazyBinaryOp(^,op,n)
+literal_pow(::typeof(^), op::LinOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
 -(op::LinOp) = -1 * op
 # evaluating LazyBinaryOps
 for op in (:+, :-)
@@ -132,7 +121,6 @@ for op in (:+, :-)
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
-*(lz::LazyBinaryOp{Ac_mul_B}, f::Field) = Ac_mul_B(lz.a,lz.b*f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
@@ -145,7 +133,6 @@ struct AdjOp{L<:LinOp} <: LinOp{Basis,Spin,Pix}
 end
 adjoint(L::LinOp) = AdjOp(L)
 adjoint(L::AdjOp) = L.op
-# *(L::AdjOp, f::Field) = L.op'*f
 inv(L::AdjOp) = AdjOp(inv(L))
 ud_grade(lz::AdjOp, args...; kwargs...) = AdjOp(ud_grade(lz.a,args...; kwargs...))
 

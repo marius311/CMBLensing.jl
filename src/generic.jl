@@ -47,8 +47,12 @@ abstract type Basislike <: Basis end
 # fields and only take the adjoint at the end if you need it.
 struct AdjField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
     f :: F
+    # need this seeingly redundant constructor to avoid ambiguity with 
+    # F(f) = convert(F,f) definition in algebra.jl:
+    AdjField(f::F) where {B,S,P,F<:Field{B,S,P}} = new{B,S,P,F}(f) 
 end
 adjoint(f::Field) = AdjField(f)
+adjoint(f::AdjField) = f.f
 *(a::AdjField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
 
 
@@ -59,25 +63,14 @@ adjoint(f::Field) = AdjField(f)
 # A LinOp{B,S,P} represents a linear operator which acts on a field with a
 # particular pixelization scheme P and spin S. The meaning of basis B is not
 # that the operator is stored in this basis, but rather that fields should be
-# converted to this basis before the operator is applied.
+# converted to this basis before the operator is applied (this makes writing the
+# implementing functions somewhat more convenient)
 # 
-# In the simplest case, LinOps should implement *, inv, and adjoint. 
+# In the simplest case, LinOps should implement *, \, and adjoint. 
 # 
 #     * *(::LinOp, ::Field) - apply the operator
-#     * inv(::LinOp) - return the inverse operator (called by L^-1 and L\f)
-#     * adjoint(::LinOp) - return the conjugate transpose operator
-# 
-# These three functions are used by default in the following fallbacks. These
-# fallbacks can be overriden with more efficient implementations of the
-# following functions if desired.
-#
-#     * *(::Field, ::LinOp) - apply the transpose operator
 #     * \(::LinOp, ::Field) - apply the inverse operator
-#     * Ac_ldiv_B(::LinOp, ::Field) - apply the inverse transpose operator
-#
-# Note that *(::Field, ::LinOp) implies the transpose operation and it is this
-# function rather than Ac_mul_B(::LinOp, ::Field) which we choose to have LinOps
-# optionally override. 
+#     * adjoint(::LinOp) - return the adjoint operator
 # 
 # Other functions which can be implemented:
 #
@@ -98,11 +91,10 @@ adjoint(f::Field) = AdjField(f)
 # 
 abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 
-# Assuming *, inv, and adjoint are implemented, the following fallbacks make
+# Assuming *, \, and adjoint are implemented, the following fallbacks make
 # everything work, or can be overriden by individual LinOps with more efficient
 # versions.
-literal_pow(::typeof(^), L::LinOp, ::Val{-1}) = inv(L)
-\(L::LinOp, f::Field) = inv(L)*f
+*(f::AdjField, L::LinOp) = (L'*f')'
 
 # automatic basis conversion
 for op=(:*,:\)
