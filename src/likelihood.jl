@@ -114,9 +114,9 @@ function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ
 
-    (    δlnL_δf̃ϕ(f̃,ϕ,ds) * δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val{t})
-      + δlnΠᶠ_δfϕ(f,ϕ,ds) * δfϕ_δfϕₜ(L,f,fₜ,Val{t})
-      + δlnΠᶲ_δfϕ(f,ϕ,ds))
+    (   δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val{t})' * δlnL_δf̃ϕ(f̃,ϕ,ds)
+      + δfϕ_δfϕₜ(L,f,fₜ,Val{t})' * δlnΠᶠ_δfϕ(f,ϕ,ds)
+                                 + δlnΠᶲ_δfϕ(f,ϕ,ds)  )
 end
 # log posterior gradient in the mixed parametrization
 function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
@@ -126,10 +126,10 @@ function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
     f = D \ L⁻¹f̆
 
     # gradient w.r.t. (f,ϕ)
-    return δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
+    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ) *  δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆) #TODO: fix transposing
+    δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
 end
 
 
