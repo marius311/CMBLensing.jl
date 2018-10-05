@@ -100,9 +100,11 @@ abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 # automatic basis conversion
 for op=(:*,:\)
     @eval ($op)(L::LinOp{B1}, f::Field{B2}) where {B1,B2} = $op(L,ensure_changed(f,B1(f)))
+    @eval ($op)(L::LinOp{B1}, f::Field{B2}) where {B1>:Basis,B2} = autobasis_error()
 end
-ensure_changed(f1::Field{B},  f2::Field{B})  where {B} = error("Automatic basis conversion failed. Probably this operator's * or \\ is not defined.")
+ensure_changed(f1::Field{B},  f2::Field{B})  where {B} = autobasis_error()
 ensure_changed(f1::Field{B1}, f2::Field{B2}) where {B1,B2} = f2
+autobasis_error() = error("Automatic basis conversion failed. Probably this operator's * or \\ is not defined.")
 
 
 ### LinDiagOp
