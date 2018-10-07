@@ -15,7 +15,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
 
 @testset "Basic Algebra" begin
     
-    for f in (f0,)
+    for f in (fourier∂(f0),map∂(f0))
         
         F = typeof(f)
         L = FullDiagOp(f)
@@ -42,7 +42,9 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             for L in Ls
                 @testset "L::$(shortname(typeof(L)))" begin
                     @test_noerr @inferred L*f
-                    @test_noerr @inferred L\f
+                    if !(f isa FlatField{<:Any, <:Flat{<:Any, <:Any, map∂}})
+                        @test_noerr @inferred L\f
+                    end
                     if L!=∇₁
                         @test_noerr @inferred f'*L
                         @test_noerr @inferred L'*f
@@ -84,7 +86,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             # FullDiagOp explicit and lazy operations
             @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ł(f)))::FullDiagOp
             @test_noerr @inferred(2*FullDiagOp(Ł(f)))::FullDiagOp
-            @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(Ð(f)))::LazyBinaryOp
+            @test_noerr @inferred(FullDiagOp(Ł(f)) + FullDiagOp(HarmonicBasis(f)))::LazyBinaryOp
             @test FullDiagOp(Ł(f))^-1 isa FullDiagOp
 
             @test_noerr @inferred(f⋅f)::Real
