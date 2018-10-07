@@ -2,12 +2,13 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
+using DataStructures
 using FFTW
 using Images: feature_transform, imfilter
 using Images.Kernel
 using InteractiveUtils
 using Interpolations
-using Lazy: @switch
+using Lazy: @switch, @init
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
 using Markdown
@@ -21,13 +22,15 @@ using Random: seed!
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
-include("RFFTVectors.jl"); using .RFFTVectors
+include("RFFTVectors.jl")
+using .RFFTVectors
 
+@init @eval @pyimport healpy as hp
+@init @eval @pyimport pylab
 
-
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^, Ac_mul_B, Ac_ldiv_B, broadcast,
+import Base: +, -, *, \, /, ^, ~, .*, ./, .^, broadcast,
     convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, next, 
-    promote_rule, similar, size, sqrt, start, transpose, ctranspose, one, zero,
+    promote_rule, similar, size, sqrt, start, transpose, one, zero,
     sqrt, adjoint
 import LinearAlgebra: dot, isnan, logdet
 
@@ -36,7 +39,7 @@ import LinearAlgebra: dot, isnan, logdet
 export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
-    ∂x, ∂y, ∇, ∇²,
+    ∇⁰, ∇¹, ∇₀, ∇₁, ∇, ∇ⁱ, ∇ᵢ, Δ,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
@@ -50,6 +53,7 @@ include("smashtimes.jl")
 include("field_tuples.jl")
 include("lensing.jl")
 include("flat.jl")
+include("healpix.jl")
 include("taylens.jl")
 include("vec_conv.jl")
 include("plotting.jl")
