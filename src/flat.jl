@@ -140,27 +140,24 @@ DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
 function *(::∇i{coord}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {coord,T,θ,N}
     f′ = similar(f)
     n,m = size(f.Tx)
-    @unpack Δx = FFTgrid(f)
-    @switch coord begin
-        0; begin # ∂/∂x
-            @inbounds for j=2:m-1
-                @simd for i=1:n
-                    f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
-                end
-            end
-            @inbounds for i=1:n
-                f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
-                f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
+    Δx = FFTgrid(f).Δx
+    if coord==0
+        @inbounds for j=2:m-1
+            @simd for i=1:n
+                f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
             end
         end
-        1; begin # ∂/∂y
-            @inbounds for j=1:n
-                @simd for i=2:m-1
-                    f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
-                end
-                f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
-                f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
+        @inbounds for i=1:n
+            f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
+            f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
+        end
+    elseif coord==1
+        @inbounds for j=1:n
+            @simd for i=2:m-1
+                f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
             end
+            f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
+            f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
         end
     end
     f′

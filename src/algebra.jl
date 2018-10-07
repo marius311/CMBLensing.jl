@@ -37,7 +37,7 @@ broadcast_data(::Any, x::Ref) = (x,)
 
 # recursively replaces all arguments in a Broadcasted object with new_arg(arg)
 # e.g. replace_bc_args(Broadcasted(+,(1,2)), x->2x) = Broadcasted(+,(2,4))
-replace_bc_args(bc::Broadcasted, new_arg) = Broadcasted(bc.f, map(replace_bc_args, bc.args, map(_->new_arg, bc.args)))
+replace_bc_args(bc::Broadcasted{S}, new_arg) where {S} = Broadcasted{S}(bc.f, map(replace_bc_args, bc.args, map(_->new_arg, bc.args)))
 replace_bc_args(arg, new_arg) = new_arg(arg)
 # forward the broadcast one level "deeper", eg here is what happens when you
 # then apply materialize to the output of this function:
@@ -50,7 +50,7 @@ function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
     rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
     F(map(materialize, materialize(deepen_bc(rbc)))...)
 end
-function materialize!(dest::F, bc::Broadcasted) where {F<:Field}
+function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:Field}
     rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
     map(materialize!, broadcast_data(F,dest), materialize(deepen_bc(rbc)))
     dest
@@ -147,16 +147,17 @@ include("broadcast_expand.jl")
 # correctly... maybe at some point evaluate if its really worth it?
 
 
-const Field2DVector = StaticVector{2,<:FieldOpScal}
-const Field2DRowVector = Adjoint{<:FieldOpScal,<:Field2DVector}
-const Field2DMatrix = StaticMatrix{2,2,<:FieldOpScal}
-# useful since v .* f is not type stable ()
-*(v::Field2DVector, f::Field) = @SVector[v[1]*f, v[2]*f]
-*(f::Field, v::Field2DVector) = @SVector[f*v[1], f*v[2]]
+const FieldVector = StaticVector{2,<:Union{Field,LinOp}}
+const FieldRowVector = Adjoint{<:Union{Field,LinOp},<:FieldVector}
+const FieldMatrix = StaticMatrix{2,2,<:Union{Field,LinOp}}
+const FieldArray = Union{FieldVector, FieldRowVector, FieldMatrix}
+# useful since v .* f is not type stable
+*(v::FieldVector, f::Field) = @SVector[v[1]*f, v[2]*f]
+*(f::Field, v::FieldVector) = @SVector[f*v[1], f*v[2]]
 # until StaticArrays better implements adjoints
-*(v::Field2DRowVector, M::Field2DMatrix) = @SVector[v'[1]*M[1,1] + v'[1]*M[2,1], v'[2]*M[1,2] + v'[2]*M[2,2]]'
+*(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[1]*M[2,1], v'[2]*M[1,2] + v'[2]*M[2,2]]'
 # and until StaticArrays better implements invereses... 
-function inv(m::Field2DMatrix)
+function inv(m::FieldMatrix)
     a,b,c,d = m
     invdet = @. 1/(a*d-b*c)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]

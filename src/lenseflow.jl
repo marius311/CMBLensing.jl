@@ -22,14 +22,14 @@ LenseFlow(args...) = LenseFlow{jrk4{7}}(args...)
 abstract type jrk4{nsteps} <: ODESolver  end
 jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
-# todo, remove this `→` crap
+# todo, remove this `→` crap, maybe
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ,L.∇ϕ,L.Hϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
-*(L::LenseFlowOp{I,t₀,t₁},          f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₀, t₁)
+*(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₀, t₁)
 *(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₁, t₀)
-\(L::LenseFlowOp{I,t₀,t₁},          f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₁, t₀)
-\(L::AdjOp{LenseFlowOp{I,t₀,t₁}},   f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₀, t₁)
+\(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₁, t₀)
+\(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₀, t₁)
 # Define integrations for Jacobian
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}, (δf,δϕ)::FΦTuple) where {s,t,I} = 
     (gh = Ł.(gradhess(δϕ)); FieldTuple(I((v,t,y)->δvelocity!(v,J.L,y...,δϕ,t,gh...),Ł(FieldTuple(J.fₜ,δf)),t,s)[2], δϕ))
@@ -38,22 +38,22 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 
 # lensing velocities
- velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= L.∇ϕ' * inv(I + t*L.Hϕ) * Ł(∇ᵢ*f))
-velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (v .= Ł(∇ᵢ' * (Ł(f) * (inv(I + t*L.Hϕ) * L.∇ϕ))))
+ velocity!(v::Field, L::LenseFlow, f::Field, t::Real) = (@. v = L.∇ϕ' ⨳ $(inv(I + t*L.Hϕ)) ⨳ $(Ł(∇ᵢ*f)))
+velocityᴴ!(v::Field, L::LenseFlow, f::Field, t::Real) = (@. v = Ł(∇ᵢ' ⨳ (Ł(f) * (inv(I + t*L.Hϕ) ⨳ L.∇ϕ))))
 # Jacobian velocities
-function δvelocity!(v_f_δf::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
+function δvelocity!((f′,δf′)::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real, ∇δϕ, Hδϕ)
 
     @unpack ∇ϕ,Hϕ = L
     M⁻¹ = Ł(inv(I + t*Hϕ))
     ∇f  = Ł(∇*f)
     ∇δf = Ł(∇*δf)
 
-    v_f_δf[1] .=  ∇ϕ' * M⁻¹ * ∇f
-    v_f_δf[2] .= (∇ϕ' * M⁻¹ * ∇δf) + (∇δϕ' * M⁻¹ * ∇f) - t*(∇ϕ' * M⁻¹ * Hδϕ * M⁻¹ * ∇f)
+    @. f′  =  ∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    @. δf′ = (∇ϕ' ⨳ M⁻¹ ⨳ ∇δf) + (∇δϕ' ⨳ M⁻¹ ⨳ ∇f) - t*(∇ϕ' ⨳ M⁻¹ ⨳ Hδϕ ⨳ M⁻¹ ⨳ ∇f)
 
 end
 """ ODE velocity for the negative transpose Jacobian flow """
-function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!((f′,δf′,δϕ′)::FieldTuple, L::LenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
     M⁻¹        = Ł(inv(I + t*L.Hϕ))
@@ -61,9 +61,9 @@ function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::LenseFlow, f::Field, 
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ * (Łδf' * ∇f))
     M⁻¹_∇ϕ     = Ł(M⁻¹ * L.∇ϕ)
 
-    v_f_δf_δϕ′[1] .= L.∇ϕ' * M⁻¹ * ∇f
-    v_f_δf_δϕ′[2] .= Ł(∇' * (Łδf * M⁻¹_∇ϕ))
-    v_f_δf_δϕ′[3] .= Ł(∇' * (M⁻¹_δfᵀ_∇f) + t*(∇' * (∇' * (M⁻¹_∇ϕ * M⁻¹_δfᵀ_∇f'))'))
+    @. f′  = L.∇ϕ' ⨳ M⁻¹ ⨳ ∇f
+    @. δf′ = Ł(∇' ⨳ (Łδf ⨳ M⁻¹_∇ϕ))
+    @. δϕ′ = Ł(∇' ⨳ (M⁻¹_δfᵀ_∇f) + t⨳(∇' ⨳ (∇' ⨳ (M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
 
 end
 
@@ -99,7 +99,7 @@ end
 cache(L::CachedLenseFlow) = L
 
 # velocities for CachedLenseFlow which use the precomputed quantities:
-velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .=  @⨳ L.p[Float16(t)]' ⨳ $Ł(∇*f))
+ velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (@. v = L.p[Float16(t)]' ⨳ $(Ł(∇*f)))
 velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
@@ -138,12 +138,12 @@ Arguments
 function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
-    k₁, k₂, k₃, k₄, y₂, y₃, y₄ = @repeated(similar(y₀),7)
+    k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),7)
     for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
         @! k₁ = F!(t, y)
-        @! k₂ = F!(t + (h/2), (@. y₂ = y + (h/2)*k₁))
-        @! k₃ = F!(t + (h/2), (@. y₃ = y + (h/2)*k₂))
-        @! k₄ = F!(t +   (h), (@. y₄ = y +   (h)*k₃))
+        @! k₂ = F!(t + (h/2), (@. y′ = y + (h/2)*k₁))
+        @! k₃ = F!(t + (h/2), (@. y′ = y + (h/2)*k₂))
+        @! k₄ = F!(t +   (h), (@. y′ = y +   (h)*k₃))
         @. y += h*(k₁ + 2k₂ + 2k₃ + k₄)/6
     end
     return y
