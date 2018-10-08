@@ -21,6 +21,22 @@ abstract type EBMap <: Basis end
 abstract type QUFourier <: Basis end
 abstract type EBFourier <: Basis end
 
+basis_promotion_rules = Dict(
+    # S0
+    (Map,       Fourier)    => Map,
+    # S2
+    (QUMap,     QUFourier)  => QUMap,
+    (EBMap,     EBFourier)  => EBFourier,
+    (QUMap,     EBMap)      => QUMap,
+    (QUFourier, EBFourier)  => QUFourier,
+    (QUMap,     EBFourier)  => QUMap,
+    (QUFourier, EBMap)      => QUFourier
+)
+for ((B1,B2),B′) in basis_promotion_rules
+    @eval promote_rule(::Type{$B1}, ::Type{$B2}) = $B′
+end
+
+
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
 # particular types of fields, these might be different actual bases, e.g. the
 # lensing basis is Map for S0 but QUMap for S2.

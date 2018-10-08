@@ -20,30 +20,9 @@ const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
 FlatS0Map(Tx::Matrix{T},Θpix=Θpix₀,∂mode=fourier∂) where {T} = FlatS0Map{T,Flat{Θpix,size(Tx,2),∂mode}}(Tx)
 FlatS0Fourier(Tl::Matrix{Complex{T}},Θpix=Θpix₀,∂mode=fourier∂) where {T} = FlatS0Fourier{T,Flat{Θpix,size(Tl,2),∂mode}}(Tl)
 
-# promotion
-@generated function promote_rule(::Type{F1},::Type{F2}) where {T1,θ1,N1,∂mode1,F1<:FlatS0{T1,Flat{θ1,N1,∂mode1}},T2,θ2,N2,∂mode2,F2<:FlatS0{T2,Flat{θ2,N2,∂mode2}}}
-    @assert θ1==θ2 && N1==N2
-    F′ = F1.name == F2.name ? F1.name.wrapper : FlatS0Map
-    ∂mode′ = ∂mode1 == ∂mode2 ? ∂mode1 : fourier∂
-    :($F′{$(promote_type(T1,T2)),Flat{$θ1,$N1,$∂mode′}})
-end
-
-# conversion
-@generated function convert(::Type{F′}, f::F) where {T′,θ′,N′,F′<:FlatS0{T′,<:Flat{θ′,N′}},T,θ,N,P<:Flat{θ,N},F<:FlatS0{T,P}}
-    @assert θ′==θ && N′==N
-    @switch (F.name.wrapper => F′.name.wrapper) == _ begin
-        FlatS0Map     => FlatS0Map;      :($F′(convert(Matrix{T′}, f.Tx)))
-        FlatS0Fourier => FlatS0Fourier;  :($F′(convert(Matrix{Complex{T′}}, f.Tl)))
-        FlatS0Fourier => FlatS0Map;      :($F′(convert(Matrix{T′}, ℱ{P}\f.Tl)))
-        FlatS0Map     => FlatS0Fourier;  :($F′(convert(Matrix{Complex{T′}}, ℱ{P}*f.Tx)))
-    end
-end
-
 # convenience conversion funtions:
-Fourier(f::FlatS0{T,P}) where {T,P} = convert(FlatS0Fourier{T,P},f)
-Map(f::FlatS0{T,P}) where {T,P} = convert(FlatS0Map{T,P},f)
-(::Type{∂mode})(f::FlatS0Map{T,<:Flat{θ,N}}) where {∂mode<:∂modes,T,θ,N} = convert(FlatS0Map{T,Flat{θ,N,∂mode}}, f)
-(::Type{∂mode})(f::FlatS0Fourier{T,<:Flat{θ,N}}) where {∂mode<:∂modes,T,θ,N} = convert(FlatS0Fourier{T,Flat{θ,N,∂mode}}, f)
+Fourier(f::FlatS0Map{T,P}) where {T,P} = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
+Map(f::FlatS0Fourier{T,P}) where {T,P} = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
 
 LenseBasis(::Type{<:FlatS0}) = Map

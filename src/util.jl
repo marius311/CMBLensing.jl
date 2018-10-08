@@ -185,3 +185,7 @@ map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 # I really don't like that 0.7 got rid of the much more succinct `linspace`, so
 # bring it back
 linspace(start,stop,length::Integer) = range(start,stop=stop,length=length)
+
+
+# returns the base parametric type with all type parameters stripped out
+basetype(::Type{T}) where {T} = T.name.wrapper

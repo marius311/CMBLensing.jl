@@ -31,7 +31,7 @@ using .RFFTVectors
 import Base: +, -, *, \, /, ^, ~, .*, ./, .^, broadcast,
     convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, next, 
     promote_rule, similar, size, sqrt, start, transpose, one, zero,
-    sqrt, adjoint
+    sqrt, adjoint, promote, promote_rule
 import LinearAlgebra: dot, isnan, logdet
 
 

@@ -73,22 +73,6 @@ EBMap(f::FlatS2EBFourier{T,P}) where {T,P} = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P
 EBMap(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatS2QUFourier{T,P}) where {T,P} = f |> EBFourier |> EBMap
 
-# basically we always err on the side of keeping things in the QU and Map (could
-# be further explored if this is the most optimal choice given the operations we
-# tend to do)
-rules = Dict(
-    (FlatS2QUMap,     FlatS2QUFourier)  => FlatS2QUMap,
-    (FlatS2EBMap,     FlatS2EBFourier)  => FlatS2EBFourier,
-    (FlatS2QUMap,     FlatS2EBMap)      => FlatS2QUMap,
-    (FlatS2QUFourier, FlatS2EBFourier)  => FlatS2QUFourier,
-    (FlatS2QUMap,     FlatS2EBFourier)  => FlatS2QUMap,
-    (FlatS2QUFourier, FlatS2EBMap)      => FlatS2QUFourier
-)
-
-for ((F1,F2),Tout) in rules
-    @eval promote_rule(::Type{$F1{T,P}},::Type{$F2{T,P}}) where {T,P} = $Tout{T,P}
-end
-
 function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
