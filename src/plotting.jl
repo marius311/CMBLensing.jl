@@ -128,7 +128,10 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
         )
     close()
     if filename!=nothing
-        ani[:save](filename)
+        ani[:save](filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig[:get_facecolor]()))
+        if endswith(filename,".gif")
+            run(`convert -layers Optimize $filename $filename`)
+        end
     end
     HTML(ani[:to_html5_video]())
 end
