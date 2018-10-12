@@ -110,7 +110,7 @@ const FlatField{T,P} = Union{FlatS0{T,P},FlatS2{T,P},FlatS02{T,P}}
 
 function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{T1,Flat{θ1,N1,∂mode1}},T2,θ2,N2,∂mode2,F2<:FlatField{T2,Flat{θ2,N2,∂mode2}}}
     T     = promote_type(T1,T2)
-    B     = promote_type(@show(basis(F1)),@show(basis(F2)))
+    B     = promote_type(basis(F1),basis(F2))
     ∂mode = promote_type(∂mode1,∂mode2)
     B(T(∂mode(f1))), B(T(∂mode(f2)))
 end

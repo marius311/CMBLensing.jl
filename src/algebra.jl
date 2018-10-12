@@ -3,9 +3,9 @@ using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
-# Broadcasted expressions are evaluated in three phases, hooking into the Julia
+# Broadcasted expressions are evaluated in four phases, hooking into the Julia
 # broadcasting API (https://docs.julialang.org/en/latest/manual/interfaces/#man-interfaces-broadcasting-1)
-# The three phases are:
+# The four phases are:
 
 # (1) Infer the type of the result, e.g. Field+Scalar=Field,
 # LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
@@ -30,7 +30,18 @@ broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F,
 broadcast_data(::Type{<:Field}, s::Scalar) = s
 broadcast_data(::Any, x::Ref) = (x,) 
 
-# (3) Finally, we intercept the broadcast machinery at the materialize function,
+
+# (3) Recursively reduce over any metadata that the fields may have
+metadata(::Type{<:Field}, ::Any) = ()
+metadata_reduce(m) = m
+metadata_reduce(::Tuple{}, m::Tuple) = m
+metadata_reduce(m::Tuple, ::Tuple{}) = m
+metadata_reduce(::Tuple{}, ::Tuple{}) = ()
+metadata_reduce(bc::Broadcasted) = metadata_reduce(map(metadata_reduce, bc.args)...)
+metadata_reduce(a,b,c...) = metadata_reduce(metadata_reduce(a,b),c...)
+
+
+# (4) Finally, we intercept the broadcast machinery at the materialize function,
 # and modify the Broadcasted object there to replace all the args with
 # broadcast_data(F,arg), and then forward the broadcast one level deeper to
 # the tuples returned by broadcast_data.
@@ -46,13 +57,19 @@ deepen_bc(bc::Broadcasted) = Broadcasted((x...)->Broadcasted(bc.f, tuple(x...)),
 deepen_bc(x) = x
 
 # now the custom materialize functions, these ones for when the result type is a Field
+function _materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
+    meta = metadata_reduce(replace_bc_args(bc, arg->metadata(F,arg)))
+    bc′ = materialize(deepen_bc(replace_bc_args(bc, arg->broadcast_data(F,arg))))
+    meta, bc′
+end
 function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
-    rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
-    F(map(materialize, materialize(deepen_bc(rbc)))...)
+    meta, bc′ = _materialize(bc)
+    F(map(materialize, bc′)..., meta...)
 end
 function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:Field}
-    rbc = replace_bc_args(bc, arg->broadcast_data(F,arg))
-    map(materialize!, broadcast_data(F,dest), materialize(deepen_bc(rbc)))
+    meta, bc′ = _materialize(bc)
+    @assert meta==metadata(F,dest)
+    map(materialize!, broadcast_data(F,dest), bc′)
     dest
 end
 # and for when the result type is a FullDiagOp
