@@ -153,6 +153,7 @@ end
 for op in (:*, :\)
     @eval ($op)(∇i::∇i, f::FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}) where {T,θ,N} = broadcast($op, ∇i, f)
 end
+apply!(f′::F, ∇i::∇i, f::F)  where {F<:FlatS0Fourier} = (@. f′ = ∇i * f)
 
 # map space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map

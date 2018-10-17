@@ -30,7 +30,7 @@ ringinfo(Nside) = ringinfo(Val(Nside))
     ring_lengths = r[2]
     ring_starts = [1; cumsum(ring_lengths)[1:end-1] .+ 1]
     ring_ranges = [range(a,length=b) for (a,b) in tuple.(ring_starts, ring_lengths)]
-    (ring_lengths=ring_lengths, ring_starts=ring_starts, ring_ranges=ring_ranges, cosθ=r[3], sinθ=r[4])
+    (ring_lengths=ring_lengths, ring_starts=ring_starts, ring_ranges=ring_ranges, cosθ=r[3], sinθ=r[4], θ=acos.(r[3]))
 end
 
 
@@ -41,14 +41,13 @@ end
 ## derivatives
 north_neighbor(Nside, i) = i-8Nside
 south_neighbor(Nside, i) = i+8Nside
-function *(::∇i{0,covariant}, f::MaskedHpxS0Map{Nside,T}) where {Nside,T,covariant}
-    f′ = similar(f)
-    Δθ = π/4Nside
-    fac = covariant ? ringinfo(Nside).sinθ : 1 ./ ringinfo(Nside).sinθ
+function apply!(f′::F, ::∇i{0}, f::F) where {Nside,T,F<:MaskedHpxS0Map{Nside,T}}
+    θ = ringinfo(Nside).θ
     for (ring_index,ring_range) in f.unmasked_rings
         @inbounds @simd for i in ring_range
+            Δθ = θ[ring_index-2] - θ[ring_index+2]
             if north_neighbor(Nside,i) in get(f.unmasked_rings,ring_index-2,()) && south_neighbor(Nside,i) in get(f.unmasked_rings,ring_index+2,())
-                f′.Tx[i] = fac[ring_index] * (f.Tx[north_neighbor(Nside,i)] - f.Tx[south_neighbor(Nside,i)])/2Δθ
+                f′.Tx[i] = (f.Tx[north_neighbor(Nside,i)] - f.Tx[south_neighbor(Nside,i)])/Δθ
             else
                 f′.Tx[i] = 0
             end
@@ -56,33 +55,17 @@ function *(::∇i{0,covariant}, f::MaskedHpxS0Map{Nside,T}) where {Nside,T,covar
     end
     f′
 end
-function *(::AdjOp{∇i{0,covariant}}, f::MaskedHpxS0Map{Nside,T}) where {Nside,T,covariant}
-    f′ = similar(f)
-    Δθ = π/4Nside
-    fac = covariant ? ringinfo(Nside).sinθ : 1 ./ ringinfo(Nside).sinθ
-    for (ring_index,ring_range) in f.unmasked_rings
-        @inbounds @simd for i in ring_range
-            if north_neighbor(Nside,i) in get(f.unmasked_rings,ring_index-2,()) && south_neighbor(Nside,i) in get(f.unmasked_rings,ring_index+2,())
-                f′.Tx[i] = (f.Tx[north_neighbor(Nside,i)]*fac[ring_index-1] - f.Tx[south_neighbor(Nside,i)]*fac[ring_index+1])/2Δθ
-            else
-                f′.Tx[i] = 0
-            end
-        end
-    end
-    f′
-end
-function *(::∇i{1}, f::MaskedHpxS0Map{Nside,T}) where {Nside,T}
-    f′ = similar(f)
+function apply!(f′::F, ::∇i{1, covariant}, f::F) where {covariant,Nside,T,F<:MaskedHpxS0Map{Nside,T}}
     Δϕ = 2π/4Nside
-    for ring_range in values(f.unmasked_rings)
+    fac = covariant ? ringinfo(Nside).sinθ : 1 ./ ringinfo(Nside).sinθ
+    for (ring_index,ring_range) in f.unmasked_rings
         @inbounds @simd for i in (ring_range.start+1):(ring_range.stop-1)
-            f′.Tx[i] = (f.Tx[i-1] - f.Tx[i+1])/2Δϕ
+            f′.Tx[i] = fac[ring_index] * (f.Tx[i-1] - f.Tx[i+1])/2Δϕ
         end
         f′.Tx[ring_range.start] = f′.Tx[ring_range.stop] = 0
     end
     f′
 end
-*(L::AdjOp{<:∇i{1}}, f::MaskedHpxS0Map) = -L'*f
 
 
 
@@ -125,13 +108,23 @@ metadata_reduce((m1,)::Tuple, (m2,)::Tuple) = (@assert(m1==m2); (m1,))
 
 LenseBasis(::Type{<:MaskedHpxS0Map}) = Map
 
+function sqrt_gⁱⁱ(f::MaskedHpxS0Map{Nside}) where {Nside}
+    gθθ = similar(f)
+    gϕϕ = similar(f)
+    sinθ = ringinfo(Nside).sinθ
+    for (ring_index,ring_range) in f.unmasked_rings
+        gθθ.Tx[ring_range] = 1/sinθ[ring_index]
+        gϕϕ.Tx[ring_range] = 1
+    end
+    @SMatrix[gϕϕ 0f; 0f gθθ]
+end
 
 function remask!(f::MaskedHpxS0Map)
     mask = fill(true, length(f.Tx))
     for ring_range in values(f.unmasked_rings)
-        mask[ring_range] = false
+        mask[ring_range] .= false
     end
-    f.Tx[mask.==true] = NaN
+    f.Tx[mask.==true] .= NaN
     f
 end
 
@@ -141,7 +134,6 @@ end
 function load_s4_map(filename, Nside=2048, ::Type{T}=Float64) where {T}
     Tx = convert(Vector{T}, hp.read_map(filename))
     Tx = hp.ud_grade(Tx, Nside)
-    Tx = hp.rotator[:Rotator](rot=(0,-44.9))[:rotate_map](Tx)
-    Tx = hp.rotator[:Rotator](rot=(180,0))[:rotate_map](Tx)
+    Tx = hp.Rotator((180,45,0),eulertype="ZYX")[:rotate_map](Tx)
     MaskedHpxS0Map(Tx)
 end

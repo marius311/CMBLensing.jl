@@ -50,6 +50,9 @@ getindex(::∇Op{covariant}, i::Int) where {covariant} = ∇i{i-1,covariant}()
 const ∇ⁱ = ∇Op{false}()
 const ∇ᵢ = ∇Op{true}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
+*(L::∇i, f::Field) = apply!(similar(f), L, f)
+apply!(f′, v::∇Op, f) = (apply!(f′[1], v[1], f); apply!(f′[2], v[2], f); f′)
+
 
 
 ### FuncOp
