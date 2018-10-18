@@ -189,3 +189,6 @@ linspace(start,stop,length::Integer) = range(start,stop=stop,length=length)
 
 # returns the base parametric type with all type parameters stripped out
 basetype(::Type{T}) where {T} = T.name.wrapper
+
+# amazing Julia doesn't have this yet...
+eachcol(A) = @views [A[:,i] for i=1:size(A,2)]

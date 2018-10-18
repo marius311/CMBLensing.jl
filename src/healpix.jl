@@ -1,29 +1,48 @@
 
 struct HpxPix{Nside} <: Pix end
 
-struct MaskedHpxS0Map{Nside, T} <: Field{Map, S0, HpxPix{Nside}}
+
+using StaticArrays: SArray
+
+struct NeighborCache{Nside, T, QRs}
+    neighbor_indices::Matrix{Int}
+    qrs::QRs
+    
+    function NeighborCache{Nside,T}(imax) where {Nside,T}
+        neighbor_indices = [(0:(imax-1))'; hp.get_all_neighbours(Nside,collect(0:(imax-1)))::Matrix{Int}] .+ 1
+        (θs, ϕs) = convert.(Vector{T}, hp.pix2ang(Nside,collect(0:maximum(neighbor_indices))))::Tuple{Vector{T},Vector{T}}
+        qrs = Tuple{SArray{Tuple{9,6},T,2,54},UpperTriangular{T,SArray{Tuple{6,6},T,2,36}}}[]
+        @showprogress 1 for (i,(ni,θ,ϕ)) in enumerate(zip(eachcol(neighbor_indices), θs, ϕs))
+            (Δθ, Δϕ) = (θs[ni] .- θ, ϕs[ni] .- ϕ)
+            P = @. [ones(T,9) Δθ Δϕ Δθ^2 Δϕ^2 Δθ*Δϕ]
+            Q,R = qr(SMatrix{9,6}(P))
+            push!(qrs,(Q,UpperTriangular(R)))
+        end
+        new{Nside,T,typeof(qrs)}(neighbor_indices, qrs)
+    end
+end
+
+
+struct MaskedHpxS0Map{Nside, T, NC} <: Field{Map, S0, HpxPix{Nside}}
     Tx::Vector{T}
-    # mapping between ring indices and a unit range encompassing the non-masked
-    # pixels on that ring
-    unmasked_rings::OrderedDict{Int,UnitRange{Int}} 
+    neighbor_cache::NC
 end
 
 function MaskedHpxS0Map(m::Vector{T}) where {T}
     Nside = hp.npix2nside(length(m))
-    ring_ranges = ringinfo(Nside).ring_ranges
-    unmasked_rings = OrderedDict{Int,UnitRange{Int}}()
-    for (ring_index, ring_range) in enumerate(ring_ranges)
-        unmasked = @. !(isnan(m[ring_range]) | (m[ring_range] ≈ hp.UNSEEN))
-        if any(unmasked)
-            @assert length(ring_range)==4Nside "MaskedHpxS0Map does not support non-masked pixels in the polar cap regions"
-            r = ring_range[unmasked]
-            unmasked_rings[ring_index] = minimum(r):maximum(r)
-        end
-        m[ring_range[.!unmasked]]=NaN
-    end
-    MaskedHpxS0Map{Nside,T}(m,unmasked_rings)
+    imax = maximum(findall(!isnan,m))
+    nc = NeighborCache{Nside,T}(imax)
+    MaskedHpxS0Map{Nside,T,typeof(nc)}(m[1:maximum(nc.neighbor_indices)], nc)
 end
 
+function MaskedHpxS0Map(m::Vector, nc::NC) where {Nside,T,NC<:NeighborCache{Nside,T}}
+    @assert Nside == hp.npix2nside(length(m))
+    imax = maximum(findall(!isnan,m))
+    @assert nc.neighbor_indices[1,end] == imax
+    MaskedHpxS0Map{Nside,T,NC}(convert(Vector{T},m[1:maximum(nc.neighbor_indices)]), nc)
+end
+    
+    
 ringinfo(Nside) = ringinfo(Val(Nside))
 @generated function ringinfo(::Val{Nside}) where {Nside}
     r = hp.ringinfo(Nside, collect(1:4Nside-1))
@@ -33,40 +52,19 @@ ringinfo(Nside) = ringinfo(Val(Nside))
     (ring_lengths=ring_lengths, ring_starts=ring_starts, ring_ranges=ring_ranges, cosθ=r[3], sinθ=r[4], θ=acos.(r[3]))
 end
 
-
-function similar(f::MaskedHpxS0Map{Nside,T}) where {Nside,T}
-    MaskedHpxS0Map{Nside,T}(Vector{T}(undef,12Nside^2),f.unmasked_rings)
+function similar(f::MaskedHpxS0Map{Nside,T,NC}) where {Nside,T,NC}
+    MaskedHpxS0Map{Nside,T,NC}(similar(f.Tx), f.neighbor_cache)
 end
-    
+
 ## derivatives
-north_neighbor(Nside, i) = i-8Nside
-south_neighbor(Nside, i) = i+8Nside
-function apply!(f′::F, ::∇i{0}, f::F) where {Nside,T,F<:MaskedHpxS0Map{Nside,T}}
-    θ = ringinfo(Nside).θ
-    for (ring_index,ring_range) in f.unmasked_rings
-        @inbounds @simd for i in ring_range
-            Δθ = θ[ring_index-2] - θ[ring_index+2]
-            if north_neighbor(Nside,i) in get(f.unmasked_rings,ring_index-2,()) && south_neighbor(Nside,i) in get(f.unmasked_rings,ring_index+2,())
-                f′.Tx[i] = (f.Tx[north_neighbor(Nside,i)] - f.Tx[south_neighbor(Nside,i)])/Δθ
-            else
-                f′.Tx[i] = 0
-            end
-        end
+function _apply!(∇f::FieldVector, ::∇Op, f::F) where {Nside,T,F<:MaskedHpxS0Map{Nside,T}}
+    for i in f.neighbor_cache.neighbor_indices[1,:]
+        ni = @view f.neighbor_cache.neighbor_indices[:,i]
+        Q,R = f.neighbor_cache.qrs[i]
+        ∂θ, ∂ϕ = (R \ (Q' * f.Tx[ni]))[2:3]
+        ∇f[1].Tx[i], ∇f[2].Tx[i] = ∂θ, ∂ϕ
     end
-    f′
 end
-function apply!(f′::F, ::∇i{1, covariant}, f::F) where {covariant,Nside,T,F<:MaskedHpxS0Map{Nside,T}}
-    Δϕ = 2π/4Nside
-    fac = covariant ? ringinfo(Nside).sinθ : 1 ./ ringinfo(Nside).sinθ
-    for (ring_index,ring_range) in f.unmasked_rings
-        @inbounds @simd for i in (ring_range.start+1):(ring_range.stop-1)
-            f′.Tx[i] = fac[ring_index] * (f.Tx[i-1] - f.Tx[i+1])/2Δϕ
-        end
-        f′.Tx[ring_range.start] = f′.Tx[ring_range.stop] = 0
-    end
-    f′
-end
-
 
 
 ## plotting related
@@ -76,8 +74,6 @@ function spin180!(f′::MaskedHpxS0Map{Nside}, f::MaskedHpxS0Map{Nside}) where {
     for (ring_index, (ring_start, ring_range)) in enumerate(zip(ring_starts, ring_ranges))
         if (ring_index) in keys(f.unmasked_rings)
             f′.Tx[ring_start .+ mod.((0:4Nside-1) .+ 2Nside, 4Nside)] = f.Tx[ring_start:(ring_start+4Nside-1)]
-        else
-            f′.Tx[ring_range] = NaN
         end
     end
     f′
@@ -87,7 +83,9 @@ function plot(f::MaskedHpxS0Map, args...; plot_type=:mollzoom, cmap="RdBu_r", kw
     cmap = get_cmap(cmap)
     cmap[:set_bad]("lightgray")
     cmap[:set_under]("w")
-    getproperty(hp,plot_type)(spin180(f).Tx, args...; cmap=cmap, kwargs...)
+    Tx = Vector(spin180(f).Tx)
+    Tx[Tx.==0] .= NaN
+    getproperty(hp,plot_type)(Tx, args...; cmap=cmap, kwargs...)
 end
 
 ## conversion to flat sky maps
@@ -128,6 +126,14 @@ function remask!(f::MaskedHpxS0Map)
     f
 end
 
+function full(f::MaskedHpxS0Map{Nside,T}) where {Nside,T}
+    fTx = fill(NaN,12*Nside^2)
+    for (Tx,ring_range) in zip(f.Tx,values(f.unmasked_rings))
+        fTx[ring_range] .= Tx
+    end
+    fTx
+end
+
 
 ## this will eventually go elsewhere
 
@@ -136,4 +142,20 @@ function load_s4_map(filename, Nside=2048, ::Type{T}=Float64) where {T}
     Tx = hp.ud_grade(Tx, Nside)
     Tx = hp.Rotator((180,45,0),eulertype="ZYX")[:rotate_map](Tx)
     MaskedHpxS0Map(Tx)
+end
+
+
+
+function Base.Vector(x::AbstractSparseVector{Tv}, undef_val) where Tv
+    n = length(x)
+    n == 0 && return Vector{Tv}()
+    nzind = nonzeroinds(x)
+    nzval = nonzeros(x)
+    r = fill(Tv(undef_val), n)
+    for k in 1:nnz(x)
+        i = nzind[k]
+        v = nzval[k]
+        r[i] = v
+    end
+    return r
 end

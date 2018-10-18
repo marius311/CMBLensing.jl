@@ -19,6 +19,7 @@ using PyCall
 using PyPlot
 using Random
 using Random: seed!
+using RecursiveArrayTools
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
