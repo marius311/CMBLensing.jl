@@ -9,13 +9,13 @@ struct NeighborCache{Nside, T, QRs}
     qrs::QRs
     
     function NeighborCache{Nside,T}(imax) where {Nside,T}
-        neighbor_indices = [(0:(imax-1))'; hp.get_all_neighbours(Nside,collect(0:(imax-1)))::Matrix{Int}] .+ 1
+        neighbor_indices = [(0:(imax-1))'; hp.get_all_neighbours(Nside,collect(0:(imax-1)))[1:2:end,:]::Matrix{Int}] .+ 1
         (θs, ϕs) = convert.(Vector{T}, hp.pix2ang(Nside,collect(0:maximum(neighbor_indices))))::Tuple{Vector{T},Vector{T}}
-        qrs = Tuple{SArray{Tuple{9,6},T,2,54},UpperTriangular{T,SArray{Tuple{6,6},T,2,36}}}[]
+        qrs = Tuple{SArray{Tuple{5,3},T,2,15},UpperTriangular{T,SArray{Tuple{3,3},T,2,9}}}[]
         @showprogress 1 for (i,(ni,θ,ϕ)) in enumerate(zip(eachcol(neighbor_indices), θs, ϕs))
             (Δθ, Δϕ) = (θs[ni] .- θ, ϕs[ni] .- ϕ)
-            P = @. [ones(T,9) Δθ Δϕ Δθ^2 Δϕ^2 Δθ*Δϕ]
-            Q,R = qr(SMatrix{9,6}(P))
+            P = @. [ones(T,5) Δθ Δϕ]
+            Q,R = qr(SMatrix{5,3}(P))
             push!(qrs,(Q,UpperTriangular(R)))
         end
         new{Nside,T,typeof(qrs)}(neighbor_indices, qrs)
@@ -58,7 +58,7 @@ end
 
 ## derivatives
 function _apply!(∇f::FieldVector, ::∇Op, f::F) where {Nside,T,F<:MaskedHpxS0Map{Nside,T}}
-    for i in f.neighbor_cache.neighbor_indices[1,:]
+    @threads for i in f.neighbor_cache.neighbor_indices[1,:]
         ni = @view f.neighbor_cache.neighbor_indices[:,i]
         Q,R = f.neighbor_cache.qrs[i]
         ∂θ, ∂ϕ = (R \ (Q' * f.Tx[ni]))[2:3]
@@ -128,9 +128,7 @@ end
 
 function full(f::MaskedHpxS0Map{Nside,T}) where {Nside,T}
     fTx = fill(NaN,12*Nside^2)
-    for (Tx,ring_range) in zip(f.Tx,values(f.unmasked_rings))
-        fTx[ring_range] .= Tx
-    end
+    fTx[1:length(f.Tx)] .= f.Tx
     fTx
 end
 
