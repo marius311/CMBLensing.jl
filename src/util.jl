@@ -192,3 +192,4 @@ basetype(::Type{T}) where {T} = T.name.wrapper
 
 # amazing Julia doesn't have this yet...
 eachcol(A) = @views [A[:,i] for i=1:size(A,2)]
+eachrow(A) = @views [A[i,:] for i=1:size(A,1)]

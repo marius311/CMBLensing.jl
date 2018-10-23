@@ -68,7 +68,7 @@ function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
 end
 function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:Field}
     meta, bc′ = _materialize(bc)
-    @assert meta==metadata(F,dest)
+    metadata_reduce(meta, metadata(F,dest)) # check the metadata is reducable, even though we don't use the answer
     map(materialize!, broadcast_data(F,dest), bc′)
     dest
 end

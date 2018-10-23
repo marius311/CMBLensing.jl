@@ -42,7 +42,7 @@ const Ð = DerivBasis
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
 function gradhess(f)
     g = ∇ⁱ*f
-    g, @SMatrix[∇₀*g[1] ∇₁*g[1]; ∇₀*g[2] ∇₁*g[2]]
+    g, SMatrix{2,2}([(∇ᵢ * g[1])'; (∇ᵢ * g[1])'])
 end
 const ∇⁰, ∇¹, ∇₀, ∇₁ = ∇i{0,false}(), ∇i{1,false}(), ∇i{0,true}(), ∇i{1,true}()
 struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
@@ -51,6 +51,7 @@ const ∇ⁱ = ∇Op{false}()
 const ∇ᵢ = ∇Op{true}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 *(L::∇i, f::Field) = apply!(similar(f), L, f)
+*(L::∇Op, f::Field) = apply!(@SVector[similar(f),similar(f)], L, f)
 apply!(f′, v::∇Op, f) = (apply!(f′[1], v[1], f); apply!(f′[2], v[2], f); f′)
 
 
