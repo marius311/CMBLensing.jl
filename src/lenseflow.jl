@@ -85,24 +85,31 @@ struct CachedLenseFlow{N,t₀,t₁,F<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
     L   :: LenseFlow{jrk4{N},t₀,t₁,F}
     p   :: Dict{Float16,SVector{2,F}}
     M⁻¹ :: Dict{Float16,SMatrix{2,2,F}}
-    tmp∇f :: SVector{2,F}
+    ∇f  :: SVector{2,F}
 end
 CachedLenseFlow{N}(ϕ) where {N} = cache(LenseFlow{jrk4{N}}(ϕ))
 function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
-    for (t,τ) in zip(ts,Float16.(ts))
+    for (t,τ) in zip(ts,τ.(ts))
         M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + t*L.Hϕ)
-        # M⁻¹[τ] = inv(I + t*L.Hϕ)
         p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
     end
     CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹,∇*f)
 end
 cache(L::CachedLenseFlow) = L
+τ(t) = Float16(t)
 
 # velocities for CachedLenseFlow which use the precomputed quantities:
- velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (apply!(L.tmp∇f, ∇ᵢ, f); @. v = L.p[Float16(t)]' ⨳ L.tmp∇f)
-velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = (v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[Float16(t)])))
+function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
+    mul!(L.∇f, ∇ᵢ, f)
+    @. v = L.p[τ(t)]' ⨳ L.∇f
+end
+
+function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
+    v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[τ(t)]))
+end
+
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)

@@ -83,12 +83,17 @@ adjoint(f::AdjField) = f.f
 # converted to this basis before the operator is applied (this makes writing the
 # implementing functions somewhat more convenient)
 # 
-# In the simplest case, LinOps should implement *, \, and adjoint. 
+# In the simplest case, LinOps should implement mul!, ldiv!, and adjoint. 
 # 
-#     * *(::LinOp, ::Field) - apply the operator
-#     * \(::LinOp, ::Field) - apply the inverse operator
+#     * mul!(result, ::LinOp, ::Field) - apply the operator, storing the answer in `result`
+#     * ldiv!(result, ::LinOp, ::Field) - apply the inverse operator, storing the answer in `result`
 #     * adjoint(::LinOp) - return the adjoint operator
 # 
+# By default `*` and `\` use `mul!` and `ldiv!`, assuming the result will be
+# `simlar` to the field being acted on. If the operator returns a different kind
+# of field, this can be specified by overloading `allocate_result(::LinOp,
+# ::Field)` (see below)
+#
 # Other functions which can be implemented:
 #
 #     * sqrt(L::LinOp) - the sqrt of the operator s.t. sqrt(L)*sqrt(L) = L
@@ -108,19 +113,18 @@ adjoint(f::AdjField) = f.f
 # 
 abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
 
-# Assuming *, \, and adjoint are implemented, the following fallbacks make
-# everything work, or can be overriden by individual LinOps with more efficient
-# versions.
-*(f::AdjField, L::LinOp) = (L'*f')'
+# allocate the result of applying a LinOp to a given field. 
+# the default below assumes the result is the same type as the Field itself, but
+# this can be specialized (e.g. ∇*f returns instead a vector of fields)
+allocate_result(::LinOp, f::Field) = similar(f)
 
-# automatic basis conversion
-for op=(:*,:\)
-    @eval ($op)(L::LinOp{B1}, f::Field{B2}) where {B1,B2} = $op(L,ensure_changed(f,B1(f)))
-    @eval ($op)(L::LinOp{B1}, f::Field{B2}) where {B1>:Basis,B2} = autobasis_error()
-end
-ensure_changed(f1::Field{B},  f2::Field{B})  where {B} = autobasis_error()
-ensure_changed(f1::Field{B1}, f2::Field{B2}) where {B1,B2} = f2
-autobasis_error() = error("Automatic basis conversion failed. Probably this operator's * or \\ is not defined.")
+# `*` and `\` use `mul!` and `ldiv!` which we require each LinOp implement
+# here we also do the automatic basis conversion to the LinOps specified basis
+*(L::LinOp{B}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
+\(L::LinOp{B}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
+
+# Left multiplication uses `adjoint` which we require each LinOp implement
+*(f::AdjField, L::LinOp) = (L'*f')'
 
 
 ### LinDiagOp

@@ -9,9 +9,12 @@ struct FullDiagOp{F<:Field,B,S,P} <: LinDiagOp{B,S,P}
     unsafe_invert::Bool
     FullDiagOp(f::F, unsafe_invert=true) where {B,S,P,F<:Field{B,S,P}} = new{F,B,S,P}(f,unsafe_invert)
 end
-for op=(:*,:\)
-    @eval ($op)(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.($(Symbol(:.,op))(L.f,F(f))) : $(Symbol(:.,op))(L.f,F(f))
-end
+
+mul!( f′::F, L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? (@. f′ = nan2zero(L.f * f)) : (@. f′ = L.f * f)
+ldiv!(f′::F, L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? (@. f′ = nan2zero(L.f \ f)) : (@. f′ = L.f \ f)
+allocate_result(L::FullDiagOp, ::Field) = similar(L.f)
+
+
 # non-broadcasted algebra on FullDiagOps
 for op in (:+,:-,:*,:\,:/)
     @eval ($op)(L::FullDiagOp, s::Scalar)           = FullDiagOp($op(L.f, s))
@@ -42,7 +45,7 @@ const Ð = DerivBasis
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
 function gradhess(f)
     g = ∇ⁱ*f
-    g, SMatrix{2,2}([(∇ᵢ * g[1])'; (∇ᵢ * g[1])'])
+    g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[1])])
 end
 const ∇⁰, ∇¹, ∇₀, ∇₁ = ∇i{0,false}(), ∇i{1,false}(), ∇i{0,true}(), ∇i{1,true}()
 struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
@@ -50,10 +53,6 @@ getindex(::∇Op{covariant}, i::Int) where {covariant} = ∇i{i-1,covariant}()
 const ∇ⁱ = ∇Op{false}()
 const ∇ᵢ = ∇Op{true}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
-*(L::∇i, f::Field) = apply!(similar(f), L, f)
-*(L::∇Op, f::Field) = apply!(@SVector[similar(f),similar(f)], L, f)
-apply!(f′, v::∇Op, f) = (apply!(f′[1], v[1], f); apply!(f′[2], v[2], f); f′)
-
 
 
 ### FuncOp

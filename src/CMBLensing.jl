@@ -33,7 +33,7 @@ import Base: +, -, *, \, /, ^, ~, .*, ./, .^, broadcast,
     convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, next, 
     promote_rule, similar, size, sqrt, start, transpose, one, zero,
     sqrt, adjoint, promote, promote_rule, promote_type
-import LinearAlgebra: dot, isnan, logdet
+import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 
 
 

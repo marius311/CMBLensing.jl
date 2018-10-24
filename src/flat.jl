@@ -148,18 +148,14 @@ DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
         0; ((@. im * FFTgrid(T,P).k'),)
         1; ((@. im * FFTgrid(T,P).k[1:Nside(P)÷2+1]),)
     end
-    # (2,2); $((@. -FFTgrid(T,P).r[1:Nside(P)÷2+1,:]^2),)
 end
-for op in (:*, :\)
-    @eval ($op)(∇i::∇i, f::FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}) where {T,θ,N} = broadcast($op, ∇i, f)
-end
-apply!(f′::F, ∇i::∇i, f::F)  where {F<:FlatS0Fourier} = (@. f′ = ∇i * f)
+mul!( f′::F, ∇i::∇i, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
+ldiv!(f′::F, ∇i::∇i, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
 
 # map space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
-function *(::∇i{coord}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {coord,T,θ,N}
-    f′ = similar(f)
+function mul!(f′::F, ::∇i{coord}, f::F) where {coord,T,θ,N,F<:FlatS0Map{T,<:Flat{θ,N,<:map∂}}}
     n,m = size(f.Tx)
     Δx = FFTgrid(f).Δx
     if coord==0
@@ -183,6 +179,8 @@ function *(::∇i{coord}, f::FlatS0Map{T,<:Flat{θ,N,<:map∂}}) where {coord,T,
     end
     f′
 end
+
+sqrt_gⁱⁱ(::FlatField) = I
 
 
 # bandpass

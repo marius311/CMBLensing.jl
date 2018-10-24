@@ -49,7 +49,6 @@ end
 
 zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
 
-Ac_mul_B(x::FlatS0Map, y::FlatS0Map) = x*y
 
 # dot products
 dot(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) where {T,P} = dot(a.Tx,b.Tx) * FFTgrid(T,P).Δx^2

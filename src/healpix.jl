@@ -72,7 +72,7 @@ similar(f::F) where {F<:MaskedHpxS0Map} = F(similar(f.Tx), f.gradient_cache)
 copy(f::F) where {F<:MaskedHpxS0Map} = F(copy(f.Tx), f.gradient_cache)
 
 ## derivatives
-function apply!(∇f::FieldVector, ::∇Op{covariant}, f::MaskedHpxS0Map) where {covariant}
+function mul!(∇f::FieldVector, ::∇Op{covariant}, f::MaskedHpxS0Map) where {covariant}
     W = covariant ? f.gradient_cache.W_covariant : f.gradient_cache.W_contravariant
     @inbounds for i in eachindex(f.gradient_cache.neighbors)
         Tx = @view f.Tx[f.gradient_cache.neighbors[i]]
