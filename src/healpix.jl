@@ -2,23 +2,29 @@
 struct HpxPix{Nside} <: Pix end
 
 struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
-    neighbors::NB
-    W_covariant::W
-    W_contravariant::W
+    neighbors :: NB
+    W_covariant      :: W
+    W_contravariant  :: W
+    Wᵀ_covariant     :: W
+    Wᵀ_contravariant :: W
     
     function GradientCache{Nside,T}(Nobs, order=Val(1)) where {Nside,T}
         N_coeffs    = (order == Val(1)) ? 3 : 6
-        N_neighbors = (order == Val(1)) ? 5 : 9
+        N_neighbors = (order == Val(1)) ? 4 : 8
         
-        neighbors_mat = [(0:(Nobs-1))'; hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (1:2:end) : 1:end),:]::Matrix{Int}] .+ 1
+        # this uses the pixel itself, but that gives us a non-zero trace
+        # neighbors_mat = [(0:(Nobs-1))'; hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (1:2:end) : 1:end),:]::Matrix{Int}] .+ 1
+        neighbors_mat = hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (2:2:end) : 1:end),:]::Matrix{Int} .+ 1
         Ntot = maximum(neighbors_mat)
         neighbors = SVector{N_neighbors}.(eachcol(Int32.(neighbors_mat)))
 
         (θs, ϕs) = convert.(Vector{T}, hp.pix2ang(Nside,collect(0:Ntot))::Tuple{Vector{Float64},Vector{Float64}})
         
+        # derivative
         W_covariant, W_contravariant = [], []
-        @showprogress 1 for (i,(ni,θ,ϕ)) in enumerate(zip(neighbors, θs, ϕs))
-            (Δθ, Δϕ) = @. (rem(θs[ni]-θ+T(π), T(2π), RoundDown) - T(π), rem(ϕs[ni]-ϕ+T(π), T(2π), RoundDown) - T(π))
+        @showprogress 1 "∇  precomputation: " for (i,(ni,θ,ϕ)) in enumerate(zip(neighbors, θs, ϕs))
+            Δθ = @.     θs[ni]-θ
+            Δϕ = @. rem(ϕs[ni]-ϕ+T(π), T(2π), RoundDown) - T(π)
             if order == Val(1)
                 P = @. [Δθ Δϕ ones(T,N_neighbors)]
             else
@@ -26,13 +32,28 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
             end
             Q,R = qr(P)
             W = inv(R)[1:2,:]*Q'
-            push!(W_contravariant, SMatrix{2,N_neighbors}(W ./ [1, sin(θ)]))
             push!(W_covariant,     SMatrix{2,N_neighbors}(W .* [1, sin(θ)]))
+            push!(W_contravariant, SMatrix{2,N_neighbors}(W ./ [1, sin(θ)]))
         end
-        W_covariant     = collect(typeof(W_covariant[1]),    W_covariant)
-        W_contravariant = collect(typeof(W_contravariant[1]),W_contravariant)
+        _W_covariant     = collect(typeof(W_covariant[1]),    W_covariant)
+        _W_contravariant = collect(typeof(W_contravariant[1]),W_contravariant)
         
-        new{Nside,T,Nobs,Ntot,typeof(neighbors),typeof(W_covariant)}(neighbors, W_covariant, W_contravariant)
+        # transpose derivative
+        Wᵀ_covariant     = fill(NaN, length(neighbors), 2, N_neighbors)
+        Wᵀ_contravariant = fill(NaN, length(neighbors), 2, N_neighbors)
+        @showprogress 1 "∇' precomputation: " for (i,Ni) in collect(enumerate(neighbors))
+            for (j,Nij) in enumerate(Ni)
+                if Nij<=length(neighbors)
+                    j′ = first(indexin(i,neighbors[Nij]))
+                    Wᵀ_covariant[i,:,j]     = _W_covariant[Nij][:,j′]
+                    Wᵀ_contravariant[i,:,j] = _W_contravariant[Nij][:,j′]
+                end
+            end
+        end
+        _Wᵀ_covariant     = SMatrix{2,N_neighbors,T}.(@views [Wᵀ_covariant[i,:,:]     for i=1:length(neighbors)])
+        _Wᵀ_contravariant = SMatrix{2,N_neighbors,T}.(@views [Wᵀ_contravariant[i,:,:] for i=1:length(neighbors)])
+        
+        new{Nside,T,Nobs,Ntot,typeof(neighbors),typeof(_W_covariant)}(neighbors, _W_covariant, _W_contravariant, _Wᵀ_covariant, _Wᵀ_contravariant)
     end
     
 end
@@ -72,16 +93,27 @@ similar(f::F) where {F<:MaskedHpxS0Map} = F(similar(f.Tx), f.gradient_cache)
 copy(f::F) where {F<:MaskedHpxS0Map} = F(copy(f.Tx), f.gradient_cache)
 
 ## derivatives
-function mul!(∇f::FieldVector, ::∇Op{covariant}, f::MaskedHpxS0Map) where {covariant}
-    W = covariant ? f.gradient_cache.W_covariant : f.gradient_cache.W_contravariant
-    @inbounds for i in eachindex(f.gradient_cache.neighbors)
-        Tx = @view f.Tx[f.gradient_cache.neighbors[i]]
+function mul!(∇f::FieldVector, ∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}, f::MaskedHpxS0Map) where {covariant}
+    gc = f.gradient_cache
+    if ∇Op isa Adjoint
+        W = covariant ? gc.Wᵀ_covariant : gc.Wᵀ_contravariant
+    else
+        W = covariant ? gc.W_covariant : gc.W_contravariant
+    end
+    @inbounds for i in eachindex(gc.neighbors)
+        Tx = @view f.Tx[gc.neighbors[i]]
         ∇f[1].Tx[i], ∇f[2].Tx[i] = W[i] * Tx
     end
-    imax = f.gradient_cache.neighbors[end][1] + 1
+    imax = gc.neighbors[end][1] + 1
     ∇f[1].Tx[imax:end] .= ∇f[2].Tx[imax:end] .= NaN
     ∇f
 end
+*(∇Op::Union{∇Op,Adjoint{∇i,<:∇Op}}, f::MaskedHpxS0Map) where {B} =  mul!(allocate_result(∇Op,f),∇Op,f)
+DerivBasis(::Type{<:MaskedHpxS0Map}) = Map
+
+
+dot(a::MaskedHpxS0Map, b::MaskedHpxS0Map) = dot(nan2zero.(a.Tx),nan2zero.(b.Tx))
+
 
 function plot(f::MaskedHpxS0Map, args...; plot_type=:mollzoom, cmap="RdBu_r", vlim=nothing, kwargs...)
     kwargs = Dict(kwargs...)

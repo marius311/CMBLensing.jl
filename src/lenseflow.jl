@@ -107,7 +107,7 @@ function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    v .= Ł(@⨳ ∇' ⨳ $Ð(Ł(f) * L.p[τ(t)]))
+    mul!(v, ∇', Ł(f) * L.p[τ(t)])
 end
 
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)

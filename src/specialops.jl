@@ -53,6 +53,10 @@ getindex(::∇Op{covariant}, i::Int) where {covariant} = ∇i{i-1,covariant}()
 const ∇ⁱ = ∇Op{false}()
 const ∇ᵢ = ∇Op{true}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
+allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
+allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
+allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
+mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]
 
 
 ### FuncOp
