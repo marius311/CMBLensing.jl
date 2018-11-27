@@ -80,7 +80,7 @@ corresponds to exactly the nyquist frequency """
 function Mnyq(::Type{T},::Type{P}, M) where {T,θ,N,P<:Flat{θ,N}}
     if iseven(N)
         inyq = first((1:N)[@. FFTgrid(T,P).k ≈ -FFTgrid(T,P).nyq])
-        M[inyq,:] = M[:,inyq] = 0
+        M[inyq,:] .= M[:,inyq] .= 0
     end
     M
 end

@@ -69,7 +69,7 @@ end
 # now define the Healpix Fields (called HealpixCap)
 
 struct HpxPix{Nside} <: Pix end
-abstract type HealpixCap{B,S,P} <: Field{B,S,P} end
+abstract type HealpixCap{B,S,P<:HpxPix} <: Field{B,S,P} end
 
 
 ## Spin-0
