@@ -87,14 +87,14 @@ spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
 """
-function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,θ,N,P<:Flat{θ,N}}
+function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,θ,N,∂mode,P<:Flat{θ,N,∂mode}}
     θnew==θ && return f
     (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
     (mode in [:map,:fourier]) || throw(ArgumentError("Available modes: [:map,:fourier]"))
     
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     Nnew = N * θ ÷ θnew
-    Pnew = Flat{θnew,Nnew}
+    Pnew = Flat{θnew,Nnew,∂mode}
     
     if deconv_pixwin
         @unpack Δx,k = FFTgrid(T,Pnew)
