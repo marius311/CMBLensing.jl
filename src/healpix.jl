@@ -1,8 +1,16 @@
+# use generated function to memoize ring info
+ringinfo(Nside) = ringinfo(Val(Nside))
+@generated function ringinfo(::Val{Nside}) where {Nside}
+    r = hp.ringinfo(Nside, collect(1:4Nside-1))
+    ring_lengths = r[2]
+    ring_starts = [1; cumsum(ring_lengths)[1:end-1] .+ 1]
+    ring_ranges = [range(a,length=b) for (a,b) in tuple.(ring_starts, ring_lengths)]
+    (ring_lengths=ring_lengths, ring_starts=ring_starts, ring_ranges=ring_ranges, cosθ=r[3], sinθ=r[4], θ=acos.(r[3]))
+end
 
-struct HpxPix{Nside} <: Pix end
-
+# GradientCache holds precomputed quantities that let us do fast spherical gradients 
 struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
-    neighbors :: NB
+    neighbors        :: NB
     W_covariant      :: W
     W_contravariant  :: W
     Wᵀ_covariant     :: W
@@ -12,7 +20,7 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
         N_coeffs    = (order == Val(1)) ? 3 : 6
         N_neighbors = (order == Val(1)) ? 4 : 8
         
-        # this uses the pixel itself, but that gives us a non-zero trace
+        # the commented out line uses the pixel itself, but that gives us a non-zero trace so we don't use it
         # neighbors_mat = [(0:(Nobs-1))'; hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (1:2:end) : 1:end),:]::Matrix{Int}] .+ 1
         neighbors_mat = hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (2:2:end) : 1:end),:]::Matrix{Int} .+ 1
         Ntot = maximum(neighbors_mat)
@@ -58,64 +66,94 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
     
 end
 
+# now define the Healpix Fields (called HealpixCap)
 
-struct MaskedHpxS0Map{Nside, T, Nobs, Ntot, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: Field{Map, S0, HpxPix{Nside}}
-    Tx::Vector{T}
+struct HpxPix{Nside} <: Pix end
+abstract type HealpixCap{B,S,P} <: Field{B,S,P} end
+
+
+## Spin-0
+struct HealpixS0Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: HealpixCap{Map, S0, HpxPix{Nside}}
+    Ix::Vector{T}
     gradient_cache::GC
-    
-    function MaskedHpxS0Map(m::Vector, gc::GC) where {Nside,T,Nobs,Ntot,GC<:GradientCache{Nside,T,Nobs,Ntot}}
-        if length(m)!=Ntot; m = m[1:Ntot]; end
-        m[Nobs+1:end] .= NaN
-        new{Nside,T,Nobs,Ntot,GC}(convert(Vector{T}, m) , gc)
-    end
-    function MaskedHpxS0Map{Nside,T,Nobs,Ntot,GC}(m::Vector{T}, gc::GC) where {Nside,T,Nobs,Ntot,GC<:GradientCache{Nside,T,Nobs,Ntot}}
-        new{Nside,T,Nobs,Ntot,GC}(m,gc)
-    end
 end
-function MaskedHpxS0Map(m::Vector{T}) where {T}
-    Nside = hp.npix2nside(length(m))
-    Nobs = maximum(findall(!isnan,m))
-    MaskedHpxS0Map(m, GradientCache{Nside,T}(Nobs))
+function HealpixS0Cap(Ix::Vector{T}) where {T}
+    Nside = hp.npix2nside(length(Ix))
+    Nobs = maximum(findall(!isnan,Ix))
+    HealpixS0Cap(Ix, GradientCache{Nside,T}(Nobs))
+end
+function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
+    Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
+    HealpixS0Cap{Nside,T,Nobs,typeof(gc)}(Ix, gc)
 end
 
 
-    
-ringinfo(Nside) = ringinfo(Val(Nside))
-@generated function ringinfo(::Val{Nside}) where {Nside}
-    r = hp.ringinfo(Nside, collect(1:4Nside-1))
-    ring_lengths = r[2]
-    ring_starts = [1; cumsum(ring_lengths)[1:end-1] .+ 1]
-    ring_ranges = [range(a,length=b) for (a,b) in tuple.(ring_starts, ring_lengths)]
-    (ring_lengths=ring_lengths, ring_starts=ring_starts, ring_ranges=ring_ranges, cosθ=r[3], sinθ=r[4], θ=acos.(r[3]))
+## Spin-2
+struct HealpixS2Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: HealpixCap{QUMap, S2, HpxPix{Nside}}
+    Qx::Vector{T}
+    Ux::Vector{T}
+    gradient_cache::GC
+end
+function HealpixS2Cap(Qx::Vector{T}, Ux::Vector{T}) where {T}
+    @assert length(Qx)==length(Ux)
+    Nside = hp.npix2nside(length(Qx))
+    Nobs = maximum(findall(!isnan,Qx))
+    HealpixS2Cap(Qx, Ux, GradientCache{Nside,T}(Nobs))
+end
+function HealpixS2Cap(Qx::Vector, Ux::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
+    Qx = length(Qx)==Ntot ? Qx : Qx[1:Ntot]
+    Ux = length(Ux)==Ntot ? Ux : Ux[1:Ntot]
+    HealpixS2Cap{Nside,T,Nobs,typeof(gc)}(Qx, Ux, gc)
 end
 
-similar(f::F) where {F<:MaskedHpxS0Map} = F(similar(f.Tx), f.gradient_cache)
-copy(f::F) where {F<:MaskedHpxS0Map} = F(copy(f.Tx), f.gradient_cache)
+
+
+similar(f::F) where {F<:HealpixS0Cap} = F(similar(f.Ix), f.gradient_cache)
+similar(f::F) where {F<:HealpixS2Cap} = F(similar(f.Qx), similar(f.Ux), f.gradient_cache)
+copy(f::F)    where {F<:HealpixS0Cap} = F(copy(f.Ix),    f.gradient_cache)
+copy(f::F)    where {F<:HealpixS2Cap} = F(copy(f.Ix),    copy(f.Ux),    f.gradient_cache)
 
 ## derivatives
-function mul!(∇f::FieldVector, ∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}, f::MaskedHpxS0Map) where {covariant}
-    gc = f.gradient_cache
+function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}) where {covariant}
     if ∇Op isa Adjoint
         W = covariant ? gc.Wᵀ_covariant : gc.Wᵀ_contravariant
     else
         W = covariant ? gc.W_covariant : gc.W_contravariant
     end
+end
+
+function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::HealpixS0Cap)
+    gc = f.gradient_cache
+    W = get_W(∇op)
     @inbounds for i in eachindex(gc.neighbors)
-        Tx = @view f.Tx[gc.neighbors[i]]
-        ∇f[1].Tx[i], ∇f[2].Tx[i] = W[i] * Tx
+        Ix = @view f.Ix[gc.neighbors[i]]
+        ∇f[1].Ix[i], ∇f[2].Ix[i] = W[i] * Ix
     end
     imax = gc.neighbors[end][1] + 1
-    ∇f[1].Tx[imax:end] .= ∇f[2].Tx[imax:end] .= NaN
+    ∇f[1].Ix[imax:end] .= ∇f[2].Ix[imax:end] .= NaN
     ∇f
 end
-*(∇Op::Union{∇Op,Adjoint{∇i,<:∇Op}}, f::MaskedHpxS0Map) where {B} =  mul!(allocate_result(∇Op,f),∇Op,f)
-DerivBasis(::Type{<:MaskedHpxS0Map}) = Map
+function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::HealpixS2Cap)
+    gc = f.gradient_cache
+    W = get_W(∇op)
+    @inbounds for i in eachindex(gc.neighbors)
+        Qx = @view f.Qx[gc.neighbors[i]]
+        Ux = @view f.Ux[gc.neighbors[i]]
+        ∇f[1].Qx[i], ∇f[2].Qx[i] = W[i] * Qx
+        ∇f[1].Ux[i], ∇f[2].Ux[i] = W[i] * Ux
+    end
+    imax = gc.neighbors[end][1] + 1
+    ∇f[1].Qx[imax:end] .= ∇f[2].Qx[imax:end] .= ∇f[1].Ux[imax:end] .= ∇f[2].Ux[imax:end] .= NaN
+    ∇f
+end
+*(∇Op::Union{∇Op,Adjoint{∇i,<:∇Op}}, f::HealpixS0Cap) where {B} =  mul!(allocate_result(∇Op,f),∇Op,f)
+DerivBasis(::Type{<:HealpixS0Cap}) = Map
 
 
-dot(a::MaskedHpxS0Map, b::MaskedHpxS0Map) = dot(nan2zero.(a.Tx),nan2zero.(b.Tx))
+dot(a::HealpixS0Cap, b::HealpixS0Cap) = dot(nan2zero.(a.Ix),nan2zero.(b.Ix))
 
 
-function plot(f::MaskedHpxS0Map, args...; plot_type=:mollzoom, cmap="RdBu_r", vlim=nothing, kwargs...)
+function plot(f::HealpixS0Cap, args...; plot_type=:mollzoom, cmap="RdBu_r", vlim=nothing, kwargs...)
     kwargs = Dict(kwargs...)
     cmap = get_cmap(cmap)
     cmap[:set_bad]("lightgray")
@@ -126,51 +164,76 @@ function plot(f::MaskedHpxS0Map, args...; plot_type=:mollzoom, cmap="RdBu_r", vl
     getproperty(hp,plot_type)(full(f), args...; cmap=cmap, kwargs...)
 end
 
+function plot(f::HealpixS2Cap, args...; kwargs...)
+    plot(HealpixS0Cap(f.Qx, f.gradient_cache), args...; kwargs...)
+    plot(HealpixS0Cap(f.Ux, f.gradient_cache), args...; kwargs...)
+end
+    
+    
+    
 ## conversion to flat sky maps
-function azeqproj(f::MaskedHpxS0Map{<:Any,T}, θpix, Nside) where {T}
+function azeqproj(f::HealpixS0Cap{<:Any,T}, θpix, Nside) where {T}
     wasinteractive = pylab.isinteractive()
     try
         pylab.ioff()
-        Tx = hp.azeqview(full(f), rot=(0,90), reso=θpix, xsize=Nside, return_projected_map=true)
+        Ix = hp.azeqview(full(f), rot=(0,90), reso=θpix, xsize=Nside, return_projected_map=true)
         close()
-        FlatS0Map{T,Flat{θpix,Nside,fourier∂}}(Tx)
+        FlatS0Map{T,Flat{θpix,Nside,fourier∂}}(Ix)
     finally
         wasinteractive && pylab.ion()
     end
 end
 
 ## broadcasting
-broadcast_data(::Type{F}, f::F) where {F<:MaskedHpxS0Map} = (f.Tx,)
-metadata(::Type{F}, f::F) where {F<:MaskedHpxS0Map} = (f.gradient_cache,)
+broadcast_data(::Type{F}, f::F) where {F<:HealpixS0Cap} = (f.Ix,)
+broadcast_data(::Type{F}, f::F) where {F<:HealpixS2Cap} = (f.Qx, f.Ux)
+metadata(::Type{F}, f::F) where {F<:HealpixCap} = (f.gradient_cache,)
 metadata_reduce((m1,)::Tuple{GC}, (m2,)::Tuple{GC}) where {GC<:GradientCache} = (m1,)
 metadata_reduce((m1,)::Tuple{GradientCache}, (m2,)::Tuple{GradientCache}) = error()
 
+LenseBasis(::Type{<:HealpixS0Cap}) = Map
+LenseBasis(::Type{<:HealpixS2Cap}) = QUMap
 
-LenseBasis(::Type{<:MaskedHpxS0Map}) = Map
+adjoint(f::HealpixS0Cap) = f
 
-adjoint(f::MaskedHpxS0Map) = f
-
-@generated function sqrt_gⁱⁱ(f::MaskedHpxS0Map{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot}
+@generated function sqrt_gⁱⁱ(f::HealpixS0Cap{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot}
     quote
-        gθθ = MaskedHpxS0Map($(ones(T,Ntot)), f.gradient_cache)
-        gϕϕ = MaskedHpxS0Map($(1 ./ ringinfo(Nside).sinθ[hp.pix2ring(Nside,collect(0:Ntot-1))::Vector{Int}]), f.gradient_cache)
+        gθθ = HealpixS0Cap($(ones(T,Ntot)), f.gradient_cache)
+        gϕϕ = HealpixS0Cap($(1 ./ ringinfo(Nside).sinθ[hp.pix2ring(Nside,collect(0:Ntot-1))::Vector{Int}]), f.gradient_cache)
         @SMatrix[gθθ 0f; 0f gϕϕ]
     end
 end
 
-function full(f::MaskedHpxS0Map{Nside,T}) where {Nside,T}
-    Tx = fill(T(NaN),12*Nside^2)
-    Tx[1:length(f.Tx)] .= f.Tx
-    Tx
+function full(f::HealpixS0Cap{Nside,T}) where {Nside,T}
+    Ix = fill(T(NaN),12*Nside^2)
+    Ix[1:length(f.Ix)] .= f.Ix
+    Ix
 end
+
+# 
+# struct SparseHarmonicOp{T}
+#     L::SparseMatrixCSC{T,Int64}
+# end
+# 
+# function mul!(f′::F, L::SparseHarmonicOp, f::F) where {F<:HealpixS0Cap}
+#     alms = map2alm(f.Ix)
+#     alms′ = L.L * alms
+#     f′.Ix = alm2map(alms′)
+# end
+
+
 
 ## this will eventually go elsewhere
 
-function load_s4_map(filename, Nside=2048, ::Type{T}=Float64) where {T}
-    m = hp.read_map(filename, verbose=false)
+function load_s4_map(filename; Nside=2048, T=Float32, which::_PolType = PolType.T)
+    m = hp.read_map(filename, verbose=false, field=Dict(PolType.T=>0, PolType.QU=>[1,2], PolType.TQU=>[0,1,2])[which])
     m = hp.ud_grade(m, Nside)
-    m = hp.Rotator((0,-135,0),eulertype="ZYX")[:rotate_map](m)
-    m = convert(Vector{T}, m)
+    m = hcat(hp.Rotator((0,-135,0),eulertype="ZYX")[:rotate_map_pixel](m)...)
+    m = T.(m)
     m[@. abs(m)>1e20] .= NaN
-    MaskedHpxS0Map(m)
+    if which == PolType.T
+        HealpixS0Cap(m[1,:])
+    elseif which == PolType.QU
+        HealpixS2Cap(m[:,1], m[:,2])
+    end
 end

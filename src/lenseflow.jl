@@ -92,7 +92,7 @@ function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
     for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + t*L.Hϕ)
+        M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + Float32(t)*L.Hϕ) #TODO: remove need for Float32
         p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
     end
     CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹,∇*f)

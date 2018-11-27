@@ -9,3 +9,8 @@ gitignore
 dat
 scratch
 **Untitled*.ipynb
+nb/
+paper2/
+plots/
+0.6/
+paper/

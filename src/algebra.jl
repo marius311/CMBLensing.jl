@@ -179,6 +179,7 @@ function inv(m::FieldMatrix)
     invdet = @. 1/(a*d-b*c)
     @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
 end
+mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]
 
 # helps StaticArrays infer various results correctly:
 promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F

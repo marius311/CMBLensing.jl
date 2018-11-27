@@ -215,32 +215,32 @@ copy(f::Field) = deepcopy(f)
 # fieldnames of those types, then converts to the appropriate one
 
 
-# gets other fields types which share the same spin and pixelzation, differing
-# only in basis, meaning you should be able to convert F to these types
-convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = subtypes(Field{B′,S,P} where B′)
-
-# use convertable_fields to get possible properties
-@generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
-propertynames(::F) where {F<:Field} = propertynames(F)
-
-# implement getproperty using possible conversions
-getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
-@generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
-    l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
-    if s in fieldnames(F)
-        :(getfield(f,s))
-    elseif (length(l)==1)
-        :(getfield($(l[1])(f),s))
-    elseif (length(l)==0)
-        error("type $F has no property $s")
-    else
-        error("Ambiguous property. Multiple types that $F could be converted to have a field $s: $l")
-    end
-end
-function getindex(f::Field, s::Symbol)
-    Base.depwarn("Syntax: f[:$s] is deprecated. Use f.$s or getproperty(f,:$s) instead.", "getindex")
-    getproperty(f,Val(s))
-end
+# # gets other fields types which share the same spin and pixelzation, differing
+# # only in basis, meaning you should be able to convert F to these types
+# convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->!(x<:AdjField),subtypes(Field{B′,S,P} where B′))
+# 
+# # use convertable_fields to get possible properties
+# @generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
+# propertynames(::F) where {F<:Field} = propertynames(F)
+# 
+# # implement getproperty using possible conversions
+# getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
+# @generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
+#     l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
+#     if s in fieldnames(F)
+#         :(getfield(f,s))
+#     elseif (length(l)==1)
+#         :(getfield($(l[1])(f),s))
+#     elseif (length(l)==0)
+#         error("type $F has no property $s")
+#     else
+#         error("Ambiguous property. Multiple types that $F could be converted to have a field $s: $l")
+#     end
+# end
+# function getindex(f::Field, s::Symbol)
+#     Base.depwarn("Syntax: f[:$s] is deprecated. Use f.$s or getproperty(f,:$s) instead.", "getindex")
+#     getproperty(f,Val(s))
+# end
 
 
 function get_Cℓ(args...; kwargs...) end
@@ -253,3 +253,10 @@ function get_ρℓ(f1,f2; kwargs...)
     ℓ,Cℓx = get_Cℓ(f1,f2; kwargs...)
     ℓ, @. Cℓx/sqrt(Cℓ1*Cℓ2)
 end
+
+
+module PolType
+    export _PolType
+    @enum _PolType T QU TQU
+end
+using .PolType
