@@ -34,7 +34,7 @@ import Base: +, -, *, \, /, ^, ~, .*, ./, .^, broadcast,
     promote_rule, similar, size, sqrt, start, transpose, one, zero,
     sqrt, adjoint, promote, promote_rule, promote_type
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
-
+import PyPlot: plot
 
 
 export

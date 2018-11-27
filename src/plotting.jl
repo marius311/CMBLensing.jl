@@ -95,10 +95,9 @@ function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which
     tight_layout(w_pad=-10)
     fig,axs,which
 end
-default_which(::Type{<:FlatS0})  = [:Tx]
-default_which(::Type{<:FlatS2})  = [:Ex,:Bx]
-default_which(::Type{<:FlatS02}) = [:Tx,:Ex,:Bx]
-default_which(::Any) = throw(ArgumentError("Must specify `which` by hand for $S field."))
+default_which(::Type{<:Field{<:Any,S0,<:Flat}})  = [:Tx]
+default_which(::Type{<:Field{<:Any,S2,<:Flat}})  = [:Ex,:Bx]
+default_which(::Type{F}) where {F} = throw(ArgumentError("Must specify `which` by hand for $F field."))
 
 
 @doc doc"""
