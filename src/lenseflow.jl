@@ -81,29 +81,31 @@ end
 # with the same ϕ.
 
 
-struct CachedLenseFlow{N,t₀,t₁,F<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
-    L   :: LenseFlow{jrk4{N},t₀,t₁,F}
-    p   :: Dict{Float16,SVector{2,F}}
-    M⁻¹ :: Dict{Float16,SMatrix{2,2,F}}
-    ∇f  :: SVector{2,F}
+struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+    L   :: LenseFlow{jrk4{N},t₀,t₁,Φ}
+    p   :: Dict{Float16,SVector{2,Φ}}
+    M⁻¹ :: Dict{Float16,SMatrix{2,2,Φ}}
+    cacheŁ∇f  :: SVector{2,ŁF}
+    cacheÐ∇f  :: SVector{2,ÐF}
+    cacheÐf   :: ÐF
 end
 CachedLenseFlow{N}(ϕ) where {N} = cache(LenseFlow{jrk4{N}}(ϕ))
-function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
+function cache(L::LenseFlow{jrk4{N},t₀,t₁,Φ},f) where {N,t₀,t₁,Φ}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
     for (t,τ) in zip(ts,τ.(ts))
         M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + Float32(t)*L.Hϕ) #TODO: remove need for Float32
         p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
     end
-    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ)}(L,p,M⁻¹,∇*f)
+    CachedLenseFlow{N,t₀,t₁,Φ,typeof(Ł(f)),typeof(Ð(f))}(L,p,M⁻¹,Ł(∇*f),Ð(∇*f),Ð(f))
 end
 cache(L::CachedLenseFlow) = L
 τ(t) = Float16(t)
 
 # velocities for CachedLenseFlow which use the precomputed quantities:
 function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    mul!(L.∇f, ∇ᵢ, f)
-    @. v = L.p[τ(t)]' ⨳ L.∇f
+    mul!(L.cacheÐ∇f, ∇ᵢ, Ð!(L.cacheÐf,f))
+    @. v = L.p[τ(t)]' ⨳ $Ł!(L.cacheŁ∇f, L.cacheÐ∇f)
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
@@ -113,10 +115,10 @@ end
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
 
     Łδf        = Ł(δf)
-    M⁻¹        = L.M⁻¹[Float16(t)]
+    M⁻¹        = L.M⁻¹[τ(t)]
     ∇f         = Ł(∇*Ð(f))
     M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
-    M⁻¹_∇ϕ     = L.p[Float16(t)]
+    M⁻¹_∇ϕ     = L.p[τ(t)]
 
     v_f_δf_δϕ′.fs[1] .= @⨳ M⁻¹_∇ϕ' ⨳ ∇f
     v_f_δf_δϕ′.fs[2] .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))

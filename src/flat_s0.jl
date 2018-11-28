@@ -24,6 +24,10 @@ FlatS0Fourier(Tl::Matrix{Complex{T}},Θpix=Θpix₀,∂mode=fourier∂) where {T
 Fourier(f::FlatS0Map{T,P}) where {T,P} = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)
 Map(f::FlatS0Fourier{T,P}) where {T,P} = FlatS0Map{T,P}(ℱ{P}\f.Tl)
 
+# inplace conversions
+Fourier(f′::FlatS0Fourier{T,P}, f::FlatS0Map{T,P}) where {T,P} = (mul!(f′.Tl,  FFTgrid(T,P).FFT, f.Tx); f′)
+Map(f′::FlatS0Map{T,P}, f::FlatS0Fourier{T,P}) where {T,P}     = (ldiv!(f′.Tx, FFTgrid(T,P).FFT, f.Tl); f′)
+
 
 LenseBasis(::Type{<:FlatS0}) = Map
 

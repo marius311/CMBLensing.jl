@@ -42,7 +42,8 @@ end
 # lensing basis is Map for S0 but QUMap for S2.
 abstract type Basislike <: Basis end
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
-(::Type{B})(a::AbstractArray{<:Field}) where {B<:Basis} = B.(a)
+(::Type{B})(f′::Field, f::F) where {F<:Field,B<:Basislike} = B(F)(f′,f)
+(::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
 
 
 
@@ -57,10 +58,10 @@ abstract type Basislike <: Basis end
 # contract all indices, one would use the `⋅` function, f⋅f, which yields a
 # scalar, as expected.
 
-# Much like base, doing an adjoint like `f'` just creates a wrapper around the
-# field to keep track of things. Adjoint fields have very limited functionality
-# implemented as compared to normal fields, so its best to work with normal
-# fields and only take the adjoint at the end if you need it.
+# Much like the Julia Base library, doing an adjoint like `f'` just creates a
+# wrapper around the field to keep track of things. Adjoint fields have very
+# limited functionality implemented as compared to normal fields, so its best to
+# work with normal fields and only take the adjoint at the end if you need it.
 struct AdjField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
     f :: F
     # need this seeingly redundant constructor to avoid ambiguity with 

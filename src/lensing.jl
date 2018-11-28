@@ -8,6 +8,7 @@ abstract type LenseOp <: LinOp{Basis,Spin,Pix} end
 # Fields implement their own LenseBasis(::Type{F}) to specify.
 abstract type LenseBasis <: Basislike end
 const Ł = LenseBasis
+Ł!(args...) = Ł(args...)
 
 
 const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}

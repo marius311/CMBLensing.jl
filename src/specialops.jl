@@ -10,9 +10,8 @@ struct FullDiagOp{F<:Field,B,S,P} <: LinDiagOp{B,S,P}
     FullDiagOp(f::F, unsafe_invert=true) where {B,S,P,F<:Field{B,S,P}} = new{F,B,S,P}(f,unsafe_invert)
 end
 
-mul!( f′::F, L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? (@. f′ = nan2zero(L.f * f)) : (@. f′ = L.f * f)
-ldiv!(f′::F, L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? (@. f′ = nan2zero(L.f \ f)) : (@. f′ = L.f \ f)
-allocate_result(L::FullDiagOp, ::Field) = similar(L.f)
+*(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .* F(f)) : L.f .* F(f)
+\(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .\ F(f)) : L.f .\ F(f)
 
 
 # non-broadcasted algebra on FullDiagOps
@@ -42,6 +41,7 @@ ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} =
 # ::∂) to describe how this is actually applied. 
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
+Ð!(args...) = Ð(args...)
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
 function gradhess(f)
     g = ∇ⁱ*f
@@ -56,6 +56,7 @@ const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
 allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
 allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
+mul!(f′, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[1],∇Op[1],f)]
 
 
 ### FuncOp
