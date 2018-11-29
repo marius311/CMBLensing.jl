@@ -159,7 +159,7 @@ DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
 function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS0Map{T,<:Flat{θ,N,<:map∂}}}
     n,m = size(f.Tx)
-    Δx = FFTgrid(f).Δx * (∇ isa AdjOp ? -1 : 1)
+    Δx = FFTgrid(f).Δx #* (∇ isa AdjOp ? -1 : 1) why doesn't this need to be here???
     if coord==0
         @inbounds for j=2:m-1
             @simd for i=1:n
@@ -181,6 +181,13 @@ function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where
     end
     f′
 end
+
+# specialized mul! to avoid allocation when doing `∇' * vector` when stuff is in
+# the right the basis. expects memf′ is a preallocated memory that can be used
+# to store an intermediate result
+mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F) where {F<:Union{FlatS0Map{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatS0Fourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
+    (mul!(f′,∇[1],v[1]); mul!(memf′,∇[2],v[2]); (f′ .+= memf′))
+
 
 sqrt_gⁱⁱ(::FlatField) = I
 

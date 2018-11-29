@@ -27,9 +27,9 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
 *(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₀, t₁)
-*(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₁, t₀)
+*(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ð(f), t₁, t₀)
 \(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = I((v,t,f)->velocity!( v,L, f,t), Ł(f), t₁, t₀)
-\(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ł(f), t₀, t₁)
+\(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ð(f), t₀, t₁)
 # Define integrations for Jacobian
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}, (δf,δϕ)::FΦTuple) where {s,t,I} = 
     (gh = Ł.(gradhess(δϕ)); FieldTuple(I((v,t,y)->δvelocity!(v,J.L,y...,δϕ,t,gh...),Ł(FieldTuple(J.fₜ,δf)),t,s)[2], δϕ))
@@ -111,7 +111,7 @@ end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     mul!(L.memŁv, Ł!(L.memŁf,f), L.p[τ(t)])
-    mul!(v, ∇', Ð!(L.memÐv, L.memŁv))
+    mul!(v, ∇', Ð!(L.memÐv, L.memŁv), L.memÐv[1])
 end
 
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
