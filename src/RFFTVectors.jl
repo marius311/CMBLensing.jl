@@ -1,6 +1,7 @@
 module RFFTVectors
 
 export rfft2vec, vec2rfft, unfold
+using AbstractFFTs
 
 """
 Convert a matrix A which is the output of a real FFT to a real vector, keeping

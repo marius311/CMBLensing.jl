@@ -143,21 +143,23 @@ broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = (broadc
 # fourier space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
-@generated function broadcast_data(::Type{<:FlatFourier{T,P}}, ::∇i{coord}) where {coord,T,P}
-    @switch coord begin
-        0; ((@. im * FFTgrid(T,P).k'),)
-        1; ((@. im * FFTgrid(T,P).k[1:Nside(P)÷2+1]),)
+@generated function broadcast_data(::Type{<:FlatFourier{T,P}}, ∇i::Union{∇i{coord},AdjOp{<:∇i{coord}}}) where {coord,T,P}
+    α = ∇i isa AdjOp ? -im : im
+    if coord==0
+        (α * FFTgrid(T,P).k',)
+    elseif coord==1
+        (α * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
     end
 end
-mul!( f′::F, ∇i::∇i, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
-ldiv!(f′::F, ∇i::∇i, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
+mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
+ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
 
 # map space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
 DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
-function mul!(f′::F, ::∇i{coord}, f::F) where {coord,T,θ,N,F<:FlatS0Map{T,<:Flat{θ,N,<:map∂}}}
+function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS0Map{T,<:Flat{θ,N,<:map∂}}}
     n,m = size(f.Tx)
-    Δx = FFTgrid(f).Δx
+    Δx = FFTgrid(f).Δx * (∇ isa AdjOp ? -1 : 1)
     if coord==0
         @inbounds for j=2:m-1
             @simd for i=1:n

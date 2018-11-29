@@ -8,7 +8,7 @@ using Images: feature_transform, imfilter
 using Images.Kernel
 using InteractiveUtils
 using Interpolations
-using Lazy: @switch, @init
+using Lazy: @init
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
 using Markdown

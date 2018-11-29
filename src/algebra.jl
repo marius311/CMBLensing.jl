@@ -103,6 +103,17 @@ dot(a::Field,b::Field) = dot(promote(a,b)...)
 # field is already in the right basis.
 (::Type{B})(f::Field{B}) where {B} = f
 
+# The abstract `Basis` type means "any basis", hence this conversion rule:
+Basis(f::Field) = f
+
+# B(f′, f) converts f to basis B and stores the result inplace in f′. If f is
+# already in basis B, we just return f (but note, we never actually set f′ in
+# this case, which is more efficient, but necessitates some care when using this
+# construct)
+(::Type{B})(f′::Field{B}, f::Field{B}) where {B} = f
+
+
+
 # F(f) where F is some Field type defaults to just using the basis conversion
 # and asserting that we end up with the right type, F
 convert(::Type{F}, f::Field{B1}) where {B1,B2,F<:Field{B2}} = B2(f)::F
@@ -164,15 +175,11 @@ include("broadcast_expand.jl")
 # correctly... maybe at some point evaluate if its really worth it?
 
 
-const FieldVector = StaticVector{2,<:Union{Field,LinOp}}
-const FieldRowVector = Adjoint{<:Union{Field,LinOp},<:FieldVector}
-const FieldMatrix = StaticMatrix{2,2,<:Union{Field,LinOp}}
-const FieldArray = Union{FieldVector, FieldRowVector, FieldMatrix}
 # useful since v .* f is not type stable
 *(v::FieldVector, f::Field) = @SVector[v[1]*f, v[2]*f]
 *(f::Field, v::FieldVector) = @SVector[f*v[1], f*v[2]]
 # until StaticArrays better implements adjoints
-*(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[1]*M[2,1], v'[2]*M[1,2] + v'[2]*M[2,2]]'
+*(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
 # and until StaticArrays better implements invereses... 
 function inv(m::FieldMatrix)
     a,b,c,d = m

@@ -155,6 +155,15 @@ end
 const Scalar = Real
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
+
+### Vectors of fields
+
+const FieldVector{F<:Union{Field,LinOp}} = StaticVector{2,F}
+const FieldRowVector{F<:Union{Field,LinOp}} = Adjoint{F,<:FieldVector}
+const FieldMatrix{F<:Union{Field,LinOp}} = StaticMatrix{2,2,F}
+const FieldArray{F<:Union{Field,LinOp}} = Union{FieldVector{F}, FieldRowVector{F}, FieldMatrix{F}}
+
+
 ### Matrix conversion
 
 # We can build explicit matrix representations of linear operators by applying

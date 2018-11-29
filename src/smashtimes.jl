@@ -38,3 +38,11 @@ simplify_bc(bc::Broadcasted{FieldArrayStyle, Nothing, typeof(⨳)}) = materializ
 # recursively go through Broadcasted objects
 simplify_bc(bc::Broadcasted{FieldArrayStyle}) = Broadcasted(bc.f, map(simplify_bc, bc.args))
 simplify_bc(x) = x
+
+
+
+# in the future, much of the things below here will just be automated. for now,
+# some stuff is written out by hand.
+
+mul!(v′::FieldVector, f::Field, v::FieldVector) = ((v1′,v2′)=v′; @. v1′ = f*v[1]; @. v2′ = f*v[2]; v′)
+mul!(f′::F, r::FieldRowVector, v::FieldVector) where {F<:Field} = f′ .= F(r[1]*v[1] + r[2]*v[2])

@@ -45,7 +45,7 @@ const Ð = DerivBasis
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
 function gradhess(f)
     g = ∇ⁱ*f
-    g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[1])])
+    g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
 end
 const ∇⁰, ∇¹, ∇₀, ∇₁ = ∇i{0,false}(), ∇i{1,false}(), ∇i{0,true}(), ∇i{1,true}()
 struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
@@ -56,7 +56,7 @@ const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
 allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
 allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
-mul!(f′, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[1],∇Op[1],f)]
+mul!(f′, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[2],∇Op[2],f)]
 
 
 ### FuncOp
