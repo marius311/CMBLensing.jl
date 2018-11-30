@@ -28,8 +28,10 @@ promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # need
 BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 
 # promotion / conversion
-promote_rule(::Type{<:FieldTuple{FS1}},::Type{<:FieldTuple{FS2}}) where {FS1,FS2} = 
-    FieldTuple{Tuple{map_tupleargs(promote_type,FS1,FS2)...}}
+function promote(a::FieldTuple, b::FieldTuple)
+    ab′ = map(promote, a.fs, b.fs)
+    FieldTuple(map(first,ab′)...), FieldTuple(map(last,ab′)...)
+end
 convert(::Type{<:FieldTuple{FS}}, ft::FieldTuple) where {FS} = 
     FieldTuple(map_tupleargs((F,f)->F(f),FS,ft.fs)...)
 
