@@ -25,6 +25,9 @@ macro !(ex)
     if @capture(ex, x_ = f_(args__; kwargs_...))
         esc(:($f($x,$(args...); $kwargs...)))
     elseif @capture(ex, x_ = f_(args__))
+        if f == :*
+            f = :mul!
+        end
         esc(:($f($x,$(args...))))
     else
         error("Usage: @! x = f!(...)")

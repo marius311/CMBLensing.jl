@@ -184,8 +184,9 @@ end
 
 # specialized mul! to avoid allocation when doing `∇' * vector` when stuff is in
 # the right the basis. expects memf′ is a preallocated memory that can be used
-# to store an intermediate result
-mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F) where {F<:Union{FlatS0Map{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatS0Fourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
+# to store an intermediate result. the default value uses v[1], hence destroys
+# the original v. if this is not desired, provide a different field.
+mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:Union{FlatS0Map{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatS0Fourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
     (mul!(f′,∇[1],v[1]); mul!(memf′,∇[2],v[2]); (f′ .+= memf′))
 
 

@@ -122,30 +122,44 @@ function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    Łf, Łf_p, Ð_Łf_p, tmpÐf = L.memŁf, L.memŁv, L.memÐv, L.memÐv[1]
+    Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁv, L.memÐv
     p = L.p[τ(t)]
     
     @! Łf = Ł(f)
     @! Łf_p = Łf * p
     @! Ð_Łf_p = Ð(Łf_p)
-    @! v = mul!(∇', Ð_Łf_p, tmpÐf)
+    @! v = ∇' * Ð_Łf_p
 end
 
-function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+    
+    p   = L.p[τ(t)]
+    M⁻¹ = L.M⁻¹[τ(t)]
+    
+    # df/dt
+    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐv,  L.memŁv
+    @! Ðf     = Ð(f)
+    @! Ð∇f    = ∇*Ðf
+    @! Ł∇f    = Ł(Ð∇f)
+    @⨳ df_dt  = p' ⨳ Ł∇f
+    
+    # dδf/dt
+    Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁv′, L.memÐv
+    @! Łδf     = Ł(δf)
+    @! Łδf_p   = Łδf * p
+    @! Ð_Łδf_p = Ð(Łδf_p)
+    @! dδf_dt  = ∇' * Ð_Łδf_p
 
-    Łδf        = Ł(δf)
-    M⁻¹        = L.M⁻¹[τ(t)]
-    ∇f         = Ł(∇*Ð(f))
-    M⁻¹_δfᵀ_∇f = Ł(M⁻¹ ⨳ (Łδf'*∇f))
-    M⁻¹_∇ϕ     = L.p[τ(t)]
-
-    v_f_δf_δϕ′.fs[1] .= @⨳ M⁻¹_∇ϕ' ⨳ ∇f
-    v_f_δf_δϕ′.fs[2] .= Ł(@⨳ ∇' ⨳ $Ð(Łδf*M⁻¹_∇ϕ))
-    # split into two terms due to inference limit:
-    tmp = @⨳ ∇' ⨳ $Ð(M⁻¹_δfᵀ_∇f)
-    tmp .+= @⨳ t*(∇' ⨳ ((∇' ⨳ $Ð(M⁻¹_∇ϕ ⨳ M⁻¹_δfᵀ_∇f'))'))
-    v_f_δf_δϕ′.fs[3] .= Ł(tmp)
-
+    # dδϕ/dt
+    δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁv, L.memŁv, L.memÐv
+    @! δfᵀ_∇f       = Łδf * Ł∇f      # change to Łδf' once thats implemented
+    @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
+    @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
+    @! dδϕ_dt       = ∇' * Ð_M⁻¹_δfᵀ_∇f
+    for i=1:2, j=1:2
+        dδϕ_dt .+= (@! L.memÐf = ∇[i] * (@! L.memÐf = ∇[j] * (@! L.memÐf = Ð(@. L.memŁf = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
+    end
+    
 end
 # no specialized version for these (yet):
 δvelocity!(v_f_δf, L::CachedLenseFlow, args...) = δvelocity!(v_f_δf, L.L, args...)
