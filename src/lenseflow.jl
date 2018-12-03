@@ -34,7 +34,7 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}, (δf,δϕ)::FΦTuple) where {s,t,I} = 
     (gh = Ł.(gradhess(δϕ)); FieldTuple(I((v,t,y)->δvelocity!(v,J.L,y...,δϕ,t,gh...),Ł(FieldTuple(J.fₜ,δf)),t,s)[2], δϕ))
 *(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
-    FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,J'.L,y...,t),Ł(FieldTuple(J'.fₛ,δf,δϕ)),s,t)[2:3]...)
+    FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,J'.L,y...,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...)
 
 
 # lensing velocities
@@ -86,6 +86,7 @@ struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlow
     p   :: Dict{Float16,SVector{2,Φ}}
     M⁻¹ :: Dict{Float16,SMatrix{2,2,Φ}}
     memŁv  :: SVector{2,ŁF}
+    memŁv′ :: SVector{2,ŁF}
     memÐv  :: SVector{2,ÐF}
     memŁf  :: ŁF
     memÐf  :: ÐF
@@ -98,20 +99,36 @@ function cache(L::LenseFlow{jrk4{N},t₀,t₁,Φ},f) where {N,t₀,t₁,Φ}
         M⁻¹[τ] = inv(I + t*L.Hϕ) #TODO: remove need for Float32
         p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
     end
-    CachedLenseFlow{N,t₀,t₁,Φ,typeof(Ł(f)),typeof(Ð(f))}(L,p,M⁻¹,Ł(∇*f),Ð(∇*f),copy(Ł(f)),copy(Ð(f)))
+    CachedLenseFlow{N,t₀,t₁,Φ,typeof(Ł(f)),typeof(Ð(f))}(L,p,M⁻¹,Ł(∇*f),Ł(∇*f),Ð(∇*f),copy(Ł(f)),copy(Ð(f)))
 end
 cache(L::CachedLenseFlow) = L
 τ(t) = Float16(t)
 
 # velocities for CachedLenseFlow which use the precomputed quantities and preallocated memory
+
+# the way these velocities work is that they unpack the preallocated fields
+# stored in L.mem* into variables with more meaningful names, which are then
+# used in a bunch of in-place (eg mul!, Ł!, etc...) functions. note the use of
+# the @! macro, which just switches @! x = f(y) to f!(x,y) for easier reading. 
+
 function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    mul!(L.memÐv, ∇ᵢ, Ð!(L.memÐf,f))
-    v .= L.p[τ(t)]' .⨳ Ł!(L.memŁv, L.memÐv)
+    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐv,  L.memŁv
+    p = L.p[τ(t)]
+    
+    @! Ðf  = Ð(f)
+    @! Ð∇f = ∇*Ðf
+    @! Ł∇f = Ł(Ð∇f)
+    @⨳ v  = p' ⨳ Ł∇f
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    mul!(L.memŁv, Ł!(L.memŁf,f), L.p[τ(t)])
-    mul!(v, ∇', Ð!(L.memÐv, L.memŁv), L.memÐv[1])
+    Łf, Łf_p, Ð_Łf_p, tmpÐf = L.memŁf, L.memŁv, L.memÐv, L.memÐv[1]
+    p = L.p[τ(t)]
+    
+    @! Łf = Ł(f)
+    @! Łf_p = Łf * p
+    @! Ð_Łf_p = Ð(Łf_p)
+    @! v = mul!(∇', Ð_Łf_p, tmpÐf)
 end
 
 function negδvelocityᴴ!(v_f_δf_δϕ′::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)

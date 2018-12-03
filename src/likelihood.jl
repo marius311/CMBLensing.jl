@@ -121,7 +121,7 @@ end
 # log posterior gradient in the mixed parametrization
 function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
 
-    @unpack D = ds
+    D = ds.D
     L⁻¹f̆ = L \ f̆
     f = D \ L⁻¹f̆
 
