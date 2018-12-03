@@ -50,9 +50,7 @@ length(ft::FieldTuple) = sum(map(length, ft.fs))
 ud_grade(ft::FieldTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)
 
 # iterating
-start(ft::FieldTuple) = start(ft.fs)
-next(ft::FieldTuple, state) = next(ft.fs, state)
-done(ft::FieldTuple, state) = done(ft.fs, state)
+iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 
 # indexing
 getindex(ft::FieldTuple, i::Union{Int,UnitRange}) = getindex(ft.fs, i)
