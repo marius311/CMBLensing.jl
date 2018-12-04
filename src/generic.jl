@@ -225,9 +225,11 @@ copy(f::Field) = deepcopy(f)
 # fieldnames of those types, then converts to the appropriate one
 
 
-# gets other fields types which share the same spin and pixelzation, differing
-# only in basis, meaning you should be able to convert F to these types
-convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->!(x<:AdjField),subtypes(Field{B′,S,P} where B′))
+# gets other concrete fields types which share the same spin and pixelzation,
+# differing only in basis, meaning you should be able to convert F to these
+# types
+concrete_subtypes(::Type{F}) where {F} = isabstracttype(F) ? vcat(map(concrete_subtypes,subtypes(F))...) : F
+convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->!(x<:AdjField),concrete_subtypes(Field{B′,S,P} where B′))
 
 # use convertable_fields to get possible properties
 @generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
