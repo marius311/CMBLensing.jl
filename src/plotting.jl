@@ -56,7 +56,7 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
         vmin = -vmax
     end
        
-    m[isinf.(m)]=NaN
+    m[isinf.(m)] .= NaN
     
     cax = ax[:matshow](m; vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
     cbar && gcf()[:colorbar](cax,ax=ax)

@@ -76,15 +76,16 @@ abstract type HealpixCap{B,S,P<:HpxPix} <: Field{B,S,P} end
 struct HealpixS0Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: HealpixCap{Map, S0, HpxPix{Nside}}
     Ix::Vector{T}
     gradient_cache::GC
+    function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
+        Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
+        HealpixS0Cap{Nside,T,Nobs,typeof(gc)}(Ix, gc)
+    end
+    HealpixS0Cap{Nside,T,Nobs,GC}(Ix, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(Ix,gc)
 end
 function HealpixS0Cap(Ix::Vector{T}) where {T}
     Nside = hp.npix2nside(length(Ix))
     Nobs = maximum(findall(!isnan,Ix))
     HealpixS0Cap(Ix, GradientCache{Nside,T}(Nobs))
-end
-function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
-    Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
-    HealpixS0Cap{Nside,T,Nobs,typeof(gc)}(Ix, gc)
 end
 
 
@@ -156,8 +157,6 @@ dot(a::HealpixS0Cap, b::HealpixS0Cap) = dot(nan2zero.(a.Ix),nan2zero.(b.Ix))
 function plot(f::HealpixS0Cap, args...; plot_type=:mollzoom, cmap="RdBu_r", vlim=nothing, kwargs...)
     kwargs = Dict(kwargs...)
     cmap = get_cmap(cmap)
-    cmap[:set_bad]("lightgray")
-    cmap[:set_under]("w")
     if vlim!=nothing
         kwargs["min"], kwargs["max"] = -vlim, vlim
     end
