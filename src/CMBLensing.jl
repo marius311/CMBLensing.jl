@@ -28,10 +28,10 @@ using .RFFTVectors
 @init @eval @pyimport healpy as hp
 @init @eval @pyimport pylab
 
-import Base: +, -, *, \, /, ^, ~, .*, ./, .^, broadcast,
-    convert, copy, done, eltype, full, getindex, getproperty, propertynames, inv, length, literal_pow, next, 
-    promote_rule, similar, size, sqrt, start, transpose, one, zero,
-    sqrt, adjoint, promote, promote_rule, promote_type, iterate
+import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,
+    getindex, getproperty, inv, iterate, length, literal_pow, one, promote,
+    promote_rule, promote_rule, promote_type, propertynames, similar, size, sqrt,
+    sqrt, transpose, zero
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 import PyPlot: plot
 

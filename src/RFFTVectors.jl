@@ -41,7 +41,7 @@ function unfold(Tl::AbstractMatrix{Complex{T}}) where {T}
     m,n = size(Tl)
     @assert m==n÷2+1
     m2 = iseven(n) ? 2m : 2m+1
-    Tlu = Array{Complex{T}}(n,n)
+    Tlu = Array{Complex{T}}(undef,n,n)
     Tlu[1:m,1:n] = Tl
     @inbounds for i=m+1:n
         Tlu[i,1] = Tl[m2-i, 1]'
