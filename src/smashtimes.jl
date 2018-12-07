@@ -4,12 +4,13 @@ struct FieldArrayStyle <: BroadcastStyle end
 BroadcastStyle(::Type{<:FieldArray}) = FieldArrayStyle()
 BroadcastStyle(::FieldArrayStyle, ::DefaultArrayStyle{0}) = FieldArrayStyle()
 BroadcastStyle(::FieldArrayStyle, ::Style{<:Field}) = FieldArrayStyle()
+BroadcastStyle(::FieldArrayStyle, ::Style{<:LinOp}) = FieldArrayStyle()
 ⨳(a,b) = a*b
 
 function materialize(bc::Broadcasted{FieldArrayStyle})
     sbc = simplify_bc(bc)
     if typeof(sbc) == typeof(bc)
-        materialize(convert(Broadcasted{StaticArrayStyle{2}}, sbc))
+        materialize(convert(Broadcasted{StaticArrayStyle{2}}, replace_bc_args(sbc, f->((f isa Field || f isa LinOp) ? Ref(f) : f))))
     else
         materialize(sbc)
     end

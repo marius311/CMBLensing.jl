@@ -27,12 +27,12 @@ function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
     ∫d²l = L̅' * Fourier(Map(inv(Cf̃+Cn)*d) * Map(L̅*(Cf*inv(Cf̃+Cn)*d)))
     
     # normalization
-    term1 = Map((Cf^2)*inv(Cf̃+Cn).*(L̅*L̅')) .* Map(  sinv(Cf̃+Cn).f )
-    term2 = Map( Cf   *inv(Cf̃+Cn).* L̅    ) .* Map(Cf*inv(Cf̃+Cn).*L̅)'
+    term1 = Map((Cf.^2)*inv(Cf̃+Cn).*(L̅*L̅')) .* Map(  sinv(Cf̃+Cn).f )
+    term2 = Map( Cf    *inv(Cf̃+Cn).* L̅    ) .* Map(Cf*inv(Cf̃+Cn).*L̅)'
     AL = 2π * L² * sinv(L̅' * Fourier(term1 + term2) * L̅)
     
     ϕL = -AL*(L²\∫d²l)
-    Nϕ = FullDiagOp(abs.(AL*inv(L²)))
+    Nϕ = FullDiagOp(abs.(inv(L²)*AL))
     
     if Cϕ != nothing
         Cϕ * inv(Cϕ + Nϕ) * ϕL
