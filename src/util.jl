@@ -19,7 +19,7 @@ end
 
 
 """
-@! x = f!(args...) is equivalent to f!(x,args...)
+@! x = f!(args...) is equivalent to x = f!(x,args...)
 """
 macro !(ex)
     if @capture(ex, x_ = f_(args__; kwargs_...))
@@ -28,7 +28,7 @@ macro !(ex)
         if f == :*
             f = :mul!
         end
-        esc(:($f($x,$(args...))))
+        esc(:($x = $f($x,$(args...))))
     else
         error("Usage: @! x = f!(...)")
     end

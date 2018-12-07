@@ -156,9 +156,12 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
     @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
     @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
     @! dδϕ_dt       = ∇' * Ð_M⁻¹_δfᵀ_∇f
+    memÐf = L.memÐf
     for i=1:2, j=1:2
-        dδϕ_dt .+= (@! L.memÐf = ∇[i] * (@! L.memÐf = ∇[j] * (@! L.memÐf = Ð(@. L.memŁf = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
+        dδϕ_dt .+= (@! memÐf = ∇[i] * (@! memÐf = ∇[j] * (@! memÐf = Ð(@. L.memŁf = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
     end
+    
+    FieldTuple(df_dt, dδf_dt, dδϕ_dt)
     
 end
 # no specialized version for these (yet):

@@ -43,6 +43,7 @@ abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 Ð!(args...) = Ð(args...)
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
+# gives the gradient ∇ⁱf, and the hessian, ∇ᵢ∇ⁱf
 function gradhess(f)
     g = ∇ⁱ*f
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
@@ -56,7 +57,7 @@ const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
 allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
 allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
-mul!(f′, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[2],∇Op[2],f)]
+mul!(f′::FieldVector, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[2],∇Op[2],f)]
 
 
 ### FuncOp

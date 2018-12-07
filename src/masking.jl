@@ -48,7 +48,10 @@ end
 function boundarymask(nside,Θpix,paddeg=3)
     pad = round(Int,paddeg*60/Θpix)
     m = fill(true,nside,nside)
-    m[1:pad,:] = m[end-pad+1:end,:] = m[:,1:pad] = m[:,end-pad+1:end] = false
+    m[1:pad,:]          .= false
+    m[:,1:pad]          .= false
+    m[end-pad+1:end,:]  .= false
+    m[:,end-pad+1:end]  .= false
     m
 end
 

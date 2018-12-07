@@ -61,7 +61,7 @@ Info from the iterations of the solver can be returned if `hist` is specified.
 `histmod` can be used to include every N-th iteration only in `hist`. 
 """
 function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
-    gethist() = hist == nothing ? nothing : getindex.(@dictpack(i,x,r,res,t),hist)
+    gethist() = hist == nothing ? nothing : getindex.(Ref(@dictpack(i,x,r,res,t)),hist)
     t₀ = time()
     i = 1
     r = b - A*x

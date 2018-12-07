@@ -17,7 +17,7 @@ Cn,Cf,Cf̃ = @repeated(FullDiagOp(FlatS0Map{T,P}(@repeated(rand(nside,nside),1).
 Cϕ = FullDiagOp(FlatS0Map{T,P}(rand(nside,nside))/1e7)
 ds = DataSet(;@dictpack(d,Cn,Cf,Cf̃,Cϕ)...)
 ##
-myshow(s) = (print_with_color(:light_green,"=== "*s*" ===\n"); t->(show(stdout,MIME("text/plain"),t); println()))
+myshow(s) = (printstyled("=== "*s*" ===\n",color=:light_green); t->(show(stdout,MIME("text/plain"),t); println()))
 ##
 @benchmark(cache(LenseFlow{jrk4{7}}($ϕ),$f)) |> myshow("Caching")
 @benchmark($L    * $f)                       |> myshow("Lense")

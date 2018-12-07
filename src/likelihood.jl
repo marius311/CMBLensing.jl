@@ -99,7 +99,7 @@ arguments of this function.
 
 The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
-δlnP_δfϕₜ(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,L(ϕ))
+δlnP_δfϕₜ(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ))
 δlnP_δfϕₜ(t,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,L)
 
 # derivatives of the three posterior probability terms at the times at which
@@ -241,7 +241,7 @@ function max_lnP_joint(
     cgtol = 1e-1,
     αtol = 1e-5,
     αmax = 0.5,
-    cache_function = cache,
+    cache_function = (L->cache(L,ds.d)),
     progress = false)
     
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
