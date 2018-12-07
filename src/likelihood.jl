@@ -242,6 +242,7 @@ function max_lnP_joint(
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = (L->cache(L,ds.d)),
+    callback = nothing,
     progress = false)
     
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
@@ -288,6 +289,10 @@ function max_lnP_joint(
             lnPcur = -res.minimum
             if progress; @show i,lnPcur,length(hist),α; end
             push!(tr,@dictpack(i,lnPcur,hist,α,ϕnew,ϕcur,fcur))
+        end
+        
+        if callback != nothing
+            callback(f̊cur, fcur, ϕcur, tr)
         end
 
     end
