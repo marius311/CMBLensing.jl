@@ -72,7 +72,7 @@ The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,L(ϕ))
+lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ))
 lnP(t,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
 
 # log posterior in the unlensed or lensed parametrization
