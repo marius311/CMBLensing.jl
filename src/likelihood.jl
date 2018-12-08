@@ -375,7 +375,7 @@ function load_sim_dataset(;
     if (seed != nothing); seed!(seed); end
     ϕ = simulate(Cϕ)
     f = simulate(Cf)
-    f̃ = L(ϕ)*f
+    f̃ = cache(L(ϕ),f)*f
     n = simulate(Cn)
     d = M*P*B*f̃ + n
     

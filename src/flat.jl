@@ -80,7 +80,8 @@ corresponds to exactly the nyquist frequency """
 function Mnyq(::Type{T},::Type{P}, M) where {T,θ,N,P<:Flat{θ,N}}
     if iseven(N)
         inyq = first((1:N)[@. FFTgrid(T,P).k ≈ -FFTgrid(T,P).nyq])
-        M[inyq,:] .= M[:,inyq] .= 0
+        M[inyq,:] .= 0
+        M[:,inyq] .= 0
     end
     M
 end
@@ -132,10 +133,8 @@ FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
 
 eltype(::Type{<:FlatField{T}}) where {T} = T
 
-# we can broadcast a S0 field with an S2 one by just replicating the S0 part twice
-broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = (broadcast_data(F0,f),)
+broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = broadcast_data(F0,f)
 *(f0::FlatS0Map, f2::FlatS2Map) = f0 .* f2
-*(f2::FlatS2Map, f0::FlatS2Map) = f0 .* f2
 
 
 ## derivatives
@@ -151,8 +150,8 @@ DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
         (α * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
     end
 end
-mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
-ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatS0Fourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
+mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
+ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
 
 # map space derivatives
 DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
@@ -186,7 +185,7 @@ end
 # the right the basis. expects memf′ is a preallocated memory that can be used
 # to store an intermediate result. the default value uses v[1], hence destroys
 # the original v. if this is not desired, provide a different field.
-mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:Union{FlatS0Map{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatS0Fourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
+mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:Union{FlatMap{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatFourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
     (mul!(f′,∇[1],v[1]); mul!(memf′,∇[2],v[2]); (f′ .+= memf′))
 
 
@@ -195,5 +194,6 @@ sqrt_gⁱⁱ(::FlatField) = I
 
 # bandpass
 HarmonicBasis(::Type{<:FlatS0}) = Fourier
+HarmonicBasis(::Type{<:FlatS2}) = QUFourier
 broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],)

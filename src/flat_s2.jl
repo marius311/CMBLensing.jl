@@ -40,7 +40,7 @@ const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
 # convenience constructors
 for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
-    @eval ($F)(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀) where {T} = ($F){T,Flat{Θpix,size(a,2)}}(a,b)
+    @eval ($F)(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀,∂mode=fourier∂) where {T} = ($F){T,Flat{Θpix,size(a,2),∂mode}}(a,b)
 end
 FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q[:Tx],U[:Tx])
 
@@ -72,6 +72,20 @@ end
 EBMap(f::FlatS2EBFourier{T,P}) where {T,P} = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P}\f.Bl)
 EBMap(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatS2QUFourier{T,P}) where {T,P} = f |> EBFourier |> EBMap
+
+function QUFourier(f′::FlatS2QUFourier{T,P}, f::FlatS2QUMap{T,P}) where {T,P}
+    mul!(f′.Ql, FFTgrid(T,P).FFT, f.Qx)
+    mul!(f′.Ul, FFTgrid(T,P).FFT, f.Ux)
+    f′
+end
+
+function QUMap(f′::FlatS2QUMap{T,P}, f::FlatS2QUFourier{T,P}) where {T,P}
+    ldiv!(f′.Qx, FFTgrid(T,P).FFT, f.Ql)
+    ldiv!(f′.Ux, FFTgrid(T,P).FFT, f.Ul)
+    f′
+end
+
+
 
 function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
