@@ -32,9 +32,9 @@ jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
 \(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = I((v,t,f)->velocityᴴ!(v,L',f,t), Ð(f), t₀, t₁)
 # Define integrations for Jacobian
 *(J::δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}, (δf,δϕ)::FΦTuple) where {s,t,I} = 
-    (gh = Ł.(gradhess(δϕ)); FieldTuple(I((v,t,y)->δvelocity!(v,J.L,y...,δϕ,t,gh...),Ł(FieldTuple(J.fₜ,δf)),t,s)[2], δϕ))
+    (gh = Ł.(gradhess(δϕ)); FieldTuple(I((v,t,y)->δvelocity!(v,J.L,y,δϕ,t,gh...),Ł(FieldTuple(J.fₜ,δf)),t,s)[2], δϕ))
 *(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
-    FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,J'.L,y...,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...)
+    FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,J'.L,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...)
 
 
 # lensing velocities
@@ -81,25 +81,40 @@ end
 # with the same ϕ.
 
 
-struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
-    L   :: LenseFlow{jrk4{N},t₀,t₁,Φ}
-    p   :: Dict{Float16,SVector{2,Φ}}
-    M⁻¹ :: Dict{Float16,SMatrix{2,2,Φ}}
-    memŁv  :: SVector{2,ŁF}
-    memŁv′ :: SVector{2,ŁF}
-    memÐv  :: SVector{2,ÐF}
+struct CachedLenseFlow{N,t₀,t₁,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+    L   :: LenseFlow{jrk4{N},t₀,t₁,ŁΦ}
+    
+    # p and M⁻¹ quantities precomputed at every time step
+    p   :: Dict{Float16,SVector{2,ŁΦ}}
+    M⁻¹ :: Dict{Float16,SMatrix{2,2,ŁΦ}}
+    
+    # f type memory 
     memŁf  :: ŁF
     memÐf  :: ÐF
+    memŁvf :: SVector{2,ŁF}
+    memÐvf :: SVector{2,ÐF}
+    
+    # ϕ type memory
+    memŁϕ  :: ŁΦ
+    memÐϕ  :: ÐΦ
+    memŁvϕ :: SVector{2,ŁΦ}
+    memÐvϕ :: SVector{2,ÐΦ}
 end
 CachedLenseFlow{N}(ϕ) where {N} = cache(LenseFlow{jrk4{N}}(ϕ))
-function cache(L::LenseFlow{jrk4{N},t₀,t₁,Φ},f) where {N,t₀,t₁,Φ}
+function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
     for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = inv(I + t*L.Hϕ) #TODO: remove need for Float32
-        p[τ]  = M⁻¹[τ] ⨳ L.∇ϕ
+        M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + t*L.Hϕ)
+        p[τ]  = (L.∇ϕ' ⨳ M⁻¹[τ])'
     end
-    CachedLenseFlow{N,t₀,t₁,Φ,typeof(Ł(f)),typeof(Ð(f))}(L,p,M⁻¹,Ł(∇*f),Ł(∇*f),Ð(∇*f),copy(Ł(f)),copy(Ð(f)))
+    Łf,Ðf = Ł(f),Ð(f)
+    Łϕ,Ðϕ = Ł(L.∇ϕ[1]),Ð(L.∇ϕ[1])
+    CachedLenseFlow{N,t₀,t₁,typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf)}(
+        L, p, M⁻¹, 
+        similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
+        similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
+    )
 end
 cache(L::CachedLenseFlow) = L
 τ(t) = Float16(t)
@@ -112,17 +127,17 @@ cache(L::CachedLenseFlow) = L
 # the @! macro, which just switches @! x = f(y) to f!(x,y) for easier reading. 
 
 function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐv,  L.memŁv
+    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
     p = L.p[τ(t)]
     
     @! Ðf  = Ð(f)
-    @! Ð∇f = ∇*Ðf
+    @! Ð∇f = ∇ᵢ*Ðf
     @! Ł∇f = Ł(Ð∇f)
     @⨳ v  = p' ⨳ Ł∇f
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁv, L.memÐv
+    Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁvf, L.memÐvf
     p = L.p[τ(t)]
     
     @! Łf = Ł(f)
@@ -131,34 +146,34 @@ function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     @! v = ∇' * Ð_Łf_p
 end
 
-function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLenseFlow, f::Field, δf::Field, δϕ::Field, t::Real)
+function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLenseFlow, (f, δf, δϕ)::FieldTuple, t::Real)
     
     p   = L.p[τ(t)]
     M⁻¹ = L.M⁻¹[τ(t)]
     
-    # df/dt
-    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐv,  L.memŁv
-    @! Ðf     = Ð(f)
-    @! Ð∇f    = ∇*Ðf
-    @! Ł∇f    = Ł(Ð∇f)
-    @⨳ df_dt  = p' ⨳ Ł∇f
-    
     # dδf/dt
-    Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁv′, L.memÐv
+    Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
     @! Łδf     = Ł(δf)
     @! Łδf_p   = Łδf * p
     @! Ð_Łδf_p = Ð(Łδf_p)
     @! dδf_dt  = ∇' * Ð_Łδf_p
+    
+    # df/dt
+    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
+    @! Ðf     = Ð(f)
+    @! Ð∇f    = ∇*Ðf
+    @! Ł∇f    = Ł(Ð∇f)
+    @⨳ df_dt  = p' ⨳ Ł∇f
 
     # dδϕ/dt
-    δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁv, L.memŁv, L.memÐv
-    @! δfᵀ_∇f       = Łδf * Ł∇f      # change to Łδf' once thats implemented
+    δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
+    @! δfᵀ_∇f       = Łδf' * Ł∇f      # change to Łδf' once thats implemented
     @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
     @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
     @! dδϕ_dt       = ∇' * Ð_M⁻¹_δfᵀ_∇f
-    memÐf = L.memÐf
+    memÐϕ = L.memÐϕ
     for i=1:2, j=1:2
-        dδϕ_dt .+= (@! memÐf = ∇[i] * (@! memÐf = ∇[j] * (@! memÐf = Ð(@. L.memŁf = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
+        dδϕ_dt .+= (@! memÐϕ = ∇[i] * (@! memÐϕ = ∇[j] * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
     end
     
     FieldTuple(df_dt, dδf_dt, dδϕ_dt)

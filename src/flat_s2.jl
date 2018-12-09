@@ -128,9 +128,11 @@ Ac_mul_B(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) where {T,P} = FlatS0Map{T,P}(@
 
 ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
 
-getindex(f::FlatS2{T,P},::Type{Val{:E}}) where {T,P} = FlatS0Map{T,P}(f[:Ex])
-getindex(f::FlatS2{T,P},::Type{Val{:B}}) where {T,P} = FlatS0Map{T,P}(f[:Bx])
-getindex(f::FlatS2{T,P},::Type{Val{:Q}}) where {T,P} = FlatS0Map{T,P}(f[:Qx])
-getindex(f::FlatS2{T,P},::Type{Val{:U}}) where {T,P} = FlatS0Map{T,P}(f[:Ux])
-getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Type{Val{:E}}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.El))
-getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Type{Val{:B}}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.Bl))
+getproperty(f::FlatS2{T,P},::Val{:E}) where {T,P} = FlatS0Map{T,P}(f.Ex)
+getproperty(f::FlatS2{T,P},::Val{:B}) where {T,P} = FlatS0Map{T,P}(f.Bx)
+getproperty(f::FlatS2{T,P},::Val{:Q}) where {T,P} = FlatS0Map{T,P}(f.Qx)
+getproperty(f::FlatS2{T,P},::Val{:U}) where {T,P} = FlatS0Map{T,P}(f.Ux)
+
+getindex(op::FullDiagOp, s::Symbol) = getindex(op, Val(s))
+getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Val{:E}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.El))
+getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Val{:B}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.Bl))

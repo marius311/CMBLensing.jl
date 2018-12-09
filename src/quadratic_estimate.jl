@@ -59,12 +59,12 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     ∫d²l = sum(L̅[i] * Fourier(sum(ϵ(k,m,3) * E(i,j,k) * B(j,m) for j=1:2,k=1:2,m=1:2)) for i=1:2)
     
     # normalization
-    @sym E2(i,j,k,m) = Map(L²\L̅[i]*L̅[j]*L̅[k]*L̅[m]*(CE.^2*inv(CẼ+CEn)))
-    @sym B2(i,j)     = Map(L²\L̅[i]*L̅[j]                *(inv(CB̃+CBn)))
+    @sym E2(i,j,k,m) = Map((CE.^2*inv(CẼ+CEn))*(L²\L̅[i]*L̅[j]*L̅[k]*L̅[m]))
+    @sym B2(i,j)     = Map(inv(CB̃+CBn)        *L²\L̅[i]*L̅[j])
     AL = π * L² * sinv(sum(L̅[i]*L̅[j] * Fourier(sum(ϵ(k,n,3) * ϵ(m,p,3) * E2(i,j,k,m) * B2(n,p) for k=1:2,m=1:2,n=1:2,p=1:2)) for i=1:2,j=1:2))
     
     ϕL = AL*(L²\∫d²l)
-    Nϕ = FullDiagOp(abs.(AL*inv(L²)))
+    Nϕ = FullDiagOp(abs.(inv(L²)*AL))
     
     if Cϕ != nothing
         (Cϕ * inv(Cϕ + Nϕ) * ϕL), ((1+Nϕ\Cϕ).^2)\(Nϕ\Cϕ)

@@ -188,6 +188,13 @@ end
 mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:Union{FlatMap{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatFourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
     (mul!(f′,∇[1],v[1]); mul!(memf′,∇[2],v[2]); (f′ .+= memf′))
 
+# some other mul! which will eventually be generalized into broadcasted stuff
+mul!(v::FlatS0Map{T,P}, a::AdjField{QUMap,S2,P,F}, b::F) where {T,P,F<:FlatS2QUMap{T,P}} = 
+    ((@. v.Tx = (a').Qx*b.Qx + (a').Ux*b.Ux); v)
+mul!(v::FlatS0Map{T,P}, a::AdjField{Map,S0,P,F}, b::F) where {T,P,F<:FlatS0Map{T,P}} = 
+    ((@. v.Tx = (a').Tx*b.Tx); v)
+
+
 
 sqrt_gⁱⁱ(::FlatField) = I
 

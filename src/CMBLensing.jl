@@ -2,6 +2,7 @@ module CMBLensing
 
 using Base.Iterators: repeated
 using Base.Threads
+using Combinatorics
 using DataStructures
 using FFTW
 using Images: feature_transform, imfilter
