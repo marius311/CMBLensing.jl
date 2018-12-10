@@ -67,7 +67,7 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     Nϕ = FullDiagOp(abs.(inv(L²)*AL))
     
     if Cϕ != nothing
-        (Cϕ * inv(Cϕ + Nϕ) * ϕL), ((1+Nϕ\Cϕ).^2)\(Nϕ\Cϕ)
+        Cϕ * inv(Cϕ + Nϕ) * ϕL
     else
         ϕL, Nϕ
     end
