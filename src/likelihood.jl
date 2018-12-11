@@ -317,6 +317,7 @@ function load_sim_dataset(;
     T = Float32,
     μKarcminT = 3,
     ℓknee = 100,
+    αknee = 3,
     ℓmax_data = 3000,
     beamFWHM = 0,
     Cℓf = throw(UndefVarError(:Cℓf)),
@@ -336,7 +337,7 @@ function load_sim_dataset(;
     
     # Cℓs
     if (Cℓn == nothing)
-        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, ℓmax=ℓmax)
+        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
     end
     
     # types which depend on whether T/E/B
