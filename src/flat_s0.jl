@@ -122,7 +122,7 @@ function ud_grade(f::FlatS0{T,P}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
     else
         # upgrade
         if mode==:map
-            fnew = FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Tx])...)')
+            fnew = FlatS0Map{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f.Tx)...)')
             deconv_pixwin ? FlatS0Fourier{T,Pnew}(fnew[:Tl] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
         else
             fnew = Fourier(zero(FlatS0Map{T,Pnew}))
