@@ -115,7 +115,7 @@ copy(f::F)    where {F<:HealpixS0Cap} = F(copy(f.Ix),    f.gradient_cache)
 copy(f::F)    where {F<:HealpixS2Cap} = F(copy(f.Ix),    copy(f.Ux),    f.gradient_cache)
 
 ## derivatives
-function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}) where {covariant}
+function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}, gc) where {covariant}
     if ∇Op isa Adjoint
         W = covariant ? gc.Wᵀ_covariant : gc.Wᵀ_contravariant
     else
@@ -123,9 +123,10 @@ function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}) wh
     end
 end
 
-function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::HealpixS0Cap)
+# function mul!(∇f::FieldVector{F}, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::F) where {F<:HealpixS0Cap}
+function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {F<:HealpixS0Cap}
     gc = f.gradient_cache
-    W = get_W(∇op)
+    W = get_W(∇Op, f.gradient_cache)
     @inbounds for i in eachindex(gc.neighbors)
         Ix = @view f.Ix[gc.neighbors[i]]
         ∇f[1].Ix[i], ∇f[2].Ix[i] = W[i] * Ix
@@ -195,7 +196,7 @@ LenseBasis(::Type{<:HealpixS2Cap}) = QUMap
 
 adjoint(f::HealpixS0Cap) = f
 
-@generated function sqrt_gⁱⁱ(f::HealpixS0Cap{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot}
+@generated function sqrt_gⁱⁱ(f::HealpixS0Cap{Nside, T, Nobs, <:GradientCache{Nside, T, Nobs, Ntot}}) where {Nside,T,Nobs,Ntot}
     quote
         gθθ = HealpixS0Cap($(ones(T,Ntot)), f.gradient_cache)
         gϕϕ = HealpixS0Cap($(1 ./ ringinfo(Nside).sinθ[hp.pix2ring(Nside,collect(0:Ntot-1))::Vector{Int}]), f.gradient_cache)
