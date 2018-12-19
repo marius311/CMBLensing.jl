@@ -16,7 +16,7 @@ abstract type Flat{Θpix,Nside,∂mode<:∂modes} <: Pix end
 Nside(::Type{P}) where {_,N,P<:Flat{_,N}} = N
 
 # default angular resolution used by a number of convenience constructors
-Θpix₀ = 1 
+θpix₀ = 1 
 
 # stores FFT plan and other info needed for manipulating a Flat map
 struct FFTgrid{dm, T, F}

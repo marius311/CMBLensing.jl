@@ -58,7 +58,15 @@ allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
 allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
 allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
 mul!(f′::FieldVector, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[2],∇Op[2],f)]
+struct ∇²Op <: LinOp{Basis,Spin,Pix} end
+*(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
+const ∇² = ∇²Op()
+# this is not strictly true (∇[1] is generically a gradient w.r.t. the first
+# coordinate, e.g. ∂θ), but this is useful shorthand fro the flat-sky:
+const ∂x = ∇[1]
+const ∂y = ∇[2]
 
+    
 
 ### FuncOp
 

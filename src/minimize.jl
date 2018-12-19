@@ -68,12 +68,13 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
     z = M \ r
     p = z
     bestres = res = dot(r,z)
+    @assert !isnan(res)
     bestx = x
     t    = time() - t₀
     _hist = [gethist()]
 
     dt = (progress==false ? Inf : progress)
-    @showprogress dt "CG: " for i = 2:nsteps
+    @showprogress dt "Conjugate Gradient: " for i = 2:nsteps
         Ap   = A*p
         α    = res / dot(p,Ap)
         x    = x + α * p

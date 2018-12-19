@@ -93,7 +93,7 @@ Pack some variables in a named tuple
 """
 macro ntpack(exs...)
     kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
-    kv(ex) = esc(ex)
+    kv(ex) = isexpr(ex,:call) && ex.args[1]==:(=>) ? :($(esc(ex.args[2]))=$(esc(ex.args[3]))) : error()
     Expr(:tuple, (kv(ex) for ex=exs)...)
 end
 

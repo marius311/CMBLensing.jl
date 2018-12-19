@@ -383,6 +383,11 @@ function load_sim_dataset(;
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
     
-    return @ntpack f f̃ ϕ n ds T P
+    return @ntpack f f̃ ϕ n ds T P=>Pix 
     
+end
+
+function ϕqe(ds::DataSet, wiener_filtered=false)
+    @unpack d, Cf, Cf̃, Cn, Cϕ = ds
+    wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn, Cϕ) : ϕqe(d, Cf, Cf̃, Cn)
 end
