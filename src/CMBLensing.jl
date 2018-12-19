@@ -4,11 +4,14 @@ using Base.Iterators: repeated
 using Base.Threads
 using Combinatorics
 using DataStructures
+using Dierckx
+using Distributed
 using FFTW
 using Images: feature_transform, imfilter
 using Images.Kernel
 using InteractiveUtils
 using Interpolations
+using FileIO
 using Lazy: @init
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
@@ -19,6 +22,7 @@ using ProgressMeter
 using PyCall
 using PyPlot
 using Random
+using Roots
 using Random: seed!
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
@@ -26,8 +30,11 @@ using StatsBase
 include("RFFTVectors.jl")
 using .RFFTVectors
 
-@init @eval @pyimport healpy as hp
-@init @eval @pyimport pylab
+@init try 
+    @eval @pyimport healpy as hp
+catch
+    warn("Failed to load Healpy Python package, some functionality may be limited.")
+end
 
 import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,
     getindex, getproperty, inv, iterate, length, literal_pow, one, promote,
@@ -44,7 +51,7 @@ export
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
-    max_lnP_joint, load_sim_dataset, norm², pixwin,
+    MAP_joint, load_sim_dataset, norm², pixwin,
     HealpixS0Cap
 
 include("util.jl")

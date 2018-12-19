@@ -193,9 +193,10 @@ end
 
 @doc doc"""
 
-    max_lnP_joint(ds::DataSet; L=LenseFlow, Nϕ=nothing, quasi_sample=nothing, nsteps=10, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=0.5, progress=false)
+    MAP_joint(ds::DataSet; L=LenseFlow, Nϕ=nothing, quasi_sample=nothing, nsteps=10, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=0.5, progress=false)
 
-Compute the maximum of the joint posterior, or a quasi-sample from the joint posterior. 
+Compute the maximum a posteri estimate (MAP) from the joint posterior (can also
+do a quasi-sample). 
 
 The `ds` argument stores the data and other relevant objects for the dataset
 being considered. `L` gives which type of lensing operator to use. 
@@ -230,7 +231,7 @@ quasi-sample) field in the mixed and unlensed parametrization, respectively, `ϕ
 is the lensing potential, and `tr` contains info about the run. 
 
 """
-function max_lnP_joint(
+function MAP_joint(
     ds;
     ϕstart = nothing,
     L = LenseFlow,
@@ -310,18 +311,18 @@ Create a `DataSet` object with some simulated data.
 
 """
 function load_sim_dataset(;
-    θpix = throw(UndefVarError(:θpix)),
+    θpix,
     θpix_data = θpix,
-    Nside = throw(UndefVarError(:Nside)),
-    use = throw(UndefVarError(:use)),
+    Nside,
+    use,
     T = Float32,
     μKarcminT = 3,
     ℓknee = 100,
     αknee = 3,
     ℓmax_data = 3000,
     beamFWHM = 0,
-    Cℓf = throw(UndefVarError(:Cℓf)),
-    Cℓf̃ = throw(UndefVarError(:Cℓf̃)),
+    rfid = 0.05,
+    Cℓ = camb(r=rfid),
     Cℓn = nothing,
     seed = nothing,
     M = nothing,
@@ -339,6 +340,7 @@ function load_sim_dataset(;
     if (Cℓn == nothing)
         Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
     end
+    Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
     
     # types which depend on whether T/E/B
     SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
