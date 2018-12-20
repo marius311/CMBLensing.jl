@@ -91,7 +91,7 @@ function sample_joint(
     chains = nothing,
     ϕstart = zero(simulate(ds.Cϕ)), 
     rstart = 0.1,
-    r_grid_range,
+    r_grid_range = nothing,
     r_grid_kwargs = (range=r_grid_range, ngrid=32),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
@@ -118,65 +118,70 @@ function sample_joint(
 
     # start chains
     dt = (progress==1 ? 1 : Inf)
-    @showprogress dt "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
-        
-        append!.(chains, pmap(last.(chains)) do state
+    
+    try
+        @showprogress dt "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
             
-            Cfr(r) = Cfs + (r/rfid)*Cft
-            dsr(r) = DataSet(; Cf=Cfr(r), D=nan2zero.(sqrt.((Cfr(rfid)+deg2rad(5/60)^2)/Cfr(r))), @dictpack(d,Cn,Cϕ,M,B)... );
-
-            local fcur, f̊cur, f̃cur, Pr
-            @unpack ϕcur,rcur = state
-            chain = []
-            
-            for i=1:nchunk
-                    
-                # ==== gibbs P(f|ϕ,r) ====
-                let L=L(ϕcur), ds=dsr(rcur)
-                    fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
-                    f̃cur = L*fcur
-                    f̊cur = L*ds.D*fcur
-                        
-                # ==== gibbs P(r|f,ϕ) ====
-                    Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,dsr(r),L); r_grid_kwargs...)
-                end
-                    
-                # ==== gibbs P(ϕ|f,r) ==== 
-                let ds=dsr(rcur)
-                        
-                    (ΔH, ϕtest) = symplectic_integrate(
-                        ϕcur, simulate(Λm), Λm, 
-                        ϕ->      lnP(:mix, f̊cur, ϕ, ds), 
-                        ϕ->δlnP_δfϕₜ(:mix, f̊cur, ϕ, ds)[2];
-                        progress=(progress==2),
-                        symp_kwargs...
-                    )
-
-                    if log(rand()) < ΔH
-                        ϕcur = ϕtest
-                        accept = true
-                    else
-                        accept = false
-                    end
-                    
-                    if (progress==2)
-                        @show accept, ΔH, rcur
-                    end
-
-                    push!(chain, @dictpack fcur f̊cur f̃cur ϕcur rcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds) Pr)
-                end
-
-            end
+            append!.(chains, pmap(last.(chains)) do state
                 
-            chain[1:nthin:end]
-        
-        end)
-        
-        if filename != nothing
-            save(swap_filename, "chains", chains)
-            mv(swap_filename, filename, force=true)
+                Cfr(r) = Cfs + (r/rfid)*Cft
+                dsr(r) = DataSet(; Cf=Cfr(r), D=nan2zero.(sqrt.((Cfr(rfid)+deg2rad(5/60)^2)/Cfr(r))), @dictpack(d,Cn,Cϕ,M,B)... );
+
+                local fcur, f̊cur, f̃cur, Pr
+                @unpack ϕcur,rcur = state
+                chain = []
+                
+                for i=1:nchunk
+                        
+                    # ==== gibbs P(f|ϕ,r) ====
+                    let L=L(ϕcur), ds=dsr(rcur)
+                        fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
+                        f̃cur = L*fcur
+                        f̊cur = L*ds.D*fcur
+                            
+                    # ==== gibbs P(r|f,ϕ) ====
+                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,dsr(r),L); r_grid_kwargs...)
+                    end
+                        
+                    # ==== gibbs P(ϕ|f,r) ==== 
+                    let ds=dsr(rcur)
+                            
+                        (ΔH, ϕtest) = symplectic_integrate(
+                            ϕcur, simulate(Λm), Λm, 
+                            ϕ->      lnP(:mix, f̊cur, ϕ, ds), 
+                            ϕ->δlnP_δfϕₜ(:mix, f̊cur, ϕ, ds)[2];
+                            progress=(progress==2),
+                            symp_kwargs...
+                        )
+
+                        if log(rand()) < ΔH
+                            ϕcur = ϕtest
+                            accept = true
+                        else
+                            accept = false
+                        end
+                        
+                        if (progress==2)
+                            @show accept, ΔH, rcur
+                        end
+
+                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur rcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds) Pr)
+                    end
+
+                end
+                    
+                chain[1:nthin:end]
+            
+            end)
+            
+            if filename != nothing
+                save(swap_filename, "chains", chains)
+                mv(swap_filename, filename, force=true)
+            end
+            
         end
-        
+    catch InterruptException
+        @warn("Chain interrupted. Returning current progress.")
     end
     
     chains
