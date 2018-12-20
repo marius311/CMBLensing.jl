@@ -49,18 +49,18 @@ end
 Interpolate the log pdf `lnP` with support on `range`, and return 
 the integrated pdf as well a sample (drawn via inverse transform sampling)
 """
-function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0)
+function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0, progress=false)
     
     xs = Base.range(range[1], stop=range[2], length=ngrid)
-    lnPs = lnP.(xs)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, xs)
     Ps = exp.(lnPs .- maximum(lnPs))
     
-    iP = Spline1D(xs,Ps,bc="zero",s=s)
+    iP = CubicSplineInterpolation(xs,Ps,extrapolation_bc=0)
     
-    A = integrate.(Ref(iP),range...)
+    A = quadgk(iP,range...,rtol=1e-3)[2]
     
     r = rand()
-    iP, fzero((x->integrate(iP,0,x)/A-r),range...)
+    iP, fzero((x->quadgk(iP,0,x,rtol=1e-3)[2]/A-r),range...)
 
 end
 
@@ -140,7 +140,7 @@ function sample_joint(
                         f̊cur = L*ds.D*fcur
                             
                     # ==== gibbs P(r|f,ϕ) ====
-                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,dsr(r),L); r_grid_kwargs...)
+                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,dsr(r),L); progress=(progress==2), r_grid_kwargs...)
                     end
                         
                     # ==== gibbs P(ϕ|f,r) ==== 
@@ -180,8 +180,12 @@ function sample_joint(
             end
             
         end
-    catch InterruptException
-        @warn("Chain interrupted. Returning current progress.")
+    catch err
+        if err isa InterruptException
+            @warn("Chain interrupted. Returning current progress.")
+        else
+            rethrow(err)
+        end
     end
     
     chains

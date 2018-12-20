@@ -4,7 +4,6 @@ using Base.Iterators: repeated
 using Base.Threads
 using Combinatorics
 using DataStructures
-using Dierckx
 using Distributed
 using FFTW
 using Images: feature_transform, imfilter
@@ -21,6 +20,7 @@ using Parameters
 using ProgressMeter
 using PyCall
 using PyPlot
+using QuadGK
 using Random
 using Roots
 using Random: seed!
