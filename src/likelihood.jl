@@ -226,9 +226,8 @@ left at their defaults:
 * `αmax` - Maximum value for α in the linesearch
 * `progress` - Whether to print out conjugate gradient progress.
 
-Returns a tuple `(f̊, f, ϕ, tr)` where `f̊` and `f` are the best-fit (or
-quasi-sample) field in the mixed and unlensed parametrization, respectively, `ϕ`
-is the lensing potential, and `tr` contains info about the run. 
+Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
+`ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
 function MAP_joint(
@@ -293,12 +292,12 @@ function MAP_joint(
         end
         
         if callback != nothing
-            callback(f̊cur, fcur, ϕcur, tr)
+            callback(fcur, ϕcur, tr)
         end
 
     end
 
-    return f̊cur, fcur, ϕcur, tr
+    return fcur, ϕcur, tr
     
 end
 

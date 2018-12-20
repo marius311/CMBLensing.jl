@@ -91,7 +91,8 @@ function sample_joint(
     chains = nothing,
     ϕstart = zero(simulate(ds.Cϕ)), 
     rstart = 0.1,
-    r_grid_kwargs = (range=(1e-3,0.2), ngrid=32),
+    r_grid_range,
+    r_grid_kwargs = (range=r_grid_range, ngrid=32),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     progress = 1,
@@ -101,7 +102,7 @@ function sample_joint(
     @unpack d, Cϕ, Cn, M, B = ds
 
     if (chains==nothing)
-        chains = [Any[(ϕcur=ϕstart, rcur=rstart)] for i=1:nchains]
+        chains = [Any[@dictpack ϕcur=>ϕstart rcur=>rstart] for i=1:nchains]
     elseif chains isa String
         chains = load(filename,"chains")
     end
