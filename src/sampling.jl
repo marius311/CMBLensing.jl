@@ -51,7 +51,8 @@ the integrated pdf as well a sample (drawn via inverse transform sampling)
 """
 function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0, progress=false)
     
-    xs = Base.range(range[1], stop=range[2], length=ngrid)
+    xmin,xmax = range
+    xs = Base.range(xmin, stop=xmax, length=ngrid)
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, xs)
     Ps = exp.(lnPs .- maximum(lnPs))
     
@@ -60,7 +61,7 @@ function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0, prog
     A = quadgk(iP,range...,rtol=1e-3)[2]
     
     r = rand()
-    iP, fzero((x->quadgk(iP,0,x,rtol=1e-3)[2]/A-r),range...)
+    iP, fzero((x->quadgk(iP,xmin,x,rtol=1e-3)[2]/A-r),range...)
 
 end
 
@@ -182,6 +183,7 @@ function sample_joint(
         end
     catch err
         if err isa InterruptException
+            println()
             @warn("Chain interrupted. Returning current progress.")
         else
             rethrow(err)
