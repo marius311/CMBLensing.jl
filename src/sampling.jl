@@ -58,10 +58,10 @@ function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0, prog
     
     iP = CubicSplineInterpolation(xs,Ps,extrapolation_bc=0)
     
-    A = quadgk(iP,range...,rtol=1e-3)[2]
+    A = quadgk(iP,range...)[1]
     
     r = rand()
-    iP, fzero((x->quadgk(iP,xmin,x,rtol=1e-3)[2]/A-r),range...)
+    iP, fzero((x->quadgk(iP,xmin,x)[1]/A-r),range...)
 
 end
 
