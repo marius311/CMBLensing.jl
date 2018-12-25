@@ -90,12 +90,13 @@ function sample_joint(
     nchunk = 1,
     nthin = 1,
     chains = nothing,
-    ϕstart = zero(simulate(ds.Cϕ)), 
+    ϕstart = :zero,
     rstart = 0.1,
     r_grid_range = nothing,
     r_grid_kwargs = (range=r_grid_range, ngrid=32),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
+    MAP_kwargs = (αmax=0.3, nsteps=40),
     progress = 1,
     filename = nothing,
     rfid = 0.05) where {T,P}
@@ -103,7 +104,15 @@ function sample_joint(
     @unpack d, Cϕ, Cn, M, B = ds
 
     if (chains==nothing)
-        chains = [Any[@dictpack ϕcur=>ϕstart rcur=>rstart] for i=1:nchains]
+        @assert ϕstart in [:zero, :quasi_sample, :best_fit]
+        if ϕstart==:zero
+            chains = [Any[@dictpack ϕcur=>zero(simulate(Cϕ)) rcur=>rstart] for i=1:nchains]
+        elseif ϕstart in [:quasi_sample, :best_fit]
+            chains = pmap(1:nchains) do i
+                fcur, ϕcur = MAP_joint(ds,  progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                Any[@dictpack ϕcur fcur rcur=>rstart]
+            end
+        end
     elseif chains isa String
         chains = load(filename,"chains")
     end
