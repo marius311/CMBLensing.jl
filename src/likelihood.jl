@@ -360,9 +360,9 @@ function load_sim_dataset(;
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
-        M = LP(ℓmax_data) * FullDiagOp(F{T,Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
+        M = LowPass(ℓmax_data) * FullDiagOp(F{T,Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
     elseif (M == nothing)
-        M = LP(ℓmax_data)
+        M = LowPass(ℓmax_data)
     end
     
     # beam
