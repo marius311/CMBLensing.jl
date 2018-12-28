@@ -136,14 +136,14 @@ function sample_joint(
                 for i=1:nchunk
                         
                     # ==== gibbs P(f|ϕ,r) ====
-                    let L=L(ϕcur), ds=ds(r=rcur)
-                        fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
-                        f̃cur = L*fcur
-                        f̊cur = L*ds.D*fcur
-                    end
+                    let L=cache(L(ϕcur),ds.d)
+                        let ds=ds(r=rcur)
+                            fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
+                            f̃cur = L*fcur
+                            f̊cur = L*ds.D*fcur
+                        end
                             
                     # ==== gibbs P(r|f,ϕ) ====
-                    let L=L(ϕcur)
                         Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,ds(r=r),L); progress=(progress==2), r_grid_kwargs...)
                     end
                         
@@ -152,8 +152,8 @@ function sample_joint(
                             
                         (ΔH, ϕtest) = symplectic_integrate(
                             ϕcur, simulate(Λm), Λm, 
-                            ϕ->      lnP(:mix, f̊cur, ϕ, ds), 
-                            ϕ->δlnP_δfϕₜ(:mix, f̊cur, ϕ, ds)[2];
+                            ϕ->      lnP(:mix, f̊cur, ϕ, ds, L), 
+                            ϕ->δlnP_δfϕₜ(:mix, f̊cur, ϕ, ds, L)[2];
                             progress=(progress==2),
                             symp_kwargs...
                         )
