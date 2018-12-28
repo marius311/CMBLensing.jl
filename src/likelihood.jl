@@ -29,8 +29,8 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 
 
 # mixing matrix for mixed parametrization
-D_mix(Cf::LinOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt(($Diagonal(Cf)+σ²len)/$Diagonal(Cf)))
-
+D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
+     ParamDependentOp((;r)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))), r=rfid)
 
 # Stores variables needed to construct the likelihood
 @with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TP}
@@ -45,6 +45,17 @@ D_mix(Cf::LinOp; σ²len=deg2rad(5/60)^2) = @. nan2zero(sqrt(($Diagonal(Cf)+σ²
     B̂  :: TB̂   = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  :: TD   = D_mix(Cf)   # mixing matrix for mixed parametrization
     P  :: TP   = 1           # pixelization operator to estimate field on higher res than data
+end
+
+function (ds::DataSet)(;θ...)
+    @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,P=ds
+    DataSet(;@ntpack(d,M,B,B̂,P,
+        D=>evaluate(D;θ...),
+        Cn=>evaluate(Cn;θ...),
+        Cϕ=>evaluate(Cϕ;θ...),
+        Cf=>evaluate(Cf;θ...),
+        Cf̃=>evaluate(Cf̃;θ...),
+        Cn̂=>evaluate(Cn̂;θ...))...)
 end
 
 
@@ -83,7 +94,7 @@ function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
     -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
 end
 # log posterior in the mixed parametrization
-lnP(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̆), ϕ, ds, L))
+lnP(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̊), ϕ, ds, L))
 
 
 
@@ -104,9 +115,9 @@ The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used below)
-δlnL_δf̃ϕ(f̃,ϕ::Φ,ds) where {Φ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Φ)))
-δlnΠᶠ_δfϕ(f,ϕ::Φ,ds) where {Φ} = (@unpack Cf=ds;         FieldTuple(-Cf\f                    , zero(Φ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -Cϕ\ϕ))
+δlnL_δf̃ϕ(f̃,ϕ::Φ,ds)  where {Φ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Φ)))
+δlnΠᶠ_δfϕ(f,ϕ::Φ,ds) where {Φ} = (@unpack Cf=ds;         FieldTuple(-(Cf\f)                  , zero(Φ)))
+δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -(Cϕ\ϕ)))
 
 
 # log posterior gradient in the lensed or unlensed parametrization
@@ -119,17 +130,17 @@ function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
                                  + δlnΠᶲ_δfϕ(f,ϕ,ds)  )
 end
 # log posterior gradient in the mixed parametrization
-function δlnP_δfϕₜ(::Type{Val{:mix}},f̆,ϕ,ds,L::LenseOp)
+function δlnP_δfϕₜ(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp)
 
-    D = ds.D
-    L⁻¹f̆ = L \ f̆
-    f = D \ L⁻¹f̆
+    @unpack D = ds
+    L⁻¹f̊ = L \ f̊
+    f = D \ L⁻¹f̊
 
     # gradient w.r.t. (f,ϕ)
     δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    δfϕ_δf̃ϕ(L, L⁻¹f̆, f̆)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
+    δfϕ_δf̃ϕ(L, L⁻¹f̊, f̊)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
 end
 
 
@@ -354,9 +365,10 @@ function load_sim_dataset(;
     Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
     
     # covariances
-    Cϕ       =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
-    Cf,Cf̃,Cn̂ = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓf,Cℓf̃,Cℓn))
-    Cn       =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
+    Cϕ            =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cfs,Cft,Cf̃,Cn̂ = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
+    Cn            =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
+    Cf            = ParamDependentOp((;r)->(Cfs + (r/rfid)*Cft), r=rfid)
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
@@ -377,7 +389,7 @@ function load_sim_dataset(;
     if (seed != nothing); seed!(seed); end
     ϕ = simulate(Cϕ)
     f = simulate(Cf)
-    f̃ = cache(L(ϕ),f)*f
+    f̃ = L(ϕ)*f
     n = simulate(Cn)
     d = M*P*B*f̃ + n
     

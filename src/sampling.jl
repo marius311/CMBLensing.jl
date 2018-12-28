@@ -98,8 +98,7 @@ function sample_joint(
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
     progress = 1,
-    filename = nothing,
-    rfid = 0.05) where {T,P}
+    filename = nothing) where {T,P}
 
     @unpack d, Cϕ, Cn, M, B = ds
 
@@ -109,7 +108,7 @@ function sample_joint(
             chains = [Any[@dictpack ϕcur=>zero(simulate(Cϕ)) rcur=>rstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
-                fcur, ϕcur = MAP_joint(ds,  progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                fcur, ϕcur = MAP_joint(ds(r=rstart), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
                 Any[@dictpack ϕcur fcur rcur=>rstart]
             end
         end
@@ -117,13 +116,9 @@ function sample_joint(
         chains = load(filename,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds)[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds(r=rstart))[2]; end
     Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
     
-    # hacky that this is here and currently EB hardcoded, figure out cleaner way...
-    SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[:EB]
-    Cfs,Cft = (Cℓ_to_cov(T,P,SS..., Cℓx[:ℓ], (nan2zero.(Cℓx[k]) for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft]))
-
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
 
     # start chains
@@ -134,9 +129,6 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                Cfr(r) = Cfs + (r/rfid)*Cft
-                dsr(r) = DataSet(; Cf=Cfr(r), D=nan2zero.(sqrt.((Cfr(rfid)+deg2rad(5/60)^2)/Cfr(r))), @dictpack(d,Cn,Cϕ,M,B)... );
-
                 local fcur, f̊cur, f̃cur, Pr
                 @unpack ϕcur,rcur = state
                 chain = []
@@ -144,17 +136,19 @@ function sample_joint(
                 for i=1:nchunk
                         
                     # ==== gibbs P(f|ϕ,r) ====
-                    let L=L(ϕcur), ds=dsr(rcur)
+                    let L=L(ϕcur), ds=ds(r=rcur)
                         fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
                         f̃cur = L*fcur
                         f̊cur = L*ds.D*fcur
+                    end
                             
                     # ==== gibbs P(r|f,ϕ) ====
-                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,dsr(r),L); progress=(progress==2), r_grid_kwargs...)
+                    let L=L(ϕcur)
+                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,ds(r=r),L); progress=(progress==2), r_grid_kwargs...)
                     end
                         
                     # ==== gibbs P(ϕ|f,r) ==== 
-                    let ds=dsr(rcur)
+                    let ds=ds(r=rcur)
                             
                         (ΔH, ϕtest) = symplectic_integrate(
                             ϕcur, simulate(Λm), Λm, 
@@ -175,7 +169,7 @@ function sample_joint(
                             @show accept, ΔH, rcur
                         end
 
-                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur rcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds) Pr)
+                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur rcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds(r=rcur)) Pr)
                     end
 
                 end

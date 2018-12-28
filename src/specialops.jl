@@ -109,3 +109,25 @@ adjoint(L::BandPassOp) = L
 
 # An Op which turns all NaN's to zero
 const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))
+
+
+# A LinOp which depends on some parameters, θ. 
+# L(;θ...) recomputes the operator at a given set of parameters, but the
+# operator can also be used as-is in which case it is evaluated at a fiducial θ
+# (which is stored inside the operator when it is first constructed). 
+struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: LinOp{B,S,P}
+    op::L
+    recompute_function::F
+end
+ParamDependentOp(recompute_function::Function; θfid...) = ParamDependentOp(recompute_function(;θfid...),recompute_function)
+(L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...)
+(L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
+*(L::ParamDependentOp, f::Field) = L.op * f
+\(L::ParamDependentOp, f::Field) = L.op \ f
+for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate)
+    @eval $F(L::ParamDependentOp) = $F(L.op)
+end
+# the following could be changed to calling ::LinOp directly pending
+# https://github.com/JuliaLang/julia/issues/14919
+evaluate(L::LinOp; θ...) = L
+evaluate(L::ParamDependentOp; θ...) = L(;θ...)
