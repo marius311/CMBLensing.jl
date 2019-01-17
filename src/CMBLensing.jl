@@ -33,7 +33,7 @@ using .RFFTVectors
 @init try 
     @eval @pyimport healpy as hp
 catch
-    warn("Failed to load Healpy Python package, some functionality may be limited.")
+    @warn("Failed to load Healpy Python package, some functionality may be limited.")
 end
 
 import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,

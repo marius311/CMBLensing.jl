@@ -1,55 +1,50 @@
-FROM alpine:3.7
+FROM ubuntu:16.04
 
-RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories \
-    && apk add --update \
-        cmake \
+RUN apt-get update \
+    && apt-get install -y \
         curl \
-        freetype-dev \
-        g++ \
+        cython3 \
         gfortran \
-        hdf5@testing \
-        julia \
-        libpng-dev \
-        make \
-        mbedtls \
-        musl-dev \
-        openblas-dev \
-        perl \
-        py-numpy-dev \
-        py3-numpy-f2py \
-        py3-six \
-        py3-zmq \
-        python3 \
-    && pip3 install --no-cache-dir notebook==5.4.0 tornado==4.5.3 jupyter_contrib_nbextensions==0.3.1 matplotlib \
+        libcfitsio2 \
+        libgsl-dev \
+        python3-healpy \
+        python3-numpy \
+        python3-pip \
+        python3-scipy \
+        python3-zmq \
+    && pip3 install --no-cache-dir \
+        notebook==5.* \
+        jupyter_contrib_nbextensions==0.3.1 \ 
+        matplotlib==2.* \
+        setuptools==20.4 \
     && jupyter contrib nbextension install \
-    && jupyter nbextension enable toc2/main --system
+    && jupyter nbextension enable toc2/main --system \
+    && rm -rf /var/lib/apt/lists/*
 
-# install CAMB
-RUN mkdir -p /root/camb \
-    && curl -L https://github.com/marius311/camb/tarball/scipy_optional | tar zxf - -C /root/camb --strip-components=1 \
-    && sed -i -e "s/-fopenmp//g" /root/camb/Makefile \
-    && cd /root/camb/pycamb \
-    && python3 setup.py install
+# install julia
+RUN mkdir /opt/julia \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.0/julia-1.0.3-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && ln -s /opt/julia/bin/julia /usr/local/bin
 
 # setup unprivileged user needed for mybinder.org
-ENV NB_USER bayes
+ENV NB_USER cosmo
 ENV NB_UID 1000
 ENV HOME /home/${NB_USER}
-RUN adduser -Du ${NB_UID} ${NB_USER}
+RUN adduser --disabled-password --gecos "cosmo" --uid ${NB_UID} ${NB_USER}
+USER cosmo
 
-# add CMBLensing dependencies
-COPY REQUIRE $HOME/.julia/v0.6/CMBLensing/REQUIRE
-# add dependencies for Jupyter for this Docker container
-RUN (echo "IJulia"; echo "ZMQ 0.5.0 0.6.0";  echo "Blosc 0.3.0 0.4.0") >> $HOME/.julia/v0.6/CMBLensing/REQUIRE
-RUN chown -R $NB_USER $HOME && chgrp -R $NB_USER $HOME
-USER ${NB_USER}
-# install and precompile everything
-RUN julia -e 'ENV["PYTHON"]="python3"; Pkg.resolve(); for p in Pkg.available() try @eval using $(Symbol(p)); println(p); end; end'
-
-# install CMBLensing itself (do so separately here to improve Docker caching)
-COPY . $HOME/.julia/v0.6/CMBLensing
-RUN julia -e "using CMBLensing, Optim"
+# install CAMB
+RUN mkdir -p $HOME/src/camb \
+    && curl -L https://github.com/cmbant/camb/tarball/6fc83ba | tar zxf - -C $HOME/src/camb --strip=1 \
+    && cd $HOME/src/camb/pycamb \
+    && python3 setup.py install --user
 
 # launch notebook
-WORKDIR $HOME/.julia/v0.6/CMBLensing
-CMD jupyter-notebook --ip=* --no-browser
+WORKDIR $HOME
+COPY --chown=1000 . $HOME/CMBLensing.jl
+
+RUN PYTHON=python3 JULIA_FFTW_PROVIDER=MKL julia -e 'using Pkg; try; Pkg.REPLMode.pkgstr("dev CMBLensing.jl"); catch; end; Pkg.REPLMode.pkgstr("dev CMBLensing.jl; add IJulia; build; precompile")'
+
+RUN mkdir -p $HOME/.julia/config && mv $HOME/CMBLensing.jl/startup.jl $HOME/.julia/config/
+
+CMD jupyter-notebook --ip=0.0.0.0 --no-browser

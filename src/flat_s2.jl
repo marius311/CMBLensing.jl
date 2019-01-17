@@ -40,7 +40,7 @@ const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
 
 # convenience constructors
 for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
-    @eval ($F)(a::Matrix{$T},b::Matrix{$T},Θpix=Θpix₀,∂mode=fourier∂) where {T} = ($F){T,Flat{Θpix,size(a,2),∂mode}}(a,b)
+    @eval ($F)(a::Matrix{$T},b::Matrix{$T},θpix=θpix₀,∂mode=fourier∂) where {T} = ($F){T,Flat{θpix,size(a,2),∂mode}}(a,b)
 end
 FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q.Tx, U.Tx)
 

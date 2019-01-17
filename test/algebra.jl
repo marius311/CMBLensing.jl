@@ -1,6 +1,6 @@
 include("general.jl")
 
-using CMBLensing: LP, SymmetricFuncOp, FlatS02, FlatTEBCov, LazyBinaryOp
+using CMBLensing: SymmetricFuncOp, FlatS02, FlatTEBCov, LazyBinaryOp
 
 ##
 N = 4
@@ -15,7 +15,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
 
 @testset "Basic Algebra" begin
     
-    for f in (fourier∂(f0),map∂(f0))
+    for f in (fourier∂(f0),map∂(f0),fourier∂(f2))
         
         F = typeof(f)
         L = FullDiagOp(f)
@@ -37,7 +37,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             @test_noerr @inferred f+Ł(f)
             
             # type-stable operators on fields
-            Ls = Any[FullDiagOp(f), FullDiagOp(Ð(f)), ∇₁, LP(500)]
+            Ls = Any[FullDiagOp(f), FullDiagOp(Ð(f)), ∇₁, LowPass(500)]
             isa(f,FlatS02) && push!(Ls, LTEB)
             for L in Ls
                 @testset "L::$(shortname(typeof(L)))" begin
@@ -68,7 +68,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             # stuff with ∇
             @test eltype(∇) == eltype(∇')
             @test_noerr @inferred ∇ * f
-            @test_noerr @inferred ∇' * v
+            @test_broken @inferred ∇' * v
             @test_noerr @inferred ∇' * (∇' * M)'
             
             @test_noerr @inferred gradhess(f)
@@ -77,7 +77,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             @test_noerr @inferred ∇' * M
             @test_noerr @inferred v' * M
             @test_noerr @inferred M * v
-            @test_noerr @inferred f' * v
+            @test_broken @inferred f' * v
             if f isa FlatS0Map
                 @test_noerr @inferred v * v'
             end
@@ -90,7 +90,7 @@ LTEB = FlatTEBCov{Float64,Flat{1,N}}(rand(N÷2+1,N),zeros(N÷2+1,N),rand(N÷2+1,
             @test FullDiagOp(Ł(f))^-1 isa FullDiagOp
 
             @test_noerr @inferred(f⋅f)::Real
-            @test_noerr @inferred(f'*f)::FlatS0Map
+            @test_broken @inferred(f'*f)::FlatS0Map
             
             # broadcasting
             @test_noerr (@. f = 2f + 3f)

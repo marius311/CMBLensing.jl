@@ -1,6 +1,5 @@
 *
 !src
-!scripts
-!REQUIRE
-!nb
-nb/.ipynb_checkpoints
+!*.toml
+!startup.jl
+!docs/joint_MAP_example.ipynb

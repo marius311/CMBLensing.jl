@@ -3,9 +3,9 @@ export class, noisecls, camb
 function camb(;
     ℓmax = 6000, 
     lmax = nothing,
-    r = 0.2, ωb = 0.0224567, ωc=0.118489, τ = 0.055, 
+    r = 0.2, ωb = 0.0224567, ωc = 0.118489, τ = 0.055, Σmν = 0.06,
     Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
-    Aϕϕ = 1, 
+    Aϕϕ = 1,
     k_pivot = 0.002)
     
     if lmax != nothing
@@ -19,6 +19,7 @@ function camb(;
         ombh2 = ωb,
         omch2 = ωc,
         tau = τ,
+        mnu = Σmν,
         cosmomc_theta = Θs,
         H0 = nothing,
         ns = nₛ,

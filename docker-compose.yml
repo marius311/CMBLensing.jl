@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  cmblensing:
+    image: marius311/cmblensing.jl
+    build: .
+    volumes:
+     - "./docs:/home/cosmo/CMBLensing.jl/docs"
+    ports: 
+     - "${PORT:-8888}:${PORT:-8888}"
+    hostname: localhost
+    environment:
+     - PORT=${PORT:-8888}

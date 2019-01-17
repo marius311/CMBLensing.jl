@@ -111,6 +111,8 @@ adjoint(L::BandPassOp) = L
 const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))
 
 
+### ParamDependentOp
+
 # A LinOp which depends on some parameters, θ. 
 # L(;θ...) recomputes the operator at a given set of parameters, but the
 # operator can also be used as-is in which case it is evaluated at a fiducial θ
