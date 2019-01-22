@@ -13,6 +13,7 @@ end
 *(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .* F(f)) : L.f .* F(f)
 \(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .\ F(f)) : L.f .\ F(f)
 
+zero(L::FullDiagOp) = zero(L.f)
 
 # non-broadcasted algebra on FullDiagOps
 for op in (:+,:-,:*,:\,:/)

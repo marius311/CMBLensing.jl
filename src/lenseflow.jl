@@ -39,6 +39,8 @@ LenseFlow(ϕ,n=7) = LenseFlow{jrk4{n}}(ϕ)
 LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),typeof(ϕ)}(ϕ)
 
+zero(L::LenseFlow) = zero(L.ϕ)
+zero(L::CachedLenseFlow) = zero(L.memŁϕ)
 
 # todo, remove this `→` crap, maybe
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)

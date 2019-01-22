@@ -58,6 +58,19 @@ function (ds::DataSet)(;θ...)
         Cn̂=>evaluate(Cn̂;θ...))...)
 end
 
+    
+@doc doc"""
+    resimulate(ds::DataSet; f=..., ϕ=...)
+    
+Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
+are resimulate if not provided)
+"""
+function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=LenseFlow(ϕ)*f)
+    @unpack Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, D, P = ds
+    d = M*P*B*f̃ + n
+    DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
+end
+
 
 ## likelihood 
 
@@ -98,7 +111,7 @@ lnP(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̊),
 
 
 
-## likelihood gradients
+## joint posterior gradients
 
 @doc doc"""
 
@@ -141,6 +154,29 @@ function δlnP_δfϕₜ(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp)
     
     # chain rule
     δfϕ_δf̃ϕ(L, L⁻¹f̊, f̊)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
+end
+
+
+
+## marginal posterior gradients
+
+δlnP_δϕ(ϕ, ds, ::Type{L}=LenseFlow; kwargs...) where {L} = δlnP_δϕ(L(ϕ), ds; kwargs...)
+
+function δlnP_δϕ(L::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
+    
+    @unpack d,P,M,B,Cn,Cf,Cn̂ = ds
+
+    function gQD(L, ds)
+        y = B' * M' * P' * (Σ(L, ds) \ ds.d)
+        y * δLf_δϕ(Cf*(L'*y), L)
+    end
+
+    det_sims = @showprogress pmap(1:Nmc_det) do i gQD(L, resimulate(ds, f̃=L*simulate(ds.Cf))) end
+
+    g = gQD(L, ds) - mean(det_sims)
+
+    return_sims ? (g, det_sims) : g 
+
 end
 
 
@@ -200,6 +236,29 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
     )
     
 end
+
+
+# todo: figure out if this and `lensing_wiener_filter` above are the same and
+# can be combined
+@doc doc"""
+    Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
+    Σ(L::LenseOp, ds) 
+    
+Operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can applied
+and inverted.
+"""
+Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L} = Σ(L(ϕ),ds)
+Σ(L::LenseOp, ds) = begin
+
+    @unpack d,P,M,B,Cn,Cf,Cn̂, B̂ = ds
+
+    SymmetricFuncOp(
+        op   = x -> (Cn + P*M*B*L*Cf*L'*B'*M'*P')*x,
+        op⁻¹ = x -> pcg2((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x, nsteps=100, tol=1e-1)
+    )
+
+end
+
 
 
 @doc doc"""
@@ -310,6 +369,45 @@ function MAP_joint(
 
     return fcur, ϕcur, tr
     
+end
+
+
+@doc doc"""
+
+    MAP_marg( ds; kwargs...)
+
+Compute the maximum a posteri estimate (MAP) of the marginl posterior.
+"""
+function MAP_marg(
+    ds;
+    ϕstart = nothing,
+    L = LenseFlow,
+    Nϕ = nothing,
+    nsteps = 10, 
+    Ncg = 500,
+    cgtol = 1e-1,
+    α = 0.02,
+    Nmc_det = 50,
+    )
+    
+    @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
+    
+    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
+    # from quadratic estimate
+    if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf), Cf, Cf̃, Cn̂)[2]; end
+    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
+
+    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ) # fix needing to get zero(Φ) this way
+    tr = []
+
+    for i=1:nsteps
+        g, det_sims = δlnP_δϕ(ϕcur, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
+        ϕcur += α * Hϕ⁻¹ * g
+        push!(tr,@dictpack(i,g,det_sims,ϕcur))
+    end
+    
+    return ϕcur, tr
+
 end
 
 

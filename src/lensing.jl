@@ -46,6 +46,15 @@ end
 \(J::δfϕₛ_δfϕₜ{s,t}, f::Field) where {s,t} = δfϕₛ_δfϕₜ{t,s}(J.L,J.fₜ,J.fₛ) * f
 
 
+# operator for [δ/δϕ L(ϕ)*f]
+# (this just involves picking out one block of δf̃ϕ_δfϕ)
+δLf_δϕ(f, ϕ, ::Type{L}=LenseFlow) where {L} = δLf_δϕ(f, L(ϕ))
+δLf_δϕ(f, L::LenseOp) = FuncOp(
+    op  = g -> (δf̃ϕ_δfϕ(L,f,f)  * FieldTuple(g,zero(L)))[2],
+    opᴴ = g -> (δf̃ϕ_δfϕ(L,f,f)' * FieldTuple(g,zero(L)))[2]
+)
+
+
 # some syntactic sugar for making lensing operators that lense from time t1 to t2
 struct →{t1,t2} end
 →(t1::Real,t2::Real) = →{float(t1),float(t2)}()

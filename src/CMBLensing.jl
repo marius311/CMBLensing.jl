@@ -51,7 +51,7 @@ export
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
-    MAP_joint, load_sim_dataset, norm², pixwin,
+    MAP_joint, MAP_marg, load_sim_dataset, norm², pixwin,
     HealpixS0Cap, HighPass, LowPass
 
 include("util.jl")
