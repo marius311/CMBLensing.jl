@@ -8,6 +8,11 @@ export FlatIQUMap, FlatTEBFourier
 const FlatIQUMap{T,P} = FieldTuple{Tuple{FlatS0Map{T,P},FlatS2QUMap{T,P}},BasisTuple{Tuple{Map,QUMap}},SpinTuple{Tuple{S0,S2}},PixTuple{Tuple{P,P}}}
 const FlatTEBFourier{T,P} = FieldTuple{Tuple{FlatS0Fourier{T,P},FlatS2EBFourier{T,P}},BasisTuple{Tuple{Fourier,EBFourier}},SpinTuple{Tuple{S0,S2}},PixTuple{Tuple{P,P}}}
 # some convenience constructors
+function FlatIQUMap(i::Matrix{T}, q::Matrix{T}, u::Matrix{T}; θpix=θpix₀, ∂mode=fourier∂) where {T}
+    (N,N) = size(i)
+    P = Flat{θpix,N,∂mode}
+    FieldTuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
+end
 FlatIQUMap{T,P}(i,q,u) where {T,P} = FieldTuple(FlatS0Map{T,P}(i),FlatS2QUMap{T,P}(q,u))
 FlatTEBFourier{T,P}(t,e,b) where {T,P} = FieldTuple(FlatS0Fourier{T,P}(t),FlatS2EBFourier{T,P}(e,b))
 
@@ -35,10 +40,12 @@ function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, 
 end
 
 # applying the operator
+*(L::FlatTEBCov, f::FlatS02) = L * BasisTuple{Tuple{Fourier,EBFourier}}(f)
 function *(L::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any,N}} 
     (t,e),b = (L.ΣTE * [@view(f.fs[1].Tl[:]), @view(f.fs[2].El[:])]), L.ΣB .* f.fs[2].Bl
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
+\(L::FlatTEBCov, f::FlatTEBFourier) = inv(L)*f
 adjoint(L::F) where {F<:FlatTEBCov} = F(L.ΣTE',L.ΣB)
 inv(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? (nan2zero.(inv(L.ΣTE)), nan2zero.(1 ./ L.ΣB)) : (inv(L.ΣTE), 1 ./ L.ΣB))...)
 sqrt(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? nan2zero.(sqrt(L.ΣTE)) : sqrt(L.ΣTE)), sqrt.(L.ΣB))
@@ -55,7 +62,9 @@ function *(L::FlatTEBCov{T,P}, D::FullDiagOp{FlatTEBFourier{T,P}}) where {T,P}
 end
 *(D::FullDiagOp{FlatTEBFourier{T,P}}, L::FlatTEBCov{T,P}) where {T,P} = (adjoint(L)*D)'
 # multiplication of two FlatTEBCov
-*(La::F, Lb::F) where {F<:FlatTEBCov} = F(La.ΣTE*Lb.ΣTE, La.ΣB.*Lb.ΣB)
+*(La::F, Lb::F) where {F<:FlatTEBCov} = F(La.ΣTE * Lb.ΣTE, La.ΣB .* Lb.ΣB)
+# addition
++(La::F, Lb::F) where {F<:FlatTEBCov} = F(La.ΣTE .+ Lb.ΣTE, La.ΣB .+ Lb.ΣB)
 
 
 # simple arithmetic with scalars

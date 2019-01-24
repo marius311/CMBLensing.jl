@@ -20,7 +20,7 @@ shortname(::Type{<:FieldTuple{FS}}) where {FS} = "FieldTuple{$(join(map(shortnam
 
 # broadcasting
 broadcast_data(::Type{FT}, ft::FT) where {FS,FT<:FieldTuple{FS}} = ft.fs
-broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = ntuple(_->f,nfields(FS))
+broadcast_data(::Type{FT}, f::Union{Field,LinOp}) where {FS,FT<:FieldTuple{FS}} = (f,)
 broadcast_data(::Type{FT}, L::FullDiagOp{FT}) where {FS,FT<:FieldTuple{FS}} = L.f.fs
 promote_containertype(::Type{FT}, ::Type{F}) where {FT<:FieldTuple,F<:Field} = FT
 promote_containertype(::Type{F}, ::Type{FT}) where {FT<:FieldTuple,F<:Field} = FT
@@ -28,7 +28,7 @@ promote_containertype(::Type{FT}, ::Type{FT}) where {FT<:FieldTuple} = FT # need
 BroadcastStyle(::Style{F0}, ::Style{FT}) where {F0<:Field{Map,S0},FT<:FieldTuple} = Style{FT}()
 
 # promotion / conversion
-function promote(a::FieldTuple, b::FieldTuple)
+function promote(a::F1, b::F2) where {F1<:FieldTuple, F2<:FieldTuple}
     ab′ = map(promote, a.fs, b.fs)
     FieldTuple(map(first,ab′)...), FieldTuple(map(last,ab′)...)
 end
@@ -36,9 +36,13 @@ convert(::Type{<:FieldTuple{FS}}, ft::FieldTuple) where {FS} =
     FieldTuple(map_tupleargs((F,f)->F(f),FS,ft.fs)...)
 
 # basis conversion
+(::Type{B})(::Type{<:FieldTuple{FS}}) where {FS,B<:Basislike} = BasisTuple{Tuple{map_tupleargs(F->B(F),FS)...}}
 (::Type{BasisTuple{BS}})(ft::FieldTuple) where {BS} = FieldTuple(map_tupleargs((B,f)->B(f), BS, ft.fs)...)
 (::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B,ft.fs)...)
 (::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B,ft.fs)...) # needed for ambiguity
+(::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basis}     = (map(B, ft′.fs, ft.fs); ft′)
+(::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basislike} = (map(B, ft′.fs, ft.fs); ft′) # needed for ambiguity
+Basis(ft::FieldTuple) where {B<:Basis} = ft # needed for ambiguity
 
 # basic functionality
 white_noise(::Type{FT}) where {FS,FT<:FieldTuple{FS}} = FT(map_tupleargs(white_noise, FS))
@@ -48,6 +52,10 @@ Ac_mul_B(a::FieldTuple, b::FieldTuple) = sum(map(Ac_mul_B, a.fs, b.fs))
 eltype(ft::FieldTuple) = promote_type(map(eltype,ft.fs)...)
 length(ft::FieldTuple) = sum(map(length, ft.fs))
 ud_grade(ft::FieldTuple, args...; kwargs...) = FieldTuple((ud_grade(f,args...;kwargs...) for f in ft)...)
+
+# operators
+mul!(f′::FieldTuple{FS}, L::LinOp, f::FieldTuple) where {FS} = (map(mul!, f′.fs, ntuple(_->L, nfields(f.fs)), f.fs); f′)
+allocate_result(L::LinOp, f::FieldTuple) = FieldTuple(map(allocate_result, ntuple(_->L, nfields(f.fs)), f.fs)...)
 
 # iterating
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
