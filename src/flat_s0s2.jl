@@ -40,12 +40,12 @@ function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, 
 end
 
 # applying the operator
-*(L::FlatTEBCov, f::FlatS02) = L * BasisTuple{Tuple{Fourier,EBFourier}}(f)
+*(L::FlatTEBCov, f::FlatS02) =      L * BasisTuple{Tuple{Fourier,EBFourier}}(f)
+\(L::FlatTEBCov, f::FlatS02) = inv(L) * BasisTuple{Tuple{Fourier,EBFourier}}(f)
 function *(L::FlatTEBCov{T,P}, f::FlatTEBFourier{T,P}) where {T,N,P<:Flat{<:Any,N}} 
     (t,e),b = (L.ΣTE * [@view(f.fs[1].Tl[:]), @view(f.fs[2].El[:])]), L.ΣB .* f.fs[2].Bl
     FieldTuple(FlatS0Fourier{T,P}(reshape(t,N÷2+1,N)),FlatS2EBFourier{T,P}(reshape(e,N÷2+1,N),b))
 end
-\(L::FlatTEBCov, f::FlatTEBFourier) = inv(L)*f
 adjoint(L::F) where {F<:FlatTEBCov} = F(L.ΣTE',L.ΣB)
 inv(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? (nan2zero.(inv(L.ΣTE)), nan2zero.(1 ./ L.ΣB)) : (inv(L.ΣTE), 1 ./ L.ΣB))...)
 sqrt(L::F) where {F<:FlatTEBCov} = F((L.unsafe_invert ? nan2zero.(sqrt(L.ΣTE)) : sqrt(L.ΣTE)), sqrt.(L.ΣB))
@@ -80,7 +80,17 @@ function get_Cℓ(f::FlatS02{T,P}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,
 end
 
     
-# convenience methods for getting components as S0
-getproperty(f::FlatS02{T,P},::Val{:T}) where {T,P} = FlatS0Map{T,P}(f.Tx)
+# convenience methods for getting components
+getproperty(f::FlatS02{T,P},::Val{:T}) where {T,P} = f[1]
+getproperty(f::FlatS02{T,P},::Val{:P}) where {T,P} = f[2]
+getproperty(f::FlatS02{T,P},::Val{:TP}) where {T,P} = f
 getproperty(f::FlatS02{T,P},::Val{:E}) where {T,P} = FlatS0Map{T,P}(f.Ex)
 getproperty(f::FlatS02{T,P},::Val{:B}) where {T,P} = FlatS0Map{T,P}(f.Bx)
+getproperty(f::FlatS02{T,P},::Val{:Q}) where {T,P} = FlatS0Map{T,P}(f.Qx)
+getproperty(f::FlatS02{T,P},::Val{:U}) where {T,P} = FlatS0Map{T,P}(f.Ux)
+
+getproperty(L::FlatTEBCov, s::Symbol) = getproperty(L, Val(s))
+getproperty(L::FlatTEBCov{T,P}, ::Val{:T}) where {T,θ,N,P<:Flat{θ,N}} = FullDiagOp(FlatS0Fourier{T,P}(reshape(diag(L.ΣTE[1,1]),N÷2+1,N)))
+getproperty(L::FlatTEBCov{T,P}, ::Val{:P}) where {T,θ,N,P<:Flat{θ,N}} = FullDiagOp(FlatS2EBFourier{T,P}(reshape(diag(L.ΣTE[2,2]),N÷2+1,N), L.ΣB))
+getproperty(L::FlatTEBCov, ::Val{:TP}) = L
+getproperty(L::FlatTEBCov, ::Val{s}) where {s} = getfield(L,s)

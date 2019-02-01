@@ -39,7 +39,7 @@ end
 import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,
     getindex, getproperty, inv, iterate, length, literal_pow, one, promote,
     promote_rule, promote_rule, promote_type, propertynames, similar, size, sqrt,
-    sqrt, transpose, zero
+    sqrt, transpose, zero, real
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 import PyPlot: plot
 

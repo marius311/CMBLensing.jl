@@ -33,6 +33,9 @@ ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUF
     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
 ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} = 
     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,    deconv_pixwin=false,anti_aliasing=false)))
+getproperty(L::FullDiagOp, s::Symbol) = getproperty(L, Val(s))
+getproperty(L::FullDiagOp, ::Val{s}) where {s} = getfield(L,s)
+getproperty(L::FullDiagOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = FullDiagOp(getproperty(L.f,s))
 
 
 ### Derivative ops
@@ -122,7 +125,7 @@ struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: LinOp{B,S,P}
     op::L
     recompute_function::F
 end
-ParamDependentOp(recompute_function::Function; θfid...) = ParamDependentOp(recompute_function(;θfid...),recompute_function)
+ParamDependentOp(recompute_function::Function) = ParamDependentOp(recompute_function(),recompute_function)
 (L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...)
 (L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f

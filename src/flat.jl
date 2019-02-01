@@ -205,3 +205,7 @@ HarmonicBasis(::Type{<:FlatS0}) = Fourier
 HarmonicBasis(::Type{<:FlatS2}) = QUFourier
 broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],)
+
+
+# allows std and var of a Vector of FlatFields to work
+real(f::CMBLensing.FlatField) = f
