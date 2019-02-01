@@ -47,12 +47,13 @@ import PyPlot: plot
 export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
     S0, S2, S02, Map, Fourier,
-    ∇⁰, ∇¹, ∇₀, ∇₁, ∇, ∇ⁱ, ∇ᵢ, Δ,
+    ∇⁰, ∇¹, ∇₀, ∇₁, ∇, ∇ⁱ, ∇ᵢ, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
     MAP_joint, MAP_marg, load_sim_dataset, norm², pixwin,
-    HealpixS0Cap, HighPass, LowPass
+    HealpixS0Cap, HighPass, LowPass,
+    plot, @unpack, OuterProdOp
 
 include("util.jl")
 include("generic.jl")

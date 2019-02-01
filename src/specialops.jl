@@ -134,3 +134,50 @@ end
 # https://github.com/JuliaLang/julia/issues/14919
 evaluate(L::LinOp; θ...) = L
 evaluate(L::ParamDependentOp; θ...) = L(;θ...)
+
+
+### LazyBinaryOp
+
+# we use LazyBinaryOps to create new operators composed from other operators
+# which don't actually evaluate anything until they've been multiplied by a
+# field
+struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: LinOp{Basis,Spin,Pix}
+    a::A
+    b::B
+    LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
+end
+# creating LazyBinaryOps
+for op in (:+, :-, :*)
+    @eval ($op)(a::LinOp,  b::LinOp)  = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::LinOp,  b::Scalar) = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::Scalar, b::LinOp)  = LazyBinaryOp($op,a,b)
+end
+/(op::LinOp, n::Real) = LazyBinaryOp(/,op,n)
+literal_pow(::typeof(^), op::LinOp, ::Val{-1}) = inv(op)
+literal_pow(::typeof(^), op::LinOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
+inv(op::LinOp) = LazyBinaryOp(^,op,-1)
+-(op::LinOp) = -1 * op
+# evaluating LazyBinaryOps
+for op in (:+, :-)
+    @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
+end
+*(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
+*(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
+\(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
+*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
+adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
+ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
+
+
+### OuterProdOp
+
+# an operator L which represents L = M*M'
+# this could also be represented by a LazyBinaryOp, but this allows us to 
+# do simulate(L) = M * whitenoise
+struct OuterProdOp{TM<:LinOp} <: LinOp{Basis,Spin,Pix}
+    M::TM
+end
+simulate(L::OuterProdOp{<:FullDiagOp{F}}) where {F} = L.M * white_noise(F)
+simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = L.M.a * sqrt(L.M.b) * simulate(L.M.b)
+*(L::OuterProdOp, f::Field) = L.M * (L.M' * f)
+\(L::OuterProdOp, f::Field) = L.M' \ (L.M \ f)

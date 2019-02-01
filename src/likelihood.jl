@@ -224,7 +224,7 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
         b += L'*B'*P'*M'*(Cn^-1)*d
     end
     if (which in (:fluctuation, :sample))
-        b += sqrt(Cf)\white_noise(F) + L'*B'*P'*M'*(sqrt(Cn)\white_noise(F))
+        b += Cf\simulate(Cf) + L'*B'*P'*M'*(Cn\simulate(Cn))
     end
     
     pcg2(
