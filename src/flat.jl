@@ -102,15 +102,21 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_s0s2.jl")
 
-const FlatFourier{T,P} = Union{FlatS0Fourier{T,P},FlatS2Fourier{T,P},FieldTuple{<:FlatS0Fourier{T,P},<:FlatS2Fourier{T,P}}}
-const FlatMap{T,P} = Union{FlatS0Map{T,P},FlatS2Map{T,P},FieldTuple{<:Tuple{FlatS0Map{T,P},FlatS2Map{T,P}}}}
-const FlatField{T,P} = Union{FlatS0{T,P},FlatS2{T,P},FlatS02{T,P}}
-const FlatS0or2{T,P} = Union{FlatS0{T,P},FlatS2{T,P}}
+# Some Unions to specify various S0, S2, or S02 fields
+const FlatMap{T,P}     = Union{FlatS0Map{T,P},     FlatS2Map{T,P},     FieldTuple{<:Tuple{FlatS0Map{T,P},    FlatS2Map{T,P}}}}
+const FlatFourier{T,P} = Union{FlatS0Fourier{T,P}, FlatS2Fourier{T,P}, FieldTuple{<:Tuple{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}}}
+const FlatField{T,P}   = Union{FlatS0{T,P},        FlatS2{T,P},        FlatS02{T,P}}
 
+# "Base" fields are the fields which have they own non-FieldTuple concrete types,
+# i.e. S0 and S2. Fields like S02 are still flat fields but they're not "Base"
+# because they are implemented as a FieldTuple of (S0,S2). 
+const BaseFlatMap{T,P}       = Union{FlatS0Map{T,P},     FlatS2Map{T,P}}
+const BaseFlatFourier{T,P}   = Union{FlatS0Fourier{T,P}, FlatS2Fourier{T,P}}
+const BaseFlatField{T,P}     = Union{FlatS0{T,P},        FlatS2{T,P}}
 
 ## promotion
 
-function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatS0or2{T1,Flat{θ1,N1,∂mode1}},T2,θ2,N2,∂mode2,F2<:FlatS0or2{T2,Flat{θ2,N2,∂mode2}}}
+function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:BaseFlatField{T1,Flat{θ1,N1,∂mode1}},T2,θ2,N2,∂mode2,F2<:BaseFlatField{T2,Flat{θ2,N2,∂mode2}}}
     T     = promote_type(T1,T2)
     B     = promote_type(basis(F1),basis(F2))
     ∂mode = promote_type(∂mode1,∂mode2)
@@ -121,12 +127,12 @@ end
 ## conversion
 
 # e.g. Float32(f::FlatField) or Float64(f::FlatField)
-(::Type{T′})(f::F) where {T′<:Real,T,P,F<:FlatMap{T,P}} = 
+(::Type{T′})(f::F) where {T′<:Real,T,P,F<:BaseFlatMap{T,P}} = 
     basetype(F){T′,P}(convert.(Matrix{T′}, fieldvalues(f))...)
-(::Type{T′})(f::F) where {T′<:Real,T,P,F<:FlatFourier{T,P}} = 
+(::Type{T′})(f::F) where {T′<:Real,T,P,F<:BaseFlatFourier{T,P}} = 
     basetype(F){T′,P}(convert.(Matrix{Complex{T′}}, fieldvalues(f))...)
 # map∂(f::FlatField) or fourier∂(f::FlatField)
-(::Type{∂mode})(f::F) where {∂mode<:∂modes,T,θ,N,F<:FlatField{T,<:Flat{θ,N}}} = 
+(::Type{∂mode})(f::F) where {∂mode<:∂modes,T,θ,N,F<:BaseFlatField{T,<:Flat{θ,N}}} = 
     basetype(F){T,Flat{θ,N,∂mode}}(fieldvalues(f)...)
 
 

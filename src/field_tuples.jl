@@ -34,6 +34,10 @@ function promote(a::F1, b::F2) where {F1<:FieldTuple, F2<:FieldTuple}
 end
 convert(::Type{<:FieldTuple{FS}}, ft::FieldTuple) where {FS} = 
     FieldTuple(map_tupleargs((F,f)->F(f),FS,ft.fs)...)
+(::Type{T})(f::FieldTuple) where {T<:Real} = FieldTuple(map(T,f.fs)...)
+# need to define ∂modes earlier to make this work:
+# (::Type{∂mode})(f::FieldTuple) where {∂mode<:∂modes} = FieldTuple(map(∂mode,f.fs)...)
+
 
 # basis conversion
 (::Type{B})(::Type{<:FieldTuple{FS}}) where {FS,B<:Basislike} = BasisTuple{Tuple{map_tupleargs(F->B(F),FS)...}}
