@@ -21,10 +21,9 @@ To get started with this code, you can first look at [this](docs/joint_MAP_examp
 ## Requirements
 
 * Julia 1.0 or higher
-* (optional) Python 3 & [pycamb](https://github.com/cmbant/CAMB) to be able to generate Cℓ's
-* (optional) Python 3 & [healpy](https://github.com/healpy/healpy) for experimental curved sky support
-
-Note: all non-Julia dependencies are optional, so as long as you've got Julia running, you can run CMBLensing.jl. 
+* Python 3 + matplotlib (used for plotting)
+* (optional) [pycamb](https://github.com/cmbant/CAMB) to be able to generate Cℓ's
+* (optional) [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
 ## Native installation
 
@@ -34,7 +33,7 @@ To install the Julia package locally, run:
 pkg> dev https://github.com/marius311/CMBLensing.jl
 ```
 
-(type `]` at the Julia REPL to reach the Julia `pkg>` prompt)
+(type `]` at the Julia REPL to reach the `pkg>` prompt)
 
 ## Run via Docker
 
