@@ -47,4 +47,4 @@ RUN PYTHON=python3 JULIA_FFTW_PROVIDER=MKL julia -e 'using Pkg; try; Pkg.REPLMod
 
 RUN mkdir -p $HOME/.julia/config && mv $HOME/CMBLensing.jl/startup.jl $HOME/.julia/config/
 
-CMD jupyter-notebook --ip=0.0.0.0 --no-browser
+CMD jupyter-notebook --ip=0.0.0.0 --no-browser --port $PORT
