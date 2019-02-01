@@ -30,12 +30,6 @@ using StatsBase
 include("RFFTVectors.jl")
 using .RFFTVectors
 
-@init try 
-    @eval @pyimport healpy as hp
-catch
-    @warn("Failed to load Healpy Python package, some functionality may be limited.")
-end
-
 import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,
     getindex, getproperty, inv, iterate, length, literal_pow, one, promote,
     promote_rule, promote_rule, promote_type, propertynames, similar, size, sqrt,

@@ -1,3 +1,12 @@
+struct HealpyNotImported end
+getproperty(::HealpyNotImported, ::Symbol) = error("Healpy needs to be installed to use this function.")
+@init try 
+    @eval @pyimport healpy as hp
+catch
+    @eval hp = HealpyNotImported()
+end
+
+
 # use generated function to memoize ring info
 ringinfo(Nside) = ringinfo(Val(Nside))
 @generated function ringinfo(::Val{Nside}) where {Nside}
