@@ -58,7 +58,7 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
        
     m[isinf.(m)] .= NaN
     
-    cax = ax[:matshow](m; vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
+    cax = ax[:matshow](clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
     cbar && gcf()[:colorbar](cax,ax=ax)
     title!=nothing && ax[:set_title](title, y=1)
     ax
@@ -79,24 +79,16 @@ Plotting fields.
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
 function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(F), title=nothing, vlim=nothing, kwargs...) where {F<:Field}
-    fs = fs[:,:]
-    (which isa Vector) || (which = [which])
-    if size(fs,2)==1
-        which = reshape(which,1,:)
-        (m,n) = size(fs,1), length(which)
-    elseif size(fs,1)==1
-        (m,n) = length(which), size(fs,2)
-    else
-        length(which)==1 || throw(ArgumentError("If plotting a matrix of fields, `which` must be a single key."))
-        (m,n) = size(fs)
-    end
+    (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
+    axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim; kwargs...)
     tight_layout(w_pad=-10)
     fig,axs,which
 end
-default_which(::Type{<:Field{<:Any,S0,<:Flat}})  = [:Tx]
-default_which(::Type{<:Field{<:Any,S2,<:Flat}})  = [:Ex,:Bx]
+default_which(::Type{<:Field{<:Any,S0,<:Flat}}) = [:Tx]
+default_which(::Type{<:Field{<:Any,S2,<:Flat}}) = [:Ex :Bx]
+default_which(::Type{<:FieldTuple{FS}}) where {FS} = hcat(map(default_which,FS.parameters)...)
 default_which(::Type{F}) where {F} = throw(ArgumentError("Must specify `which` by hand for $F field."))
 
 
