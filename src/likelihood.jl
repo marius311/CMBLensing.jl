@@ -30,7 +30,7 @@ export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
 
 # mixing matrix for mixed parametrization
 D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
-     ParamDependentOp((;r)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))), r=rfid)
+     ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))))
 
 # Stores variables needed to construct the likelihood
 @with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TP}
@@ -76,38 +76,70 @@ end
 
 
 @doc doc"""
-    lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
-    lnP(t, fₜ, ϕ, ds, L::LenseOp) 
+    lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow; θ...)
+    lnP(t, fₜ, ϕ, ds, L::LenseOp; θ...) 
 
-Compute the log posterior probability as a function of the field, $f_t$, and the
-lensing potential, $ϕ$. The subscript $t$ can refer to either a "time", e.g.
-$t=0$ corresponds to the unlensed parametrization and $t=1$ to the lensed one,
-or can be `:mix` correpsonding to the mixed parametrization. In all cases, the
-argument `fₜ` should then be $f$ in that particular parametrization.
+Compute the log posterior probability as a function of the field, $f_t$, the
+lensing potential, $\phi$, and possibly some cosmological parameters, $\theta$.
+The subscript $t$ can refer to either a "time", e.g. passing `t=0` corresponds
+to the unlensed parametrization and `t=1` to the lensed one, or can be `:mix`
+correpsonding to the mixed parametrization. In all cases, the argument `fₜ`
+should then be $f$ in that particular parametrization.
 
 The log posterior is defined such that, 
 
 ```math
--2 \ln \mathcal{P}(f,ϕ\,|\,d) = (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f})^{\dagger} \mathcal{C_n}^{-1} (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f}) \
-                                + f^\dagger \mathcal{C_f}^{-1} f + \phi^\dagger \mathcal{C_\phi}^{-1} \mathcal{\phi}
+-2 \ln \mathcal{P}(f,ϕ\,|\,d) = (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f})^{\dagger} \mathcal{C_n}(\theta)^{-1} (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f}) \
+                                + f^\dagger \mathcal{C_f}(\theta)^{-1} f + \phi^\dagger \mathcal{C_\phi}(\theta)^{-1} \mathcal{\phi}
+```
+
+If any parameters $\theta$ are passed, we also include the three determinant
+terms to properly normalize the posterior,
+
+```math
++ \log\det\mathcal{C}_n(\theta) + \log\det\mathcal{C}_f(\theta) + \log\det\mathcal{C}_ϕ(\theta)
 ```
 
 The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = lnP(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ))
-lnP(t,fₜ,ϕ,ds,L::LenseOp) = lnP(Val{t},fₜ,ϕ,ds,L)
+lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow; θ...) where {L} = lnP(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ); θ...)
+lnP(t,fₜ,ϕ,ds,L::LenseOp; θ...) = lnP(Val{t},fₜ,ϕ,ds,L; θ...)
 
 # log posterior in the unlensed or lensed parametrization
-function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
-    @unpack Cn,Cf,Cϕ,M,P,B,d = ds
+function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp; θ...) where {t}
+    
+    # compute the logdet at the fiducial θ for any ParamDependentOps and
+    # subtract it out below, to avoid rounding errors (since its large)
+    if !isempty(θ)
+        @unpack Cn,Cf,Cϕ = ds()
+        logdet₀ = (  ds.Cn isa ParamDependentOp ? logdet(Cn) : 0 
+                   + ds.Cf isa ParamDependentOp ? logdet(Cf) : 0
+                   + ds.Cϕ isa ParamDependentOp ? logdet(Cϕ) : 0)
+    end
+    
+    @unpack Cn,Cf,Cϕ,M,P,B,d = ds(;θ...)
+    
+    # the unnormalized part of the posterior
     Δ = d-M*P*B*L[t→1]*fₜ
     f = L[t→0]*fₜ
-    -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
+    lnP = -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
+    
+    # if any parameters passed, include the logdet, offset by its fiducial value
+    # we calculated above
+    if !isempty(θ)
+        lnP += (  ds.Cn isa ParamDependentOp ? logdet(Cn) : 0 
+                + ds.Cf isa ParamDependentOp ? logdet(Cf) : 0
+                + ds.Cϕ isa ParamDependentOp ? logdet(Cϕ) : 0
+                - logdet₀)
+    end
+    
+    lnP
+    
 end
 # log posterior in the mixed parametrization
-lnP(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp) = (@unpack D = ds; lnP(0, D\(L\f̊), ϕ, ds, L))
+lnP(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp; θ...) = (@unpack D = ds; lnP(0, D\(L\f̊), ϕ, ds, L; θ...))
 
 
 

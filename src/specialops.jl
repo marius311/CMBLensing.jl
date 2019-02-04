@@ -130,7 +130,7 @@ ParamDependentOp(recompute_function::Function) = ParamDependentOp(recompute_func
 (L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate)
+for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 # the following could be changed to calling ::LinOp directly pending

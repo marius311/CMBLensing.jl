@@ -215,3 +215,8 @@ broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
 
 # allows std and var of a Vector of FlatFields to work
 real(f::CMBLensing.FlatField) = f
+
+
+# logdets
+logdet(L::FullDiagOp{<:FlatS0Fourier})   = real(sum(nan2zero.(log.(unfold(L.f.Tl)))))
+logdet(L::FullDiagOp{<:FlatS2EBFourier}) = real(sum(nan2zero.(log.(unfold(L.f.El))) + nan2zero.(log.(unfold(L.f.Bl)))))
