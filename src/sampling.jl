@@ -44,26 +44,28 @@ end
 
 
 """
-    function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0)
+    function grid_and_sample(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0)
 
 Interpolate the log pdf `lnP` with support on `range`, and return 
 the integrated pdf as well a sample (drawn via inverse transform sampling)
 """
-function grid_and_sample_1D(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0, progress=false)
+function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false) where {S}
     
-    xmin,xmax = range
-    xs = Base.range(xmin, stop=xmax, length=ngrid)
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, xs)
+    xs = first(range)
+    xmin,xmax = first(xs),last(xs)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(;Dict(first(keys(range))=>x)...), xs)
     Ps = exp.(lnPs .- maximum(lnPs))
     
     iP = CubicSplineInterpolation(xs,Ps,extrapolation_bc=0)
     
-    A = quadgk(iP,range...)[1]
+    A = quadgk(iP,xmin,xmax)[1]
     
     r = rand()
-    iP, fzero((x->quadgk(iP,xmin,x)[1]/A-r),range...)
+    iP, NamedTuple{S}((fzero((x->quadgk(iP,xmin,x)[1]/A-r),xmin,xmax),))
 
 end
+grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
+
 
 """
     sample_joint(ds::DataSet; kwargs...)
@@ -77,7 +79,7 @@ Possible keyword arguments:
 * `nchunk` - do `nchunk` steps in between parallel chain communication
 * `nthin` - only save once every `nthin` steps
 * `chains` - resume these existing chain (starts a new one if nothing)
-* `ϕstart`/`rstart` - starting values of ϕ and r 
+* `ϕstart`/`θstart` - starting values of ϕ and r 
 
 """
 function sample_joint(
@@ -90,33 +92,34 @@ function sample_joint(
     nchunk = 1,
     nthin = 1,
     chains = nothing,
-    ϕstart = :zero,
-    rstart = 0.1,
-    r_grid_range = nothing,
-    r_grid_kwargs = (range=r_grid_range, ngrid=32),
+    ϕstart = 0,
+    θrange = (),
+    θstart = (),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
     progress = 1,
     filename = nothing) where {T,P}
+    
+    @assert length(θrange) == 1 "Can only currently sample one parameter at a time."
 
     @unpack d, Cϕ, Cn, M, B = ds
 
     if (chains==nothing)
-        @assert ϕstart in [:zero, :quasi_sample, :best_fit]
-        if ϕstart==:zero
-            chains = [Any[@dictpack ϕcur=>zero(simulate(Cϕ)) rcur=>rstart] for i=1:nchains]
+        @assert ϕstart in [0, :quasi_sample, :best_fit]
+        if ϕstart==0
+            chains = [Any[@dictpack ϕcur=>zero(Cϕ) θcur=>θstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
-                fcur, ϕcur = MAP_joint(ds(r=rstart), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack ϕcur fcur rcur=>rstart]
+                fcur, ϕcur = MAP_joint(ds(;θstart...), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                Any[@dictpack ϕcur fcur θcur=>θstart]
             end
         end
     elseif chains isa String
         chains = load(filename,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds(r=rstart))[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]; end
     Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
@@ -127,28 +130,28 @@ function sample_joint(
     try
         @showprogress dt "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
             
-            append!.(chains, pmap(last.(chains)) do state
+            append!.(chains, map(last.(chains)) do state
                 
-                local fcur, f̊cur, f̃cur, Pr
-                @unpack ϕcur,rcur = state
+                local fcur, f̊cur, f̃cur, Pθ
+                @unpack ϕcur,θcur = state
                 chain = []
                 
                 for i=1:nchunk
                         
-                    # ==== gibbs P(f|ϕ,r) ====
+                    # ==== gibbs P(f|ϕ,θ) ====
                     let L=cache(L(ϕcur),ds.d)
-                        let ds=ds(r=rcur)
+                        let ds=ds(;θcur...)
                             fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
                             f̃cur = L*fcur
                             f̊cur = L*ds.D*fcur
                         end
                             
-                    # ==== gibbs P(r|f,ϕ) ====
-                        Pr, rcur = grid_and_sample_1D(r->lnP(:mix,f̊cur,ϕcur,ds(r=r),L); progress=(progress==2), r_grid_kwargs...)
+                    # ==== gibbs P(θ|f,ϕ) ====
+                        Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds(;θ...),L), θrange, progress=(progress==2))
                     end
                         
-                    # ==== gibbs P(ϕ|f,r) ==== 
-                    let ds=ds(r=rcur)
+                    # ==== gibbs P(ϕ|f,θ) ==== 
+                    let ds=ds(;θcur...)
                             
                         (ΔH, ϕtest) = symplectic_integrate(
                             ϕcur, simulate(Λm), Λm, 
@@ -166,10 +169,10 @@ function sample_joint(
                         end
                         
                         if (progress==2)
-                            @show accept, ΔH, rcur
+                            @show accept, ΔH, θcur
                         end
 
-                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur rcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds(r=rcur)) Pr)
+                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur θcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds(;θcur...)) Pθ)
                     end
 
                 end

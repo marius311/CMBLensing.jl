@@ -355,6 +355,7 @@ function MAP_joint(
     
     fcur, f̊cur = nothing, nothing
     ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(simulate(Cϕ)) # fix needing to get zero(Φ) this way
+    α = 0
     tr = []
     hist = nothing
     
@@ -363,40 +364,50 @@ function MAP_joint(
     if (Nϕ == :qe); Nϕ = ϕqe(zero(simulate(Cf)), Cf, Cf̃, Cn̂)[2]; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
-    
-    for i=1:nsteps
+    try
+        for i=1:nsteps
 
-        # f step
-        let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕcur)))
-            
-            # if we're doing a fixed quasi_sample, set the random seed here,
-            # which controls the sample from the posterior we get from inside
-            # `lensing_wiener_filter`
-            if isa(quasi_sample,Int); seed!(quasi_sample); end
-            
-            fcur,hist = lensing_wiener_filter(ds, L, 
-                (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
-                guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
-                tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
+            # f step
+            let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕcur)))
                 
-            f̊cur = L * D * fcur
-        end
-        
-        # ϕ step
-        if i!=nsteps
-            ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f̊cur,ϕcur,ds,L))[2]
-            res = optimize(α->(-lnP(:mix,f̊cur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
-            α = res.minimizer
-            ϕcur = ϕcur+α*ϕnew
-            lnPcur = -res.minimum
-            if progress; @show i,lnPcur,length(hist),α; end
-            push!(tr,@dictpack(i,lnPcur,hist,α,ϕnew,ϕcur,fcur))
-        end
-        
-        if callback != nothing
-            callback(fcur, ϕcur, tr)
-        end
+                # if we're doing a fixed quasi_sample, set the random seed here,
+                # which controls the sample from the posterior we get from inside
+                # `lensing_wiener_filter`
+                if isa(quasi_sample,Int); seed!(quasi_sample); end
+                
+                fcur,hist = lensing_wiener_filter(ds, L, 
+                    (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
+                    guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
+                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
+                    
+                f̊cur = L * D * fcur
+            end
+            
+            lnPcur = lnP(:mix,f̊cur,ϕcur,ds,L)
+            if progress
+                @printf("(step=%i, χ²=%.2f, Ncg=%i%s)", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
+            end
+            push!(tr,@dictpack(i,lnPcur,hist,ϕcur,fcur))
+            if callback != nothing
+                callback(fcur, ϕcur, tr)
+            end
+            
+            # ϕ step
+            if i!=nsteps
+                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f̊cur,ϕcur,ds,L))[2]
+                res = optimize(α->(-lnP(:mix,f̊cur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
+                α = res.minimizer
+                ϕcur = ϕcur+α*ϕnew
+            end
 
+        end
+    catch err
+        if err isa InterruptException
+            println()
+            @warn("Maximization interrupted. Returning current progress.")
+        else
+            rethrow(err)
+        end
     end
 
     return fcur, ϕcur, tr
@@ -464,6 +475,7 @@ function load_sim_dataset(;
     rfid = 0.05,
     Cℓ = camb(r=rfid),
     Cℓn = nothing,
+    Cn = nothing,
     seed = nothing,
     M = nothing,
     B = nothing,
@@ -483,8 +495,15 @@ function load_sim_dataset(;
     Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
     
     # types which depend on whether T/E/B
-    SS,ks = Dict(:TEB=>((S0,S2),(:TT,:EE,:BB,:TE)), :EB=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
-    F,F̂,nF = Dict(:TEB=>(FlatIQUMap,FlatTEBFourier,3), :EB=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
+    if (use == :EB)
+        @warn("switch to use=:P")
+        use = :P
+    elseif (use == :TEB)
+        @warn("switch to use=:TP")
+        use = :TP
+    end
+    SS,ks = Dict(:TP=>((S0,S2),(:TT,:EE,:BB,:TE)), :P=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
+    F,F̂,nF = Dict(:TP=>(FlatIQUMap,FlatTEBFourier,3), :P=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
     
     # pixelization
     P = (θpix_data == θpix) ? 1 : FuncOp(
@@ -495,10 +514,13 @@ function load_sim_dataset(;
     Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
     
     # covariances
-    Cϕ            =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
-    Cfs,Cft,Cf̃,Cn̂ = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
-    Cn            =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
-    Cf            = ParamDependentOp((;r)->(Cfs + (r/rfid)*Cft), r=rfid)
+    Cϕ₀               =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
+    Cfs,Cft,Cf̃,Cn̂     = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
+    if (Cn == nothing)
+        Cn            =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
+    end
+    Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + (r/rfid)*Cft))
+    Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. Aϕ*Cϕ₀))
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
@@ -531,6 +553,6 @@ function load_sim_dataset(;
 end
 
 function ϕqe(ds::DataSet, wiener_filtered=false)
-    @unpack d, Cf, Cf̃, Cn, Cϕ = ds
-    wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn, Cϕ) : ϕqe(d, Cf, Cf̃, Cn)
+    @unpack d, Cf, Cf̃, Cn̂, Cϕ = ds
+    wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqe(d, Cf, Cf̃, Cn̂)
 end
