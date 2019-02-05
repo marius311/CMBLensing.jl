@@ -33,24 +33,26 @@ D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
      ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))))
 
 # Stores variables needed to construct the likelihood
-@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TP}
-    d  :: Td                 # data
-    Cn :: TCn                # noise covariance
-    Cϕ :: TCϕ                # ϕ covariance
-    Cf :: TCf                # unlensed field covariance
-    Cf̃ :: TCf̃  = nothing     # lensed field covariance (not always needed)
-    Cn̂ :: TCn̂  = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  :: TM   = 1           # user mask
-    B  :: TB   = 1           # beam and instrumental transfer functions
-    B̂  :: TB̂   = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
-    D  :: TD   = D_mix(Cf)   # mixing matrix for mixed parametrization
-    P  :: TP   = 1           # pixelization operator to estimate field on higher res than data
+@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
+    d  :: Td                # data
+    Cn :: TCn               # noise covariance
+    Cϕ :: TCϕ               # ϕ covariance
+    Cf :: TCf               # unlensed field covariance
+    Cf̃ :: TCf̃ = nothing     # lensed field covariance (not always needed)
+    Cn̂ :: TCn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
+    M  :: TM  = 1           # user mask
+    B  :: TB  = 1           # beam and instrumental transfer functions
+    B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
+    D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
+    G  :: TG  = IdentityOp  # reparametrization for ϕ
+    P  :: TP  = 1           # pixelization operator to estimate field on higher res than data
 end
 
 function (ds::DataSet)(;θ...)
-    @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,P=ds
+    @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,G,P=ds
     DataSet(;@ntpack(d,M,B,B̂,P,
         D=>evaluate(D;θ...),
+        G=>evaluate(G;θ...),
         Cn=>evaluate(Cn;θ...),
         Cϕ=>evaluate(Cϕ;θ...),
         Cf=>evaluate(Cf;θ...),
@@ -104,42 +106,52 @@ The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-lnP(t,fₜ,ϕ,ds,::Type{L}=LenseFlow; θ...) where {L} = lnP(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ); θ...)
-lnP(t,fₜ,ϕ,ds,L::LenseOp; θ...) = lnP(Val{t},fₜ,ϕ,ds,L; θ...)
-
-# log posterior in the unlensed or lensed parametrization
-function lnP(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp; θ...) where {t}
+# this is the `lnP` method users will most likely call directly. first switch t to Val(t)
+lnP(t,           fₜ, ϕ,  ds, L=LenseFlow; θ...)                      = lnP(Val(t), fₜ, ϕ, ds, L; θ...)
+# then evaluate L(ϕ) unless L was passed in already evaluated
+lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}  ; θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ);  θ...)
+lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}  ; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds.G\ϕₘ),fₘ);  θ...)
+# then evaluate ds at parameters θ, and undo the mixing if there was any
+lnP(::Val{t},    fₜ, ϕ,  ds, L::LenseOp ; θ...) where {t}            = lnP(Val(t),    fₜ, ϕ,  ds, ds(;θ...), L; θ...)
+lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp ; θ...) = begin
+    dsθ = ds(;θ...)
+    @unpack D,G = dsθ
+    (lnP(Val(0), D\(L\fₘ), G\ϕₘ, ds, dsθ, L; θ...)
+     - (depends_on(ds.D, θ) ? logdet(D) : 0)
+     - (depends_on(ds.G, θ) ? logdet(G) : 0))
+end
+# finally, evaluate the actual posterior
+function lnP(::Val{t}, fₜ, ϕ, ds::DataSet, dsθ::DataSet, L::LenseOp; θ...) where {t}
     
-    # compute the logdet at the fiducial θ for any ParamDependentOps and
-    # subtract it out below, to avoid rounding errors (since its large)
-    if !isempty(θ)
-        @unpack Cn,Cf,Cϕ = ds()
-        logdet₀ = (  ds.Cn isa ParamDependentOp ? logdet(Cn) : 0 
-                   + ds.Cf isa ParamDependentOp ? logdet(Cf) : 0
-                   + ds.Cϕ isa ParamDependentOp ? logdet(Cϕ) : 0)
-    end
-    
-    @unpack Cn,Cf,Cϕ,M,P,B,d = ds(;θ...)
+    # unpack needed variables from the dataset evaluated at θ
+    @unpack Cn,Cf,Cϕ,M,P,B,d = dsθ
     
     # the unnormalized part of the posterior
     Δ = d-M*P*B*L[t→1]*fₜ
     f = L[t→0]*fₜ
     lnP = -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
     
-    # if any parameters passed, include the logdet, offset by its fiducial value
-    # we calculated above
-    if !isempty(θ)
-        lnP += (  ds.Cn isa ParamDependentOp ? logdet(Cn) : 0 
-                + ds.Cf isa ParamDependentOp ? logdet(Cf) : 0
-                + ds.Cϕ isa ParamDependentOp ? logdet(Cϕ) : 0
-                - logdet₀)
-    end
-    
+    # add the normalization (the logdet terms), offset by its value at fiducial
+    # parameters (to avoid roundoff errors, since its otherwise a large number).
+    # note: only the terms for which parameters were passed in via `θ... ` will
+    # be computed. 
+    lnP += (lnP_logdet_terms(ds,dsθ; θ...) - lnP_logdet_terms(ds,ds(); θ...))
+
     lnP
     
 end
+
+# logdet terms in the posterior given the covariances in `dsθ` which is the
+# dataset evaluated at parameters θ.  `ds` is used to check which covariances
+# were param-dependent prior to evaluation, and these are not calculated
+function lnP_logdet_terms(ds, dsθ; θ...)
+    -(  (depends_on(ds.Cn, θ) ? logdet(dsθ.Cn) : 0) 
+      + (depends_on(ds.Cf, θ) ? logdet(dsθ.Cf) : 0)
+      + (depends_on(ds.Cϕ, θ) ? logdet(dsθ.Cϕ) : 0))/2
+end
+
 # log posterior in the mixed parametrization
-lnP(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp; θ...) = (@unpack D = ds; lnP(0, D\(L\f̊), ϕ, ds, L; θ...))
+
 
 
 
@@ -175,17 +187,17 @@ function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
                                  + δlnΠᶲ_δfϕ(f,ϕ,ds)  )
 end
 # log posterior gradient in the mixed parametrization
-function δlnP_δfϕₜ(::Type{Val{:mix}},f̊,ϕ,ds,L::LenseOp)
-
+function δlnP_δfϕₜ(::Type{Val{:mix}},fₘ,ϕₘ,ds,L::LenseOp)
+    
     @unpack D = ds
-    L⁻¹f̊ = L \ f̊
-    f = D \ L⁻¹f̊
+    L⁻¹fₘ = L \ fₘ
+    f = D \ L⁻¹fₘ
 
     # gradient w.r.t. (f,ϕ)
     δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    δfϕ_δf̃ϕ(L, L⁻¹f̊, f̊)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
+    δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
 end
 
 
@@ -353,7 +365,7 @@ function MAP_joint(
     
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
-    fcur, f̊cur = nothing, nothing
+    fcur, fₘcur = nothing, nothing
     ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(simulate(Cϕ)) # fix needing to get zero(Φ) this way
     α = 0
     tr = []
@@ -380,12 +392,12 @@ function MAP_joint(
                     guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
                     
-                f̊cur = L * D * fcur
+                fₘcur = L * D * fcur
             end
             
-            lnPcur = lnP(:mix,f̊cur,ϕcur,ds,L)
+            lnPcur = lnP(:mix,fₘcur,ϕcur,ds,L)
             if progress
-                @printf("(step=%i, χ²=%.2f, Ncg=%i%s)", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
+                @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
             push!(tr,@dictpack(i,lnPcur,hist,ϕcur,fcur))
             if callback != nothing
@@ -394,8 +406,8 @@ function MAP_joint(
             
             # ϕ step
             if i!=nsteps
-                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f̊cur,ϕcur,ds,L))[2]
-                res = optimize(α->(-lnP(:mix,f̊cur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
+                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,fₘcur,ϕcur,ds,L))[2]
+                res = optimize(α->(-lnP(:mix,fₘcur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
                 α = res.minimizer
                 ϕcur = ϕcur+α*ϕnew
             end

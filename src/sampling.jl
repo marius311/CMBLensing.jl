@@ -147,7 +147,7 @@ function sample_joint(
                         end
                             
                     # ==== gibbs P(θ|f,ϕ) ====
-                        Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds(;θ...),L), θrange, progress=(progress==2))
+                        Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds,L; θ...), θrange, progress=(progress==2))
                     end
                         
                     # ==== gibbs P(ϕ|f,θ) ==== 

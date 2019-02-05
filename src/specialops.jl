@@ -124,8 +124,12 @@ const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))
 struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: LinOp{B,S,P}
     op::L
     recompute_function::F
+    parameters::Vector{Symbol}
 end
-ParamDependentOp(recompute_function::Function) = ParamDependentOp(recompute_function(),recompute_function)
+function ParamDependentOp(recompute_function::Function)
+    parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function)), typeof(methods(recompute_function).mt.kwsorter)))
+    ParamDependentOp(recompute_function(), recompute_function, parameters)
+end
 (L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...)
 (L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
@@ -135,8 +139,11 @@ for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :logdet)
 end
 # the following could be changed to calling ::LinOp directly pending
 # https://github.com/JuliaLang/julia/issues/14919
-evaluate(L::LinOp; θ...) = L
+evaluate(L::Union{LinOp,Real}; θ...) = L
 evaluate(L::ParamDependentOp; θ...) = L(;θ...)
+depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
+depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
+depends_on(L,                   θ) = false
 
 
 ### LazyBinaryOp
