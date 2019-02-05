@@ -210,6 +210,7 @@ pix(::F) where {F<:Field} = pix(F)
 shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""), "Main."=>"")
 
 zero(::F) where {F<:Field} = zero(F)
+one(::F) where {F<:Field} = one(F)
 similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 

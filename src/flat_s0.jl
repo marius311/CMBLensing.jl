@@ -52,6 +52,7 @@ end
 
 
 zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
+one(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(ones(Nside(P),Nside(P)))
 
 
 # dot products

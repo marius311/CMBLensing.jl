@@ -14,6 +14,7 @@ end
 \(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .\ F(f)) : L.f .\ F(f)
 
 zero(L::FullDiagOp) = zero(L.f)
+one(L::FullDiagOp) = one(L.f)
 
 # non-broadcasted algebra on FullDiagOps
 for op in (:+,:-,:*,:\,:/)
@@ -134,7 +135,7 @@ end
 (L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :logdet)
+for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 # the following could be changed to calling ::LinOp directly pending
