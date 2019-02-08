@@ -49,8 +49,7 @@ end
 Interpolate the log pdf `lnP` with support on `range`, and return 
 the integrated pdf as well a sample (drawn via inverse transform sampling)
 """
-function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false) where {S}
-    
+function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1) where {S}
     xs = first(range)
     xmin,xmax = first(xs),last(xs)
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(;Dict(first(keys(range))=>x)...), xs)
@@ -60,9 +59,13 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     
     A = quadgk(iP,xmin,xmax)[1]
     
-    r = rand()
-    iP, NamedTuple{S}((fzero((x->quadgk(iP,xmin,x)[1]/A-r),xmin,xmax),))
-
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin,x)[1]/A-r),xmin,xmax)) for i=1:nsamples]),))
+    
+    if nsamples==1
+        iP, map(first, θsamples)
+    else
+        iP, θsamples
+    end
 end
 grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
 
