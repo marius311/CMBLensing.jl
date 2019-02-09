@@ -44,10 +44,24 @@ end
 
 
 """
-    function grid_and_sample(lnP::Function; range=(1e-3,0.2), ngrid=20, s=0)
+    function grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
 
-Interpolate the log pdf `lnP` with support on `range`, and return 
-the integrated pdf as well a sample (drawn via inverse transform sampling)
+Interpolate the log pdf `lnP` with support on `range`, and return  the
+integrated pdf as well `nsamples` samples (drawn via inverse transform
+sampling)
+
+`lnP` should accept keyword arguments and `range` should be a NamedTuple mapping
+those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
+
+```
+    grid_and_sample((;x,y)->(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+```
+
+The return value is `(P, samples)` where `P` is an interpolation of `lnP` which
+can be evaluated anywhere and `samples` is a NamedTuple giving the samples of
+each of the parameters.
+
+(Note: only 1D sampling is currently implemented)
 """
 function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1) where {S}
     xs = first(range)
