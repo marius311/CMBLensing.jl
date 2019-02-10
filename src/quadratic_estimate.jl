@@ -1,13 +1,5 @@
 export ϕqe
 
-macro sym(ex)
-    # todo: write this such that it converts a function f(i,j,k,..) which is
-    # assumed to be symmetric in its arguments into a memoized function such
-    # that each unique set of parameters is only calculated once
-    :($(esc(ex)))
-end
-
-
 """
 
     ϕqe(d, Cf, Cf̃, Cn, Cϕ=nothing)
@@ -24,9 +16,9 @@ function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
     ϕqe_unnormalized = -L⃗' * Fourier(Map((Cf̃+Cn)\d) * Map(L⃗*(Cf*((Cf̃+Cn)\d))))
     
     # normalization
-    I(i,j) = (  Map(Cf^2*inv(Cf̃+Cn)*L⃗[i]*L⃗[j]) * Map(   inv(Cf̃+Cn).f)
-              + Map(Cf  *inv(Cf̃+Cn)*L⃗[i])      * Map(Cf*inv(Cf̃+Cn)*L⃗[j]))
-    AL = Nϕ = 2π * inv(FullDiagOp(sum(L⃗[i]*L⃗[j]*Fourier(I(i,j)) for i=1:2, j=1:2)))
+    I(i,j) = (  Map(Cf^2 * inv(Cf̃+Cn) * L⃗[i] * L⃗[j]) * Map(     inv(Cf̃+Cn).f)
+              + Map(Cf   * inv(Cf̃+Cn) * L⃗[i])        * Map(Cf * inv(Cf̃+Cn) * L⃗[j]))
+    AL = Nϕ = 2π * inv(FullDiagOp(sum(L⃗[i] * L⃗[j] * Fourier(I(i,j)) for i=1:2, j=1:2)))
     
     
     ϕqe_normalized = AL * ϕqe_unnormalized
