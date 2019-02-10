@@ -219,4 +219,5 @@ real(f::CMBLensing.FlatField) = f
 
 # logdets
 logdet(L::FullDiagOp{<:FlatS0Fourier})   = real(sum(nan2zero.(log.(unfold(L.f.Tl)))))
+logdet(L::FullDiagOp{<:FlatS0Map})       = real(sum(nan2zero.(log.(complex(L.f.Tx)))))
 logdet(L::FullDiagOp{<:FlatS2EBFourier}) = real(sum(nan2zero.(log.(unfold(L.f.El))) + nan2zero.(log.(unfold(L.f.Bl)))))

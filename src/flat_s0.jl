@@ -52,8 +52,8 @@ end
 
 
 zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
-one(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(ones(Nside(P),Nside(P)))
-
+one(::Type{<:FlatS0Map{T,P}}) where {T,P} = FlatS0Map{T,P}(ones(Nside(P),Nside(P)))
+one(::Type{<:FlatS0Fourier{T,P}}) where {T,P} = FlatS0Fourier{T,P}(ones(Complex{T},Nside(P)÷2+1,Nside(P)))
 
 # dot products
 dot(a::FlatS0Map{T,P}, b::FlatS0Map{T,P}) where {T,P} = dot(a.Tx,b.Tx) * FFTgrid(T,P).Δx^2

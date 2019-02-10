@@ -110,11 +110,12 @@ The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-# this is the `lnP` method users will most likely call directly. first switch t to Val(t)
+# this is the `lnP` method users will most likely call directly. first we switche t to Val(t)
 lnP(t,           fₜ, ϕ,  ds, L=LenseFlow; θ...)                      = lnP(Val(t), fₜ, ϕ, ds, L; θ...)
-# then evaluate L(ϕ) unless L was passed in already evaluated
+# then evaluate L(ϕ) unless L was passed in already evaluated 
+# (TODO: remove repeated evaluation of ds(;θ...) which happens in the mixed case)
 lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}  ; θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ);  θ...)
-lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}  ; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds.G\ϕₘ),fₘ);  θ...)
+lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}  ; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ);  θ...)
 # then evaluate ds at parameters θ, and undo the mixing if there was any
 lnP(::Val{t},    fₜ, ϕ,  ds, L::LenseOp ; θ...) where {t}            = lnP(Val(t),    fₜ, ϕ,  ds, ds(;θ...), L; θ...)
 lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp ; θ...) = begin
@@ -137,8 +138,8 @@ function lnP(::Val{t}, fₜ, ϕ, ds::DataSet, dsθ::DataSet, L::LenseOp; θ...) 
     
     # add the normalization (the logdet terms), offset by its value at fiducial
     # parameters (to avoid roundoff errors, since its otherwise a large number).
-    # note: only the terms for which parameters were passed in via `θ... ` will
-    # be computed. 
+    # note: only the terms which depend on parameters that were passed in via
+    # `θ... ` will be computed. 
     lnP += (lnP_logdet_terms(ds,dsθ; θ...) - lnP_logdet_terms(ds,ds(); θ...))
 
     lnP
@@ -153,9 +154,6 @@ function lnP_logdet_terms(ds, dsθ; θ...)
       + (depends_on(ds.Cf, θ) ? logdet(dsθ.Cf) : 0)
       + (depends_on(ds.Cϕ, θ) ? logdet(dsθ.Cϕ) : 0))/2
 end
-
-# log posterior in the mixed parametrization
-
 
 
 
@@ -198,7 +196,7 @@ function δlnP_δfϕₜ(::Type{Val{:mix}},fₘ,ϕₘ,ds,L::LenseOp)
     f = D \ L⁻¹fₘ
 
     # gradient w.r.t. (f,ϕ)
-    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
+    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕₘ, ds, L)
     
     # chain rule
     δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
@@ -496,6 +494,7 @@ function load_sim_dataset(;
     M = nothing,
     B = nothing,
     D = nothing,
+    G = nothing,
     mask_kwargs = nothing,
     L = LenseFlow,
     ∂mode = fourier∂
@@ -550,8 +549,9 @@ function load_sim_dataset(;
         B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., ℓ, ((k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
     end
     
-    # mixing matrix
+    # mixing matrices
     if (D == nothing); D = D_mix(Cf); end
+    if (G == nothing); G = IdentityOp; end
     
     # simulate data
     if (seed != nothing); seed!(seed); end
@@ -562,7 +562,7 @@ function load_sim_dataset(;
     d = M*P*B*f̃ + n
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
+    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)
     
     return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix 
     
