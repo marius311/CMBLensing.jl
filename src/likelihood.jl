@@ -48,6 +48,11 @@ D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
     P  :: TP  = 1           # pixelization operator to estimate field on higher res than data
 end
 
+function DataSet(ds::DataSet; kwargs...)
+    FN = fieldnames(typeof(ds))
+    DataSet(;NamedTuple{FN}(getfield.(Ref(ds),FN))..., kwargs...)
+end
+
 function (ds::DataSet)(;θ...)
     @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,G,P=ds
     DataSet(;@ntpack(d,M,B,B̂,P,
@@ -68,9 +73,8 @@ Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulate if not provided)
 """
 function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=LenseFlow(ϕ)*f)
-    @unpack Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, D, P = ds
-    d = M*P*B*f̃ + n
-    DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
+    @unpack M,P,B = ds
+    DataSet(ds, d = M*P*B*f̃ + n)
 end
 
 
@@ -560,7 +564,7 @@ function load_sim_dataset(;
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D P)...)
     
-    return @ntpack f f̃ ϕ n ds T P=>Pix 
+    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix 
     
 end
 

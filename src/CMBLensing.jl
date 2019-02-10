@@ -48,7 +48,7 @@ export
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
     MAP_joint, MAP_marg, sample_joint, load_sim_dataset, norm², pixwin,
     HealpixS0Cap, HighPass, LowPass,
-    plot, @unpack, OuterProdOp
+    plot, @unpack, OuterProdOp, resimulate
 
 include("util.jl")
 include("generic.jl")
