@@ -16,3 +16,4 @@ plots/
 paper/
 scripts/
 test/
+*.jld*
