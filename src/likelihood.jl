@@ -385,7 +385,7 @@ function MAP_joint(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(zero(simulate(Cf)), Cf, Cf̃, Cn̂)[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds,false)[2]/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
     try
@@ -579,6 +579,8 @@ function load_sim_dataset(;
 end
 
 function ϕqe(ds::DataSet, wiener_filtered=false)
-    @unpack d, Cf, Cf̃, Cn̂, Cϕ = ds
+    @unpack d, Cf, Cf̃, Cn̂, Cϕ, B = ds
+    Cf̃ = B^2 * Cf̃
+    Cf = B^2 * Cf
     wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqe(d, Cf, Cf̃, Cn̂)
 end

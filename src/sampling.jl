@@ -136,7 +136,7 @@ function sample_joint(
         chains = load(filename,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]/2; end
     Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
