@@ -41,6 +41,11 @@ function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, CℓTT::InterpolatedCℓs
     FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.nside÷2+1,:]))
 end
 
+function cov_to_Cℓ(L::FullDiagOp)
+    ii = sortperm(FFTgrid(L.f).r[:])
+    InterpolatedCℓs(FFTgrid(L.f).r[ii], real.(unfold(L.f.Tl))[ii])
+end
+
 function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000) where {T,P}
     g = FFTgrid(T,P)
     α = g.Δx^2/(4π^2)*g.nside^2

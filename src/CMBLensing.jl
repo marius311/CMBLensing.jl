@@ -44,7 +44,7 @@ import PyPlot: plot, loglog, semilogx, semilogy
 
 
 export
-    Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov,
+    Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov, cov_to_Cℓ,
     S0, S2, S02, Map, Fourier,
     ∇⁰, ∇¹, ∇₀, ∇₁, ∇, ∇ⁱ, ∇ᵢ, ∇²,
     Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,

@@ -20,7 +20,7 @@ getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.itp.coefs
 getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
 propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
-    (!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...)
+    sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 for plot in (:plot, :loglog, :semilogx, :semilogy)
     @eval ($plot)(ic::InterpolatedCℓs, args...; kwargs...) = ($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 end
@@ -51,6 +51,7 @@ for op in (:*, :/, :+, :-)
     @eval ($op)(ic::InterpolatedCℓs, x::Real) = InterpolatedCℓs(ic.ℓ, broadcast($op,ic.Cℓ,x))
 	@eval ($op)(x::Real, fc::FuncCℓs) = FuncCℓs(ℓ -> ($op)(x,fc.f(ℓ)))
 	@eval ($op)(fc::FuncCℓs, x::Real) = FuncCℓs(ℓ -> ($op)(fc.f(ℓ),x))
+	@eval ($op)(fc1::FuncCℓs, fc2::FuncCℓs) = FuncCℓs(ℓ -> ($op)(fc1.f(ℓ),fc2.f(ℓ)))
 	@eval ($op)(fc::FuncCℓs, v::AbstractArray) = broadcast($op, fc, v)
 	@eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
 end
