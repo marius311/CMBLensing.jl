@@ -110,15 +110,15 @@ The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-# this is the `lnP` method users will most likely call directly. first we switche t to Val(t)
-lnP(t,           fₜ, ϕ,  ds, L=LenseFlow; θ...)                      = lnP(Val(t), fₜ, ϕ, ds, L; θ...)
+# this is the `lnP` method users will most likely call directly. first we switch t to Val(t)
+lnP(t, fₜ, ϕ, ds, L=LenseFlow; θ...) = lnP(Val(t), fₜ, ϕ, ds, L; θ...)
 # then evaluate L(ϕ) unless L was passed in already evaluated 
-# (TODO: remove repeated evaluation of ds(;θ...) which happens in the mixed case)
-lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}  ; θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ);  θ...)
-lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}  ; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ);  θ...)
+# (todo: remove repeated evaluation of ds(;θ...) which happens in the mixed case)
+lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}; θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ); θ...)
+lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ); θ...)
 # then evaluate ds at parameters θ, and undo the mixing if there was any
-lnP(::Val{t},    fₜ, ϕ,  ds, L::LenseOp ; θ...) where {t}            = lnP(Val(t),    fₜ, ϕ,  ds, ds(;θ...), L; θ...)
-lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp ; θ...) = begin
+lnP(::Val{t}, fₜ, ϕ, ds, L::LenseOp; θ...) where {t} = lnP(Val(t), fₜ, ϕ, ds, ds(;θ...), L; θ...)
+function lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp; θ...)
     dsθ = ds(;θ...)
     @unpack D,G = dsθ
     (lnP(Val(0), D\(L\fₘ), G\ϕₘ, ds, dsθ, L; θ...)
@@ -169,38 +169,43 @@ arguments of this function.
 
 The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
-δlnP_δfϕₜ(t,fₜ,ϕ,ds,::Type{L}=LenseFlow) where {L} = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,cache(L(ϕ),fₜ))
-δlnP_δfϕₜ(t,fₜ,ϕ,ds,L::LenseOp) = δlnP_δfϕₜ(Val{t},fₜ,ϕ,ds,L)
-
-# derivatives of the three posterior probability terms at the times at which
-# they're easy to take (used below)
-δlnL_δf̃ϕ(f̃,ϕ::Φ,ds)  where {Φ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Φ)))
-δlnΠᶠ_δfϕ(f,ϕ::Φ,ds) where {Φ} = (@unpack Cf=ds;         FieldTuple(-(Cf\f)                  , zero(Φ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -(Cϕ\ϕ)))
-
-
-# log posterior gradient in the lensed or unlensed parametrization
-function δlnP_δfϕₜ(::Type{Val{t}},fₜ,ϕ,ds,L::LenseOp) where {t}
+# this is the `δlnP_δfϕₜ` method users will most likely call directly. first we
+# switch t to Val(t) and evaluate at parameters θ
+δlnP_δfϕₜ(t, fₜ, ϕ, ds, L=LenseFlow; θ...) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, ds(;θ...), L)
+# in the lensed or unlensed parametrization
+δlnP_δfϕₜ(::Val{t}, fₜ, ϕ, ds, ::Type{L}) where {L<:LenseOp,t} = δlnP_δfϕₜ(Val(t), fₜ, ϕ, ds, cache(L(ϕ),fₜ))
+δlnP_δfϕₜ(::Val{t}, fₜ, ϕ, ds, L::LenseOp) where {t} = begin
     f̃ =  L[t→1]*fₜ
     f =  L[t→0]*fₜ
 
-    (   δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val{t})' * δlnL_δf̃ϕ(f̃,ϕ,ds)
-      + δfϕ_δfϕₜ(L,f,fₜ,Val{t})' * δlnΠᶠ_δfϕ(f,ϕ,ds)
-                                 + δlnΠᶲ_δfϕ(f,ϕ,ds)  )
+    (   δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val(t))' * δlnL_δf̃ϕ(f̃,ϕ,ds)
+      + δfϕ_δfϕₜ(L,f,fₜ,Val(t))' * δlnΠᶠ_δfϕ(f,ϕ,ds)
+                                 + δlnΠᶲ_δfϕ(f,ϕ,ds) )
 end
-# log posterior gradient in the mixed parametrization
-function δlnP_δfϕₜ(::Type{Val{:mix}},fₘ,ϕₘ,ds,L::LenseOp)
+# in the mixed parametrization
+δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp) = δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ds.G\ϕₘ, ds, L)
+δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}) where {L<:LenseOp} = begin
+    ϕ = ds.G \ ϕₘ
+    δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ϕ, ds, cache(L(ϕ),fₘ))
+end
+δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ϕ, ds, L::LenseOp) = begin
     
-    @unpack D = ds
+    @unpack D,G = ds
     L⁻¹fₘ = L \ fₘ
     f = D \ L⁻¹fₘ
 
     # gradient w.r.t. (f,ϕ)
-    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕₘ, ds, L)
+    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D^-1 * δlnP_δf, δlnP_δϕ)
+    δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D \ δlnP_δf, G \ δlnP_δϕ)
+
 end
+# derivatives of the three posterior probability terms at the times at which
+# they're easy to take (used above)
+δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(ɸ)))
+δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf=ds;         FieldTuple(-(Cf\f)                  , zero(ɸ)))
+δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -(Cϕ\ϕ)))
 
 
 
@@ -210,7 +215,9 @@ end
 
 function δlnP_δϕ(L::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
     
-    @unpack d,P,M,B,Cn,Cf,Cn̂ = ds
+    @unpack d,P,M,B,Cn,Cf,Cn̂,G = ds
+    
+    if G!=IdentityOp; @warn "δlnP_δϕ does not currently handle the G mixing matrix"; end
 
     function gQD(L, ds)
         y = B' * M' * P' * (Σ(L, ds) \ ds.d)
@@ -365,10 +372,13 @@ function MAP_joint(
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
     
+    # since MAP estimate is done at fixed θ, we don't need to reparametrize to
+    # ϕₘ = G(θ)*ϕ, so set G to constant here
+    ds = DataSet(ds, G=IdentityOp)
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
     fcur, fₘcur = nothing, nothing
-    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(simulate(Cϕ)) # fix needing to get zero(Φ) this way
+    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ)
     α = 0
     tr = []
     hist = nothing
@@ -454,7 +464,7 @@ function MAP_marg(
     if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf), Cf, Cf̃, Cn̂)[2]; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
 
-    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ) # fix needing to get zero(Φ) this way
+    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ) # fix needing to get zero(ɸ) this way
     tr = []
 
     for i=1:nsteps

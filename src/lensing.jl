@@ -36,10 +36,10 @@ struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: LinOp{Ba
     δfϕₛ_δfϕₜ{s,t}(l::L,fₛ::Fₛ,fₜ::Fₜ) where {s,t,L,Fₛ,Fₜ} = new{s,t,L,Fₛ,Fₜ}(l,fₛ,fₜ)
 end
 # convenience constructors which use f̃ to mean f_(t=1) and/or f to mean f_(t=0)
-δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{1.,t}(L,f̃,fₜ)
-δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Type{Val{1}}) = IdentityOp
-δfϕ_δfϕₜ(L,f,fₜ,::Type{Val{t}}) where {t} = δfϕₛ_δfϕₜ{0.,t}(L,f,fₜ)
-δfϕ_δfϕₜ(L,f,fₜ,::Type{Val{0}}) = IdentityOp
+δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Val{t}) where {t} = δfϕₛ_δfϕₜ{1.,t}(L,f̃,fₜ)
+δf̃ϕ_δfϕₜ(L,f̃,fₜ,::Val{1}) = IdentityOp
+δfϕ_δfϕₜ(L,f,fₜ,::Val{t}) where {t} = δfϕₛ_δfϕₜ{0.,t}(L,f,fₜ)
+δfϕ_δfϕₜ(L,f,fₜ,::Val{0}) = IdentityOp
 δfϕ_δf̃ϕ(L,f,f̃) = δfϕₛ_δfϕₜ{0,1}(L,f,f̃)
 δf̃ϕ_δfϕ(L,f̃,f) = δfϕₛ_δfϕₜ{1,0}(L,f̃,f)
 # inverse Jacobians are the same as switching time t and s
