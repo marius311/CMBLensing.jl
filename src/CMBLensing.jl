@@ -1,5 +1,6 @@
 module CMBLensing
 
+using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 using Base.Iterators: repeated
 using Base.Threads
 using Combinatorics
@@ -31,12 +32,15 @@ using StatsBase
 include("RFFTVectors.jl")
 using .RFFTVectors
 
-import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, convert, copy, eltype,
-    getindex, getproperty, inv, iterate, length, literal_pow, one, promote,
-    promote_rule, promote_rule, promote_type, propertynames, similar, size, sqrt,
-    sqrt, transpose, zero, real
+
+
+import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, broadcastable,
+    BroadcastStyle, convert, copy, eltype, getindex, getproperty, inv, iterate,
+    length, literal_pow, materialize!, materialize, one, promote, promote_rule,
+    promote_rule, promote_type, propertynames, real, similar, size, sqrt, sqrt,
+    transpose, zero
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
-import PyPlot: plot
+import PyPlot: plot, loglog, semilogx, semilogy
 
 
 export
@@ -48,10 +52,12 @@ export
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
     MAP_joint, MAP_marg, sample_joint, load_sim_dataset, norm², pixwin,
     HealpixS0Cap, HighPass, LowPass,
-    plot, @unpack, OuterProdOp, resimulate
+    plot, @unpack, OuterProdOp, resimulate,
+    ℓ², ℓ⁴, toCℓ, toDℓ
 
 include("util.jl")
 include("generic.jl")
+include("cls.jl")
 include("specialops.jl")
 include("algebra.jl")
 include("smashtimes.jl")
@@ -62,7 +68,6 @@ include("healpix.jl")
 include("taylens.jl")
 include("vec_conv.jl")
 include("plotting.jl")
-include("cls.jl")
 include("likelihood.jl")
 include("sampling.jl")
 include("minimize.jl")

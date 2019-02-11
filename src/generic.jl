@@ -256,15 +256,13 @@ function getindex(f::Field, s::Symbol)
 end
 
 
-function get_Cℓ(args...; kwargs...) end
-get_αℓⁿCℓ(α=1,n=0,args...; kwargs...) = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. (α*ℓ^n*Cℓ)))
-get_Dℓ(args...; kwargs...)            = ((ℓ,Cℓ)=get_Cℓ(args...; kwargs...); (ℓ, @. ℓ*(ℓ+1)*Cℓ/(2π)))
-get_ℓ⁴Cℓ(args...; kwargs...)          = get_αℓⁿCℓ(1,4,args...; kwargs...)
+get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
+get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
 function get_ρℓ(f1,f2; kwargs...)
-    ℓ,Cℓ1 = get_Cℓ(f1; kwargs...)
-    ℓ,Cℓ2 = get_Cℓ(f2; kwargs...)
-    ℓ,Cℓx = get_Cℓ(f1,f2; kwargs...)
-    ℓ, @. Cℓx/sqrt(Cℓ1*Cℓ2)
+    Cℓ1 = get_Cℓ(f1; kwargs...)
+    Cℓ2 = get_Cℓ(f2; kwargs...)
+    Cℓx = get_Cℓ(f1,f2; kwargs...)
+    InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
 end
 
 

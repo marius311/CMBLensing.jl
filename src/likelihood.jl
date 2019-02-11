@@ -539,10 +539,10 @@ function load_sim_dataset(;
     Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
     
     # covariances
-    Cϕ₀               =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ℓ], Cℓf[:ϕϕ])
-    Cfs,Cft,Cf̃,Cn̂     = (Cℓ_to_cov(T,Pix,     SS..., Cℓx[:ℓ], (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
+    Cϕ₀               =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ϕϕ])
+    Cfs,Cft,Cf̃,Cn̂     = (Cℓ_to_cov(T,Pix,     SS..., (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
     if (Cn == nothing)
-        Cn            =  Cℓ_to_cov(T,Pix_data,SS..., Cℓn[:ℓ], (Cℓn[k] for k=ks)...)
+        Cn            =  Cℓ_to_cov(T,Pix_data,SS..., (Cℓn[k] for k=ks)...)
     end
     Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + (r/rfid)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. Aϕ*Cϕ₀))
@@ -556,7 +556,7 @@ function load_sim_dataset(;
     
     # beam
     if (B == nothing)
-        B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., ℓ, ((k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2))) for k=ks)...); end;
+        B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., (InterpolatedCℓs(ℓ, (k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2)))) for k=ks)...); end;
     end
     
     # mixing matrices

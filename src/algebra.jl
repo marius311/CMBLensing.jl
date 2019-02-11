@@ -1,5 +1,3 @@
-import Base.Broadcast: BroadcastStyle, materialize, materialize!, broadcastable
-using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
@@ -14,7 +12,7 @@ using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
 broadcastable(f::Union{Field,LinOp}) = f
 BroadcastStyle(::Type{F}) where {F<:Union{Field,LinOp}} = Style{F}()
 BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinOp}}   = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{n}) where {F<:Union{Field,LinOp},n} = Style{DefaultArrayStyle{n}}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{n}) where {F<:Union{Field,LinOp},n} = DefaultArrayStyle{n}()
 BroadcastStyle(::Style{F}, ::Style{<:LinOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()

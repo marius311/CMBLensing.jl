@@ -91,14 +91,13 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,
     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
 end
 
-function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S2}, ℓ, CℓEE, CℓBB; mask_nyquist=true) where {T,θ,N,P<:Flat{θ,N}}
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; mask_nyquist=true) where {T,θ,N,P<:Flat{θ,N}}
     _Mnyq = mask_nyquist ? Mnyq : identity
-    FullDiagOp(FlatS2EBFourier{T,P}((_Mnyq(T,P,Cℓ_2D(P,ℓ, Cℓ)[1:(N÷2+1),:]) for Cℓ in (CℓEE,CℓBB))...))
+    FullDiagOp(FlatS2EBFourier{T,P}((_Mnyq(T,P,Cℓ_2D(P, Cℓ.ℓ, Cℓ.Cℓ)[1:(N÷2+1),:]) for Cℓ in (CℓEE,CℓBB))...))
 end
 
 function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}
-    Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
-    (Cℓs[1][1], hcat(last.(Cℓs)...))
+    [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
 end
 
 

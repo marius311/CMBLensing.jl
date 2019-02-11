@@ -34,9 +34,9 @@ function FlatTEBCov{T,P}(ΣTT::AbstractMatrix, ΣTE::AbstractMatrix, ΣEE::Abstr
 end
 
 # contructing from Cℓs
-function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, ℓ, CℓTT, CℓEE, CℓBB, CℓTE; mask_nyquist=true) where {T,P}
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ::Type{S2}, CℓTT::InterpolatedCℓs, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs, CℓTE::InterpolatedCℓs; mask_nyquist=true) where {T,P}
     _Mnyq = mask_nyquist ? Mnyq : identity
-    FlatTEBCov{T,P}(_Mnyq.(T,P,Cℓ_2D.(P,[ℓ],[CℓTT,CℓTE,CℓEE,CℓBB]))...)
+    FlatTEBCov{T,P}((_Mnyq(T,P,Cℓ_2D(P, Cℓ.ℓ, Cℓ.Cℓ)) for Cℓ in (CℓTT,CℓTE,CℓEE,CℓBB))...)
 end
 
 # applying the operator
@@ -75,8 +75,7 @@ end
 *(L::F, s::Scalar) where {F<:FlatTEBCov} = F(L.ΣTE .* s, L.ΣB .* s, L.unsafe_invert)
 
 function get_Cℓ(f::FlatS02{T,P}; which=(:TT,:TE,:EE,:BB), kwargs...) where {T,P}
-    Cℓs = [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
-    (Cℓs[1][1], hcat(last.(Cℓs)...))
+    [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
 end
 
     

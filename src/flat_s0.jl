@@ -36,9 +36,9 @@ function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,
 end
 
 """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
-function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, ℓ, CℓTT) where {T,P}
+function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, CℓTT::InterpolatedCℓs) where {T,P}
     g = FFTgrid(T,P)
-    FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(ℓ, CℓTT, g.r)[1:g.nside÷2+1,:]))
+    FullDiagOp(FlatS0Fourier{T,P}(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.nside÷2+1,:]))
 end
 
 function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000) where {T,P}
@@ -47,7 +47,7 @@ function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:
     power = fit(Histogram,g.r[:],Weights(real.(dot.(unfold(f.Tl),unfold(f2.Tl)))[:]),ℓedges,closed=:right)
     counts = fit(Histogram,g.r[:],ℓedges,closed=:right)
     h = Histogram(ℓedges, (@. power.weights / counts.weights / α), :right)
-    ((h.edges[1][1:end-1]+h.edges[1][2:end])/2, h.weights)
+    InterpolatedCℓs((h.edges[1][1:end-1]+h.edges[1][2:end])/2, h.weights)
 end
 
 
