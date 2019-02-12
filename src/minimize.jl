@@ -67,14 +67,14 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
     r = b - A*x
     z = M \ r
     p = z
-    bestres = res = dot(r,z)
+    bestres = res = res₀ = dot(r,z)
     @assert !isnan(res)
     bestx = x
     t    = time() - t₀
     _hist = [gethist()]
 
-    dt = (progress==false ? Inf : progress)
-    @showprogress dt "Conjugate Gradient: " for i = 2:nsteps
+    prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
+    for i = 2:nsteps
         Ap   = A*p
         α    = res / dot(p,Ap)
         x    = x + α * p
@@ -97,7 +97,9 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
         if res<tol
             break
         end
+        ProgressMeter.update!(prog, round(Int,100*(log10(res/res₀)) / log10(tol/res₀)))
     end
+    ProgressMeter.finish!(prog)
     hist == nothing ? bestx : (bestx, _hist)
 end
 

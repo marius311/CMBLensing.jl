@@ -409,7 +409,7 @@ function MAP_joint(
             end
             
             lnPcur = lnP(:mix,fₘcur,ϕcur,ds,L)
-            if progress
+            if progress!=false
                 @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
             push!(tr,@dictpack(i,lnPcur,hist,ϕcur,fcur))
