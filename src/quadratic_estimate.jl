@@ -23,8 +23,8 @@ function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
     ϕqe_unnormalized = -sum(L⃗[i] * Fourier(Map((Cf̃+Cn)\d) * Map(L⃗[i]*(Cf*((Cf̃+Cn)\d)))) for i=1:2)
     
     # normalization
-    I(i,j) = (  Map(Cf^2 * inv(Cf̃+Cn) * L⃗[i] * L⃗[j]) * Map(     inv(Cf̃+Cn).f)
-              + Map(Cf   * inv(Cf̃+Cn) * L⃗[i])        * Map(Cf * inv(Cf̃+Cn) * L⃗[j]))
+    I(i,j) = (  Map(Cf^2 * ((Cf̃+Cn) \ (L⃗[i] * L⃗[j]))) * Map(nan2zero.(inv(Cf̃+Cn).f))
+              + Map(Cf   * ((Cf̃+Cn) \  L⃗[i]))         * Map(Cf * ((Cf̃+Cn) \ L⃗[j])))
     AL = Nϕ = 2π * inv(FullDiagOp(sum(L⃗[i] * L⃗[j] * Fourier(I(i,j)) for i=1:2, j=1:2)))
     
     
@@ -50,13 +50,13 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     CEn,CBn = Cn[:E], Cn[:B]
 
     # quadratic estimate
-    E(i,j,k) = Map(L² \ L⃗[i] * L⃗[j] * L⃗[k] * (CE * inv(CẼ+CEn) * d[:E]))
-    B(i,j)   = Map(L² \ L⃗[i] * L⃗[j]              *(inv(CB̃+CBn) * d[:B]))
+    E(i,j,k) = Map(L² \ L⃗[i] * L⃗[j] * L⃗[k] * (CE * ((CẼ+CEn) \ d[:E])))
+    B(i,j)   = Map(L² \ L⃗[i] * L⃗[j]              *(((CB̃+CBn) \ d[:B])))
     ϕqe_unnormalized = 2 * sum(L⃗[i] * Fourier(sum(ϵ(k,m,3) * E(i,j,k) * B(j,m) for j=1:2,k=1:2,m=1:2)) for i=1:2)
     
     # normalization
-    E2(i,j,q,k,n,p) = Map(CE^2 * inv(CẼ+CEn) * (L²^2 \ L⃗[i] * L⃗[j] * L⃗[q] * L⃗[k] * L⃗[n] * L⃗[p]))
-    B2(q,m,n,s)     = Map(       inv(CB̃+CBn) * (L²^2 \ L⃗[q] * L⃗[m] * L⃗[n] * L⃗[s]))
+    E2(i,j,q,k,n,p) = Map(CE^2 * ((CẼ+CEn) \ (L²^2 \ L⃗[i] * L⃗[j] * L⃗[q] * L⃗[k] * L⃗[n] * L⃗[p])))
+    B2(q,m,n,s)     = Map(       ((CB̃+CBn) \ (L²^2 \ L⃗[q] * L⃗[m] * L⃗[n] * L⃗[s])))
     I(i,j)          = sum(ϵ(k,m,3) * ϵ(p,s,3) * E2(i,j,q,k,n,p) * B2(q,m,n,s) for k=1:2,m=1:2,n=1:2,p=1:2,q=1:2,s=1:2)
     AL = Nϕ = π/2 * inv(FullDiagOp(sum(L⃗[i] * L⃗[j] * Fourier(I(i,j)) for i=1:2,j=1:2)))
     
