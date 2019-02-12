@@ -54,32 +54,39 @@ sampling)
 those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
 
 ```
-    grid_and_sample((;x,y)->(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+    grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
 ```
 
 The return value is `(P, samples)` where `P` is an interpolation of `lnP` which
 can be evaluated anywhere and `samples` is a NamedTuple giving the samples of
 each of the parameters.
 
-(Note: only 1D sampling is currently implemented)
+(Note: only 1D sampling is currently implemented, but 2D like in the example
+above is planned)
 """
 function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1) where {S}
+    
     xs = first(range)
     xmin,xmax = first(xs),last(xs)
+    
+    # sample the pdf
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(;Dict(first(keys(range))=>x)...), xs)
-    Ps = exp.(lnPs .- maximum(lnPs))
+    lnPs .-= maximum(lnPs)
     
-    iP = CubicSplineInterpolation(xs,Ps,extrapolation_bc=0)
+    # do the interpolation in lnP
+    ilnP = CubicSplineInterpolation(xs,lnPs,extrapolation_bc=-Inf)
+    A = quadgk(x->exp(ilnP(x)),xmin,xmax)[1]
+    iP = x->exp(ilnP(x))/A
     
-    A = quadgk(iP,xmin,xmax)[1]
-    
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin,x)[1]/A-r),xmin,xmax)) for i=1:nsamples]),))
+    # draw samples via inverse transform sampling
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin,x)[1]-r),xmin,xmax)) for i=1:nsamples]),))
     
     if nsamples==1
         iP, map(first, θsamples)
     else
         iP, θsamples
     end
+    
 end
 grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
 
