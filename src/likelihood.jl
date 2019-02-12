@@ -185,7 +185,7 @@ end
 # in the mixed parametrization
 δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp) = δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ds.G\ϕₘ, ds, L)
 δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}) where {L<:LenseOp} = begin
-    ϕ = ds.G \ ϕₘ
+    ϕ = ds.G\ϕₘ
     δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ϕ, ds, cache(L(ϕ),fₘ))
 end
 δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ϕ, ds, L::LenseOp) = begin
@@ -198,7 +198,8 @@ end
     δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
     
     # chain rule
-    δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D \ δlnP_δf, G \ δlnP_δϕ)
+    (δlnP_δfₘ, δlnP_δϕₘ) = δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D \ δlnP_δf, δlnP_δϕ)
+    FieldTuple(δlnP_δfₘ, G \ δlnP_δϕₘ)
 
 end
 # derivatives of the three posterior probability terms at the times at which

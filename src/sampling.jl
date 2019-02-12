@@ -123,8 +123,9 @@ function sample_joint(
     @unpack d, Cϕ, Cn, M, B = ds
 
     if (chains==nothing)
-        @assert ϕstart in [0, :quasi_sample, :best_fit]
-        if ϕstart==0
+        if (ϕstart==0); ϕstart=zero(Cϕ); end
+        @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
+        if ϕstart isa Field
             chains = [Any[@dictpack ϕcur=>zero(Cϕ) θcur=>θstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
@@ -147,7 +148,7 @@ function sample_joint(
     try
         @showprogress dt "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
             
-            append!.(chains, map(last.(chains)) do state
+            append!.(chains, pmap(last.(chains)) do state
                 
                 local fcur, f̊cur, f̃cur, Pθ
                 @unpack ϕcur,θcur = state
@@ -162,10 +163,11 @@ function sample_joint(
                             f̃cur = L*fcur
                             f̊cur = L*ds.D*fcur
                         end
-                            
-                    # ==== gibbs P(θ|f,ϕ) ====
-                        Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds,L; θ...), θrange, progress=(progress==2))
                     end
+                    
+                    # ==== gibbs P(θ|f,ϕ) ====
+                    # todo: if not sampling Aϕ, could cache L(ϕ) here...
+                    Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds,L; θ...), θrange, progress=(progress==2))
                         
                     # ==== gibbs P(ϕ|f,θ) ==== 
                     let ds=ds(;θcur...)
