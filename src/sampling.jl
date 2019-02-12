@@ -139,11 +139,11 @@ function sample_joint(
         if (ϕstart==0); ϕstart=zero(Cϕ); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
-            chains = [Any[@dictpack ϕcur=>zero(Cϕ) θcur=>θstart] for i=1:nchains]
+            chains = [Any[@dictpack ϕ°=>zero(Cϕ) θ=>θstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
-                fcur, ϕcur = MAP_joint(ds(;θstart...), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack ϕcur fcur θcur=>θstart]
+                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                Any[@dictpack ϕ° θ=>θstart]
             end
         end
     elseif chains isa String
@@ -163,48 +163,50 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local fcur, f̊cur, f̃cur, Pθ
-                @unpack ϕcur,θcur = state
+                local f, f°, f̃, Pθ
+                @unpack ϕ°,θ = state
+                ϕ = ds(;θ...).G\ϕ°
                 chain = []
                 
                 for i=1:nchunk
                         
-                    # ==== gibbs P(f|ϕ,θ) ====
-                    let L=cache(L(ϕcur),ds.d)
-                        let ds=ds(;θcur...)
-                            fcur = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
-                            f̃cur = L*fcur
-                            f̊cur = L*ds.D*fcur
+                    # ==== gibbs P(f°|ϕ°,θ) ====
+                    let L=cache(L(ϕ),ds.d)
+                        let ds=ds(;θ...)
+                            f = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
+                            f̃ = L*f
+                            f° = L*ds.D*f
                         end
                     end
                     
-                    # ==== gibbs P(θ|f,ϕ) ====
+                    # ==== gibbs P(θ|f°,ϕ°) ====
                     # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                    Pθ, θcur = grid_and_sample((;θ...)->lnP(:mix,f̊cur,ϕcur,ds,L; θ...), θrange, progress=(progress==2))
+                    Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==2))
                         
-                    # ==== gibbs P(ϕ|f,θ) ==== 
-                    let ds=ds(;θcur...)
+                    # ==== gibbs P(ϕ°|f°,θ) ==== 
+                    let ds=ds(;θ...)
                             
-                        (ΔH, ϕtest) = symplectic_integrate(
-                            ϕcur, simulate(Λm), Λm, 
-                            ϕ->      lnP(:mix, f̊cur, ϕ, ds, L), 
-                            ϕ->δlnP_δfϕₜ(:mix, f̊cur, ϕ, ds, L)[2];
+                        (ΔH, ϕ°test) = symplectic_integrate(
+                            ϕ, simulate(Λm), Λm, 
+                            ϕ->      lnP(:mix, f°, ϕ, ds, L), 
+                            ϕ->δlnP_δfϕₜ(:mix, f°, ϕ, ds, L)[2];
                             progress=(progress==2),
                             symp_kwargs...
                         )
 
                         if log(rand()) < ΔH
-                            ϕcur = ϕtest
+                            ϕ° = ϕ°test
+                            ϕ = ds.G\ϕ°
                             accept = true
                         else
                             accept = false
                         end
                         
                         if (progress==2)
-                            @show accept, ΔH, θcur
+                            @show accept, ΔH, θ
                         end
 
-                        push!(chain, @dictpack fcur f̊cur f̃cur ϕcur θcur ΔH accept lnP=>lnP(0,fcur,ϕcur,ds(;θcur...)) Pθ)
+                        push!(chain, @dictpack f f° f̃ ϕ ϕ° θ ΔH accept lnP=>lnP(0,f,ϕ,ds(;θ...)) Pθ)
                     end
 
                 end
