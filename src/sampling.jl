@@ -57,9 +57,10 @@ those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
     grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
 ```
 
-The return value is `(P, samples)` where `P` is an interpolation of `lnP` which
-can be evaluated anywhere and `samples` is a NamedTuple giving the samples of
-each of the parameters.
+The return value is `(P, samples, Px)` where `P` is an interpolated/smoothed PDF
+which can be evaluated anywhere, `Px` are sampled points of the original PDF,
+and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
+parameters.
 
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
@@ -72,19 +73,24 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     # sample the pdf
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(;Dict(first(keys(range))=>x)...), xs)
     lnPs .-= maximum(lnPs)
+    ilnP = loess(xs,lnPs)
     
-    # do the interpolation in lnP
-    ilnP = CubicSplineInterpolation(xs,lnPs,extrapolation_bc=-Inf)
-    A = quadgk(x->exp(ilnP(x)),xmin,xmax)[1]
-    iP = x->exp(ilnP(x))/A
+    # do the smoothing in lnP (and normalize with A in a type-stable way hence the let-block)
+    # also return the sampled P(x) so we can check the smoothing
+    (iP, Px) = let A = quadgk(x->exp(Loess.predict(ilnP,x)),xmin,xmax)[1]
+        (x->exp(Loess.predict(ilnP,x))/A,
+         @. exp(lnPs)/A)
+    end
     
     # draw samples via inverse transform sampling
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin,x)[1]-r),xmin,xmax)) for i=1:nsamples]),))
+    # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
+    # evaluated right at the lower bound)
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
     
     if nsamples==1
-        iP, map(first, θsamples)
+        iP, map(first, θsamples), Px
     else
-        iP, θsamples
+        iP, θsamples, Px
     end
     
 end

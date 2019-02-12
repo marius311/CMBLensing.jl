@@ -13,6 +13,7 @@ using InteractiveUtils
 using Interpolations
 using FileIO
 using Lazy: @init
+using Loess
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
 using Markdown
