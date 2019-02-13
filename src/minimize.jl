@@ -97,7 +97,7 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
         if res<tol
             break
         end
-        ProgressMeter.update!(prog, round(Int,100*(log10(res/res₀)) / log10(tol/res₀)))
+        ProgressMeter.update!(prog, round(Int,100^((log10(res/res₀)) / log10(tol/res₀))))
     end
     ProgressMeter.finish!(prog)
     hist == nothing ? bestx : (bestx, _hist)

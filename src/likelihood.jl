@@ -369,6 +369,7 @@ function MAP_joint(
     callback = nothing,
     progress = false)
     
+    @assert progress in [false,:summary,:verbose]
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
@@ -378,8 +379,8 @@ function MAP_joint(
     ds = DataSet(ds, G=IdentityOp)
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
-    fcur, fₘcur = nothing, nothing
-    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ)
+    f, f° = nothing, nothing
+    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ)
     α = 0
     tr = []
     hist = nothing
@@ -390,39 +391,39 @@ function MAP_joint(
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
     try
-        for i=1:nsteps
+        @showprogress (progress==:summary ? 1 : Inf) "MAP_joint: " for i=1:nsteps
 
             # f step
-            let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕcur)))
+            let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕ)))
                 
                 # if we're doing a fixed quasi_sample, set the random seed here,
                 # which controls the sample from the posterior we get from inside
                 # `lensing_wiener_filter`
                 if isa(quasi_sample,Int); seed!(quasi_sample); end
                 
-                fcur,hist = lensing_wiener_filter(ds, L, 
+                (f, hist) = lensing_wiener_filter(ds, L, 
                     (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
-                    guess=(i==1 ? nothing : fcur),           # after first iteration, use the previous f as starting point
-                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=progress)
+                    guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
+                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
                     
-                fₘcur = L * D * fcur
+                f° = L * D * f
             end
             
-            lnPcur = lnP(:mix,fₘcur,ϕcur,ds,L)
-            if progress!=false
+            lnPcur = lnP(:mix,f°,ϕ,ds,L)
+            if (progress==:verbose)
                 @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
-            push!(tr,@dictpack(i,lnPcur,hist,ϕcur,fcur))
+            push!(tr,@dictpack(i,lnPcur,hist,ϕ,f))
             if callback != nothing
-                callback(fcur, ϕcur, tr)
+                callback(f, ϕ, tr)
             end
             
             # ϕ step
-            if i!=nsteps
-                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,fₘcur,ϕcur,ds,L))[2]
-                res = optimize(α->(-lnP(:mix,fₘcur,ϕcur+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
+            if (i!=nsteps)
+                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,L))[2]
+                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
                 α = res.minimizer
-                ϕcur = ϕcur+α*ϕnew
+                ϕ = ϕ+α*ϕnew
             end
 
         end
@@ -435,7 +436,7 @@ function MAP_joint(
         end
     end
 
-    return fcur, ϕcur, tr
+    return f, ϕ, tr
     
 end
 
@@ -465,16 +466,16 @@ function MAP_marg(
     if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf), Cf, Cf̃, Cn̂)[2]; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
 
-    ϕcur = (ϕstart != nothing) ? ϕstart : ϕcur = zero(Cϕ) # fix needing to get zero(ɸ) this way
+    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ) # fix needing to get zero(ɸ) this way
     tr = []
 
     for i=1:nsteps
-        g, det_sims = δlnP_δϕ(ϕcur, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
-        ϕcur += α * Hϕ⁻¹ * g
-        push!(tr,@dictpack(i,g,det_sims,ϕcur))
+        g, det_sims = δlnP_δϕ(ϕ, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
+        ϕ += α * Hϕ⁻¹ * g
+        push!(tr,@dictpack(i,g,det_sims,ϕ))
     end
     
-    return ϕcur, tr
+    return ϕ, tr
 
 end
 

@@ -128,10 +128,11 @@ function sample_joint(
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
-    progress = 1,
+    progress = false,
     filename = nothing) where {T,P}
     
     @assert length(θrange) == 1 "Can only currently sample one parameter at a time."
+    @assert progress in [false,:summary,:verbose]
 
     @unpack d, Cϕ, Cn, M, B = ds
 
@@ -142,12 +143,12 @@ function sample_joint(
             chains = [Any[@dictpack ϕ°=>zero(Cϕ) θ=>θstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
-                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==2), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
                 Any[@dictpack ϕ° θ=>θstart]
             end
         end
     elseif chains isa String
-        chains = load(filename,"chains")
+        chains = load(chains,"chains")
     end
     
     if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]/2; end
@@ -156,15 +157,14 @@ function sample_joint(
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
 
     # start chains
-    dt = (progress==1 ? 1 : Inf)
-    
     try
-        @showprogress dt "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
+        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f, f°, f̃, Pθ
+                local f°, f̃, Pθ
                 @unpack ϕ°,θ = state
+                f = nothing
                 ϕ = ds(;θ...).G\ϕ°
                 chain = []
                 
@@ -173,15 +173,15 @@ function sample_joint(
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     let L=cache(L(ϕ),ds.d)
                         let ds=ds(;θ...)
-                            f = lensing_wiener_filter(ds, L, :sample; progress=(progress==2), wf_kwargs...)
-                            f̃ = L*f
+                            f  = lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
+                            f̃  = L*f
                             f° = L*ds.D*f
                         end
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
                     # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                    Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==2))
+                    Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
                         
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     let ds=ds(;θ...)
@@ -190,7 +190,7 @@ function sample_joint(
                             ϕ, simulate(Λm), Λm, 
                             ϕ->      lnP(:mix, f°, ϕ, ds, L), 
                             ϕ->δlnP_δfϕₜ(:mix, f°, ϕ, ds, L)[2];
-                            progress=(progress==2),
+                            progress=(progress==:verbose),
                             symp_kwargs...
                         )
 
@@ -202,7 +202,7 @@ function sample_joint(
                             accept = false
                         end
                         
-                        if (progress==2)
+                        if (progress==:verbose)
                             @show accept, ΔH, θ
                         end
 
