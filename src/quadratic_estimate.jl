@@ -41,7 +41,7 @@ end
 # EB estimator, currently assuming B=0 (todo: remove this assumption)
 function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
 
-    L⃗,L² = get_L⃗_L²(d[:E])
+    L⃗,L² = get_L⃗_L²(d.E)
 
     ϵ(x...) = levicivita([x...])
     

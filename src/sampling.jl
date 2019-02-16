@@ -140,11 +140,11 @@ function sample_joint(
         if (ϕstart==0); ϕstart=zero(Cϕ); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
-            chains = [Any[@dictpack ϕ°=>zero(Cϕ) θ=>θstart] for i=1:nchains]
+            chains = [Any[@dictpack ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart] for i=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
             chains = pmap(1:nchains) do i
-                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack ϕ° θ=>θstart]
+                f, ϕ = MAP_joint(ds(;θstart...), progress=progress, Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                Any[@dictpack ϕ°=>ds(;θstart...).G*ϕ θ=>θstart]
             end
         end
     elseif chains isa String
@@ -186,16 +186,16 @@ function sample_joint(
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     let ds=ds(;θ...)
                             
-                        (ΔH, ϕ°test) = symplectic_integrate(
-                            ϕ, simulate(Λm), Λm, 
-                            ϕ->      lnP(:mix, f°, ϕ, ds, L), 
-                            ϕ->δlnP_δfϕₜ(:mix, f°, ϕ, ds, L)[2];
+                        (ΔH, ϕtest°) = symplectic_integrate(
+                            ϕ°, simulate(Λm), Λm, 
+                            ϕ°->      lnP(:mix, f°, ϕ°, ds, L), 
+                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, ds, L)[2];
                             progress=(progress==:verbose),
                             symp_kwargs...
                         )
 
                         if log(rand()) < ΔH
-                            ϕ° = ϕ°test
+                            ϕ° = ϕtest°
                             ϕ = ds.G\ϕ°
                             accept = true
                         else
