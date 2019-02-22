@@ -25,7 +25,7 @@ function symplectic_integrate(x₀, p₀, Λ, U, δUδx; N=50, ϵ=0.1, progress=
         xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδx₊₁
         
         if hist!=nothing
-            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδx₊₁, H=(((hist != nothing) && (:H in hist)) ? H(xᵢ,pᵢ) : nothing))
+            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδx₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
             push!(_hist, getfield.(Ref(histᵢ),hist))
         end
 
@@ -106,10 +106,11 @@ using `pmap`.
 Possible keyword arguments: 
 
 * `nsamps_per_chain` - the number of samples per chain
-* `nchunk` - do `nchunk` steps in between parallel chain communication
-* `nthin` - only save once every `nthin` steps
-* `chains` - resume these existing chain (starts a new one if nothing)
-* `ϕstart`/`θstart` - starting values of ϕ and r 
+* `nchunk` - do `nchunk` steps in-between parallel chain communication
+* `nsavemaps` - save maps into chain every `nsavemaps` steps
+* `nburnin_always_accept` - the first `nburnin_always_accept` steps, always accept HMC steps independent of integration error
+* `chains` - resume an existing chain (starts a new one if nothing)
+* `ϕstart`/`θstart` - starting values of ϕ and θ
 
 """
 function sample_joint(
@@ -120,7 +121,8 @@ function sample_joint(
     Nϕ = :qe,
     nchains = nworkers(),
     nchunk = 1,
-    nthin = 1,
+    nsavemaps = 1,
+    nburnin_always_accept = 0,
     chains = nothing,
     ϕstart = 0,
     θrange = (),
@@ -140,11 +142,11 @@ function sample_joint(
         if (ϕstart==0); ϕstart=zero(Cϕ); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
-            chains = [Any[@dictpack ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart] for i=1:nchains]
+            chains = [Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart] for _=1:nchains]
         elseif ϕstart in [:quasi_sample, :best_fit]
-            chains = pmap(1:nchains) do i
-                f, ϕ = MAP_joint(ds(;θstart...), progress=progress, Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack ϕ°=>ds(;θstart...).G*ϕ θ=>θstart]
+            chains = pmap(1:nchains) do _
+                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
+                Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕ θ=>θstart]
             end
         end
     elseif chains isa String
@@ -158,18 +160,18 @@ function sample_joint(
 
     # start chains
     try
-        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for i=1:nsamps_per_chain÷nchunk
+        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for _=1:nsamps_per_chain÷nchunk
             
             append!.(chains, pmap(last.(chains)) do state
                 
                 local f°, f̃, Pθ
-                @unpack ϕ°,θ = state
+                @unpack i,ϕ°,θ = state
                 f = nothing
                 ϕ = ds(;θ...).G\ϕ°
                 chain = []
                 
-                for i=1:nchunk
-                        
+                for i=(i+1):(i+nchunk)
+                    
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     let L=cache(L(ϕ),ds.d)
                         let ds=ds(;θ...)
@@ -194,7 +196,7 @@ function sample_joint(
                             symp_kwargs...
                         )
 
-                        if log(rand()) < ΔH
+                        if (i < nburnin_always_accept) || (log(rand()) < ΔH)
                             ϕ° = ϕtest°
                             ϕ = ds.G\ϕ°
                             accept = true
@@ -205,15 +207,25 @@ function sample_joint(
                         if (progress==:verbose)
                             @show accept, ΔH, θ
                         end
-
-                        push!(chain, @dictpack f f° f̃ ϕ ϕ° θ ΔH accept lnP=>lnP(0,f,ϕ,ds(;θ...)) Pθ)
+                        
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ Pθ ΔH accept lnP=>lnP(0,f,ϕ,ds(;θ...)))
                     end
 
                 end
-                    
-                chain[1:nthin:end]
-            
+                
+                chain
+                
             end)
+            
+            # only keep maps every `nsavemaps` samples, as well as the last
+            # sample (so we can continue the chain)
+            for chain in chains
+                for sample in chain[1:end-1]
+                    if mod(sample[:i]-1,nsavemaps)!=0
+                        filter!(kv->!(kv.second isa Field), sample)
+                    end
+                end
+            end
             
             if filename != nothing
                 save(swap_filename, "chains", chains)
