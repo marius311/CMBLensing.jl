@@ -39,7 +39,7 @@ function ϕqe(d::FlatS0, Cf, Cf̃, Cn, Cϕ=nothing)
 end
 
 # EB estimator, currently assuming B=0 (todo: remove this assumption)
-function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
+function ϕqe_EB(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
 
     L⃗,L² = get_L⃗_L²(d.E)
 
@@ -69,6 +69,40 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     end
     
 end
+
+
+function ϕqe_EE(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
+
+    L⃗,L² = get_L⃗_L²(d.E)
+    
+    ϵ(x...) = levicivita([x...])
+
+    CE,CB   = Cf[:E], Cf[:B]
+    CẼ,CB̃   = Cf̃[:E], Cf̃[:B]
+    CEn,CBn = Cn[:E], Cn[:B]
+
+    E1(i,j,k) = 2*(Map(L² \ L⃗[i] * L⃗[j] * L⃗[k] * (CE * ((CẼ+CEn) \ d[:E]))) * Map(L² \ L⃗[j] * L⃗[k] *(((CẼ+CEn) \ d[:E]))))
+    E2(i)     =  -(Map(     L⃗[i]               * (CE * ((CẼ+CEn) \ d[:E]))) * Map(                  (((CẼ+CEn) \ d[:E]))))
+    ϕqe_unnormalized = -2sum(L⃗[i] * Fourier( sum(E1(i,j,k) for j=1:2,k=1:2) + E2(i) ) for i=1:2)
+    
+    # normalization
+    E2(i,j,q,k,n,p) = Map(CE^2 * ((CẼ+CEn) \ (L²^2 \ L⃗[i] * L⃗[j] * L⃗[q] * L⃗[k] * L⃗[n] * L⃗[p])))
+    B2(q,m,n,s)     = Map(       ((CB̃+CBn) \ (L²^2 \ L⃗[q] * L⃗[m] * L⃗[n] * L⃗[s])))
+    I(i,j)          = sum(ϵ(k,m,3) * ϵ(p,s,3) * E2(i,j,q,k,n,p) * B2(q,m,n,s) for k=1:2,m=1:2,n=1:2,p=1:2,q=1:2,s=1:2)
+    AL = Nϕ = π/2 * inv(FullDiagOp(sum(L⃗[i] * L⃗[j] * Fourier(I(i,j)) for i=1:2,j=1:2)))
+    
+    ϕqe_normalized = AL * ϕqe_unnormalized
+    
+    if Cϕ != nothing
+        (Cϕ * inv(Cϕ + Nϕ) * ϕqe_normalized), Nϕ
+    else
+        ϕqe_normalized, Nϕ
+    end
+    
+end
+
+
+
 
 function get_L⃗_L²(f)
     # todo: turn L⃗ into a full-fledged operator like ∇

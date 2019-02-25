@@ -580,9 +580,9 @@ function load_sim_dataset(;
     
 end
 
-function ϕqe(ds::DataSet, wiener_filtered=false)
+function ϕqe(ds::DataSet, wiener_filtered=false, ϕqefn=ϕqe_EB)
     @unpack d, Cf, Cf̃, Cn̂, Cϕ, B = ds
     Cf̃ = B^2 * Cf̃
     Cf = B^2 * Cf
-    wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqe(d, Cf, Cf̃, Cn̂)
+    wiener_filtered ? ϕqefn(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqefn(d, Cf, Cf̃, Cn̂)
 end
