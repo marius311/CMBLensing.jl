@@ -131,6 +131,7 @@ function sample_joint(
     ϕstart = 0,
     θrange = (),
     θstart = nothing,
+    pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),

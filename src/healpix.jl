@@ -164,7 +164,7 @@ DerivBasis(::Type{<:HealpixS0Cap}) = Map
 dot(a::HealpixS0Cap, b::HealpixS0Cap) = dot(nan2zero.(a.Ix),nan2zero.(b.Ix))
 
 
-function plot(f::HealpixS0Cap, args...; plot_type=:mollzoom, cmap="RdBu_r", vlim=nothing, kwargs...)
+function plot(f::HealpixS0Cap, args...; cmap="RdBu_r", vlim=nothing, plot_type=(matplotlib.is_interactive() ? :mollzoom : :mollview), kwargs...)
     kwargs = Dict(kwargs...)
     cmap = get_cmap(cmap)
     if vlim!=nothing
