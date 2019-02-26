@@ -109,8 +109,11 @@ Possible keyword arguments:
 * `nchunk` - do `nchunk` steps in-between parallel chain communication
 * `nsavemaps` - save maps into chain every `nsavemaps` steps
 * `nburnin_always_accept` - the first `nburnin_always_accept` steps, always accept HMC steps independent of integration error
+* `nburnin_fixθ` - the first `nburnin_fixθ` steps, fix θ at its starting point
 * `chains` - resume an existing chain (starts a new one if nothing)
-* `ϕstart`/`θstart` - starting values of ϕ and θ
+* `θrange` - range and density to grid sample parameters as a NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
+* `θstart` - starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
+* `ϕstart` - starting ϕ as a Field, or `:quasi_sample` or `:best_fit`
 
 """
 function sample_joint(
@@ -123,37 +126,46 @@ function sample_joint(
     nchunk = 1,
     nsavemaps = 1,
     nburnin_always_accept = 0,
+    nburnin_fixθ = 0,
     chains = nothing,
     ϕstart = 0,
     θrange = (),
-    θstart = (),
+    θstart = nothing,
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
     progress = false,
     filename = nothing) where {T,P}
     
-    @assert length(θrange) == 1 "Can only currently sample one parameter at a time."
+    @assert length(θrange) in [0,1] "Can only currently sample one parameter at a time."
     @assert progress in [false,:summary,:verbose]
 
     @unpack d, Cϕ, Cn, M, B = ds
 
-    if (chains==nothing)
-        if (ϕstart==0); ϕstart=zero(Cϕ); end
+    if (chains == nothing)
+        if (θstart == nothing)
+            θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+        else 
+            @assert θstart isa Tuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
+            θstarts = fill(θstart, nchains)
+        end
+        if (ϕstart == 0); ϕstart = zero(Cϕ); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
-            chains = [Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart] for _=1:nchains]
-        elseif ϕstart in [:quasi_sample, :best_fit]
-            chains = pmap(1:nchains) do _
-                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕ θ=>θstart]
+            ϕstarts = fill(ϕstart, nchains)
+        else
+            ϕstarts = pmap(θstarts) do θstart
+                MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
             end
+        end
+        chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
+            Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart]
         end
     elseif chains isa String
         chains = load(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]/2; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds())[2]/2; end
     Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
@@ -164,27 +176,26 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃, Pθ
+                local f°, f̃
                 @unpack i,ϕ°,θ = state
                 f = nothing
                 ϕ = ds(;θ...).G\ϕ°
+                Pθ = nothing
                 chain = []
                 
                 for i=(i+1):(i+nchunk)
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
-                    let L=cache(L(ϕ),ds.d)
-                        let ds=ds(;θ...)
-                            f  = lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
-                            f̃  = L*f
-                            f° = L*ds.D*f
-                        end
+                    let L=cache(L(ϕ),ds.d), ds=ds(;θ...)
+                        f° = L * ds.D * lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
-                    # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                    Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
-                        
+                    if (i > nburnin_fixθ)
+                        # todo: if not sampling Aϕ, could cache L(ϕ) here...
+                        Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                    end
+                    
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     let ds=ds(;θ...)
                             
@@ -198,17 +209,22 @@ function sample_joint(
 
                         if (i < nburnin_always_accept) || (log(rand()) < ΔH)
                             ϕ° = ϕtest°
-                            ϕ = ds.G\ϕ°
                             accept = true
                         else
                             accept = false
                         end
                         
-                        if (progress==:verbose)
-                            @show accept, ΔH, θ
-                        end
                         
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ Pθ ΔH accept lnP=>lnP(0,f,ϕ,ds(;θ...)))
+                        # compute un-mixed maps
+                        ϕ = ds.G\ϕ°
+                        f = ds.D\(L(ϕ)\f°)
+                        f̃ = L(ϕ)*f
+                        
+                        # save quantities to chain and print progress
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ Pθ ΔH accept lnP=>lnP(0,f,ϕ,ds))
+                        if (progress==:verbose)
+                            @show i, accept, ΔH, θ
+                        end
                     end
 
                 end
