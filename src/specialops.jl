@@ -46,11 +46,19 @@ getproperty(L::FullDiagOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = FullDiagOp(getp
 # These ops just store the coordinate with respect to which a derivative is
 # being taken, and each Field type F should implement broadcast_data(::Type{F},
 # ::∂) to describe how this is actually applied. 
+
+# Note: CMBLensing.jl always defines the components of vectors, including ∇, to
+# be with respect to the unnormalized covariant or contravariant basis vectors,
+# hence ∇ⁱ = d/dxᵢ and ∇ᵢ = d/dxⁱ. This is different than with respect to the
+# normalized covariant basis vectors, which, e.g., in spherical coordinates,
+# gives the more familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are
+# neither covariant nor contravariant). 
+
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 Ð!(args...) = Ð(args...)
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
-# gives the gradient ∇ⁱf, and the hessian, ∇ᵢ∇ⁱf
+# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
 function gradhess(f)
     g = ∇ⁱ*f
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])

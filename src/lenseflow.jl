@@ -62,7 +62,7 @@ function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
     p, M⁻¹ = Dict(), Dict()
     ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
     for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = inv(sqrt_gⁱⁱ(f) + t*Hϕ)
+        M⁻¹[τ] = inv(I + t*Hϕ)
         p[τ]   = (∇ϕ' ⨳ M⁻¹[τ])'
     end
     Łf,Ðf = Ł(f),  Ð(f)

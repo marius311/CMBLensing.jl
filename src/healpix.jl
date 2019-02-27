@@ -49,8 +49,8 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
             end
             Q,R = qr(P)
             W = inv(R)[1:2,:]*Q'
-            push!(W_covariant,     SMatrix{2,N_neighbors}(W .* [1, sin(θ)]))
-            push!(W_contravariant, SMatrix{2,N_neighbors}(W ./ [1, sin(θ)]))
+            push!(W_covariant,     SMatrix{2,N_neighbors}(W))
+            push!(W_contravariant, SMatrix{2,N_neighbors}(W ./ [1, sin(θ)^2]))
         end
         _W_covariant     = collect(typeof(W_covariant[1]),    W_covariant)
         _W_contravariant = collect(typeof(W_contravariant[1]),W_contravariant)
@@ -204,14 +204,6 @@ LenseBasis(::Type{<:HealpixS0Cap}) = Map
 LenseBasis(::Type{<:HealpixS2Cap}) = QUMap
 
 adjoint(f::HealpixS0Cap) = f
-
-@generated function sqrt_gⁱⁱ(f::HealpixS0Cap{Nside, T, Nobs, <:GradientCache{Nside, T, Nobs, Ntot}}) where {Nside,T,Nobs,Ntot}
-    quote
-        gθθ = HealpixS0Cap($(ones(T,Ntot)), f.gradient_cache)
-        gϕϕ = HealpixS0Cap($(1 ./ ringinfo(Nside).sinθ[hp.pix2ring(Nside,collect(0:Ntot-1))::Vector{Int}]), f.gradient_cache)
-        @SMatrix[gθθ 0f; 0f gϕϕ]
-    end
-end
 
 function full(f::HealpixS0Cap{Nside,T}) where {Nside,T}
     Ix = fill(T(NaN),12*Nside^2)

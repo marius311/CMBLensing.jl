@@ -201,10 +201,6 @@ mul!(v::FlatS0Map{T,P}, a::AdjField{Map,S0,P,F}, b::F) where {T,P,F<:FlatS0Map{T
     ((@. v.Tx = (a').Tx*b.Tx); v)
 
 
-
-sqrt_gⁱⁱ(::FlatField) = I
-
-
 # bandpass
 HarmonicBasis(::Type{<:FlatS0}) = Fourier
 HarmonicBasis(::Type{<:FlatS2}) = QUFourier
