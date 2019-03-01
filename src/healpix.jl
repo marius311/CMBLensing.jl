@@ -241,20 +241,20 @@ end
 function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
     zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     ℓmax = length(L.Cℓ)-1
-    alms = map2alm(nan2zero.(full(f)), ℓmax=ℓmax, zbounds=zbounds)[1,:,:]
+    alms = reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
     alms .*= L.Cℓ
-    f′.Ix[1:Nobs] .= alm2map(alms, Nside=Nside, zbounds=zbounds)[1:Nobs]
-    f′.Ix[Nobs+1:end] .= NaN
+    alm2map!(f′.Ix, alms, Nside=Nside, zbounds=zbounds)
+    f′.Ix[Nobs+1:end] .= 0
     f′
 end
 
 function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
     zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     ℓmax = length(L.Cℓ)-1
-    alms = map2alm(nan2zero.(full(f)), ℓmax=ℓmax, zbounds=zbounds)[1,:,:]
+    alms = reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
     @. alms = nan2zero(L.Cℓ \ alms)
-    f′.Ix[1:Nobs] .= alm2map(alms, Nside=Nside, zbounds=zbounds)[1:Nobs]
-    f′.Ix[Nobs+1:end] .= NaN
+    alm2map!(f′.Ix, alms, Nside=Nside, zbounds=zbounds)
+    f′.Ix[Nobs+1:end] .= 0
     f′
 end
 
@@ -295,10 +295,9 @@ end
 using Libdl
 Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
 
-@generated function map2alm(mp::Vector{T}; ℓmax=nothing, mmax=ℓmax, zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
+@generated function map2alm(mp::Vector{T}; Nside = hp.npix2nside(length(mp)), ℓmax=nothing, mmax=ℓmax, zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
     fn_name = "__alm_tools_MOD_map2alm_sc_$((T==Float32) ? "s" : "d")"
     quote
-        Nside = hp.npix2nside(length(mp))
         if ℓmax==nothing; ℓmax=3Nside-1; end
         alm = Array{Complex{T}}(undef, (1,ℓmax+1,mmax+1))
         ccall(  
@@ -310,10 +309,9 @@ Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
     end
 end
 
-@generated function alm2map(alm::Matrix{Complex{T}}; Nside, ℓmax=(size(alm,1)-1), mmax=(size(alm,2)-1), zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
+@generated function alm2map!(mp::Vector{T}, alm::Matrix{Complex{T}}; Nside, ℓmax=(size(alm,1)-1), mmax=(size(alm,2)-1), zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
     fn_name = "__alm_tools_MOD_alm2map_sc_wrapper_$((T==Float32) ? "s" : "d")"
     quote
-        mp = Vector{T}(undef,12*Nside^2)
         ccall(
            ($fn_name, "libhealpix"), Nothing,
            (Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Complex{T}}, Ref{T}, Ref{Float64}, Ref{Nothing}),
