@@ -47,12 +47,12 @@ getproperty(L::FullDiagOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = FullDiagOp(getp
 # being taken, and each Field type F should implement broadcast_data(::Type{F},
 # ::∂) to describe how this is actually applied. 
 
-# Note: CMBLensing.jl always defines the components of vectors, including ∇, to
-# be with respect to the unnormalized covariant or contravariant basis vectors,
-# hence ∇ⁱ = d/dxᵢ and ∇ᵢ = d/dxⁱ. This is different than with respect to the
-# normalized covariant basis vectors, which, e.g., in spherical coordinates,
-# gives the more familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are
-# neither covariant nor contravariant). 
+# Note: We define the components of vectors, including ∇, to be with respect to
+# the unnormalized covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
+# and ∇ᵢ = d/dxⁱ. This is different than with respect to the normalized
+# covariant basis vectors, which, e.g., in spherical coordinates, gives the more
+# familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are neither covariant
+# nor contravariant). 
 
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
@@ -77,7 +77,7 @@ struct ∇²Op <: LinOp{Basis,Spin,Pix} end
 *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
 const ∇² = ∇²Op()
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
-# coordinate, e.g. ∂θ), but this is useful shorthand fro the flat-sky:
+# coordinate, e.g. ∂θ), but this is useful shorthand for the flat-sky:
 const ∂x = ∇[1]
 const ∂y = ∇[2]
 

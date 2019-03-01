@@ -61,7 +61,7 @@ Info from the iterations of the solver can be returned if `hist` is specified.
 `histmod` can be used to include every N-th iteration only in `hist`. 
 """
 function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
-    gethist() = hist == nothing ? nothing : getindex.(Ref(@dictpack(i,x,r,res,t)),hist)
+    gethist() = hist == nothing ? nothing : NamedTuple{hist}(getindex.(Ref(@dictpack(i,x,r,res,t)),hist))
     t₀ = time()
     i = 1
     r = b - A*x
@@ -75,7 +75,7 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
     for i = 2:nsteps
-        Ap   = A*p
+        Ap   = A * p
         α    = res / dot(p,Ap)
         x    = x + α * p
         r    = r - α * Ap
@@ -97,7 +97,13 @@ function pcg2(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false,
         if res<tol
             break
         end
-        ProgressMeter.update!(prog, round(Int,100^((log10(res/res₀)) / log10(tol/res₀))))
+        
+        # update progress bar to whichever we've made the most progress on,
+        # logarithmically reaching the toleranace limit or doing the maximum
+        # number of steps
+        progress_nsteps = round(Int,100*(i-1)/(nsteps-1))
+        progress_tol = round(Int,100^((log10(res/res₀)) / log10(tol/res₀)))
+        ProgressMeter.update!(prog, max(progress_nsteps,progress_tol))
     end
     ProgressMeter.finish!(prog)
     hist == nothing ? bestx : (bestx, _hist)

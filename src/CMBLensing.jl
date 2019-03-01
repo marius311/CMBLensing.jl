@@ -54,7 +54,8 @@ export
     MAP_joint, MAP_marg, sample_joint, load_sim_dataset, norm², pixwin,
     HealpixS0Cap, HighPass, LowPass,
     plot, @unpack, OuterProdOp, resimulate,
-    ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp
+    ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp,
+    IsotropicHarmonicOp, load_healpix_sim_dataset
 
 include("util.jl")
 include("generic.jl")

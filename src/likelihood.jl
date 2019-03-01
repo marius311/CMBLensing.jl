@@ -586,3 +586,61 @@ function ϕqe(ds::DataSet, wiener_filtered=false)
     Cf = B^2 * Cf
     wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqe(d, Cf, Cf̃, Cn̂)
 end
+
+
+
+###
+
+
+function load_healpix_sim_dataset(;
+    Nside,
+    use,
+    gradient_cache,
+    T = Float32,
+    μKarcminT = 3,
+    ℓknee = 100,
+    αknee = 3,
+    ℓmax_ops = 2Nside,
+    ℓmax_data = 3000,
+    beamFWHM = 0,
+    rfid = 0.05,
+    Cℓ = camb(r=rfid, ℓmax=ℓmax_ops),
+    Cℓn = nothing,
+    Cn = nothing,
+    seed = nothing,
+    M = nothing,
+    B = nothing,
+    D = nothing,
+    G = nothing,
+    mask_kwargs = nothing,
+    L = LenseFlow)
+    
+    @assert use==:T 
+    
+    # Cℓs
+    if (Cℓn == nothing)
+        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax_ops)
+    end
+    Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
+
+    Cf = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:TT][0:ℓmax_ops])), gradient_cache)
+    Cf̃ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf̃[:TT][0:ℓmax_ops])), gradient_cache)
+    Cn = IsotropicHarmonicCov(T.(nan2zero.(Cℓn[:TT][0:ℓmax_ops])), gradient_cache)
+    Cϕ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:ϕϕ][0:ℓmax_ops])), gradient_cache)
+    
+    P=B=1 #for now
+    
+    ϕ = simulate(Cϕ)
+    f = simulate(Cf)
+    f̃ = L(ϕ)*f
+    n = simulate(Cn)
+    d = M*P*B*f̃ + n
+
+    
+    # put everything in DataSet
+    ds = DataSet(;(@ntpack d Cn Cf Cf̃ Cϕ)...)
+    
+    return @ntpack f f̃ ϕ n ds ds₀=>ds()
+
+
+end
