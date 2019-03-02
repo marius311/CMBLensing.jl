@@ -111,12 +111,12 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
     @! Łδf     = Ł(δf)
     @! Łδf_p   = Łδf * p
     @! Ð_Łδf_p = Ð(Łδf_p)
-    @! dδf_dt  = ∇' * Ð_Łδf_p
+    @! dδf_dt  = ∇ᵢ' * Ð_Łδf_p
     
     # df/dt
     Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
     @! Ðf     = Ð(f)
-    @! Ð∇f    = ∇*Ðf
+    @! Ð∇f    = ∇ᵢ * Ðf
     @! Ł∇f    = Ł(Ð∇f)
     @⨳ df_dt  = p' ⨳ Ł∇f
 
@@ -125,10 +125,10 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
     @! δfᵀ_∇f       = Łδf' * Ł∇f
     @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
     @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
-    @! dδϕ_dt       = ∇' * Ð_M⁻¹_δfᵀ_∇f
+    @! dδϕ_dt       = ∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
     memÐϕ = L.memÐϕ
     for i=1:2, j=1:2
-        dδϕ_dt .+= (@! memÐϕ = ∇[i] * (@! memÐϕ = ∇[j] * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
+        dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
     end
     
     FieldTuple(df_dt, dδf_dt, dδϕ_dt)

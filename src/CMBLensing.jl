@@ -55,7 +55,7 @@ export
     HealpixS0Cap, HighPass, LowPass,
     plot, @unpack, OuterProdOp, resimulate,
     ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp,
-    IsotropicHarmonicOp, load_healpix_sim_dataset
+    IsotropicHarmonicOp, load_healpix_sim_dataset, dot, ⋅
 
 include("util.jl")
 include("generic.jl")

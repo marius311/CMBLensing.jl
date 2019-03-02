@@ -204,9 +204,9 @@ end
 end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used above)
-δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(ɸ)))
-δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf=ds;         FieldTuple(-(Cf\f)                  , zero(ɸ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -(Cϕ\ϕ)))
+δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,Cf,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cf)))
+δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf,Cϕ=ds;         FieldTuple(-(Cf\f)                  , zero(Cϕ)))
+δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cf,Cϕ=ds;         FieldTuple(zero(Cf)                 , -(Cϕ\ϕ)))
 
 
 
@@ -638,7 +638,8 @@ function load_healpix_sim_dataset(;
 
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cf Cf̃ Cϕ)...)
+    ds = DataSet(;(@ntpack d Cn Cf Cf̃ Cϕ M)...)
+
     
     return @ntpack f f̃ ϕ n ds ds₀=>ds()
 

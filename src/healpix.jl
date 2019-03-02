@@ -124,8 +124,8 @@ copy(f::F)    where {F<:HealpixS0Cap} = F(copy(f.Ix),    f.gradient_cache)
 copy(f::F)    where {F<:HealpixS2Cap} = F(copy(f.Ix),    copy(f.Ux),    f.gradient_cache)
 
 ## derivatives
-function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}}}, gc) where {covariant}
-    if ∇Op isa Adjoint
+function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}},∇i{<:Any,covariant},AdjOp{<:∇i{<:Any,covariant}}}, gc) where {covariant}
+    if (∇Op isa Adjoint) || (∇Op isa AdjOp)
         W = covariant ? gc.Wᵀ_covariant : gc.Wᵀ_contravariant
     else
         W = covariant ? gc.W_covariant : gc.W_contravariant
@@ -175,8 +175,24 @@ function mul!(f′::F, ∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′:
     f′
 end
 
+# individual components of the gradient (which is wasteful), but needed for the
+# way `negδvelocityᴴ!` is currently written. todo: remove this and change the
+# way that that's written instead.
+function mul!(f′::F, ∇Op::AdjOp{<:∇i{component}}, f::F) where {component,F<:HealpixS0Cap}
+    if f′===f; f = copy(f); end # even more wasteful...
+    gc = f′.gradient_cache
+    W = get_W(∇Op, gc)
+    @inbounds for i in eachindex(gc.neighbors)
+        f′.Ix[i] = -nan2zero((W[i] * @view(f.Ix[gc.neighbors[i]]))[component+1])
+    end
+    imax = gc.neighbors[end][1] + 2
+    f′.Ix[imax:end]
+    f′
+end
 
-dot(a::HealpixS0Cap, b::HealpixS0Cap) = dot(nan2zero.(a.Ix),nan2zero.(b.Ix))
+
+
+dot(a::H, b::H) where {Nside, H<:HealpixS0Cap{Nside}} = dot(nan2zero.(a.Ix),nan2zero.(b.Ix)) * hp.nside2pixarea(Nside)
 
 
 function plot(f::HealpixS0Cap, args...; cmap="RdBu_r", vlim=nothing, plot_type=(PyPlot.isinteractive() ? :mollzoom : :mollview), kwargs...)
@@ -267,6 +283,8 @@ inv(Σ::IsotropicHarmonicCov) = IsotropicHarmonicCov(nan2zero.(inv.(Σ.Cℓ)), �
 sqrt(Σ::IsotropicHarmonicCov) = IsotropicHarmonicCov(sqrt.(Σ.Cℓ), Σ.gc)
 simulate(Σ::IsotropicHarmonicCov{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot} = 
     sqrt(Σ) * HealpixS0Cap(randn(T,Ntot)/hp.nside2resol(Nside), Σ.gc)
+zero(Σ::IsotropicHarmonicCov{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot} = 
+    HealpixS0Cap(zeros(T,Ntot), Σ.gc)
 
 
 ## this will eventually go elsewhere
