@@ -24,7 +24,7 @@ new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) =
 for plot in (:plot, :loglog, :semilogx, :semilogy)
     @eval ($plot)(ic::InterpolatedCℓs, args...; kwargs...) = ($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 end
-getindex(ic::InterpolatedCℓs, idx) = getindex(ic.etp, idx)
+getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
 
 
 struct FuncCℓs{F<:Function} <: AbstractCℓs
@@ -88,7 +88,7 @@ function camb(;
 
     camb = pyimport(:camb)
     ℓmax′ = min(5000,ℓmax)
-    cp = camb[:set_params](
+    cp = camb.set_params(
         ombh2 = ωb,
         omch2 = ωc,
         tau = τ,
@@ -103,21 +103,21 @@ function camb(;
         lmax = ℓmax′,
         r = r
     )
-    cp[:max_l_tensor] = ℓmax′
-    cp[:max_eta_k_tensor] = 2ℓmax′
-    cp[:WantScalars] = true
-    cp[:WantTensors] = true
-    cp[:DoLensing] = true
+    cp.max_l_tensor = ℓmax′
+    cp.max_eta_k_tensor = 2ℓmax′
+    cp.WantScalars = true
+    cp.WantTensors = true
+    cp.DoLensing = true
     
-    res = camb[:get_results](cp)
+    res = camb.get_results(cp)
     
     
     ℓ  = collect(2:ℓmax -1)
     ℓ′ = collect(2:ℓmax′-1)
-    α = (10^6*cp[:TCMB])^2
+    α = (10^6*cp.TCMB)^2
     toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
-    Cℓϕ = Dict(:ϕϕ=>extrapolate_Cℓs(ℓ,ℓ′,Aϕϕ*2π*res[:get_lens_potential_cls](ℓmax′)[3:ℓmax′,1]./ℓ′.^4))
-    Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>extrapolate_Cℓs(ℓ,ℓ′,res[:get_cmb_power_spectra]()[v][3:ℓmax′,i].*toCℓ′.*α)
+    Cℓϕ = Dict(:ϕϕ=>extrapolate_Cℓs(ℓ,ℓ′,Aϕϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4))
+    Cℓs = Dict(k=>merge(Cℓϕ,Dict(x=>extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[v][3:ℓmax′,i].*toCℓ′.*α)
                                  for (i,x) in enumerate([:TT,:EE,:BB,:TE])))
            for (k,v) in Dict(:fs=>"unlensed_scalar",:f̃s=>"lensed_scalar",:ft=>"tensor",:f=>"unlensed_total",:f̃=>"total"))
 
@@ -158,9 +158,9 @@ function class(;lmax = 8000,
 
 
     classy = pyimport("classy")
-	cosmo = classy[:Class]()
-	cosmo[:struct_cleanup]()
-	cosmo[:empty]()
+	cosmo = classyClass()
+	cosmo.struct_cleanup()
+	cosmo.empty()
 	params = Dict(
        		"output"        => contains(modes,"s") ? "tCl, pCl, lCl" : "tCl, pCl",
        		"modes"         => modes,
@@ -184,11 +184,11 @@ function class(;lmax = 8000,
             "r" => r
         ))
     end
-	cosmo[:set](params)
-	cosmo[:compute]()
+	cosmo.set(params)
+	cosmo.compute()
     
-    α = 10^6 * cosmo[:T_cmb]()
-    tCl = Dict(k=>v[2:end] for (k,v) in cosmo[:raw_cl](lmax))
+    α = 10^6 * cosmo.T_cmb()
+    tCl = Dict(k=>v[2:end] for (k,v) in cosmo.raw_cl(lmax))
 	Cℓ = Dict{Symbol,Vector{Float64}}(
             :ℓ  => tCl["ell"],
             :TT => tCl["tt"] * α^2,
@@ -198,7 +198,7 @@ function class(;lmax = 8000,
             :Tϕ => tCl["tp"] * α,
             :ϕϕ => tCl["pp"])
     if contains(modes,"s")
-        lCl = Dict(k=>v[2:end] for (k,v) in cosmo[:lensed_cl](lmax))
+        lCl = Dict(k=>v[2:end] for (k,v) in cosmo.lensed_cl(lmax))
         C̃ℓ = Dict{Symbol,Vector{Float64}}(
     			:ℓ  => lCl["ell"],
     			:TT => lCl["tt"] * α^2,

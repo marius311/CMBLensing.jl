@@ -255,24 +255,31 @@ end
     IsotropicHarmonicCov(T.(L.Wℓ), f.gradient_cache) * f
 
 function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     ℓmax = length(L.Cℓ)-1
-    alms = reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
-    alms .*= L.Cℓ
-    alm2map!(f′.Ix, alms, Nside=Nside, zbounds=zbounds)
-    f′.Ix[Nobs+1:end] .= 0
-    f′
+    aℓms = map2alm(f, ℓmax=ℓmax)
+    aℓms .*= L.Cℓ
+    alm2map!(f′, aℓms)
 end
 
 function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     ℓmax = length(L.Cℓ)-1
-    alms = reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
-    @. alms = nan2zero(L.Cℓ \ alms)
-    alm2map!(f′.Ix, alms, Nside=Nside, zbounds=zbounds)
-    f′.Ix[Nobs+1:end] .= 0
-    f′
+    aℓms = map2alm(f, ℓmax=ℓmax)
+    @. aℓms = nan2zero(L.Cℓ \ aℓms)
+    alm2map!(f′, aℓms)
 end
+
+function map2alm(f::HealpixS0Cap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
+    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
+end
+
+function alm2map!(f::HealpixS0Cap{Nside,T,Nobs}, aℓms::Matrix{Complex{T}}) where {Nside,T,Nobs}
+    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    alm2map!(f.Ix, aℓms, Nside=Nside, zbounds=zbounds)
+    f.Ix[Nobs+1:end] .= 0
+    f
+end
+
 
 # todo: implement proper broadcasting
 +(Σa::I, Σb::I) where {I<:IsotropicHarmonicCov} = IsotropicHarmonicCov(Σa.Cℓ+Σb.Cℓ, Σa.gc)
@@ -343,5 +350,9 @@ function alm2cl(alm::Matrix{Complex{T}}; ℓmax=(size(alm,1)-1)) where {T}
     InterpolatedCℓs(0:ℓmax, [(abs2(alm[ℓ+1,1]) + 2sum(abs2.(alm[ℓ+1, 2:ℓ+1])))/(2ℓ+1) for ℓ=0:ℓmax])
 end
 
-get_Cℓ(mp::HealpixS0Cap{Nside}; ℓmax=2Nside) where {Nside} = 
-    alm2cl(map2alm(nan2zero.(full(mp)); ℓmax=ℓmax)[1,:,:])
+function alm2cl(alm1::Matrix{Complex{T}}, alm2::Matrix{Complex{T}}; ℓmax=(size(alm,1)-1)) where {T}
+    InterpolatedCℓs(0:ℓmax, real.([(dot(alm1[ℓ+1,1], alm2[ℓ+1,1]) + 2dot(alm1[ℓ+1,2:ℓ+1], alm2[ℓ+1,2:ℓ+1]))/(2ℓ+1) for ℓ=0:ℓmax]))
+end
+
+get_Cℓ(mp::HealpixS0Cap{Nside}; ℓmax=2Nside) where {Nside} = alm2cl(map2alm(mp, ℓmax=ℓmax))
+get_Cℓ(mp1::HealpixS0Cap{Nside}, mp2::HealpixS0Cap{Nside}; ℓmax=2Nside) where {Nside} = alm2cl(map2alm(mp1, ℓmax=ℓmax), map2alm(mp2, ℓmax=ℓmax), ℓmax=ℓmax)

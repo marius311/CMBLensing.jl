@@ -22,21 +22,21 @@ function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=tru
     _plot(getproperty(f,k); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
         if string(k)[2] == 'x'
-            @pydef mutable struct MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
-                __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
+            @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
+                __call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
             end
-            ax[:xaxis][:set_major_formatter](MyFmt())
-            ax[:yaxis][:set_major_formatter](MyFmt())
-            ax[:set_xlabel]("RA")
-            ax[:set_ylabel]("Dec")
+            ax.xaxis.set_major_formatter(MyFmt())
+            ax.yaxis.set_major_formatter(MyFmt())
+            ax.set_xlabel("RA")
+            ax.set_ylabel("Dec")
         else
-            ax[:set_xlabel](raw"$\ell_x$")
-            ax[:set_ylabel](raw"$\ell_y$")
-            ax[:tick_params](axis="x", rotation=45)
+            ax.set_xlabel(raw"$\ell_x$")
+            ax.set_ylabel(raw"$\ell_y$")
+            ax.tick_params(axis="x", rotation=45)
         end
-        ax[:tick_params](labeltop=false, labelbottom=true)
+        ax.tick_params(labeltop=false, labelbottom=true)
     else
-        ax[:tick_params](labeltop=false, labelleft=false)
+        ax.tick_params(labeltop=false, labelleft=false)
     end
 end
 
@@ -58,9 +58,9 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
        
     m[isinf.(m)] .= NaN
     
-    cax = ax[:matshow](clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
-    cbar && gcf()[:colorbar](cax,ax=ax)
-    title!=nothing && ax[:set_title](title, y=1)
+    cax = ax.matshow(clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
+    cbar && gcf().colorbar(cax,ax=ax)
+    title!=nothing && ax.set_title(title, y=1)
     ax
 end
 
@@ -104,12 +104,12 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
     
     if (annonate!=nothing); annonate(fig,axs,which); end
     
-    ani = pyimport("matplotlib.animation")[:FuncAnimation](fig, 
+    ani = pyimport("matplotlib.animation").FuncAnimation(fig, 
         i->begin
             for (f,ax,k) in tuple.(fields,axs,which)
                 if length(f)>1
-                    img = ax[:images][1]
-                    img[:set_data](sum(x*f[mod1(i-j+1,length(f))][k] for (j,x) in enumerate(motionblur)) / sum(motionblur))
+                    img = ax.images[1]
+                    img.set_data(sum(x*f[mod1(i-j+1,length(f))][k] for (j,x) in enumerate(motionblur)) / sum(motionblur))
                 end
             end
             first.(getindex.(axs,:images))[:]
@@ -119,10 +119,10 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
         )
     close()
     if filename!=nothing
-        ani[:save](filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig[:get_facecolor]()))
+        ani.save(filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig.get_facecolor()))
         if endswith(filename,".gif")
             run(`convert -layers Optimize $filename $filename`)
         end
     end
-    HTML(ani[:to_html5_video]())
+    HTML(ani.to_html5_video())
 end
