@@ -1,9 +1,9 @@
 struct HealpyNotImported end
 getproperty(::HealpyNotImported, ::Symbol) = error("Healpy needs to be installed to use this function.")
 @init try 
-    @eval @pyimport healpy as hp
+    global hp = pyimport(:healpy)
 catch
-    @eval hp = HealpyNotImported()
+    global hp = HealpyNotImported()
 end
 
 
@@ -320,10 +320,9 @@ end
 using Libdl
 Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
 
-@generated function map2alm(mp::Vector{T}; Nside = hp.npix2nside(length(mp)), ℓmax=nothing, mmax=ℓmax, zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
+@generated function map2alm(mp::Vector{T}; Nside=hp.npix2nside(length(mp)), ℓmax=2Nside, mmax=ℓmax, zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
     fn_name = "__alm_tools_MOD_map2alm_sc_$((T==Float32) ? "s" : "d")"
     quote
-        if ℓmax==nothing; ℓmax=3Nside-1; end
         alm = Array{Complex{T}}(undef, (1,ℓmax+1,mmax+1))
         ccall(  
            ($fn_name, "libhealpix"), Nothing,

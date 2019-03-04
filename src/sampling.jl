@@ -147,7 +147,7 @@ function sample_joint(
         if (θstart == nothing)
             θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
         else 
-            @assert θstart isa Tuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
+            @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
             θstarts = fill(θstart, nchains)
         end
         if (ϕstart == 0); ϕstart = zero(Cϕ); end
