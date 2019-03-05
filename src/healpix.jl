@@ -165,15 +165,14 @@ DerivBasis(::Type{<:HealpixS0Cap}) = Map
 
 
 *(∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{<:HealpixS0Cap}) = mul!(similar(v[1]), ∇Op, v)
-function mul!(f′::F, ∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:HealpixCap}
+function mul!(f′::F, ∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {Nside,T,Nobs,F<:HealpixS0Cap{Nside,T,Nobs}}
     gc = f′.gradient_cache
     W = get_W(∇Op, gc)
     @inbounds for i in eachindex(gc.neighbors)
         f′.Ix[i] = -nan2zero(  (W[i] * @view v[1].Ix[gc.neighbors[i]])[1] 
                              + (W[i] * @view v[2].Ix[gc.neighbors[i]])[2])
     end
-    imax = gc.neighbors[end][1] + 2
-    f′.Ix[imax:end] .= NaN
+    f′.Ix[Nobs+1:end] .= NaN
     f′
 end
 
