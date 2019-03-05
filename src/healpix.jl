@@ -87,6 +87,7 @@ struct HealpixS0Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: Healpi
     gradient_cache::GC
     function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
         Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
+        Ix[Nobs+1:end] .= NaN
         HealpixS0Cap{Nside,T,Nobs,typeof(gc)}(Ix, gc)
     end
     HealpixS0Cap{Nside,T,Nobs,GC}(Ix, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(Ix,gc)
@@ -133,7 +134,7 @@ function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}},∇i
 end
 
 # function mul!(∇f::FieldVector{F}, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::F) where {F<:HealpixS0Cap}
-function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {F<:HealpixS0Cap}
+function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {Nside,T,Nobs,F<:HealpixS0Cap{Nside,T,Nobs}}
     gc = f.gradient_cache
     W = get_W(∇Op, gc)
     @inbounds for i in eachindex(gc.neighbors)
@@ -141,8 +142,7 @@ function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {F<:HealpixS0Cap}
         #todo: replace this nan2zero with just not calculating the last ring
         ∇f[1].Ix[i], ∇f[2].Ix[i] = nan2zero.(W[i] * Ix) 
     end
-    imax = gc.neighbors[end][1] + 2
-    ∇f[1].Ix[imax:end] .= ∇f[2].Ix[imax:end] .= NaN
+    ∇f[1].Ix[Nobs+1:end] .= ∇f[2].Ix[Nobs+1:end] .= NaN
     ∇f
 end
 function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::HealpixS2Cap)
@@ -171,7 +171,7 @@ function mul!(f′::F, ∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′:
                              + (W[i] * @view v[2].Ix[gc.neighbors[i]])[2])
     end
     imax = gc.neighbors[end][1] + 2
-    f′.Ix[imax:end] 
+    f′.Ix[imax:end] .= NaN
     f′
 end
 
@@ -186,7 +186,7 @@ function mul!(f′::F, ∇Op::AdjOp{<:∇i{component}}, f::F) where {component,F
         f′.Ix[i] = -nan2zero((W[i] * @view(f.Ix[gc.neighbors[i]]))[component+1])
     end
     imax = gc.neighbors[end][1] + 2
-    f′.Ix[imax:end]
+    f′.Ix[imax:end] .= NaN
     f′
 end
 
@@ -269,14 +269,14 @@ function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Ns
 end
 
 function map2alm(f::HealpixS0Cap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    zbounds = [cos(hp.pix2ang(Nside,Nobs-1)[1]), 1]
     reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
 end
 
 function alm2map!(f::HealpixS0Cap{Nside,T,Nobs}, aℓms::Matrix{Complex{T}}) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    zbounds = [cos(hp.pix2ang(Nside,Nobs-1)[1]), 1]
     alm2map!(f.Ix, aℓms, Nside=Nside, zbounds=zbounds)
-    f.Ix[Nobs+1:end] .= 0
+    f.Ix[Nobs+1:end] .= NaN
     f
 end
 

@@ -612,6 +612,8 @@ function load_healpix_sim_dataset(;
     B = nothing,
     D = nothing,
     G = nothing,
+    ϕ = nothing,
+    f = nothing,
     mask_kwargs = nothing,
     L = LenseFlow)
     
@@ -630,8 +632,9 @@ function load_healpix_sim_dataset(;
     
     P=B=1 #for now
     
-    ϕ = simulate(Cϕ)
-    f = simulate(Cf)
+    if (seed != nothing); seed!(seed); end
+    if (ϕ==nothing); ϕ = simulate(Cϕ); end
+    if (f==nothing); f = simulate(Cf); end
     f̃ = L(ϕ)*f
     n = simulate(Cn)
     d = M*P*B*f̃ + n
