@@ -32,7 +32,9 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
         # the commented out line uses the pixel itself, but that gives us a non-zero trace so we don't use it
         # neighbors_mat = [(0:(Nobs-1))'; hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (1:2:end) : 1:end),:]::Matrix{Int}] .+ 1
         neighbors_mat = hp.get_all_neighbours(Nside,collect(0:(Nobs-1)))[(order == Val(1) ? (2:2:end) : 1:end),:]::Matrix{Int} .+ 1
-        Ntot = maximum(neighbors_mat)
+        # technically we dont need the +1 below, but this makes it so the entire
+        # very last ring is stored (for uniformity's sake)
+        Ntot = maximum(neighbors_mat)+1 
         neighbors = SVector{N_neighbors}.(eachcol(Int32.(neighbors_mat)))
 
         (θs, ϕs) = convert.(Vector{T}, hp.pix2ang(Nside,collect(0:Ntot))::Tuple{Vector{Float64},Vector{Float64}})
@@ -269,12 +271,12 @@ function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Ns
 end
 
 function map2alm(f::HealpixS0Cap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs-1)[1]), 1]
+    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
 end
 
 function alm2map!(f::HealpixS0Cap{Nside,T,Nobs}, aℓms::Matrix{Complex{T}}) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs-1)[1]), 1]
+    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
     alm2map!(f.Ix, aℓms, Nside=Nside, zbounds=zbounds)
     f.Ix[Nobs+1:end] .= NaN
     f
