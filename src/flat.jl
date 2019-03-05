@@ -156,6 +156,9 @@ DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
         (α * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
     end
 end
+@generated function broadcast_data(::Type{<:FlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
+    (FFTgrid(T,P).k' .^2 .+ FFTgrid(T,P).k[1:Nside(P)÷2+1].^2,)
+end
 mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
 ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
 
