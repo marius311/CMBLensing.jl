@@ -80,68 +80,80 @@ end
 # now define the Healpix Fields (called HealpixCap)
 
 struct HpxPix{Nside} <: Pix end
-abstract type HealpixCap{B,S,P<:HpxPix} <: Field{B,S,P} end
+abstract type HealpixCap{Nside,T,Nobs,B,S,P<:HpxPix} <: Field{B,S,P} end
 
 
 ## Spin-0
-struct HealpixS0Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: HealpixCap{Map, S0, HpxPix{Nside}}
+struct HealpixS0Cap{Nside, T, Nobs, GC<:Union{Nothing,GradientCache{Nside,T,Nobs}}} <: HealpixCap{Nside, T, Nobs, Map, S0, HpxPix{Nside}}
     Ix::Vector{T}
     gradient_cache::GC
+    
     function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
         Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
         Ix[Nobs+1:end] .= NaN
-        HealpixS0Cap{Nside,T,Nobs,typeof(gc)}(Ix, gc)
+        new{Nside,T,Nobs,typeof(gc)}(Ix, gc)
+    end
+    function HealpixS0Cap(Ix::Vector{T}; gradient_order=nothing, Nside=hp.npix2nside(length(Ix))) where {T}
+        Nobs = maximum(findall(!isnan,Ix))
+        if (gradient_order==nothing)
+            HealpixS0Cap{Nside,T,Nobs,Nothing}(Ix,nothing)
+        else
+            HealpixS0Cap(Ix, GradientCache{Nside,T}(Nobs,Val(gradient_order)))
+        end
     end
     HealpixS0Cap{Nside,T,Nobs,GC}(Ix, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(Ix,gc)
-end
-function HealpixS0Cap(Ix::Vector{T}; gradient_order=1) where {T}
-    Nside = hp.npix2nside(length(Ix))
-    Nobs = maximum(findall(!isnan,Ix))
-    HealpixS0Cap(Ix, GradientCache{Nside,T}(Nobs,Val(gradient_order)))
 end
 
 
 ## Spin-2
-struct HealpixS2Cap{Nside, T, Nobs, GC<:GradientCache{Nside, T, Nobs}} <: HealpixCap{QUMap, S2, HpxPix{Nside}}
-    Qx::Vector{T}
-    Ux::Vector{T}
+struct HealpixS2Cap{Nside, T, Nobs, GC<:Union{Nothing,GradientCache{Nside,T,Nobs}}} <: HealpixCap{Nside, T, Nobs, QUMap, S2, HpxPix{Nside}}
+    QUx::Matrix{T}
     gradient_cache::GC
-end
-function HealpixS2Cap(Qx::Vector{T}, Ux::Vector{T}) where {T}
-    @assert length(Qx)==length(Ux)
-    Nside = hp.npix2nside(length(Qx))
-    Nobs = maximum(findall(!isnan,Qx))
-    HealpixS2Cap(Qx, Ux, GradientCache{Nside,T}(Nobs))
-end
-function HealpixS2Cap(Qx::Vector, Ux::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
-    Qx = length(Qx)==Ntot ? Qx : Qx[1:Ntot]
-    Ux = length(Ux)==Ntot ? Ux : Ux[1:Ntot]
-    HealpixS2Cap{Nside,T,Nobs,typeof(gc)}(Qx, Ux, gc)
+    function HealpixS2Cap(QUx::Matrix, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
+        QUx = size(QUx,1)==Ntot ? QUx : QUx[1:Ntot,:]
+        QUx[Nobs+1:end,:] .= NaN
+        new{Nside,T,Nobs,typeof(gc)}(QUx, gc)
+    end
+    function HealpixS2Cap(QUx::Matrix{T}; gradient_order=nothing, Nside=hp.npix2nside(size(QUx,1))) where {T}
+        Nobs = maximum(findall(!isnan,QUx[:,1]))
+        if (gradient_order==nothing)
+            HealpixS2Cap{Nside,T,Nobs,Nothing}(QUx,nothing)
+        else
+            HealpixS2Cap(QUx, GradientCache{Nside,T}(Nobs,Val(gradient_order)))
+        end
+    end
+    HealpixS2Cap{Nside,T,Nobs,GC}(QUx, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(QUx,gc)
 end
 
+getproperty(f::HealpixS2Cap, ::Val{:Qx}) = f.QUx[:,1]
+getproperty(f::HealpixS2Cap, ::Val{:Ux}) = f.QUx[:,2]
 
+# convertable_fields is screwed up for HealpixCap so say by hand here there's
+# none (todo: fix this)
+convertable_fields(::Type{F}) where {B,S,P<:HpxPix,F<:Field{B,S,P}} = []
 
-similar(f::F) where {F<:HealpixS0Cap} = F(similar(f.Ix), f.gradient_cache)
-similar(f::F) where {F<:HealpixS2Cap} = F(similar(f.Qx), similar(f.Ux), f.gradient_cache)
-copy(f::F)    where {F<:HealpixS0Cap} = F(copy(f.Ix),    f.gradient_cache)
-copy(f::F)    where {F<:HealpixS2Cap} = F(copy(f.Ix),    copy(f.Ux),    f.gradient_cache)
+similar(f::F) where {F<:HealpixCap} = F(similar(first(fieldvalues(f))), f.gradient_cache)
+copy(f::F)    where {F<:HealpixCap} = F(copy(first(fieldvalues(f))),    f.gradient_cache)
+
 
 ## derivatives
-function get_W(∇Op::Union{∇Op{covariant},Adjoint{∇i,∇Op{covariant}},∇i{<:Any,covariant},AdjOp{<:∇i{<:Any,covariant}}}, gc) where {covariant}
-    if (∇Op isa Adjoint) || (∇Op isa AdjOp)
-        W = covariant ? gc.Wᵀ_covariant : gc.Wᵀ_contravariant
-    else
-        W = covariant ? gc.W_covariant : gc.W_contravariant
-    end
-end
 
-# function mul!(∇f::FieldVector{F}, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::F) where {F<:HealpixS0Cap}
+DerivBasis(::Type{<:HealpixS0Cap}) = Map
+DerivBasis(::Type{<:HealpixS2Cap}) = QUMap
+
+# picking out the right weight matrix for a given ∇ operator
+get_W(∇::AbstractArray, gc::GradientCache) = get_W(first(∇), gc)
+get_W(::∇i{<:Any,true},           gc) = gc.W_covariant
+get_W(::∇i{<:Any,false},          gc) = gc.W_contravariant
+get_W(::AdjOp{<:∇i{<:Any,true}},  gc) = gc.Wᵀ_covariant
+get_W(::AdjOp{<:∇i{<:Any,false}}, gc) = gc.Wᵀ_contravariant
+get_W(::Any, gc::Nothing) = error("Can't take gradients of this field, gradient cache not precomputed.")
+
 function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {Nside,T,Nobs,F<:HealpixS0Cap{Nside,T,Nobs}}
     gc = f.gradient_cache
     W = get_W(∇Op, gc)
     @inbounds for i in eachindex(gc.neighbors)
         Ix = @view f.Ix[gc.neighbors[i]]
-        #todo: replace this nan2zero with just not calculating the last ring
         ∇f[1].Ix[i], ∇f[2].Ix[i] = nan2zero.(W[i] * Ix) 
     end
     ∇f[1].Ix[Nobs+1:end] .= ∇f[2].Ix[Nobs+1:end] .= NaN
@@ -151,17 +163,17 @@ function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::Hea
     gc = f.gradient_cache
     W = get_W(∇op, gc)
     @inbounds for i in eachindex(gc.neighbors)
-        Qx = @view f.Qx[gc.neighbors[i]]
-        Ux = @view f.Ux[gc.neighbors[i]]
-        ∇f[1].Qx[i], ∇f[2].Qx[i] = W[i] * Qx
-        ∇f[1].Ux[i], ∇f[2].Ux[i] = W[i] * Ux
+        Qx = @view f.QUx[gc.neighbors[i],1]
+        Ux = @view f.QUx[gc.neighbors[i],2]
+        ∇f[1].Qx[i,1], ∇f[2].Qx[i,1] = W[i] * Qx
+        ∇f[1].Ux[i,2], ∇f[2].Ux[i,2] = W[i] * Ux
     end
     imax = gc.neighbors[end][1] + 1
     ∇f[1].Qx[imax:end] .= ∇f[2].Qx[imax:end] .= ∇f[1].Ux[imax:end] .= ∇f[2].Ux[imax:end] .= NaN
     ∇f
 end
-*(∇Op::Union{∇Op,Adjoint{∇i,<:∇Op}}, f::HealpixS0Cap) where {B} =  mul!(allocate_result(∇Op,f),∇Op,f)
-DerivBasis(::Type{<:HealpixS0Cap}) = Map
+*(∇Op::Union{∇Op,Adjoint{∇i,<:∇Op}}, f::HealpixCap) where {B} =  mul!(allocate_result(∇Op,f),∇Op,f)
+
 
 
 *(∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{<:HealpixS0Cap}) = mul!(similar(v[1]), ∇Op, v)
@@ -193,7 +205,8 @@ end
 
 
 
-dot(a::H, b::H) where {Nside, H<:HealpixS0Cap{Nside}} = dot(nan2zero.(a.Ix),nan2zero.(b.Ix)) * hp.nside2pixarea(Nside)
+dot(a::H, b::H) where {Nside, H<:HealpixS0Cap{Nside}} = dot(nan2zero.(a.Ix), nan2zero.(b.Ix))  * hp.nside2pixarea(Nside)
+dot(a::H, b::H) where {Nside, H<:HealpixS2Cap{Nside}} = dot(nan2zero.(a.QUx),nan2zero.(b.QUx)) * hp.nside2pixarea(Nside)
 
 
 function plot(f::HealpixS0Cap, args...; cmap="RdBu_r", vlim=nothing, plot_type=(PyPlot.isinteractive() ? :mollzoom : :mollview), kwargs...)
@@ -202,32 +215,37 @@ function plot(f::HealpixS0Cap, args...; cmap="RdBu_r", vlim=nothing, plot_type=(
     if vlim!=nothing
         kwargs[:min], kwargs[:max] = -vlim, vlim
     end
-    getproperty(hp,plot_type)(full(f), args...; cmap=cmap, @show(kwargs)...)
+    getproperty(hp,plot_type)(full(f), args...; cmap=cmap, kwargs...)
 end
 
 function plot(f::HealpixS2Cap, args...; kwargs...)
-    plot(HealpixS0Cap(f.Qx, f.gradient_cache), args...; kwargs...)
-    plot(HealpixS0Cap(f.Ux, f.gradient_cache), args...; kwargs...)
+    plot(HealpixS0Cap(f.QUx[:,1], f.gradient_cache), args...; kwargs...)
+    plot(HealpixS0Cap(f.QUx[:,2], f.gradient_cache), args...; kwargs...)
 end
     
     
     
 ## conversion to flat sky maps
-function azeqproj(f::HealpixS0Cap{<:Any,T}, θpix, Nside) where {T}
-    wasinteractive = PyPlot.matplotlib.pylab.isinteractive()
+function azeqproj(f::HealpixS0Cap{<:Any,T}, θpix, Nside, lamb=false) where {T}
+    pylab = pyimport("matplotlib.pylab")
+    wasinteractive = pylab.isinteractive()
     try
-        PyPlot.matplotlib.pylab.ioff()
-        Ix = hp.azeqview(full(f), rot=(0,90), reso=θpix, xsize=Nside, return_projected_map=true)
+        pylab.ioff()
+        Ix = hp.azeqview(full(f), rot=(0,90), reso=θpix, xsize=Nside, lamb=lamb, return_projected_map=true)
         close()
         FlatS0Map{T,Flat{θpix,Nside,fourier∂}}(Ix)
     finally
-        wasinteractive && PyPlot.matplotlib.pylab.ion()
+        wasinteractive && pylab.ion()
     end
 end
+function azeqproj(f::HealpixS2Cap, θpix, Nside)
+    FlatS2QUMap((azeqproj(HealpixS0Cap(getproperty(f,k), f.gradient_cache), θpix, Nside) for k in (:Qx,:Ux))...)
+end
+azeqproj(f::HealpixCap{Nside,T,Nobs}) where {Nside,T,Nobs} = azeqproj(f, round(600rad2deg(hp.nside2resol(Nside)))/10, Nside)
 
 ## broadcasting
 broadcast_data(::Type{F}, f::F) where {F<:HealpixS0Cap} = (f.Ix,)
-broadcast_data(::Type{F}, f::F) where {F<:HealpixS2Cap} = (f.Qx, f.Ux)
+broadcast_data(::Type{F}, f::F) where {F<:HealpixS2Cap} = (f.QUx,)
 metadata(::Type{F}, f::F) where {F<:HealpixCap} = (f.gradient_cache,)
 metadata_reduce((m1,)::Tuple{GC}, (m2,)::Tuple{GC}) where {GC<:GradientCache} = (m1,)
 metadata_reduce((m1,)::Tuple{GradientCache}, (m2,)::Tuple{GradientCache}) = error()
@@ -247,8 +265,8 @@ end
 
 ## Harmonic Operators
  
-struct IsotropicHarmonicCov{Nside, T, Nobs, Ntot, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: LinOp{Map, S0, HpxPix}
-    Cℓ :: Vector{T}
+struct IsotropicHarmonicCov{Nside, T, N, Nobs, Ntot, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: LinOp{Map, Spin, HpxPix}
+    Cℓ :: Array{T,N}
     gc :: GC
 end
 
@@ -256,28 +274,28 @@ end
     IsotropicHarmonicCov(T.(L.Wℓ), f.gradient_cache) * f
 
 function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = length(L.Cℓ)-1
+    ℓmax = size(L.Cℓ,1)-1
     aℓms = map2alm(f, ℓmax=ℓmax)
-    aℓms .*= L.Cℓ
+    @. aℓms *= L.Cℓ
     alm2map!(f′, aℓms)
 end
 
 function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = length(L.Cℓ)-1
+    ℓmax = size(L.Cℓ,1)-1
     aℓms = map2alm(f, ℓmax=ℓmax)
     @. aℓms = nan2zero(L.Cℓ \ aℓms)
     alm2map!(f′, aℓms)
 end
 
-function map2alm(f::HealpixS0Cap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
+function map2alm(f::HealpixCap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
     zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
-    reshape(map2alm(f.Ix, Nside=Nside, ℓmax=ℓmax, zbounds=zbounds), ℓmax+1, ℓmax+1)
+    map2alm(first(fieldvalues(f)), Nside=Nside, ℓmax=ℓmax, zbounds=zbounds)
 end
 
-function alm2map!(f::HealpixS0Cap{Nside,T,Nobs}, aℓms::Matrix{Complex{T}}) where {Nside,T,Nobs}
+function alm2map!(f::HealpixCap{Nside,T,Nobs}, aℓms::Array{Complex{T},3}) where {Nside,T,Nobs}
     zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
-    alm2map!(f.Ix, aℓms, Nside=Nside, zbounds=zbounds)
-    f.Ix[Nobs+1:end] .= NaN
+    alm2map!(first(fieldvalues(f)), aℓms, Nside=Nside, zbounds=zbounds)
+    first(fieldvalues(f))[Nobs+1:end,:] .= NaN
     f
 end
 
@@ -321,28 +339,42 @@ end
 using Libdl
 Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
 
-@generated function map2alm(mp::Vector{T}; Nside=hp.npix2nside(length(mp)), ℓmax=2Nside, mmax=ℓmax, zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
-    fn_name = "__alm_tools_MOD_map2alm_sc_$((T==Float32) ? "s" : "d")"
+@generated function map2alm(maps::Array{T,N}; Nside=hp.npix2nside(size(maps,1)), ℓmax=2Nside, mmax=ℓmax, zbounds=[-1,1]) where {N,T<:Union{Float32,Float64}}
+    (spin, Tspin) = if (N==1)
+        (), () 
+    elseif (N==2)
+        (2,), (Ref{Int32},)
+    else
+        error("maps should be Npix-×-1 or Npix-×-2")
+    end
+    fn_name = "__alm_tools_MOD_map2alm_$(N==1 ? "sc" : "spin")_$((T==Float32) ? "s" : "d")"
     quote
-        alm = Array{Complex{T}}(undef, (1,ℓmax+1,mmax+1))
-        ccall(  
-           ($fn_name, "libhealpix"), Nothing,
-           (Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{T}, Ref{Complex{T}}, Ref{Float64}, Ref{Nothing}),
-           Nside, ℓmax, mmax, mp, alm, Float64.(zbounds), C_NULL
+        aℓms = Array{Complex{T}}(undef, ($N,ℓmax+1,mmax+1))
+        ccall(
+            ($fn_name, "libhealpix"), Nothing,
+            (Ref{Int32}, Ref{Int32}, Ref{Int32}, $(Tspin...), Ref{T}, Ref{Complex{T}}, Ref{Float64}, Ref{Nothing}),
+            Nside, ℓmax, mmax, $(spin...), maps, aℓms, Float64.(zbounds), C_NULL
         )
-        alm
+        aℓms
     end
 end
 
-@generated function alm2map!(mp::Vector{T}, alm::Matrix{Complex{T}}; Nside, ℓmax=(size(alm,1)-1), mmax=(size(alm,2)-1), zbounds=[-1,1]) where {T<:Union{Float32,Float64}}
-    fn_name = "__alm_tools_MOD_alm2map_sc_wrapper_$((T==Float32) ? "s" : "d")"
+@generated function alm2map!(maps::Array{T,N}, aℓms::Array{Complex{T},3}; Nside=hp.npix2nside(size(maps,1)), ℓmax=(size(aℓms,2)-1), mmax=(size(aℓms,3)-1), zbounds=[-1,1]) where {N,T<:Union{Float32,Float64}}
+    (spin, Tspin) = if (N==1)
+        (), () 
+    elseif (N==2)
+        (2,), (Ref{Int32},)
+    else
+        error("maps should be Npix-×-1 or Npix-×-2")
+    end
+    fn_name = "__alm_tools_MOD_alm2map_$(N==1 ? "sc" : "spin")_$((T==Float32) ? "s" : "d")"
     quote
         ccall(
            ($fn_name, "libhealpix"), Nothing,
-           (Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Complex{T}}, Ref{T}, Ref{Float64}, Ref{Nothing}),
-           Nside, ℓmax, mmax, alm, mp, Float64.(zbounds), C_NULL
+           (Ref{Int32}, Ref{Int32}, Ref{Int32}, $(Tspin...), Ref{Complex{T}}, Ref{T}, Ref{Float64}, Ref{Nothing}),
+           Nside, ℓmax, mmax, $(spin...), aℓms, maps, Float64.(zbounds), C_NULL
         )
-        mp
+        maps
     end
 end
 

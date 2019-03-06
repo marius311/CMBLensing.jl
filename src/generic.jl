@@ -239,7 +239,7 @@ propertynames(::F) where {F<:Field} = propertynames(F)
 # implement getproperty using possible conversions
 getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
 @generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
-    l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
+    l = filter(F′->(isstructtype(F′) && s in fieldnames(F′)), convertable_fields(F))
     if s in fieldnames(F)
         :(getfield(f,s))
     elseif (length(l)==1)

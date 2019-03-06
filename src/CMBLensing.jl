@@ -52,7 +52,7 @@ export
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
     MAP_joint, MAP_marg, sample_joint, load_sim_dataset, norm², pixwin,
-    HealpixS0Cap, HighPass, LowPass,
+    HealpixS0Cap, HealpixS2Cap, HighPass, LowPass,
     plot, @unpack, OuterProdOp, resimulate,
     ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp,
     IsotropicHarmonicOp, load_healpix_sim_dataset, dot, ⋅
