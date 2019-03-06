@@ -239,7 +239,7 @@ function azeqproj(f::HealpixS0Cap{<:Any,T}, θpix, Nside, lamb=false) where {T}
     end
 end
 function azeqproj(f::HealpixS2Cap, θpix, Nside)
-    FlatS2QUMap((azeqproj(HealpixS0Cap(getproperty(f,k), f.gradient_cache), θpix, Nside) for k in (:Qx,:Ux))...)
+    FlatS2QUMap((azeqproj(HealpixS0Cap(getproperty(f,k)), θpix, Nside) for k in (:Qx,:Ux))...)
 end
 azeqproj(f::HealpixCap{Nside,T,Nobs}) where {Nside,T,Nobs} = azeqproj(f, round(600rad2deg(hp.nside2resol(Nside)))/10, Nside)
 

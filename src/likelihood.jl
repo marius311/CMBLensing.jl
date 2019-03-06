@@ -507,6 +507,7 @@ function load_sim_dataset(;
     B = nothing,
     D = nothing,
     G = nothing,
+    ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # override any of these simulated fields
     mask_kwargs = nothing,
     L = LenseFlow,
     ∂mode = fourier∂
@@ -567,11 +568,12 @@ function load_sim_dataset(;
     
     # simulate data
     if (seed != nothing); seed!(seed); end
-    ϕ = simulate(Cϕ)
-    f = simulate(Cf)
-    f̃ = L(ϕ)*f
-    n = simulate(Cn)
-    d = M*P*B*f̃ + n
+    if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
+    if (f  == nothing); f  = simulate(Cf); end
+    if (n  == nothing); n  = simulate(Cn); end
+    if (f̃  == nothing); f̃  = L(ϕ)*f;       end
+    if (Bf̃ == nothing); Bf̃ = B*f̃;          end
+    if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)

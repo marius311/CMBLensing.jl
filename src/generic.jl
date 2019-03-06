@@ -230,16 +230,16 @@ copy(f::Field) = deepcopy(f)
 # differing only in basis, meaning you should be able to convert F to these
 # types
 concrete_subtypes(::Type{F}) where {F} = isabstracttype(F) ? vcat(map(concrete_subtypes,subtypes(F))...) : F
-convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->!(x<:AdjField),concrete_subtypes(Field{B′,S,P} where B′))
+convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->(!(x<:AdjField) || !isstructtype(x)),concrete_subtypes(Field{B′,S,P} where B′))
 
 # use convertable_fields to get possible properties
-@generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
+propertynames(::Type{F}) where {F<:Field} = unique(tuplejoin(fieldnames(F), map(fieldnames,convertable_fields(F))...))
 propertynames(::F) where {F<:Field} = propertynames(F)
 
 # implement getproperty using possible conversions
 getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
 @generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
-    l = filter(F′->(isstructtype(F′) && s in fieldnames(F′)), convertable_fields(F))
+    l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
     if s in fieldnames(F)
         :(getfield(f,s))
     elseif (length(l)==1)
