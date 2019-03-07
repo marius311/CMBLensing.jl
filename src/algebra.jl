@@ -23,6 +23,7 @@ BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 # specialize to return different things for different F's, e.g. ∂x returns a
 # different sized array depending on the Nside of F. These are a few generic
 # definitions:
+broadcast_data(f::F) where {F<:Field} = broadcast_data(F,f)
 broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F, L.f)
 broadcast_data(::Type{<:Field}, s::Scalar) = s

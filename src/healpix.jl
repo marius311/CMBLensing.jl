@@ -76,6 +76,12 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
     end
     
 end
+function GradientCache(Nside, T, θmax; order=1)
+    i = hp.ang2pix(Nside, deg2rad(θmax), 0)
+    Nobs = ringinfo(Nside).ring_starts[findfirst(j->j>i, ringinfo(Nside).ring_starts)] - 1
+    GradientCache{Nside,T}(Nobs, Val(order))
+end
+
 
 # now define the Healpix Fields (called HealpixCap)
 
@@ -247,8 +253,8 @@ azeqproj(f::HealpixCap{Nside,T,Nobs}) where {Nside,T,Nobs} = azeqproj(f, round(6
 broadcast_data(::Type{F}, f::F) where {F<:HealpixS0Cap} = (f.Ix,)
 broadcast_data(::Type{F}, f::F) where {F<:HealpixS2Cap} = (f.QUx,)
 metadata(::Type{F}, f::F) where {F<:HealpixCap} = (f.gradient_cache,)
-metadata_reduce((m1,)::Tuple{GC}, (m2,)::Tuple{GC}) where {GC<:GradientCache} = (m1,)
-metadata_reduce((m1,)::Tuple{GradientCache}, (m2,)::Tuple{GradientCache}) = error()
+metadata_reduce((m1,)::Tuple{GC}, (m2,)::Tuple{GC}) where {GC<:Union{Nothing,GradientCache}} = (m1,)
+metadata_reduce((m1,)::Tuple,     (m2,)::Tuple) = error()
 
 LenseBasis(::Type{<:HealpixS0Cap}) = Map
 LenseBasis(::Type{<:HealpixS2Cap}) = QUMap
@@ -265,23 +271,24 @@ end
 
 ## Harmonic Operators
  
-struct IsotropicHarmonicCov{Nside, T, N, Nobs, Ntot, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: LinOp{Map, Spin, HpxPix}
+struct IsotropicHarmonicCov{Nside, T, Nobs, Ntot, N, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: LinOp{Map, Spin, HpxPix}
     Cℓ :: Array{T,N}
     gc :: GC
 end
 
-*(L::BandPassOp, f::HealpixS0Cap{Nside, T}) where {Nside, T} = 
+*(L::BandPassOp, f::HealpixCap{Nside, T}) where {Nside, T} = 
     IsotropicHarmonicCov(T.(L.Wℓ), f.gradient_cache) * f
 
 function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = size(L.Cℓ,1)-1
+    ℓmax = size(L.Cℓ,2)-1
     aℓms = map2alm(f, ℓmax=ℓmax)
+    size(aℓms), size(L.Cℓ)
     @. aℓms *= L.Cℓ
     alm2map!(f′, aℓms)
 end
 
 function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = size(L.Cℓ,1)-1
+    ℓmax = size(L.Cℓ,2)-1
     aℓms = map2alm(f, ℓmax=ℓmax)
     @. aℓms = nan2zero(L.Cℓ \ aℓms)
     alm2map!(f′, aℓms)
@@ -334,6 +341,7 @@ Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
     fn_name = "__alm_tools_MOD_map2alm_$(N==1 ? "sc" : "spin")_$((T==Float32) ? "s" : "d")"
     quote
         aℓms = Array{Complex{T}}(undef, ($N,ℓmax+1,mmax+1))
+        aℓms .= NaN
         ccall(
             ($fn_name, "libhealpix"), Nothing,
             (Ref{Int32}, Ref{Int32}, Ref{Int32}, $(Tspin...), Ref{T}, Ref{Complex{T}}, Ref{Float64}, Ref{Nothing}),
@@ -351,7 +359,7 @@ end
     else
         error("maps should be Npix-×-1 or Npix-×-2")
     end
-    fn_name = "__alm_tools_MOD_alm2map_$(N==1 ? "sc" : "spin")_$((T==Float32) ? "s" : "d")"
+    fn_name = "__alm_tools_MOD_alm2map_$(N==1 ? "sc_wrapper" : "spin")_$((T==Float32) ? "s" : "d")"
     quote
         ccall(
            ($fn_name, "libhealpix"), Nothing,
