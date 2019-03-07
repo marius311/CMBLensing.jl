@@ -313,22 +313,6 @@ zero(Σ::IsotropicHarmonicCov{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot} =
     HealpixS0Cap(zeros(T,Ntot), Σ.gc)
 
 
-## this will eventually go elsewhere
-
-function load_s4_map(filename; Nside=2048, T=Float32, which::_PolType = PolType.T)
-    m = hp.read_map(filename, verbose=false, field=Dict(PolType.T=>0, PolType.QU=>[1,2], PolType.TQU=>[0,1,2])[which])
-    m = hp.ud_grade(m, Nside)
-    m = hcat(hp.Rotator((0,-135,0),eulertype="ZYX")[:rotate_map_pixel](m)...)
-    m = T.(m)
-    m[@. abs(m)>1e20] .= NaN
-    if which == PolType.T
-        HealpixS0Cap(m[1,:])
-    elseif which == PolType.QU
-        HealpixS2Cap(m[:,1], m[:,2])
-    end
-end
-
-
 ##
 
 # Healpy doesn't yet have the zbounds option, so call into the Healpix Fortran

@@ -75,5 +75,6 @@ include("sampling.jl")
 include("minimize.jl")
 include("masking.jl")
 include("quadratic_estimate.jl")
+include("properties.jl")
 
 end
