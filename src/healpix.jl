@@ -18,7 +18,7 @@ ringinfo(Nside) = ringinfo(Val(Nside))
 end
 
 # GradientCache holds precomputed quantities that let us do fast spherical gradients 
-struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
+struct GradientCache{Nside, T, Nobs, NB, W}
     neighbors        :: NB
     W_covariant      :: W
     W_contravariant  :: W
@@ -42,15 +42,20 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
         # derivative
         W_covariant, W_contravariant = [], []
         @showprogress 1 "∇  precomputation: " for (i,(ni,θ,ϕ)) in enumerate(zip(neighbors, θs, ϕs))
-            Δθ = @.     θs[ni]-θ
-            Δϕ = @. rem(ϕs[ni]-ϕ+T(π), T(2π), RoundDown) - T(π)
-            if order == Val(1)
-                P = @. [Δθ Δϕ ones(T,N_neighbors)]
+            if all(ni .<= Nobs)
+                Δθ = @.     θs[ni]-θ
+                Δϕ = @. rem(ϕs[ni]-ϕ+T(π), T(2π), RoundDown) - T(π)
+                if order == Val(1)
+                    P = @. [Δθ Δϕ ones(T,N_neighbors)]
+                else
+                    P = @. [Δθ Δϕ ones(T,N_neighbors) Δθ^2 Δϕ^2 Δθ*Δϕ]
+                end
+                Q,R = qr(P)
+                W = inv(R)[1:2,:]*Q'
             else
-                P = @. [Δθ Δϕ ones(T,N_neighbors) Δθ^2 Δϕ^2 Δθ*Δϕ]
+                W = zeros(T, 2, N_neighbors)
+                neighbors[i] = map(j->(j>Nobs ? i : j), neighbors[i])
             end
-            Q,R = qr(P)
-            W = inv(R)[1:2,:]*Q'
             push!(W_covariant,     SMatrix{2,N_neighbors}(W))
             push!(W_contravariant, SMatrix{2,N_neighbors}(W ./ [1, sin(θ)^2]))
         end
@@ -58,25 +63,27 @@ struct GradientCache{Nside, T, Nobs, Ntot, NB, W}
         _W_contravariant = collect(typeof(W_contravariant[1]),W_contravariant)
         
         # transpose derivative
-        Wᵀ_covariant     = fill(NaN, length(neighbors), 2, N_neighbors)
-        Wᵀ_contravariant = fill(NaN, length(neighbors), 2, N_neighbors)
+        Wᵀ_covariant     = fill(T(0), length(neighbors), 2, N_neighbors)
+        Wᵀ_contravariant = fill(T(0), length(neighbors), 2, N_neighbors)
         @showprogress 1 "∇' precomputation: " for (i,Ni) in collect(enumerate(neighbors))
             for (j,Nij) in enumerate(Ni)
                 if Nij<=length(neighbors)
                     j′ = first(indexin(i,neighbors[Nij]))
-                    Wᵀ_covariant[i,:,j]     = _W_covariant[Nij][:,j′]
-                    Wᵀ_contravariant[i,:,j] = _W_contravariant[Nij][:,j′]
+                    if j′ != nothing
+                        Wᵀ_covariant[i,:,j]     = _W_covariant[Nij][:,j′]
+                        Wᵀ_contravariant[i,:,j] = _W_contravariant[Nij][:,j′]
+                    end
                 end
             end
         end
         _Wᵀ_covariant     = SMatrix{2,N_neighbors,T}.(@views [Wᵀ_covariant[i,:,:]     for i=1:length(neighbors)])
         _Wᵀ_contravariant = SMatrix{2,N_neighbors,T}.(@views [Wᵀ_contravariant[i,:,:] for i=1:length(neighbors)])
         
-        new{Nside,T,Nobs,Ntot,typeof(neighbors),typeof(_W_covariant)}(neighbors, _W_covariant, _W_contravariant, _Wᵀ_covariant, _Wᵀ_contravariant)
+        new{Nside,T,Nobs,typeof(neighbors),typeof(_W_covariant)}(neighbors, _W_covariant, _W_contravariant, _Wᵀ_covariant, _Wᵀ_contravariant)
     end
     
 end
-function GradientCache(Nside, T, θmax; order=1)
+function GradientCache(Nside, T; θmax, order=1)
     i = hp.ang2pix(Nside, deg2rad(θmax), 0)
     Nobs = ringinfo(Nside).ring_starts[findfirst(j->j>i, ringinfo(Nside).ring_starts)] - 1
     GradientCache{Nside,T}(Nobs, Val(order))
@@ -93,43 +100,17 @@ abstract type HealpixCap{Nside,T,Nobs,B,S,P<:HpxPix} <: Field{B,S,P} end
 struct HealpixS0Cap{Nside, T, Nobs, GC<:Union{Nothing,GradientCache{Nside,T,Nobs}}} <: HealpixCap{Nside, T, Nobs, Map, S0, HpxPix{Nside}}
     Ix::Vector{T}
     gradient_cache::GC
-    
-    function HealpixS0Cap(Ix::Vector, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
-        Ix = length(Ix)==Ntot ? Ix : Ix[1:Ntot]
-        Ix[Nobs+1:end] .= NaN
-        new{Nside,T,Nobs,typeof(gc)}(Ix, gc)
-    end
-    function HealpixS0Cap(Ix::Vector{T}; gradient_order=nothing, Nside=hp.npix2nside(length(Ix))) where {T}
-        Nobs = maximum(findall(!isnan,Ix))
-        if (gradient_order==nothing)
-            HealpixS0Cap{Nside,T,Nobs,Nothing}(Ix,nothing)
-        else
-            HealpixS0Cap(Ix, GradientCache{Nside,T}(Nobs,Val(gradient_order)))
-        end
-    end
-    HealpixS0Cap{Nside,T,Nobs,GC}(Ix, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(Ix,gc)
 end
-
-
-## Spin-2
 struct HealpixS2Cap{Nside, T, Nobs, GC<:Union{Nothing,GradientCache{Nside,T,Nobs}}} <: HealpixCap{Nside, T, Nobs, QUMap, S2, HpxPix{Nside}}
     QUx::Matrix{T}
     gradient_cache::GC
-    function HealpixS2Cap(QUx::Matrix, gc::GradientCache{Nside,T,Nobs,Ntot}) where {T,Nside,Nobs,Ntot}
-        QUx = size(QUx,1)==Ntot ? QUx : QUx[1:Ntot,:]
-        QUx[Nobs+1:end,:] .= NaN
-        new{Nside,T,Nobs,typeof(gc)}(QUx, gc)
-    end
-    function HealpixS2Cap(QUx::Matrix{T}; gradient_order=nothing, Nside=hp.npix2nside(size(QUx,1))) where {T}
-        Nobs = maximum(findall(!isnan,QUx[:,1]))
-        if (gradient_order==nothing)
-            HealpixS2Cap{Nside,T,Nobs,Nothing}(QUx,nothing)
-        else
-            HealpixS2Cap(QUx, GradientCache{Nside,T}(Nobs,Val(gradient_order)))
-        end
-    end
-    HealpixS2Cap{Nside,T,Nobs,GC}(QUx, gc) where {Nside,T,Nobs,GC} = new{Nside,T,Nobs,GC}(QUx,gc)
 end
+function (::Type{H})(x::VecOrMat{T}; gradient_order=nothing, Nside=hp.npix2nside(size(x,1))) where {T, H<:HealpixCap}
+    Nobs = maximum(findall(!isnan,x[:,1]))
+    gc = gradient_order==nothing ? nothing : GradientCache{Nside,T}(Nobs,Val(gradient_order))
+    H{Nside,T,Nobs,typeof(gc)}(x, gc)
+end
+
 
 getproperty(f::HealpixS2Cap, ::Val{:Qx}) = f.QUx[:,1]
 getproperty(f::HealpixS2Cap, ::Val{:Ux}) = f.QUx[:,2]
@@ -160,9 +141,8 @@ function mul!(∇f::FieldVector{F}, ∇Op::∇Op, f::F) where {Nside,T,Nobs,F<:H
     W = get_W(∇Op, gc)
     @inbounds for i in eachindex(gc.neighbors)
         Ix = @view f.Ix[gc.neighbors[i]]
-        ∇f[1].Ix[i], ∇f[2].Ix[i] = nan2zero.(W[i] * Ix) 
+        ∇f[1].Ix[i], ∇f[2].Ix[i] = W[i] * Ix 
     end
-    ∇f[1].Ix[Nobs+1:end] .= ∇f[2].Ix[Nobs+1:end] .= NaN
     ∇f
 end
 function mul!(∇f::FieldVector, ∇Op::Union{∇Op,Adjoint{∇i,∇Op}}, f::HealpixS2Cap)
@@ -186,9 +166,9 @@ end
 function mul!(f′::F, ∇Op::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {Nside,T,Nobs,F<:HealpixS0Cap{Nside,T,Nobs}}
     gc = f′.gradient_cache
     W = get_W(∇Op, gc)
-    @inbounds for i in eachindex(gc.neighbors)
-        f′.Ix[i] = -nan2zero(  (W[i] * @view v[1].Ix[gc.neighbors[i]])[1] 
-                             + (W[i] * @view v[2].Ix[gc.neighbors[i]])[2])
+    for i in eachindex(gc.neighbors)
+        f′.Ix[i] = -(  (W[i] * @view v[1].Ix[gc.neighbors[i]])[1] 
+                     + (W[i] * @view v[2].Ix[gc.neighbors[i]])[2])
     end
     f′.Ix[Nobs+1:end] .= NaN
     f′
@@ -197,15 +177,13 @@ end
 # individual components of the gradient (which is wasteful), but needed for the
 # way `negδvelocityᴴ!` is currently written. todo: remove this and change the
 # way that that's written instead.
-function mul!(f′::F, ∇Op::AdjOp{<:∇i{component}}, f::F) where {component,F<:HealpixS0Cap}
+function mul!(f′::F, ∇Op::AdjOp{<:∇i{component}}, f::F) where {component,Nside,T,Nobs,F<:HealpixS0Cap{Nside,T,Nobs}}
     if f′===f; f = copy(f); end # even more wasteful...
     gc = f′.gradient_cache
     W = get_W(∇Op, gc)
-    @inbounds for i in eachindex(gc.neighbors)
-        f′.Ix[i] = -nan2zero((W[i] * @view(f.Ix[gc.neighbors[i]]))[component+1])
+    for i in eachindex(gc.neighbors)
+        f′.Ix[i] = -(W[i] * @view(f.Ix[gc.neighbors[i]]))[component+1]
     end
-    imax = gc.neighbors[end][1] + 2
-    f′.Ix[imax:end] .= NaN
     f′
 end
 
@@ -245,7 +223,7 @@ function azeqproj(f::HealpixS0Cap{<:Any,T}, θpix, Nside, lamb=false) where {T}
     end
 end
 function azeqproj(f::HealpixS2Cap, θpix, Nside)
-    FlatS2QUMap((azeqproj(HealpixS0Cap(getproperty(f,k)), θpix, Nside) for k in (:Qx,:Ux))...)
+    FlatS2QUMap((azeqproj(HealpixS0Cap(getproperty(f,k), f.gradient_cache), θpix, Nside) for k in (:Qx,:Ux))...)
 end
 azeqproj(f::HealpixCap{Nside,T,Nobs}) where {Nside,T,Nobs} = azeqproj(f, round(600rad2deg(hp.nside2resol(Nside)))/10, Nside)
 
@@ -271,36 +249,36 @@ end
 
 ## Harmonic Operators
  
-struct IsotropicHarmonicCov{Nside, T, Nobs, Ntot, N, GC<:GradientCache{Nside, T, Nobs, Ntot}} <: LinOp{Map, Spin, HpxPix}
+struct IsotropicHarmonicCov{Nside, T, Nobs, N, GC<:GradientCache{Nside, T, Nobs}} <: LinOp{Basis, Spin, HpxPix}
     Cℓ :: Array{T,N}
     gc :: GC
 end
+IsotropicHarmonicCov(Cℓ::Array,  gc::GradientCache{Nside,T}) where {Nside,T} = IsotropicHarmonicCov(T.(Cℓ), gc)
 
-*(L::BandPassOp, f::HealpixCap{Nside, T}) where {Nside, T} = 
-    IsotropicHarmonicCov(T.(L.Wℓ), f.gradient_cache) * f
-
-function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = size(L.Cℓ,2)-1
+*(L::BandPassOp, f::HealpixCap{Nside, T}) where {Nside, T} = IsotropicHarmonicCov(T.(L.Wℓ), f.gradient_cache) * f
+function mul!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixCap{Nside, T, Nobs}}
+    ℓmax = min(size(L.Cℓ,1)-1, 3Nside)
     aℓms = map2alm(f, ℓmax=ℓmax)
-    size(aℓms), size(L.Cℓ)
-    @. aℓms *= L.Cℓ
+    @. aℓms *= L.Cℓ[1:ℓmax+1,:]'
+    alm2map!(f′, aℓms)
+end
+function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixCap{Nside, T, Nobs}}
+    ℓmax = min(size(L.Cℓ,1)-1, 3Nside)
+    aℓms = map2alm(f, ℓmax=ℓmax)
+    @. aℓms = nan2zero(L.Cℓ[1:ℓmax+1,:]' \ aℓms)
     alm2map!(f′, aℓms)
 end
 
-function ldiv!(f′::F, L::IsotropicHarmonicCov{Nside, T, Nobs}, f::F) where {Nside, T, Nobs, F<:HealpixS0Cap{Nside, T, Nobs}}
-    ℓmax = size(L.Cℓ,2)-1
-    aℓms = map2alm(f, ℓmax=ℓmax)
-    @. aℓms = nan2zero(L.Cℓ \ aℓms)
-    alm2map!(f′, aℓms)
-end
+# one ring before the ring on which the first unobserved pixel is
+get_zbounds(Nside, Nobs) = [ringinfo(Nside).cosθ[hp.pix2ring(Nside,[Nobs])[1]], 1] 
 
 function map2alm(f::HealpixCap{Nside,T,Nobs}; ℓmax=2Nside) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    zbounds = get_zbounds(Nside, Nobs)
     map2alm(first(fieldvalues(f)), Nside=Nside, ℓmax=ℓmax, zbounds=zbounds)
 end
 
 function alm2map!(f::HealpixCap{Nside,T,Nobs}, aℓms::Array{Complex{T},3}) where {Nside,T,Nobs}
-    zbounds = [cos(hp.pix2ang(Nside,Nobs)[1]), 1]
+    zbounds = get_zbounds(Nside, Nobs)
     alm2map!(first(fieldvalues(f)), aℓms, Nside=Nside, zbounds=zbounds)
     first(fieldvalues(f))[Nobs+1:end,:] .= NaN
     f
@@ -308,17 +286,30 @@ end
 
 
 # todo: implement proper broadcasting
-+(Σa::I, Σb::I) where {I<:IsotropicHarmonicCov} = IsotropicHarmonicCov(Σa.Cℓ+Σb.Cℓ, Σa.gc)
++(Σa::I, Σb::I) where {I<:IsotropicHarmonicCov} = IsotropicHarmonicCov(Σa.Cℓ.+Σb.Cℓ, Σa.gc)
 *(Σa::I, Σb::I) where {I<:IsotropicHarmonicCov} = IsotropicHarmonicCov(Σa.Cℓ.*Σb.Cℓ, Σa.gc)
 *(Σ::IsotropicHarmonicCov, α::Real) = IsotropicHarmonicCov(α*Σ.Cℓ, Σ.gc)
 *(α::Real, Σ::IsotropicHarmonicCov) = IsotropicHarmonicCov(α*Σ.Cℓ, Σ.gc)
 inv(Σ::IsotropicHarmonicCov) = IsotropicHarmonicCov(nan2zero.(inv.(Σ.Cℓ)), Σ.gc)
 sqrt(Σ::IsotropicHarmonicCov) = IsotropicHarmonicCov(sqrt.(Σ.Cℓ), Σ.gc)
-simulate(Σ::IsotropicHarmonicCov{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot} = 
-    sqrt(Σ) * HealpixS0Cap(randn(T,Ntot)/hp.nside2resol(Nside), Σ.gc)
-zero(Σ::IsotropicHarmonicCov{Nside,T,Nobs,Ntot}) where {Nside,T,Nobs,Ntot} = 
-    HealpixS0Cap(zeros(T,Ntot), Σ.gc)
+simulate(Σ::IsotropicHarmonicCov{Nside,T,Nobs,1}) where {Nside,T,Nobs} = 
+    sqrt(Σ) * HealpixS0Cap(randn(T,Nobs)/T(hp.nside2resol(Nside)), Σ.gc)
+simulate(Σ::IsotropicHarmonicCov{Nside,T,Nobs,2}) where {Nside,T,Nobs} = 
+    sqrt(Σ) * HealpixS2Cap(randn(T,Nobs,2)/T(hp.nside2resol(Nside)), Σ.gc)
+zero(Σ::IsotropicHarmonicCov{Nside,T,Nobs}) where {Nside,T,Nobs} = 
+    HealpixS0Cap(zeros(T,Nobs), Σ.gc)
 
+
+##
+function HealpixCapMask(θmax, Δθapod, Nside)
+    W(θ) = θ<θmax ? 1 : θmax<θ<(θmax+Δθapod) ? (cos(π*(θ-θmax)/Δθapod)+1)/2 : 0
+    i,l = hp.ringinfo(Nside, collect(1:4Nside))[1:2]
+    m = zeros(12*Nside^2)
+    for (r,w) in zip(broadcast(:, i, i .+ l .- 1), W.(rad2deg.(acos.(hp.ringinfo(Nside, collect(1:4nside))[3]))))
+        m[r.+1] .= w
+    end
+    m
+end
 
 ##
 
