@@ -10,7 +10,7 @@ pretty_name(::Val{s},::Val{:x}) where {s} = "$s map"
 pretty_name(::Val{s},::Val{:l}) where {s} = "$s fourier"
 
 # generic plotting some components of a FlatField
-function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
+function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
     if string(k)[2] == 'x'
         x = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     else
@@ -27,8 +27,10 @@ function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=tru
             end
             ax.xaxis.set_major_formatter(MyFmt())
             ax.yaxis.set_major_formatter(MyFmt())
-            ax.set_xlabel("RA")
-            ax.set_ylabel("Dec")
+            if axeslabels
+                ax.set_xlabel("RA")
+                ax.set_ylabel("Dec")
+            end
         else
             ax.set_xlabel(raw"$\ell_x$")
             ax.set_ylabel(raw"$\ell_y$")
