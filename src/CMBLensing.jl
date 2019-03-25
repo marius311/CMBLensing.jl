@@ -12,7 +12,6 @@ using Images.Kernel
 using InteractiveUtils
 using Interpolations
 using FileIO
-using Lazy: @init
 using Loess
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
@@ -27,6 +26,7 @@ using QuadGK
 using Random
 using Roots
 using Random: seed!
+using Requires
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
@@ -75,5 +75,6 @@ include("minimize.jl")
 include("masking.jl")
 include("quadratic_estimate.jl")
 include("properties.jl")
+include("weave_pyplot.jl")
 
 end
