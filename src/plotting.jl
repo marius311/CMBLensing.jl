@@ -6,8 +6,10 @@ export plot
 plotsize₀ = 4
 
 pretty_name(s::Symbol) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
-pretty_name(::Val{s},::Val{:x}) where {s} = "$s map"
-pretty_name(::Val{s},::Val{:l}) where {s} = "$s fourier"
+pretty_name(::Val{s},::Val{:x}) where {s} = "$s Map"
+pretty_name(::Val{s},::Val{:l}) where {s} = "$s Fourier"
+pretty_name(::Val{:T},::Val{:x}) where {s} = "Map"
+pretty_name(::Val{:T},::Val{:l}) where {s} = "Fourier"
 
 # generic plotting some components of a FlatField
 function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
