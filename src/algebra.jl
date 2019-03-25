@@ -135,8 +135,6 @@ inv(L::AdjOp) = AdjOp(inv(L))
 ud_grade(lz::AdjOp, args...; kwargs...) = AdjOp(ud_grade(lz.a,args...; kwargs...))
 
 
-include("broadcast_expand.jl")
-
 ### linear algebra of Vectors and Matrices of Fields
 
 # alot of work needed here to make various StaticArray stuff work / infer

@@ -30,8 +30,6 @@ using Random: seed!
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
-include("RFFTVectors.jl")
-using .RFFTVectors
 
 
 
@@ -48,7 +46,7 @@ export
     Field, LinOp, LinDiagOp, FullDiagOp, Ð, Ł, simulate, Cℓ_to_cov, cov_to_Cℓ,
     S0, S2, S02, Map, Fourier,
     ∇⁰, ∇¹, ∇₀, ∇₁, ∇, ∇ⁱ, ∇ᵢ, ∇²,
-    Cℓ_2D, ⨳, @⨳, shortname, Squash, IdentityOp, ud_grade,
+    Cℓ_2D, ⨳, shortname, Squash, IdentityOp, ud_grade,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ℓ⁴Cℓ, get_ρℓ, 
     BandPassOp, FuncOp, lensing_wiener_filter, animate, symplectic_integrate,
     MAP_joint, MAP_marg, sample_joint, load_sim_dataset, norm², pixwin,
@@ -58,6 +56,7 @@ export
     IsotropicHarmonicOp, load_healpix_sim_dataset, dot, ⋅
 
 include("util.jl")
+include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
 include("specialops.jl")

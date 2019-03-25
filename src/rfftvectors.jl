@@ -1,7 +1,3 @@
-module RFFTVectors
-
-export rfft2vec, vec2rfft, unfold
-using AbstractFFTs
 
 """
 Convert a matrix A which is the output of a real FFT to a real vector, keeping
@@ -77,14 +73,4 @@ Returns a tuple of (ireal, iimag, negks) where these are
     inegks = indexof.(negk.(ks))
     inegks[.!k_in_ks.(negk.(ks))] = (0,0)
     ireal,iimag,inegks#,ks,negk.(ks)#,k_in_ks.(negk.(ks)),map(k->k_in_ks(negk(k)),ks)
-end
-
-#= test
-for n=[4,5,64,65]
-    A = rfft(rand(n,n))
-    @assert (vec2rfft(rfft2vec(A))-A .== 0 ) |> all
-end
-=#
-
-
 end
