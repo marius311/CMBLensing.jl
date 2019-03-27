@@ -43,23 +43,23 @@ end
 
 
 
-"""
-    function grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
+doc"""
+    grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
 
 Interpolate the log pdf `lnP` with support on `range`, and return  the
-integrated pdf as well `nsamples` samples (drawn via inverse transform
+integrated log pdf as well `nsamples` samples (drawn via inverse transform
 sampling)
 
 `lnP` should accept keyword arguments and `range` should be a NamedTuple mapping
 those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
 
-```
-    grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+```julia
+grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
 ```
 
-The return value is `(P, samples, Px)` where `P` is an interpolated/smoothed PDF
-which can be evaluated anywhere, `Px` are sampled points of the original PDF,
-and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
+The return value is `(lnP, samples, Px)` where `lnP` is an interpolated/smoothed
+log PDF which can be evaluated anywhere, `Px` are sampled points of the original
+PDF, and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
 parameters.
 
 (Note: only 1D sampling is currently implemented, but 2D like in the example
@@ -75,27 +75,26 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     lnPs .-= maximum(lnPs)
     ilnP = loess(xs,lnPs)
     
-    # do the smoothing in lnP (and normalize with A in a type-stable way hence the let-block)
-    # also return the sampled P(x) so we can check the smoothing
-    (iP, Px) = let A = quadgk(x->exp(Loess.predict(ilnP,x)),xmin,xmax)[1]
-        (x->exp(Loess.predict(ilnP,x))/A,
-         @. exp(lnPs)/A)
-    end
+    # normalize the PDF. note the smoothing is done of the log PDF.
+    A = quadgk(exp∘ilnP, xmin, xmax)[1]
+    lnPs .-= log(A)
+    ilnP = loess(xs,lnPs)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
     
     if nsamples==1
-        iP, map(first, θsamples), Px
+        ilnP, map(first, θsamples), lnPs
     else
-        iP, θsamples, Px
+        ilnP, θsamples, lnPs
     end
     
 end
 grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
-
+# allow more conveniently evaluation of Loess-interpolated functions
+(m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
 """
     sample_joint(ds::DataSet; kwargs...)
@@ -181,7 +180,7 @@ function sample_joint(
                 @unpack i,ϕ°,θ = state
                 f = nothing
                 ϕ = ds(;θ...).G\ϕ°
-                Pθ = nothing
+                lnPθ = nothing
                 chain = []
                 
                 for i=(i+1):(i+nchunk)
@@ -194,7 +193,7 @@ function sample_joint(
                     # ==== gibbs P(θ|f°,ϕ°) ====
                     if (i > nburnin_fixθ)
                         # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                        Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                        lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
                     end
                     
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
@@ -222,7 +221,7 @@ function sample_joint(
                         f̃ = L(ϕ)*f
                         
                         # save quantities to chain and print progress
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ Pθ ΔH accept lnP=>lnP(0,f,ϕ,ds))
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds))
                         if (progress==:verbose)
                             @show i, accept, ΔH, θ
                         end
