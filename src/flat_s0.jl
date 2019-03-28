@@ -17,8 +17,8 @@ end
 const FlatS0{T,P}=Union{FlatS0Map{T,P},FlatS0Fourier{T,P}}
 
 # convenience constructors
-FlatS0Map(Tx::Matrix{T},θpix=θpix₀,∂mode=fourier∂) where {T} = FlatS0Map{T,Flat{θpix,size(Tx,2),∂mode}}(Tx)
-FlatS0Fourier(Tl::Matrix{Complex{T}},θpix=θpix₀,∂mode=fourier∂) where {T} = FlatS0Fourier{T,Flat{θpix,size(Tl,2),∂mode}}(Tl)
+FlatS0Map(Tx::Matrix{T};θpix=θpix₀,∂mode=fourier∂) where {T} = FlatS0Map{T,Flat{θpix,size(Tx,2),∂mode}}(Tx)
+FlatS0Fourier(Tl::Matrix{Complex{T}};θpix=θpix₀,∂mode=fourier∂) where {T} = FlatS0Fourier{T,Flat{θpix,size(Tl,2),∂mode}}(Tl)
 
 # convenience conversion funtions:
 Fourier(f::FlatS0Map{T,P}) where {T,P} = FlatS0Fourier{T,P}(ℱ{P}*f.Tx)

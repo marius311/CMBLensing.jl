@@ -17,7 +17,7 @@ struct PowerLens{N,F<:Field{<:Any,<:S0}} <: LenseOp
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end
 
-function PowerLens{N}(ϕ) where {N}
+function PowerLens(ϕ,N)
     ∂xϕ, ∂yϕ = Ł(∂x*ϕ), Ł(∂y*ϕ)
     PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end

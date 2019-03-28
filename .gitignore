@@ -17,3 +17,5 @@ paper/
 scripts/
 test/
 *.jld*
+docs/cache
+docs/src-staging
