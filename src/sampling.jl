@@ -137,6 +137,9 @@ function sample_joint(
     progress = false,
     filename = nothing) where {T,P}
     
+    # save input configuration to chain
+    rundat = Base.@locals
+    
     @assert length(θrange) in [0,1] "Can only currently sample one parameter at a time."
     @assert progress in [false,:summary,:verbose]
 
@@ -244,7 +247,7 @@ function sample_joint(
             end
             
             if filename != nothing
-                save(swap_filename, "chains", chains)
+                save(swap_filename, "chains", chains, "rundat", rundat)
                 mv(swap_filename, filename, force=true)
             end
             
