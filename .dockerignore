@@ -2,4 +2,3 @@
 !src
 !*.toml
 !startup.jl
-!docs/joint_MAP_example.ipynb

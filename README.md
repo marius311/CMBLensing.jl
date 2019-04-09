@@ -14,9 +14,9 @@ Some things this code can do:
 
 ## Documentation
 
-The best place to get started is to read the [documentation](https://cosmicmar.com/CMBLensing.jl) (which is very much a work-in-progress, many things this package can do are not documented yet, but are planned to be added soon). 
+The best place to get started is to read the [documentation](https://cosmicmar.com/CMBLensing.jl/) (which is very much a work-in-progress, many things this package can do are not documented yet, but are planned to be added soon). 
 
-Most of the pages in the documentation are Jupyter notebooks which you can find in [this folder](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src), which you can run yourself. 
+Most of the pages in the documentation are Jupyter notebooks which you can find in [this folder](https://github.com/marius311/CMBLensing.jl/tree/gh-pages/src), which you can run yourself. 
 
 ## Requirements
 
