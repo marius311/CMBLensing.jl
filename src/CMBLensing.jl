@@ -53,7 +53,7 @@ export
     HealpixS0Cap, HealpixS2Cap, HealpixCap, GradientCache, azeqproj, HighPass, LowPass, MidPass,
     plot, @unpack, OuterProdOp, resimulate,
     ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp,
-    IsotropicHarmonicOp, load_healpix_sim_dataset, dot, ⋅, cache, fourier∂, map∂
+    IsotropicHarmonicCov, load_healpix_sim_dataset, dot, ⋅, cache, fourier∂, map∂
 
 include("util.jl")
 include("rfftvectors.jl")

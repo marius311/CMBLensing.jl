@@ -1,4 +1,4 @@
-export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
+export DataSet, lnP, δlnP_δfϕₜ
 
 
 # 
@@ -523,6 +523,7 @@ function load_sim_dataset(;
     Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
     
     # types which depend on whether T/E/B
+    use = Symbol(use)
     if (use == :EB)
         @warn("switch to use=:P")
         use = :P
