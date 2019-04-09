@@ -50,7 +50,7 @@ end
 makedocs(
     sitename="CMBLensing.jl", 
     source = "src-staging",
-    build = "docs",
+    build = "latest",
     assets = ["assets/cmblensing.css"],
     pages = [
         "index.md",
