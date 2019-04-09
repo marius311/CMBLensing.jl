@@ -60,5 +60,5 @@ makedocs(
         "from_python.md",
         "api.md"
     ],
-    repo = "https://github.com/marius311/CMBLensing.jl/blob/{commit}{path}#{line}"
+    html_disable_git = true
 )
