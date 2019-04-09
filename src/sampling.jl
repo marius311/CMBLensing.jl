@@ -113,6 +113,7 @@ Possible keyword arguments:
 * `θrange` - range and density to grid sample parameters as a NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
 * `θstart` - starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
 * `ϕstart` - starting ϕ as a Field, or `:quasi_sample` or `:best_fit`
+* `metadata` - does nothing, but is saved into the chain file
 
 """
 function sample_joint(
@@ -134,6 +135,7 @@ function sample_joint(
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
+    metadata = nothing,
     progress = false,
     filename = nothing) where {T,P}
     
