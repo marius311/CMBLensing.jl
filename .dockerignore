@@ -1,4 +1,5 @@
 *
 !src
-!*.toml
-!startup.jl
+!Project.toml
+!docs/src/*.ipynb
+!docs/Project.toml

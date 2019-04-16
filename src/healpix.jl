@@ -319,7 +319,11 @@ end
 # needing to manually dlopen this is probably a bug in Healpix or gfortan, not
 # sure which...
 using Libdl
-Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
+@init try
+    Libdl.dlopen("libgomp",Libdl.RTLD_GLOBAL)
+catch
+    @warn "Failed to load libgomp. Healpix support may not work."
+end
 
 @generated function map2alm(maps::Array{T,N}; Nside=hp.npix2nside(size(maps,1)), ℓmax=2Nside, mmax=ℓmax, zbounds=[-1,1]) where {N,T<:Union{Float32,Float64}}
     (spin, Tspin) = if (N==1)
