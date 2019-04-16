@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Joint maximum a posteriori estimate · CMBLensing.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/><link href="../assets/cmblensing.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>CMBLensing.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">CMBLensing.jl</a></li><li><a class="toctext" href="../01_lense_a_map/">Lensing a flat map</a></li><li><a class="toctext" href="../02_posterior/">The Lensing Posterior</a></li><li class="current"><a class="toctext" href>Joint maximum a posteriori estimate</a><ul class="internal"><li><a class="toctext" href="#Compute-spectra-1">Compute spectra</a></li><li><a class="toctext" href="#Configure-the-type-of-data-1">Configure the type of data</a></li><li><a class="toctext" href="#Generate-simulated-data-1">Generate simulated data</a></li><li><a class="toctext" href="#Examine-simulated-data-1">Examine simulated data</a></li><li class="toplevel"><a class="toctext" href="#Run-the-minimizer-1">Run the minimizer</a></li><li class="toplevel"><a class="toctext" href="#Examine-results-1">Examine results</a></li></ul></li><li><a class="toctext" href="../04_from_python/">Using CMBLensing.jl from Python</a></li><li><a class="toctext" href="../api/">API</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Joint maximum a posteriori estimate</a></li></ul><a class="edit-page" href="https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?urlpath=lab/tree/03_joint_MAP_example.ipynb"><img src="https://mybinder.org/badge_logo.svg"/></a></nav><hr/><div id="topbar"><span>Joint maximum a posteriori estimate</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Joint-maximum-a-posteriori-estimate-1" href="#Joint-maximum-a-posteriori-estimate-1">Joint maximum a posteriori estimate</a></h1><pre class="language-julia"><code class="language-julia">using CMBLensing
+using PyPlot</code></pre><h2><a class="nav-anchor" id="Compute-spectra-1" href="#Compute-spectra-1">Compute spectra</a></h2><p>First, compute the fiducial CMB power spectra which generate our simulated data,</p><pre class="language-julia"><code class="language-julia">Cℓ = camb(r=0.05);</code></pre><p>Next, chose the noise power-spectra we are assuming,</p><pre class="language-julia"><code class="language-julia">Cℓn = noisecls(1, ℓknee=100);</code></pre><p>Plot these up for reference,</p><pre class="language-julia"><code class="language-julia">loglog(Cℓ[:f̃][:BB],c=&quot;C0&quot;)
+loglog(Cℓ[:f][:BB],&quot;--&quot;,c=&quot;C0&quot;)
+loglog(Cℓ[:f̃][:EE],c=&quot;C1&quot;)
+loglog(Cℓ[:f][:EE],&quot;--&quot;,c=&quot;C1&quot;)
+loglog(Cℓn[:BB],&quot;k:&quot;)
+legend([&quot;lensed B&quot;,&quot;unlensed B&quot;,&quot;lensed E&quot;,&quot;unlensed E&quot;, &quot;noise (beam not deconvolved)&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_8_0.png" alt="png"/></p><h2><a class="nav-anchor" id="Configure-the-type-of-data-1" href="#Configure-the-type-of-data-1">Configure the type of data</a></h2><p>These describe the setup of the simulated data we are going to work with (and can be changed),</p><pre class="language-julia"><code class="language-julia">Θpix  = 3        # pixel size in arcmin
+Nside = 128      # number of pixels per side in the map
+use   = :P       # type of data to use (can be :T, :P, or :TP)
+T     = Float32  # data type (Float32 is ~2 as fast as Float64);</code></pre><h2><a class="nav-anchor" id="Generate-simulated-data-1" href="#Generate-simulated-data-1">Generate simulated data</a></h2><p>With these defined, the following generates the simulated data and returns the true unlensed and lensed CMB fields, <code>f</code> and <code>f̃</code> ,and the true lensing potential, <code>ϕ</code>, as well as a number of other quantities stored in the &quot;DataSet&quot; object <code>ds</code>. </p><pre class="language-julia"><code class="language-julia">@unpack f, f̃, ϕ, ds = load_sim_dataset(
+    seed = 3,
+    Cℓ = Cℓ,
+    Cℓn = Cℓn,
+    θpix = Θpix,
+    T = T,
+    Nside = Nside,
+    use = use,
+)
+
+@unpack Cf, Cϕ = ds;</code></pre><h2><a class="nav-anchor" id="Examine-simulated-data-1" href="#Examine-simulated-data-1">Examine simulated data</a></h2><p>The true <span>$\phi$</span> map,</p><pre class="language-julia"><code class="language-julia">plot(ϕ, title = raw&quot;true $\phi$&quot;);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_17_0.png" alt="png"/></p><p>The &quot;true&quot; unlensed field, <span>$f$</span>,</p><pre class="language-julia"><code class="language-julia">plot(f, title = &quot;true unlensed &quot; .* [&quot;E&quot; &quot;B&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_19_0.png" alt="png"/></p><p>And the &quot;true&quot; lensed field,</p><pre class="language-julia"><code class="language-julia">plot(LenseFlow(ϕ)*f, title = &quot;true lensed &quot; .* [&quot;E&quot; &quot;B&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_21_0.png" alt="png"/></p><p>The data (stored in the <code>ds</code> object) is basically <code>f̃</code> with a beam applied plus a sample of the noise,</p><pre class="language-julia"><code class="language-julia">plot(ds.d, title = &quot;data &quot; .* [&quot;E&quot; &quot;B&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_23_0.png" alt="png"/></p><h1><a class="nav-anchor" id="Run-the-minimizer-1" href="#Run-the-minimizer-1">Run the minimizer</a></h1><p>Now we compute the maximum of the joint posterior, <span>$\mathcal{P}\big(f, \phi \,\big|\,d\big)$</span></p><pre class="language-julia"><code class="language-julia">@time fbf, ϕbf, tr = MAP_joint(ds, nsteps=30, progress=true, αmax=0.3);</code></pre><pre class="language-output"><code class="language-output">(step=1, χ²=43095.79, Ncg=5)
+(step=2, χ²=37543.49, Ncg=7, α=0.014462)
+(step=3, χ²=35741.61, Ncg=6, α=0.023435)
+(step=4, χ²=35070.68, Ncg=6, α=0.014318)
+(step=5, χ²=34555.49, Ncg=6, α=0.026880)
+(step=6, χ²=34267.12, Ncg=6, α=0.012814)
+(step=7, χ²=33964.64, Ncg=6, α=0.036058)
+(step=8, χ²=33789.71, Ncg=6, α=0.010863)
+(step=9, χ²=33504.85, Ncg=6, α=0.069608)
+(step=10, χ²=33369.26, Ncg=6, α=0.009044)
+(step=11, χ²=32967.68, Ncg=6, α=0.229131)
+(step=12, χ²=32906.38, Ncg=5, α=0.008829)
+(step=13, χ²=32867.10, Ncg=5, α=0.073871)
+(step=14, χ²=32845.12, Ncg=5, α=0.009594)
+(step=15, χ²=32777.38, Ncg=5, α=0.223282)
+(step=16, χ²=32750.20, Ncg=5, α=0.010426)
+(step=17, χ²=32742.77, Ncg=3, α=0.029755)
+(step=18, χ²=32737.78, Ncg=3, α=0.022749)
+(step=19, χ²=32734.01, Ncg=3, α=0.018574)
+(step=20, χ²=32730.63, Ncg=3, α=0.019817)
+(step=21, χ²=32727.56, Ncg=3, α=0.016116)
+(step=22, χ²=32724.41, Ncg=3, α=0.022718)
+(step=23, χ²=32721.61, Ncg=3, α=0.014738)
+(step=24, χ²=32718.56, Ncg=3, α=0.025886)
+(step=25, χ²=32716.00, Ncg=3, α=0.013231)
+(step=26, χ²=32712.80, Ncg=3, α=0.034717)
+(step=27, χ²=32710.13, Ncg=3, α=0.010902)
+(step=28, χ²=32704.60, Ncg=3, α=0.075315)
+(step=29, χ²=32701.00, Ncg=3, α=0.008585)
+(step=30, χ²=32689.03, Ncg=4, α=0.232697)
+ 40.352423 seconds (40.98 M allocations: 20.853 GiB, 9.45% gc time)</code></pre><h1><a class="nav-anchor" id="Examine-results-1" href="#Examine-results-1">Examine results</a></h1><p>The expected value of the final best-fit <span>$\chi^2 (=-2\log \mathcal{P}$</span>) is given by the number degrees of freedom in the data, i.e. the total number of pixels in T and/or EB.</p><pre class="language-julia"><code class="language-julia">χ² = -2tr[end][:lnPcur]</code></pre><pre class="language-output"><code class="language-output">32689.02668806845</code></pre><pre class="language-julia"><code class="language-julia">dof = getproperty((T=1, P=2, TP=3),use) * Nside^2</code></pre><pre class="language-output"><code class="language-output">32768</code></pre><p>Here&#39;s how far away our final <span>$\chi^2$</span> is from this expectation, in units of <span>$\sigma$</span>. We expect this should be somewhere in the range (-3,3) for about 99.7% of simulated datasets.</p><pre class="language-julia"><code class="language-julia">(χ² - dof)/sqrt(2dof)</code></pre><pre class="language-output"><code class="language-output">-0.30848949973261597</code></pre><p>Here&#39;s the best-fit <span>$\phi$</span> relative to the truth,</p><pre class="language-julia"><code class="language-julia">plot(10^6*[ϕ ϕbf], title=[&quot;true&quot; &quot;best-fit&quot;] .* raw&quot; $\phi$&quot;);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_34_0.png" alt="png"/></p><p>Here is the difference in terms of the power spectra. Note the best-fit has high-<span>$\ell$</span> power suppressed, like a Wiener filter solution (in fact what we&#39;re doing here is akin to a non-linear Wiener filter). In the high S/N region (<span>$\ell\lesssim1000$</span>), the difference is approixmately equal to the noise, which you can see is almost two orders of magnitude below the signal.</p><pre class="language-julia"><code class="language-julia">loglog(ℓ⁴ * Cℓ[:f][:ϕϕ], &quot;k&quot;)
+loglog(ℓ⁴ * get_Cℓ(ϕ))
+loglog(ℓ⁴ * get_Cℓ(ϕbf))
+loglog(ℓ⁴ * get_Cℓ(ϕbf-ϕ))
+xlim(80,3000)
+ylim(5e-9,2e-6)
+legend([&quot;theory&quot;,raw&quot;true $\phi$&quot;, raw&quot;best-fit $\phi$&quot;, &quot;difference&quot;])
+xlabel(raw&quot;$\ell$&quot;)
+ylabel(raw&quot;$\ell^4 C_\ell$&quot;);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_36_0.png" alt="png"/></p><p>The best-fit unlensed fields relative to truth,</p><pre class="language-julia"><code class="language-julia">plot([f,fbf], title = [&quot;true&quot;, &quot;best-fit&quot;] .* &quot; unlensed &quot; .* [&quot;E&quot; &quot;B&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_38_0.png" alt="png"/></p><p>The best-fit lensed field (bottom row) relative to truth (top row),</p><pre class="language-julia"><code class="language-julia">plot([f̃, LenseFlow(ϕbf)*fbf], title = [&quot;true&quot;, &quot;best-fit&quot;] .* &quot; lensed &quot; .* [&quot;E&quot; &quot;B&quot;]);</code></pre><p><img src="../03_joint_MAP_example_files/03_joint_MAP_example_40_0.png" alt="png"/></p><footer><hr/><a class="previous" href="../02_posterior/"><span class="direction">Previous</span><span class="title">The Lensing Posterior</span></a><a class="next" href="../04_from_python/"><span class="direction">Next</span><span class="title">Using CMBLensing.jl from Python</span></a></footer></article></body></html>
