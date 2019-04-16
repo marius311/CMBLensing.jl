@@ -54,10 +54,10 @@ makedocs(
     assets = ["assets/cmblensing.css"],
     pages = [
         "index.md",
-        "lense_a_map.md",
-        "posterior.md",
-        "joint_MAP_example.md",
-        "from_python.md",
+        "01_lense_a_map.md",
+        "02_posterior.md",
+        "03_joint_MAP_example.md",
+        "04_from_python.md",
         "api.md"
     ],
     html_disable_git = true
