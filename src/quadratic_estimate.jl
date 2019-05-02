@@ -50,8 +50,8 @@ function ϕqe(d::FlatS2{T,P}, Cf, Cf̃, Cn, Cϕ=nothing) where {T,P}
     CEn,CBn = Cn[:E], Cn[:B]
 
     # quadratic estimate
-    E(i,j,k) = Map(L² \ L⃗[i] * L⃗[j] * L⃗[k] * (CE * ((CẼ+CEn) \ d[:E])))
-    B(i,j)   = Map(L² \ L⃗[i] * L⃗[j]              *(((CB̃+CBn) \ d[:B])))
+    E(i,j,k) = Map(L² \ L⃗[i] * L⃗[j] * L⃗[k] * (CE * ((CẼ+CEn) \ d.E)))
+    B(i,j)   = Map(L² \ L⃗[i] * L⃗[j]              *(((CB̃+CBn) \ d.B)))
     ϕqe_unnormalized = 2 * sum(L⃗[i] * Fourier(sum(ϵ(k,m,3) * E(i,j,k) * B(j,m) for j=1:2,k=1:2,m=1:2)) for i=1:2)
     
     # normalization

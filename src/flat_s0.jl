@@ -43,7 +43,7 @@ end
 
 function cov_to_Cℓ(L::FullDiagOp)
     ii = sortperm(FFTgrid(L.f).r[:])
-    InterpolatedCℓs(FFTgrid(L.f).r[ii], real.(unfold(L.f.Tl))[ii])
+    InterpolatedCℓs(FFTgrid(L.f).r[ii], real.(unfold(L.f.Tl))[ii], concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000) where {T,P}

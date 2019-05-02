@@ -579,7 +579,7 @@ function load_sim_dataset(;
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)
     
-    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix 
+    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
     
 end
 
