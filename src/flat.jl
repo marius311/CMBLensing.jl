@@ -189,6 +189,12 @@ function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where
     end
     f′
 end
+function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS2Map{T,<:Flat{θ,N,<:map∂}}}
+    mul!(f′.Q, ∇, f.Q)
+    mul!(f′.U, ∇, f.U)
+    f′
+end
+
 
 # specialized mul! to avoid allocation when doing `∇' * vector` when stuff is in
 # the right the basis. expects memf′ is a preallocated memory that can be used
