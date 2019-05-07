@@ -46,15 +46,20 @@ function cov_to_Cℓ(L::FullDiagOp)
     InterpolatedCℓs(FFTgrid(L.f).r[ii], real.(unfold(L.f.Tl))[ii], concrete=false)
 end
 
-function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000) where {T,P}
+function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1) where {T,P}
     g = FFTgrid(T,P)
     α = g.Δx^2/(4π^2)*g.nside^2
-    power = fit(Histogram,g.r[:],Weights(real.(dot.(unfold(f.Tl),unfold(f2.Tl)))[:]),ℓedges,closed=:right)
-    counts = fit(Histogram,g.r[:],ℓedges,closed=:right)
-    h = Histogram(ℓedges, (@. power.weights / counts.weights / α), :right)
-    InterpolatedCℓs((h.edges[1][1:end-1]+h.edges[1][2:end])/2, h.weights)
-end
+    
+    L = g.r[:]
+    CLobs = real.(dot.(unfold(f.Tl),unfold(f2.Tl)))[:]
+    w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
+    
+    power       = fit(Histogram, L, Weights(w .* CLobs), ℓedges).weights
+    bandcenters = fit(Histogram, L, Weights(w .* L),     ℓedges).weights
+    counts      = fit(Histogram, L, Weights(w),          ℓedges).weights
 
+    InterpolatedCℓs(bandcenters ./ counts,  power ./ counts ./ α)
+end
 
 zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatS0Map{T,P}(zeros(Nside(P),Nside(P)))
 one(::Type{<:FlatS0Map{T,P}}) where {T,P} = FlatS0Map{T,P}(ones(Nside(P),Nside(P)))

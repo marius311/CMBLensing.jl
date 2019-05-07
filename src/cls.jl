@@ -25,6 +25,7 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
     @eval ($plot)(ic::InterpolatedCℓs, args...; kwargs...) = ($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 end
 getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
+(ic::InterpolatedCℓs)(idx) = ic.etp(idx)
 
 
 struct FuncCℓs{F<:Function} <: AbstractCℓs
