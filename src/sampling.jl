@@ -43,23 +43,23 @@ end
 
 
 
-"""
-    function grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
+doc"""
+    grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
 
 Interpolate the log pdf `lnP` with support on `range`, and return  the
-integrated pdf as well `nsamples` samples (drawn via inverse transform
+integrated log pdf as well `nsamples` samples (drawn via inverse transform
 sampling)
 
 `lnP` should accept keyword arguments and `range` should be a NamedTuple mapping
 those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
 
-```
-    grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+```julia
+grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
 ```
 
-The return value is `(P, samples, Px)` where `P` is an interpolated/smoothed PDF
-which can be evaluated anywhere, `Px` are sampled points of the original PDF,
-and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
+The return value is `(lnP, samples, Px)` where `lnP` is an interpolated/smoothed
+log PDF which can be evaluated anywhere, `Px` are sampled points of the original
+PDF, and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
 parameters.
 
 (Note: only 1D sampling is currently implemented, but 2D like in the example
@@ -75,27 +75,26 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     lnPs .-= maximum(lnPs)
     ilnP = loess(xs,lnPs)
     
-    # do the smoothing in lnP (and normalize with A in a type-stable way hence the let-block)
-    # also return the sampled P(x) so we can check the smoothing
-    (iP, Px) = let A = quadgk(x->exp(Loess.predict(ilnP,x)),xmin,xmax)[1]
-        (x->exp(Loess.predict(ilnP,x))/A,
-         @. exp(lnPs)/A)
-    end
+    # normalize the PDF. note the smoothing is done of the log PDF.
+    A = quadgk(exp∘ilnP, xmin, xmax)[1]
+    lnPs .-= log(A)
+    ilnP = loess(xs,lnPs)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(iP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
     
     if nsamples==1
-        iP, map(first, θsamples), Px
+        ilnP, map(first, θsamples), lnPs
     else
-        iP, θsamples, Px
+        ilnP, θsamples, lnPs
     end
     
 end
 grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
-
+# allow more conveniently evaluation of Loess-interpolated functions
+(m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
 """
     sample_joint(ds::DataSet; kwargs...)
@@ -109,8 +108,12 @@ Possible keyword arguments:
 * `nchunk` - do `nchunk` steps in-between parallel chain communication
 * `nsavemaps` - save maps into chain every `nsavemaps` steps
 * `nburnin_always_accept` - the first `nburnin_always_accept` steps, always accept HMC steps independent of integration error
+* `nburnin_fixθ` - the first `nburnin_fixθ` steps, fix θ at its starting point
 * `chains` - resume an existing chain (starts a new one if nothing)
-* `ϕstart`/`θstart` - starting values of ϕ and θ
+* `θrange` - range and density to grid sample parameters as a NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
+* `θstart` - starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
+* `ϕstart` - starting ϕ as a Field, or `:quasi_sample` or `:best_fit`
+* `metadata` - does nothing, but is saved into the chain file
 
 """
 function sample_joint(
@@ -123,37 +126,51 @@ function sample_joint(
     nchunk = 1,
     nsavemaps = 1,
     nburnin_always_accept = 0,
+    nburnin_fixθ = 0,
     chains = nothing,
     ϕstart = 0,
     θrange = (),
-    θstart = (),
+    θstart = nothing,
+    pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
     symp_kwargs = (N=100, ϵ=0.01),
     MAP_kwargs = (αmax=0.3, nsteps=40),
+    metadata = nothing,
     progress = false,
     filename = nothing) where {T,P}
     
-    @assert length(θrange) == 1 "Can only currently sample one parameter at a time."
+    # save input configuration to chain
+    rundat = Base.@locals
+    
+    @assert length(θrange) in [0,1] "Can only currently sample one parameter at a time."
     @assert progress in [false,:summary,:verbose]
 
     @unpack d, Cϕ, Cn, M, B = ds
 
-    if (chains==nothing)
-        if (ϕstart==0); ϕstart=zero(Cϕ); end
+    if (chains == nothing)
+        if (θstart == nothing)
+            θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+        else 
+            @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
+            θstarts = fill(θstart, nchains)
+        end
+        if (ϕstart == 0); ϕstart = zero(Cϕ); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
-            chains = [Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart] for _=1:nchains]
-        elseif ϕstart in [:quasi_sample, :best_fit]
-            chains = pmap(1:nchains) do _
-                f, ϕ = MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)
-                Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕ θ=>θstart]
+            ϕstarts = fill(ϕstart, nchains)
+        else
+            ϕstarts = pmap(θstarts) do θstart
+                MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
             end
+        end
+        chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
+            Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart]
         end
     elseif chains isa String
         chains = load(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds(;θstart...))[2]/2; end
+    if (Nϕ == :qe); Nϕ = ϕqe(ds())[2]/2; end
     Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
@@ -164,27 +181,26 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃, Pθ
+                local f°, f̃
                 @unpack i,ϕ°,θ = state
                 f = nothing
                 ϕ = ds(;θ...).G\ϕ°
+                lnPθ = nothing
                 chain = []
                 
                 for i=(i+1):(i+nchunk)
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
-                    let L=cache(L(ϕ),ds.d)
-                        let ds=ds(;θ...)
-                            f  = lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
-                            f̃  = L*f
-                            f° = L*ds.D*f
-                        end
+                    let L=cache(L(ϕ),ds.d), ds=ds(;θ...)
+                        f° = L * ds.D * lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
-                    # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                    Pθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
-                        
+                    if (i > nburnin_fixθ)
+                        # todo: if not sampling Aϕ, could cache L(ϕ) here...
+                        lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                    end
+                    
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     let ds=ds(;θ...)
                             
@@ -198,17 +214,22 @@ function sample_joint(
 
                         if (i < nburnin_always_accept) || (log(rand()) < ΔH)
                             ϕ° = ϕtest°
-                            ϕ = ds.G\ϕ°
                             accept = true
                         else
                             accept = false
                         end
                         
-                        if (progress==:verbose)
-                            @show accept, ΔH, θ
-                        end
                         
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ Pθ ΔH accept lnP=>lnP(0,f,ϕ,ds(;θ...)))
+                        # compute un-mixed maps
+                        ϕ = ds.G\ϕ°
+                        f = ds.D\(L(ϕ)\f°)
+                        f̃ = L(ϕ)*f
+                        
+                        # save quantities to chain and print progress
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds))
+                        if (progress==:verbose)
+                            @show i, accept, ΔH, θ
+                        end
                     end
 
                 end
@@ -228,7 +249,7 @@ function sample_joint(
             end
             
             if filename != nothing
-                save(swap_filename, "chains", chains)
+                save(swap_filename, "chains", chains, "rundat", rundat)
                 mv(swap_filename, filename, force=true)
             end
             

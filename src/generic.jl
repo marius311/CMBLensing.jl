@@ -215,47 +215,6 @@ similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 copy(f::Field) = deepcopy(f)
 
 
-## properties
-
-# this allows you write eg f.Tl even when f::FlatS0Map, and it automatically
-# first converts f to FlatS0Fourier *then* takes the Tl field (this is
-# type-stable and has no overhead otherwise)
-
-# under the hood, the code guesses what the given field could be converted to by
-# finding other Field types that differ only in basis, scans through the
-# fieldnames of those types, then converts to the appropriate one
-
-
-# gets other concrete fields types which share the same spin and pixelzation,
-# differing only in basis, meaning you should be able to convert F to these
-# types
-concrete_subtypes(::Type{F}) where {F} = isabstracttype(F) ? vcat(map(concrete_subtypes,subtypes(F))...) : F
-convertable_fields(::Type{F}) where {B,S,P,F<:Field{B,S,P}} = filter(x->!(x<:AdjField),concrete_subtypes(Field{B′,S,P} where B′))
-
-# use convertable_fields to get possible properties
-@generated propertynames(::Type{F}) where {F<:Field} = tuplejoin(fieldnames.(convertable_fields(F))...)
-propertynames(::F) where {F<:Field} = propertynames(F)
-
-# implement getproperty using possible conversions
-getproperty(f::Field, s::Symbol) = getproperty(f,Val(s))
-@generated function getproperty(f::F,::Val{s}) where {F<:Field, s}
-    l = filter(F′->(s in fieldnames(F′)), convertable_fields(F))
-    if s in fieldnames(F)
-        :(getfield(f,s))
-    elseif (length(l)==1)
-        :(getfield($(l[1])(f),s))
-    elseif (length(l)==0)
-        error("type $F has no property $s")
-    else
-        error("Ambiguous property. Multiple types that $F could be converted to have a field $s: $l")
-    end
-end
-function getindex(f::Field, s::Symbol)
-    Base.depwarn("Syntax: f[:$s] is deprecated. Use f.$s or getproperty(f,:$s) instead.", "getindex")
-    getproperty(f,Val(s))
-end
-
-
 get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
 get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
 function get_ρℓ(f1,f2; kwargs...)
@@ -264,10 +223,3 @@ function get_ρℓ(f1,f2; kwargs...)
     Cℓx = get_Cℓ(f1,f2; kwargs...)
     InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
 end
-
-
-module PolType
-    export _PolType
-    @enum _PolType T QU TQU
-end
-using .PolType

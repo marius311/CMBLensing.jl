@@ -2,8 +2,10 @@ version: "3"
 
 services:
   cmblensing:
-    image: marius311/cmblensing.jl
-    build: .
+    image: marius311/cmblensing.jl:mybinder
+    build: 
+      context: .
+      dockerfile: Dockerfile.base
     volumes:
      - "./docs:/home/cosmo/CMBLensing.jl/docs"
     ports: 

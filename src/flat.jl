@@ -156,6 +156,9 @@ DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
         (α * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
     end
 end
+@generated function broadcast_data(::Type{<:FlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
+    (FFTgrid(T,P).k' .^2 .+ FFTgrid(T,P).k[1:Nside(P)÷2+1].^2,)
+end
 mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
 ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
 
@@ -186,6 +189,12 @@ function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where
     end
     f′
 end
+function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS2Map{T,<:Flat{θ,N,<:map∂}}}
+    mul!(f′.Q, ∇, f.Q)
+    mul!(f′.U, ∇, f.U)
+    f′
+end
+
 
 # specialized mul! to avoid allocation when doing `∇' * vector` when stuff is in
 # the right the basis. expects memf′ is a preallocated memory that can be used
@@ -199,10 +208,6 @@ mul!(v::FlatS0Map{T,P}, a::AdjField{QUMap,S2,P,F}, b::F) where {T,P,F<:FlatS2QUM
     ((@. v.Tx = (a').Qx*b.Qx + (a').Ux*b.Ux); v)
 mul!(v::FlatS0Map{T,P}, a::AdjField{Map,S0,P,F}, b::F) where {T,P,F<:FlatS0Map{T,P}} = 
     ((@. v.Tx = (a').Tx*b.Tx); v)
-
-
-
-sqrt_gⁱⁱ(::FlatField) = I
 
 
 # bandpass

@@ -18,7 +18,7 @@ end
 
 
 
-function Taylens{N}(ϕ::FlatS0{T,P}) where {N,T,P}
+function Taylens(ϕ::FlatS0{T,P},N) where {T,P}
 
     g = FFTgrid(T,P)
     Nside = g.nside
@@ -50,7 +50,7 @@ end
 # our implementation of Taylens
 function *(L::Taylens{N}, f::FlatS0Map{T,P}) where {N,T,P}
 
-    intlense(fx) = broadcast_getindex(fx, L.j, L.i)
+    intlense(fx) = getindex.(Ref(fx), L.j, L.i)
     fl = f[:Tl]
 
     # lens to the nearest whole pixel

@@ -6,11 +6,13 @@ export plot
 plotsize₀ = 4
 
 pretty_name(s::Symbol) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
-pretty_name(::Val{s},::Val{:x}) where {s} = "$s map"
-pretty_name(::Val{s},::Val{:l}) where {s} = "$s fourier"
+pretty_name(::Val{s},::Val{:x}) where {s} = "$s Map"
+pretty_name(::Val{s},::Val{:l}) where {s} = "$s Fourier"
+pretty_name(::Val{:T},::Val{:x}) where {s} = "Map"
+pretty_name(::Val{:T},::Val{:l}) where {s} = "Fourier"
 
 # generic plotting some components of a FlatField
-function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
+function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {T,Θ,N,P<:Flat{Θ,N}}
     if string(k)[2] == 'x'
         x = Θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     else
@@ -22,21 +24,23 @@ function _plot(f::FlatField{T,P}, ax, k, title, vlim; units=:deg, ticklabels=tru
     _plot(getproperty(f,k); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
         if string(k)[2] == 'x'
-            @pydef mutable struct MyFmt <: pyimport(:matplotlib)[:ticker][:ScalarFormatter]
-                __call__(self,v,p=nothing) = py"super"(MyFmt,self)[:__call__](v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
+            @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
+                __call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
             end
-            ax[:xaxis][:set_major_formatter](MyFmt())
-            ax[:yaxis][:set_major_formatter](MyFmt())
-            ax[:set_xlabel]("RA")
-            ax[:set_ylabel]("Dec")
+            ax.xaxis.set_major_formatter(MyFmt())
+            ax.yaxis.set_major_formatter(MyFmt())
+            if axeslabels
+                ax.set_xlabel("RA")
+                ax.set_ylabel("Dec")
+            end
         else
-            ax[:set_xlabel](raw"$\ell_x$")
-            ax[:set_ylabel](raw"$\ell_y$")
-            ax[:tick_params](axis="x", rotation=45)
+            ax.set_xlabel(raw"$\ell_x$")
+            ax.set_ylabel(raw"$\ell_y$")
+            ax.tick_params(axis="x", rotation=45)
         end
-        ax[:tick_params](labeltop=false, labelbottom=true)
+        ax.tick_params(labeltop=false, labelbottom=true)
     else
-        ax[:tick_params](labeltop=false, labelleft=false)
+        ax.tick_params(labeltop=false, labelleft=false)
     end
 end
 
@@ -58,9 +62,9 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
        
     m[isinf.(m)] .= NaN
     
-    cax = ax[:matshow](clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
-    cbar && gcf()[:colorbar](cax,ax=ax)
-    title!=nothing && ax[:set_title](title, y=1)
+    cax = ax.matshow(clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
+    cbar && gcf().colorbar(cax,ax=ax)
+    title!=nothing && ax.set_title(title, y=1)
     ax
 end
 
@@ -93,36 +97,36 @@ default_which(::Type{F}) where {F} = throw(ArgumentError("Must specify `which` b
 
 
 @doc doc"""
-    animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=true, kwargs...)
+    animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
 animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=true, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
     if (annonate!=nothing); annonate(fig,axs,which); end
     
-    ani = pyimport("matplotlib.animation")[:FuncAnimation](fig, 
+    ani = pyimport("matplotlib.animation").FuncAnimation(fig, 
         i->begin
             for (f,ax,k) in tuple.(fields,axs,which)
                 if length(f)>1
-                    img = ax[:images][1]
-                    img[:set_data](sum(x*f[mod1(i-j+1,length(f))][k] for (j,x) in enumerate(motionblur)) / sum(motionblur))
+                    img = ax.images[1]
+                    img.set_data(sum(x*getproperty(f[mod1(i-j+1,length(f))],k) for (j,x) in enumerate(motionblur)) / sum(motionblur))
                 end
             end
-            first.(getindex.(axs,:images))[:]
+            first.(getproperty.(axs,:images))[:]
         end, 
         1:maximum(length.(fields)[:]),
         interval=interval, blit=true
         )
     close()
     if filename!=nothing
-        ani[:save](filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig[:get_facecolor]()))
+        ani.save(filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig.get_facecolor()))
         if endswith(filename,".gif")
             run(`convert -layers Optimize $filename $filename`)
         end
     end
-    HTML(ani[:to_html5_video]())
+    HTML(ani.to_html5_video())
 end

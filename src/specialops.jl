@@ -24,8 +24,8 @@ for op in (:+,:-,:*,:\,:/)
     @eval ($op)(La::F, Lb::F) where {F<:FullDiagOp} = FullDiagOp($op(La.f,Lb.f))
     # if they're not, we will fall back to creating a LazyBinaryOp (see algebra.jl)
 end
-sqrt(f::FullDiagOp) = sqrt.(f)
-adjoint(f::FullDiagOp) = conj.(f)
+sqrt(L::FullDiagOp) = FullDiagOp(sqrt.(L.f))
+adjoint(L::FullDiagOp) = FullDiagOp(conj.(L.f))
 simulate(L::FullDiagOp{F}) where {F} = sqrt(L) .* F(white_noise(F))
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
 containertype(L::FullDiagOp) = containertype(L.f)
@@ -46,11 +46,19 @@ getproperty(L::FullDiagOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = FullDiagOp(getp
 # These ops just store the coordinate with respect to which a derivative is
 # being taken, and each Field type F should implement broadcast_data(::Type{F},
 # ::∂) to describe how this is actually applied. 
+
+# Note: We define the components of vectors, including ∇, to be with respect to
+# the unnormalized covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
+# and ∇ᵢ = d/dxⁱ. This is different than with respect to the normalized
+# covariant basis vectors, which, e.g., in spherical coordinates, gives the more
+# familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are neither covariant
+# nor contravariant). 
+
 abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 Ð!(args...) = Ð(args...)
 struct ∇i{coord, covariant} <: LinOp{DerivBasis,Spin,Pix} end
-# gives the gradient ∇ⁱf, and the hessian, ∇ᵢ∇ⁱf
+# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
 function gradhess(f)
     g = ∇ⁱ*f
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
@@ -69,7 +77,7 @@ struct ∇²Op <: LinOp{Basis,Spin,Pix} end
 *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
 const ∇² = ∇²Op()
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
-# coordinate, e.g. ∂θ), but this is useful shorthand fro the flat-sky:
+# coordinate, e.g. ∂θ), but this is useful shorthand for the flat-sky:
 const ∂x = ∇[1]
 const ∂y = ∇[2]
 
@@ -111,6 +119,7 @@ end
 BandPassOp(ℓ,Wℓ) = BandPassOp(promote(collect(ℓ),collect(Wℓ))...)
 HighPass(ℓ,Δℓ=50) = BandPassOp(0:10000,    [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
 LowPass(ℓ,Δℓ=50)  = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($linspace(0,π,2Δℓ))+1)/2])
+MidPass(ℓmin,ℓmax,Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-Δℓ);  @.(cos($linspace(π,0,2Δℓ))+1)/2; ones(ℓmax-ℓmin-2Δℓ); @.((cos($linspace(0,π,2Δℓ))+1)/2)])
 ud_grade(b::BandPassOp, args...; kwargs...) = b
 adjoint(L::BandPassOp) = L
 

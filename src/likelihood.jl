@@ -1,4 +1,4 @@
-export DataSet, lnP, δlnP_δfϕₜ, HlnP, ℕ, 𝕊
+export DataSet, lnP, δlnP_δfϕₜ
 
 
 # 
@@ -204,9 +204,9 @@ end
 end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used above)
-δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(ɸ)))
-δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf=ds;         FieldTuple(-(Cf\f)                  , zero(ɸ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cϕ=ds;         FieldTuple(zero(F)                  , -(Cϕ\ϕ)))
+δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,Cf,Cϕ,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cϕ)))
+δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf,Cϕ=ds;            FieldTuple(-(Cf\f)                  , zero(Cϕ)))
+δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cf,Cϕ=ds;            FieldTuple(zero(Cf)                 , -(Cϕ\ϕ)))
 
 
 
@@ -507,6 +507,7 @@ function load_sim_dataset(;
     B = nothing,
     D = nothing,
     G = nothing,
+    ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # override any of these simulated fields
     mask_kwargs = nothing,
     L = LenseFlow,
     ∂mode = fourier∂
@@ -522,6 +523,7 @@ function load_sim_dataset(;
     Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
     
     # types which depend on whether T/E/B
+    use = Symbol(use)
     if (use == :EB)
         @warn("switch to use=:P")
         use = :P
@@ -541,10 +543,10 @@ function load_sim_dataset(;
     Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
     
     # covariances
-    Cϕ₀               =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ϕϕ])
-    Cfs,Cft,Cf̃,Cn̂     = (Cℓ_to_cov(T,Pix,     SS..., (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
+    Cϕ₀            =  Cℓ_to_cov(T,Pix,     S0,    Cℓf[:ϕϕ])
+    Cfs,Cft,Cf̃,Cn̂  = (Cℓ_to_cov(T,Pix,     SS..., (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
     if (Cn == nothing)
-        Cn            =  Cℓ_to_cov(T,Pix_data,SS..., (Cℓn[k] for k=ks)...)
+        Cn         =  Cℓ_to_cov(T,Pix_data,SS..., (Cℓn[k] for k=ks)...)
     end
     Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + (r/rfid)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. Aϕ*Cϕ₀))
@@ -567,16 +569,17 @@ function load_sim_dataset(;
     
     # simulate data
     if (seed != nothing); seed!(seed); end
-    ϕ = simulate(Cϕ)
-    f = simulate(Cf)
-    f̃ = L(ϕ)*f
-    n = simulate(Cn)
-    d = M*P*B*f̃ + n
+    if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
+    if (f  == nothing); f  = simulate(Cf); end
+    if (n  == nothing); n  = simulate(Cn); end
+    if (f̃  == nothing); f̃  = L(ϕ)*f;       end
+    if (Bf̃ == nothing); Bf̃ = B*f̃;          end
+    if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)
     
-    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix 
+    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
     
 end
 
@@ -585,4 +588,66 @@ function ϕqe(ds::DataSet, wiener_filtered=false, ϕqefn=ϕqe_EB)
     Cf̃ = B^2 * Cf̃
     Cf = B^2 * Cf
     wiener_filtered ? ϕqefn(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqefn(d, Cf, Cf̃, Cn̂)
+end
+
+
+
+###
+
+
+function load_healpix_sim_dataset(;
+    Nside,
+    use,
+    gradient_cache,
+    T = Float32,
+    μKarcminT = 3,
+    ℓknee = 100,
+    αknee = 3,
+    ℓmax_ops = 2Nside,
+    ℓmax_data = 3000,
+    beamFWHM = 0,
+    rfid = 0.05,
+    Cℓ = camb(r=rfid, ℓmax=ℓmax_ops),
+    Cℓn = nothing,
+    Cn = nothing,
+    seed = nothing,
+    M = nothing,
+    B = nothing,
+    D = nothing,
+    G = nothing,
+    ϕ = nothing,
+    f = nothing,
+    mask_kwargs = nothing,
+    L = LenseFlow)
+    
+    @assert use==:T 
+    
+    # Cℓs
+    if (Cℓn == nothing)
+        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax_ops)
+    end
+    Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
+
+    Cf = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:TT][0:ℓmax_ops])), gradient_cache)
+    Cf̃ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf̃[:TT][0:ℓmax_ops])), gradient_cache)
+    Cn = IsotropicHarmonicCov(T.(nan2zero.(Cℓn[:TT][0:ℓmax_ops])), gradient_cache)
+    Cϕ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:ϕϕ][0:ℓmax_ops])), gradient_cache)
+    
+    P=B=1 #for now
+    
+    if (seed != nothing); seed!(seed); end
+    if (ϕ==nothing); ϕ = simulate(Cϕ); end
+    if (f==nothing); f = simulate(Cf); end
+    f̃ = L(ϕ)*f
+    n = simulate(Cn)
+    d = M*P*B*f̃ + n
+
+    
+    # put everything in DataSet
+    ds = DataSet(;(@ntpack d Cn Cf Cf̃ Cϕ M)...)
+
+    
+    return @ntpack f f̃ ϕ n ds ds₀=>ds()
+
+
 end

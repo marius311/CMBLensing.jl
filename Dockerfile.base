@@ -1,0 +1,91 @@
+FROM ubuntu:18.04
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        build-essential \
+        ca-certificates \
+        curl \
+        expect \
+        ffmpeg \
+        gfortran \
+        git \
+        libbz2-dev \
+        libcfitsio-dev \
+        libffi-dev \
+        liblzma-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libssl1.0-dev \
+        nodejs \
+        npm \
+        python-openssl \
+        tk-dev \
+        wget \
+        xz-utils \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+    
+# install julia 1.1.0
+RUN mkdir /opt/julia \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.1/julia-1.1.0-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && ln -s /opt/julia/bin/julia /usr/local/bin
+
+# setup unprivileged user needed for mybinder.org
+ARG NB_USER=cosmo
+ARG NB_UID=1000
+ENV USER $NB_USER
+ENV NB_UID $NB_UID
+ENV HOME /home/$NB_USER
+RUN adduser --disabled-password --gecos "Default user" --uid $NB_UID $NB_USER
+USER $NB_USER
+
+# install python with pyenv since we need a dynamically-linked executable so
+# that PyJulia works
+ENV PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"
+RUN curl https://pyenv.run | bash \
+    && CFLAGS="-O2" PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.7.3 \
+    && pyenv global 3.7.3
+
+# install Python packages
+RUN pip install --no-cache-dir \
+        cython \
+        healpy \
+        julia \
+        jupyterlab \
+        matplotlib \
+        numpy \
+        scipy \
+        setuptools \
+    && jupyter labextension install @jupyterlab/toc \
+    && rm -rf $HOME/.cache
+
+# install CAMB
+RUN mkdir -p $HOME/src/camb \
+    && curl -L https://github.com/cmbant/camb/tarball/6fc83ba | tar zxf - -C $HOME/src/camb --strip=1 \
+    && cd $HOME/src/camb/pycamb \
+    && python setup.py install
+
+# install CMBLensing
+COPY --chown=1000 Project.toml $HOME/CMBLensing/
+COPY --chown=1000 src          $HOME/CMBLensing/src
+RUN julia -e "using Pkg; Pkg.REPLMode.pkgstr(\"dev $HOME/CMBLensing; precompile\")" \
+    && rm -rf $HOME/.julia/conda/3/pkgs 
+    
+# install docs and dependencies
+COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
+COPY --chown=1000 docs/src          $HOME/CMBLensing/docs/src
+# despite https://github.com/JuliaLang/IJulia.jl/pull/820, we need this for
+# PyJulia which launches a Julia (not IJulia) shell:
+ENV JULIA_PROJECT=$HOME/CMBLensing/docs
+RUN julia -e "using Pkg; Pkg.REPLMode.pkgstr(\"resolve; dev $HOME/CMBLensing; precompile\")"
+WORKDIR $HOME/CMBLensing/docs/src
+
+
+# we don't actually need to specify a port different than 8888 inside the
+# container, but this makes it so Jupyter prints the accurate URL to connect to
+# on startup
+ENV PORT 8888
+# the pipe to sed can be removed once https://github.com/jupyter/notebook/pull/4103 hits a release
+CMD unbuffer jupyter lab --ip=0.0.0.0 --no-browser --port $PORT 2>&1 | sed -ue "s/(localhost or 127.0.0.1)/localhost/g"
