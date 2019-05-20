@@ -69,8 +69,12 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
 end
 
 # plotting fourier coefficients 
-function _plot(m::AbstractMatrix{<:Complex}; kwargs...)
-    _plot(log10.(abs.(ifftshift(unfold(m)))); vlim=(nothing,nothing), cmap=nothing, kwargs...)
+function _plot(m::AbstractMatrix{<:Complex}; vscale=:log, kwargs...)
+    dat = ifftshift(unfold(m))
+    if vscale==:log
+        dat .= log10.(abs.(dat))
+    end
+    _plot(real.(dat); vlim=(nothing,nothing), cmap=nothing, kwargs...)
 end
 
 
