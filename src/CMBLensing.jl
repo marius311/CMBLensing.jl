@@ -24,8 +24,8 @@ using PyCall
 using PyPlot
 using QuadGK
 using Random
-using Roots
 using Random: seed!
+using Roots
 using Requires
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics

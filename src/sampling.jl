@@ -164,7 +164,7 @@ function sample_joint(
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart]
+            Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>Random.seed!().seed]
         end
     elseif chains isa String
         chains = load(chains,"chains")
@@ -182,11 +182,12 @@ function sample_joint(
             append!.(chains, pmap(last.(chains)) do state
                 
                 local f°, f̃
-                @unpack i,ϕ°,θ = state
+                @unpack i,ϕ°,θ,seed = state
                 f = nothing
                 ϕ = ds(;θ...).G\ϕ°
                 lnPθ = nothing
                 chain = []
+                Random.seed!(seed)
                 
                 for i=(i+1):(i+nchunk)
                     
@@ -226,7 +227,7 @@ function sample_joint(
                         f̃ = L(ϕ)*f
                         
                         # save quantities to chain and print progress
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds))
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds) seed=>Random.GLOBAL_RNG.seed)
                         if (progress==:verbose)
                             @show i, accept, ΔH, θ
                         end
