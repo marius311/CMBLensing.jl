@@ -193,26 +193,32 @@ function sample_joint(
                 for i=(i+1):(i+nchunk)
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
-                    let L=cache(L(ϕ),ds.d), ds=ds(;θ...)
-                        f° = L * ds.D * lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
+                    t_f = @elapsed begin
+                        let L=cache(L(ϕ),ds.d), ds=ds(;θ...)
+                            f° = L * ds.D * lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        end
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
-                    if (i > nburnin_fixθ)
-                        # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                        lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                    t_θ = @elapsed begin
+                        if (i > nburnin_fixθ)
+                            # todo: if not sampling Aϕ, could cache L(ϕ) here...
+                            lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                        end
                     end
                     
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     let ds=ds(;θ...)
                             
-                        (ΔH, ϕtest°) = symplectic_integrate(
-                            ϕ°, simulate(Λm), Λm, 
-                            ϕ°->      lnP(:mix, f°, ϕ°, ds, L), 
-                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, ds, L)[2];
-                            progress=(progress==:verbose),
-                            symp_kwargs...
-                        )
+                        t_ϕ = @elapsed begin
+                            (ΔH, ϕtest°) = symplectic_integrate(
+                                ϕ°, simulate(Λm), Λm, 
+                                ϕ°->      lnP(:mix, f°, ϕ°, ds, L), 
+                                ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, ds, L)[2];
+                                progress=(progress==:verbose),
+                                symp_kwargs...
+                            )
+                        end
 
                         if (i < nburnin_always_accept) || (log(rand()) < ΔH)
                             ϕ° = ϕtest°
@@ -228,7 +234,8 @@ function sample_joint(
                         f̃ = L(ϕ)*f
                         
                         # save quantities to chain and print progress
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds) seed=>deepcopy(Random.GLOBAL_RNG))
+                        timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
+                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds) seed=>deepcopy(Random.GLOBAL_RNG) timing)
                         if (progress==:verbose)
                             @show i, accept, ΔH, θ
                         end
