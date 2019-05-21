@@ -30,6 +30,7 @@ using Requires
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase
+using Strided
 
 
 

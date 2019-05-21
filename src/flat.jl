@@ -139,6 +139,7 @@ FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
 
 eltype(::Type{<:FlatField{T}}) where {T} = T
 
+broadcast_data(::Type{F}, f::F) where {F<:BaseFlatField} = map(StridedView, fieldvalues(f))
 broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = broadcast_data(F0,f)
 *(f0::FlatS0Map, f2::FlatS2Map) = f0 .* f2
 
