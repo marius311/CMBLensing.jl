@@ -504,7 +504,7 @@ function load_sim_dataset(;
     Cn = nothing,
     seed = nothing,
     M = nothing,
-    B = nothing,
+    B = nothing, B̂ = nothing,
     D = nothing,
     G = nothing,
     ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # override any of these simulated fields
@@ -562,6 +562,9 @@ function load_sim_dataset(;
     if (B == nothing)
         B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., (InterpolatedCℓs(ℓ, (k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2)))) for k=ks)...); end;
     end
+    if (B̂ == nothing)
+        B̂ = B
+    end
     
     # mixing matrices
     if (D == nothing); D = D_mix(Cf); end
@@ -577,7 +580,7 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)
+    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B B̂ D G P)...)
     
     return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
     
