@@ -163,10 +163,11 @@ end
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
 import StaticArrays: arithmetic_closure
-import Base: sqrt, inv, /
+import Base: sqrt, inv, /, permutedims
 arithmetic_closure(::Type{Diagonal{T}}) where {T} = Diagonal{arithmetic_closure(T)}
 inv(d::Diagonal) = Diagonal(1 ./ d.diag)
 /(a::Number, b::Diagonal) = Diagonal(a ./ diag(b))
+permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
 
 
 # some usefule tuple manipulation functions

@@ -47,7 +47,7 @@ simplify_bc(x) = x
 
 mul!(v′::FieldVector, f::Field, v::FieldVector) = (mul!(v′[1], f, v[1]); mul!(v′[2], f, v[2]); v′)
 # mul!(f′::F, r::FieldRowVector, v::FieldVector) where {F<:Field} = f′ .= F(r[1]*v[1] + r[2]*v[2])
-mul!(v′::FieldVector{F}, A::FieldMatrix{F}, v::FieldVector{F}) where {F<:Field} = 
+mul!(v′::FieldVector, A::FieldMatrix, v::FieldVector) = 
     ((v1′,v2′)=v′; @. v1′ = A[1,1]*v[1]+A[1,2]*v[2]; @. v2′ = A[2,1]*v[1]+A[2,2]*v[2]; v′)
 
 mul!(r::Field, a::Field, b::Field) = (@. r = a*b)

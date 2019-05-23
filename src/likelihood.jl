@@ -111,11 +111,11 @@ matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
 # this is the `lnP` method users will most likely call directly. first we switch t to Val(t)
-lnP(t, fₜ, ϕ, ds, L=LenseFlow; θ...) = lnP(Val(t), fₜ, ϕ, ds, L; θ...)
+lnP(t, fₜ, ϕ, ds, L=LenseFlow; cache=cache, θ...) = lnP(Val(t), fₜ, ϕ, ds, L; cache=cache, θ...)
 # then evaluate L(ϕ) unless L was passed in already evaluated 
 # (todo: remove repeated evaluation of ds(;θ...) which happens in the mixed case)
-lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}; θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ); θ...)
-lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}; θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ); θ...)
+lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}; cache=cache, θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ); θ...)
+lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}; cache=cache, θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ); θ...)
 # then evaluate ds at parameters θ, and undo the mixing if there was any
 lnP(::Val{t}, fₜ, ϕ, ds, L::LenseOp; θ...) where {t} = lnP(Val(t), fₜ, ϕ, ds, ds(;θ...), L; θ...)
 function lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp; θ...)

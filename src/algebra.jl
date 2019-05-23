@@ -147,10 +147,14 @@ ud_grade(lz::AdjOp, args...; kwargs...) = AdjOp(ud_grade(lz.a,args...; kwargs...
 # until StaticArrays better implements adjoints
 *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
 # and until StaticArrays better implements invereses... 
-function inv(m::FieldMatrix)
-    a,b,c,d = m
-    invdet = @. 1/(a*d-b*c)
-    @. @SMatrix [invdet*d -invdet*b; -invdet*c invdet*a]
+function inv(dst::FieldMatrix, src::FieldMatrix)
+    a,b,c,d = src
+    det⁻¹ = @. 1/(a*d-b*c)
+    @. dst[1,1] =  det⁻¹*d
+    @. dst[1,2] = -det⁻¹*b
+    @. dst[2,1] = -det⁻¹*c
+    @. dst[2,2] =  det⁻¹*a
+    dst
 end
 mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]
 

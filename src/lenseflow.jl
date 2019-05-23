@@ -57,23 +57,33 @@ zero(L::CachedLenseFlow) = zero(L.memŁϕ)
 
 
 τ(t) = Float16(t)
-function cache(L::LenseFlow{jrk4{N},t₀,t₁},f) where {N,t₀,t₁}
+cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
+cache(L::CachedLenseFlow, f) = L
+function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
+    ts = linspace(t₀,t₁,2N+1)
+    ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
+    T = eltype(L.ϕ)
+    for (t,τ) in zip(ts,τ.(ts))
+        @! cL.M⁻¹[τ] = inv(T(1)*I + T(t)*Hϕ)
+        @! cL.p[τ] = permutedims(cL.M⁻¹[τ]) * ∇ϕ
+    end
+    cL
+end
+function alloc_cache(L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
-    ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
-    for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = inv(I + t*Hϕ)
-        p[τ]   = (∇ϕ' ⨳ M⁻¹[τ])'
-    end
     Łf,Ðf = Ł(f),  Ð(f)
     Łϕ,Ðϕ = Ł(L.ϕ),Ð(L.ϕ)
+    for (t,τ) in zip(ts,τ.(ts))
+        M⁻¹[τ] = similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ])
+        p[τ]   = similar.(@SVector[Łϕ,Łϕ])
+    end
     CachedLenseFlow{N,t₀,t₁,typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf)}(
         p, M⁻¹, 
         similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
         similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
     )
 end
-cache(L::CachedLenseFlow,f) = L
 
 # the way these velocities work is that they unpack the preallocated fields
 # stored in L.mem* into variables with more meaningful names, which are then

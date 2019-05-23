@@ -194,31 +194,31 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        let L=cache(L(ϕ),ds.d), ds=ds(;θ...)
-                            f° = L * ds.D * lensing_wiener_filter(ds, L, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
-                        end
+                        Lϕ = cache(L(ϕ),ds.d)
+                        dsθ = ds(;θ...)
+                        f° = Lϕ * dsθ.D * lensing_wiener_filter(dsθ, Lϕ, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ)
                             # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                            lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; θ...), θrange, progress=(progress==:verbose))
+                            lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; cache=(L,f)->(cache!(Lϕ,L,f)), θ...), θrange, progress=(progress==:verbose))
                         end
                     end
                     
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
-                    let ds=ds(;θ...)
-                            
-                        t_ϕ = @elapsed begin
-                            (ΔH, ϕtest°) = symplectic_integrate(
-                                ϕ°, simulate(Λm), Λm, 
-                                ϕ°->      lnP(:mix, f°, ϕ°, ds, L), 
-                                ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, ds, L)[2];
-                                progress=(progress==:verbose),
-                                symp_kwargs...
-                            )
-                        end
+                    t_ϕ = @elapsed begin
+                        
+                        dsθ = ds(;θ...)
+                    
+                        (ΔH, ϕtest°) = symplectic_integrate(
+                            ϕ°, simulate(Λm), Λm, 
+                            ϕ°->      lnP(:mix, f°, ϕ°, dsθ, L, cache=(L,f)->(cache!(Lϕ,L,f))), 
+                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, dsθ, L, cache=(L,f)->(cache!(Lϕ,L,f)))[2];
+                            progress=(progress==:verbose),
+                            symp_kwargs...
+                        )
 
                         if (i < nburnin_always_accept) || (log(rand()) < ΔH)
                             ϕ° = ϕtest°
@@ -227,22 +227,22 @@ function sample_joint(
                             accept = false
                         end
                         
-                        
                         # compute un-mixed maps
-                        ϕ = ds.G\ϕ°
-                        f = ds.D\(L(ϕ)\f°)
+                        ϕ = dsθ.G\ϕ°
+                        f = dsθ.D\(L(ϕ)\f°)
                         f̃ = L(ϕ)*f
                         
-                        # save quantities to chain and print progress
-                        timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                        push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,ds) seed=>deepcopy(Random.GLOBAL_RNG) timing)
-                        if (progress==:verbose)
-                            @show i, accept, ΔH, θ
-                        end
                     end
-
+                    
+                    # save quantities to chain and print progress
+                    timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
+                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,dsθ) seed=>deepcopy(Random.GLOBAL_RNG) timing)
+                    if (progress==:verbose)
+                        @show i, accept, ΔH, θ
+                    end
+                    
                 end
-                
+
                 chain
                 
             end)
