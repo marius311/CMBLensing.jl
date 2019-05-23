@@ -11,6 +11,7 @@ using Images: feature_transform, imfilter
 using Images.Kernel
 using InteractiveUtils
 using Interpolations
+using JLD2
 using FileIO
 using Loess
 using LinearAlgebra
