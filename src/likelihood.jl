@@ -567,7 +567,7 @@ function load_sim_dataset(;
     end
     
     # mixing matrices
-    if (D == nothing); D = D_mix(Cf); end
+    if (D == nothing); D = D_mix(Cf,rfid=rfid); end
     if (G == nothing); G = IdentityOp; end
     
     # simulate data
