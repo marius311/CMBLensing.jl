@@ -54,6 +54,10 @@ function Diagonal(L::FlatTEBCov{T,P}) where {T,N,P<:Flat{<:Any,N}}
     FullDiagOp(FlatTEBFourier{T,P}(reshape.(diag.([L.ΣTE[1,1], L.ΣTE[2,2]]),[(N÷2+1,N)])..., L.ΣB))
 end
 
+# broadcasting
+broadcast_data(::Type{<:FlatTEBCov}, Σ::FlatTEBCov) = (Σ.ΣTE, Σ.ΣB)
+metadata(::Type{<:FlatTEBCov}, Σ::FlatTEBCov) = (Σ.unsafe_invert,)
+
 
 # multiplication by a Diag{TEB}
 function *(L::FlatTEBCov{T,P}, D::FullDiagOp{FlatTEBFourier{T,P}}) where {T,P}
