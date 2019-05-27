@@ -50,11 +50,11 @@ Interpolate the log pdf `lnP` with support on `range`, and return  the
 integrated log pdf as well `nsamples` samples (drawn via inverse transform
 sampling)
 
-`lnP` should accept keyword arguments and `range` should be a NamedTuple mapping
+`lnP` should accept a NamedTuple argument and `range` should be a NamedTuple mapping
 those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
 
 ```julia
-grid_and_sample((;x,y)->-(x^2+y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+grid_and_sample(nt->-(nt.x^2+nt.y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
 ```
 
 The return value is `(lnP, samples, Px)` where `lnP` is an interpolated/smoothed
@@ -71,7 +71,7 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     xmin,xmax = first(xs),last(xs)
     
     # sample the pdf
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(;Dict(first(keys(range))=>x)...), xs)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(NamedTuple{S}(x)), xs)
     lnPs .-= maximum(lnPs)
     ilnP = loess(xs,lnPs)
     
@@ -186,7 +186,9 @@ function sample_joint(
                 @unpack i,ϕ°,θ,seed = state
                 copy!(Random.GLOBAL_RNG, seed)
                 f = nothing
-                ϕ = ds(;θ...).G\ϕ°
+                dsθ = ds(;θ...)
+                ϕ = dsθ.G\ϕ°
+                Lϕ = cache(L(ϕ), ds.d)
                 lnPθ = nothing
                 chain = []
                 
@@ -194,28 +196,24 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        Lϕ = cache(L(ϕ),ds.d)
-                        dsθ = ds(;θ...)
                         f° = Lϕ * dsθ.D * lensing_wiener_filter(dsθ, Lϕ, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ)
-                            # todo: if not sampling Aϕ, could cache L(ϕ) here...
-                            lnPθ, θ = grid_and_sample((;θ...)->lnP(:mix,f°,ϕ°,ds,L; cache=(L,f)->(cache!(Lϕ,L,f)), θ...), θrange, progress=(progress==:verbose))
+                            lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds,Lϕ), θrange, progress=(progress==:verbose))
+                            dsθ = ds(;θ...)
                         end
                     end
                     
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     t_ϕ = @elapsed begin
                         
-                        dsθ = ds(;θ...)
-                    
                         (ΔH, ϕtest°) = symplectic_integrate(
                             ϕ°, simulate(Λm), Λm, 
-                            ϕ°->      lnP(:mix, f°, ϕ°, dsθ, L, cache=(L,f)->(cache!(Lϕ,L,f))), 
-                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, dsθ, L, cache=(L,f)->(cache!(Lϕ,L,f)))[2];
+                            ϕ°->      lnP(:mix, f°, ϕ°, θ, dsθ, Lϕ), 
+                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, θ, dsθ, Lϕ)[2];
                             progress=(progress==:verbose),
                             symp_kwargs...
                         )
@@ -229,14 +227,15 @@ function sample_joint(
                         
                         # compute un-mixed maps
                         ϕ = dsθ.G\ϕ°
-                        f = dsθ.D\(L(ϕ)\f°)
-                        f̃ = L(ϕ)*f
+                        cache!(Lϕ,ϕ)
+                        f = dsθ.D\(Lϕ\f°)
+                        f̃ = Lϕ*f
                         
                     end
                     
                     # save quantities to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,dsθ) seed=>deepcopy(Random.GLOBAL_RNG) timing)
+                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.GLOBAL_RNG) timing)
                     if (progress==:verbose)
                         @show i, accept, ΔH, θ
                     end

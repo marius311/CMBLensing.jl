@@ -28,6 +28,7 @@ using Random
 using Random: seed!
 using Roots
 using Requires
+using Setfield
 using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
 using Statistics
 using StatsBase

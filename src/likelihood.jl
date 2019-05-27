@@ -70,7 +70,7 @@ end
     resimulate(ds::DataSet; f=..., ϕ=...)
     
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
-are resimulate if not provided)
+are resimulated if not provided)
 """
 function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=LenseFlow(ϕ)*f)
     @unpack M,P,B = ds
@@ -82,22 +82,16 @@ end
 
 
 @doc doc"""
-    lnP(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow; θ...)
-    lnP(t, fₜ, ϕ, ds, L::LenseOp; θ...) 
+    lnP(t, fₜ, ϕₜ,                ds::DataSet, L=LenseFlow)
+    lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L=LenseFlow)
 
-Compute the log posterior probability as a function of the field, $f_t$, the
-lensing potential, $\phi$, and possibly some cosmological parameters, $\theta$.
-The subscript $t$ can refer to either a "time", e.g. passing `t=0` corresponds
-to the unlensed parametrization and `t=1` to the lensed one, or can be `:mix`
-correpsonding to the mixed parametrization. In all cases, the argument `fₜ`
-should then be $f$ in that particular parametrization.
-
-The log posterior is defined such that, 
-
-```math
--2 \ln \mathcal{P}(f,ϕ\,|\,d) = (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f})^{\dagger} \mathcal{C_n}(\theta)^{-1} (d - \mathcal{M}\mathcal{B}\mathcal{L}{\tilde f}) \
-                                + f^\dagger \mathcal{C_f}(\theta)^{-1} f + \phi^\dagger \mathcal{C_\phi}(\theta)^{-1} \mathcal{\phi}
-```
+Compute the log posterior probability in the joint parameterization as a
+function of the field, $f_t$, the lensing potential, $\phi_t$, and possibly some
+cosmological parameters, $\theta$. The subscript $t$ can refer to either a
+"time", e.g. passing `t=0` corresponds to the unlensed parametrization and `t=1`
+to the lensed one, or can be `:mix` correpsonding to the mixed parametrization.
+In all cases, the arguments `fₜ` and `ϕₜ` should then be $f$ and $\phi$ in
+that particular parametrization.
 
 If any parameters $\theta$ are passed, we also include the three determinant
 terms to properly normalize the posterior,
@@ -110,36 +104,43 @@ The argument `ds` should be a `DataSet` and stores the masks, data, mixing
 matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
 `LenseFlow`, or an already constructed `LenseOp`.
 """
-# this is the `lnP` method users will most likely call directly. first we switch t to Val(t)
-lnP(t, fₜ, ϕ, ds, L=LenseFlow; cache=cache, θ...) = lnP(Val(t), fₜ, ϕ, ds, L; cache=cache, θ...)
-# then evaluate L(ϕ) unless L was passed in already evaluated 
-# (todo: remove repeated evaluation of ds(;θ...) which happens in the mixed case)
-lnP(::Val{t},    fₜ, ϕ,  ds, ::Type{L}; cache=cache, θ...) where {L<:LenseOp,t} = lnP(Val(t),    fₜ, ϕ,  ds, cache(L(ϕ),fₜ); θ...)
-lnP(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}; cache=cache, θ...) where {L<:LenseOp}   = lnP(Val(:mix), fₘ, ϕₘ, ds, cache(L(ds(;θ...).G\ϕₘ),fₘ); θ...)
-# then evaluate ds at parameters θ, and undo the mixing if there was any
-lnP(::Val{t}, fₜ, ϕ, ds, L::LenseOp; θ...) where {t} = lnP(Val(t), fₜ, ϕ, ds, ds(;θ...), L; θ...)
-function lnP(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp; θ...)
+lnP(t, fₜ, ϕₜ,                ds::DataSet, L=LenseFlow) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds, L)
+lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L=LenseFlow) = lnP(Val(t), fₜ, ϕₜ, θ,            ds, L)
+
+function lnP(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L) where {t}
     dsθ = ds(;θ...)
+    ϕ = (t==:mix) ? dsθ.G\ϕₜ : ϕₜ
+    Lϕ = (L isa LenseOp) ? cache!(L,ϕ) : cache(L(ϕ),fₜ)
+    lnP(Val(t), fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ)
+end
+
+# we now have ϕ (unmixed) computed, Lϕ is now a cached lensing operator
+# evaluated at ϕ, so now we can evaluate the posterior in either the mixed
+# parametrization or at some time, t
+function lnP(::Val{:mix}, f°, ϕ°, ϕ, θ, ds, dsθ, Lϕ::LenseOp)
+    
     @unpack D,G = dsθ
-    (lnP(Val(0), D\(L\fₘ), G\ϕₘ, ds, dsθ, L; θ...)
+    
+    # unmix f° and evaluate at t=0, as well as adding necessary Jacobian
+    # determiant terms from the mixing
+    (lnP(Val(0), D\(Lϕ\f°), ϕ°, ϕ, θ, ds, dsθ, Lϕ)
      - (depends_on(ds.D, θ) ? logdet(D) : 0)
      - (depends_on(ds.G, θ) ? logdet(G) : 0))
+     
 end
-# finally, evaluate the actual posterior
-function lnP(::Val{t}, fₜ, ϕ, ds::DataSet, dsθ::DataSet, L::LenseOp; θ...) where {t}
+function lnP(::Val{t}, fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ::LenseOp) where {t}
     
-    # unpack needed variables from the dataset evaluated at θ
     @unpack Cn,Cf,Cϕ,M,P,B,d = dsθ
     
     # the unnormalized part of the posterior
-    Δ = d-M*P*B*L[t→1]*fₜ
-    f = L[t→0]*fₜ
+    Δ = d-M*P*B*Lϕ[t→1]*fₜ
+    f = Lϕ[t→0]*fₜ
     lnP = -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
     
-    # add the normalization (the logdet terms), offset by its value at fiducial
-    # parameters (to avoid roundoff errors, since its otherwise a large number).
-    # note: only the terms which depend on parameters that were passed in via
-    # `θ... ` will be computed. 
+    # add the normalization (the logdet terms), offset by their values at
+    # fiducial parameters (to avoid roundoff errors, since its otherwise a large
+    # number). note: only the terms which depend on parameters that were passed
+    # in via `θ... ` will be computed. 
     lnP += lnP_logdet_terms(ds,ds(),dsθ; θ...)
 
     lnP
@@ -169,44 +170,45 @@ arguments of this function.
 
 The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
-# this is the `δlnP_δfϕₜ` method users will most likely call directly. first we
-# switch t to Val(t) and evaluate at parameters θ
-δlnP_δfϕₜ(t, fₜ, ϕ, ds, L=LenseFlow; θ...) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, ds(;θ...), L)
-# in the lensed or unlensed parametrization
-δlnP_δfϕₜ(::Val{t}, fₜ, ϕ, ds, ::Type{L}) where {L<:LenseOp,t} = δlnP_δfϕₜ(Val(t), fₜ, ϕ, ds, cache(L(ϕ),fₜ))
-δlnP_δfϕₜ(::Val{t}, fₜ, ϕ, ds, L::LenseOp) where {t} = begin
-    f̃ =  L[t→1]*fₜ
-    f =  L[t→0]*fₜ
+δlnP_δfϕₜ(t, fₜ, ϕ,                ds, L=LenseFlow) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, NamedTuple(), ds, L)
+δlnP_δfϕₜ(t, fₜ, ϕ, θ::NamedTuple, ds, L=LenseFlow) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, θ,            ds, L)
 
-    (   δf̃ϕ_δfϕₜ(L,f̃,fₜ,Val(t))' * δlnL_δf̃ϕ(f̃,ϕ,ds)
-      + δfϕ_δfϕₜ(L,f,fₜ,Val(t))' * δlnΠᶠ_δfϕ(f,ϕ,ds)
-                                 + δlnΠᶲ_δfϕ(f,ϕ,ds) )
+function δlnP_δfϕₜ(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L) where {t}
+    dsθ = ds(;θ...)
+    ϕ = (t==:mix) ? dsθ.G\ϕₜ : ϕₜ
+    Lϕ = (L isa LenseOp) ? cache!(L,ϕ) : cache(L(ϕ),fₜ)
+    δlnP_δfϕₜ(Val(t), fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ)
+end
+
+# in the lensed or unlensed parametrization
+function δlnP_δfϕₜ(::Val{t}, fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ::LenseOp) where {t}
+    f̃ = Lϕ[t→1]*fₜ
+    f = Lϕ[t→0]*fₜ
+
+    (   δf̃ϕ_δfϕₜ(Lϕ,f̃,fₜ,Val(t))' *  δlnL_δf̃ϕ(f̃,ϕ,dsθ)
+      + δfϕ_δfϕₜ(Lϕ,f,fₜ,Val(t))' * δlnΠᶠ_δfϕ(f,ϕ,dsθ)
+                                  + δlnΠᶲ_δfϕ(f,ϕ,dsθ) )
 end
 # in the mixed parametrization
-δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, L::LenseOp) = δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ds.G\ϕₘ, ds, L)
-δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ds, ::Type{L}) where {L<:LenseOp} = begin
-    ϕ = ds.G\ϕₘ
-    δlnP_δfϕₜ(Val(:mix), fₘ, ϕₘ, ϕ, ds, cache(L(ϕ),fₘ))
-end
-δlnP_δfϕₜ(::Val{:mix}, fₘ, ϕₘ, ϕ, ds, L::LenseOp) = begin
+function δlnP_δfϕₜ(::Val{:mix}, f°, ϕ°, ϕ, θ, ds, dsθ, Lϕ::LenseOp)
     
     @unpack D,G = ds
-    L⁻¹fₘ = L \ fₘ
-    f = D \ L⁻¹fₘ
+    Lϕ⁻¹f° = Lϕ \ f°
+    f = D \ Lϕ⁻¹f°
 
     # gradient w.r.t. (f,ϕ)
-    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(0, f, ϕ, ds, L)
+    δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(Val(0), f, ϕ, ϕ, θ, ds, dsθ, Lϕ)
     
     # chain rule
-    (δlnP_δfₘ, δlnP_δϕₘ) = δfϕ_δf̃ϕ(L, L⁻¹fₘ, fₘ)' * FieldTuple(D \ δlnP_δf, δlnP_δϕ)
-    FieldTuple(δlnP_δfₘ, G \ δlnP_δϕₘ)
+    (δlnP_δf°, δlnP_δϕ°) = δfϕ_δf̃ϕ(Lϕ, Lϕ⁻¹f°, f°)' * FieldTuple(D \ δlnP_δf, δlnP_δϕ)
+    FieldTuple(δlnP_δf°, G \ δlnP_δϕ°)
 
 end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used above)
-δlnL_δf̃ϕ(f̃,ϕ::ɸ,ds)  where {ɸ} = (@unpack P,M,B,Cn,Cf,Cϕ,d=ds; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cϕ)))
-δlnΠᶠ_δfϕ(f,ϕ::ɸ,ds) where {ɸ} = (@unpack Cf,Cϕ=ds;            FieldTuple(-(Cf\f)                  , zero(Cϕ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,ds) where {F} = (@unpack Cf,Cϕ=ds;            FieldTuple(zero(Cf)                 , -(Cϕ\ϕ)))
+δlnL_δf̃ϕ(f̃,ϕ::ɸ,dsθ)  where {ɸ} = (@unpack P,M,B,Cn,Cf,Cϕ,d=dsθ; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cϕ)))
+δlnΠᶠ_δfϕ(f,ϕ::ɸ,dsθ) where {ɸ} = (@unpack Cf,Cϕ=dsθ;            FieldTuple(-(Cf\f)                  , zero(Cϕ)))
+δlnΠᶲ_δfϕ(f::F,ϕ,dsθ) where {F} = (@unpack Cf,Cϕ=dsθ;            FieldTuple(zero(Cf)                 , -(Cϕ\ϕ)))
 
 
 
@@ -365,8 +367,9 @@ function MAP_joint(
     cgtol = 1e-1,
     αtol = 1e-5,
     αmax = 0.5,
-    cache_function = (L->cache(L,ds.d)),
+    cache_function = nothing,
     callback = nothing,
+    interruptable = false,
     progress = false)
     
     @assert progress in [false,:summary,:verbose]
@@ -375,15 +378,17 @@ function MAP_joint(
     end
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
-    # ϕₘ = G(θ)*ϕ, so set G to constant here
-    ds = DataSet(ds, G=IdentityOp)
+    # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
+    @set! ds.G = IdentityOp
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ)
+    ϕ = (ϕstart==nothing) ? zero(Cϕ) : ϕstart
+    Lϕ = cache(L(ϕ),d)
     α = 0
     tr = []
     hist = nothing
+    
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
@@ -393,23 +398,26 @@ function MAP_joint(
     try
         @showprogress (progress==:summary ? 1 : Inf) "MAP_joint: " for i=1:nsteps
 
-            # f step
-            let L = ((i==1 && ϕstart==nothing) ? IdentityOp : cache_function(L(ϕ)))
-                
-                # if we're doing a fixed quasi_sample, set the random seed here,
-                # which controls the sample from the posterior we get from inside
-                # `lensing_wiener_filter`
-                if isa(quasi_sample,Int); seed!(quasi_sample); end
-                
-                (f, hist) = lensing_wiener_filter(ds, L, 
-                    (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
-                    guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
-                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
-                    
-                f° = L * D * f
-            end
+            # ==== f step ====
             
-            lnPcur = lnP(:mix,f°,ϕ,ds,L)
+            # if we're doing a fixed quasi_sample, set the random seed here,
+            # which controls the sample from the posterior we get from inside
+            # `lensing_wiener_filter`
+            if isa(quasi_sample,Int); seed!(quasi_sample); end
+            
+            # recache Lϕ for new ϕ
+            if i!=1; cache!(Lϕ,ϕ); end
+            
+            # run wiener filter
+            (f, hist) = lensing_wiener_filter(ds, ((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), 
+                (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
+                guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
+                tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
+            
+            f° = Lϕ * D * f
+            lnPcur = lnP(:mix,f°,ϕ,ds,Lϕ)
+            
+            # ==== show progress ====
             if (progress==:verbose)
                 @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
@@ -418,17 +426,17 @@ function MAP_joint(
                 callback(f, ϕ, tr)
             end
             
-            # ϕ step
+            # ==== ϕ step =====
             if (i!=nsteps)
-                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,L))[2]
-                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,L)), 0., αmax, abs_tol=αtol)
+                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,Lϕ))[2]
+                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), 0., αmax, abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew
             end
 
         end
     catch err
-        if err isa InterruptException
+        if (err isa InterruptException) && interruptable
             println()
             @warn("Maximization interrupted. Returning current progress.")
         else

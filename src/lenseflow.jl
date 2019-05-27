@@ -16,12 +16,16 @@ struct LenseFlow{I<:ODESolver,t₀,t₁,Φ<:Field{<:Any,<:S0}} <: LenseFlowOp{I,
     ϕ::Φ
 end
 
-struct CachedLenseFlow{N,t₀,t₁,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+    
+    # save ϕ to know when to trigger recaching
+    ϕ :: Ref{Φ}
+    
     # p and M⁻¹ quantities precomputed at every time step
     p   :: Dict{Float16,FieldVector{ŁΦ}}
     M⁻¹ :: Dict{Float16,FieldMatrix{ŁΦ}}
     
-    # f type memory 
+    # f type memory
     memŁf  :: ŁF
     memÐf  :: ÐF
     memŁvf :: FieldVector{ŁF}
@@ -58,7 +62,8 @@ zero(L::CachedLenseFlow) = zero(L.memŁϕ)
 
 τ(t) = Float16(t)
 cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
-cache(L::CachedLenseFlow, f) = L
+cache(cL::CachedLenseFlow, f) = cL
+cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{jrk4{N},t₀,t₁}(ϕ),cL.memŁf)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
@@ -67,6 +72,7 @@ function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁
         @! cL.M⁻¹[τ] = inv(T(1)*I + T(t)*Hϕ)
         @! cL.p[τ] = permutedims(cL.M⁻¹[τ]) * ∇ϕ
     end
+    cL.ϕ[] = L.ϕ
     cL
 end
 function alloc_cache(L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
@@ -78,12 +84,13 @@ function alloc_cache(L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
         M⁻¹[τ] = similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ])
         p[τ]   = similar.(@SVector[Łϕ,Łϕ])
     end
-    CachedLenseFlow{N,t₀,t₁,typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf)}(
-        p, M⁻¹, 
+    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ),typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf)}(
+        Ref(L.ϕ), p, M⁻¹, 
         similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
         similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
     )
 end
+
 
 # the way these velocities work is that they unpack the preallocated fields
 # stored in L.mem* into variables with more meaningful names, which are then
@@ -146,8 +153,8 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
 end
 
 # can swap integration points without recaching, although not arbitrarily change them
-_getindex(L::CachedLenseFlow{N,t₀,t₁,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,ŁΦ,ÐΦ,ŁF,ÐF} = L
-_getindex(L::CachedLenseFlow{N,t₁,t₀,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,ŁΦ,ÐΦ,ŁF,ÐF} = CachedLenseFlow{N,t₀,t₁,ŁΦ,ÐΦ,ŁF,ÐF}(fieldvalues(L)...)
+_getindex(L::CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF} = L
+_getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF} = CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF}(fieldvalues(L)...)
 
 # # ud_grading lenseflow ud_grades the ϕ map
 # ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))
