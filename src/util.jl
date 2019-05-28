@@ -7,7 +7,8 @@ import Base: ==
 """ 
 Return the type's fields as a tuple
 """
-@generated fieldvalues(x) = :(tuple($((:(x.$f) for f=fieldnames(x))...)))
+@generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
+@generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
 
 
 """

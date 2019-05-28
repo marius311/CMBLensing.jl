@@ -15,6 +15,7 @@ using FileIO
 using Loess
 using LinearAlgebra
 using MacroTools: @capture, postwalk, isexpr
+using Match
 using Markdown
 using Optim: optimize
 using Parameters

@@ -40,29 +40,28 @@ D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
     Cf :: TCf               # unlensed field covariance
     Cf̃ :: TCf̃ = nothing     # lensed field covariance (not always needed)
     Cn̂ :: TCn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  :: TM  = 1           # user mask
-    B  :: TB  = 1           # beam and instrumental transfer functions
+    M  :: TM  = IdentityOp  # user mask
+    B  :: TB  = IdentityOp  # beam and instrumental transfer functions
     B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
     G  :: TG  = IdentityOp  # reparametrization for ϕ
-    P  :: TP  = 1           # pixelization operator to estimate field on higher res than data
+    P  :: TP  = IdentityOp  # pixelization operator to estimate field on higher res than data
 end
 
-function DataSet(ds::DataSet; kwargs...)
-    FN = fieldnames(typeof(ds))
-    DataSet(;NamedTuple{FN}(getfield.(Ref(ds),FN))..., kwargs...)
+function subblock(ds::DataSet, block)
+    DataSet(map(collect(pairs(fields(ds)))) do (k,v)
+        @match (k,v) begin
+            ((:Cϕ || :G), v)                    => v
+            (_, L::Union{Nothing,FuncOp,Real})  => L
+            (_, L)                              => getproperty(L,block)
+        end
+    end...)
 end
 
 function (ds::DataSet)(;θ...)
-    @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,G,P=ds
-    DataSet(;@ntpack(d,M,B,B̂,P,
-        D=>evaluate(D;θ...),
-        G=>evaluate(G;θ...),
-        Cn=>evaluate(Cn;θ...),
-        Cϕ=>evaluate(Cϕ;θ...),
-        Cf=>evaluate(Cf;θ...),
-        Cf̃=>evaluate(Cf̃;θ...),
-        Cn̂=>evaluate(Cn̂;θ...))...)
+    DataSet(map(fieldvalues(ds)) do v
+        (v isa ParamDependentOp) ? v(;θ...) : v
+    end...)
 end
 
     
@@ -582,14 +581,6 @@ function load_sim_dataset(;
     return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
     
 end
-
-function ϕqe(ds::DataSet, wiener_filtered=false, ϕqefn=ϕqe_EB)
-    @unpack d, Cf, Cf̃, Cn̂, Cϕ, B = ds
-    Cf̃ = B^2 * Cf̃
-    Cf = B^2 * Cf
-    wiener_filtered ? ϕqefn(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqefn(d, Cf, Cf̃, Cn̂)
-end
-
 
 
 ###
