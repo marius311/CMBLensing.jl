@@ -27,7 +27,7 @@ function quadratic_estimate(ds::DataSet{F}, which; wiener_filtered=true) where {
         :EB => quadratic_estimate_EB
         _   => error("`which` argument to `quadratic_estimate` should be one of (:TT, :EE, :EB)")
     end
-    quadratic_estimate_func(d, B̂^2*Cf, B̂^2*Cf̃, Cn̂, Cϕ, wiener_filtered)
+    quadratic_estimate_func(d, Cf, B̂^2*Cf̃, Cn̂, Cϕ, wiener_filtered)
 end
 quadratic_estimate(ds::DataSet{<:Field{<:Any,S0}}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
 

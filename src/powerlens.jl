@@ -22,6 +22,8 @@ function PowerLens(ϕ,N)
     PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 
+PowerLens{N}(ϕ) where {N} = PowerLens(ϕ,N)
+
 """ Create from an existing PowerLens operator one that lenses by -ϕ instead. """
 antilensing(L::PowerLens{N,F}) where {N,F} = PowerLens{N,F}(N, (Dict(i=>v*(-1)^i for (i,v)=∂) for ∂=(L.∂xϕⁱ,L.∂xϕⁱ))...)
 
