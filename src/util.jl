@@ -7,7 +7,8 @@ import Base: ==
 """ 
 Return the type's fields as a tuple
 """
-@generated fieldvalues(x) = :(tuple($((:(x.$f) for f=fieldnames(x))...)))
+@generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
+@generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
 
 
 """
@@ -197,3 +198,29 @@ basetype(::Type{T}) where {T} = T.name.wrapper
 # amazing Julia doesn't have this yet...
 eachcol(A) = @views [A[:,i] for i=1:size(A,2)]
 eachrow(A) = @views [A[i,:] for i=1:size(A,1)]
+
+
+"""
+    @symmetric_memoized foo(i,j,k) = ... 
+    
+Should be applied to a definition of a function which is symmetric in all of its
+arguments. The resulting function will be memoized and permutations of the arguments
+which are equal due to symmetry will only be computed once.
+"""
+macro symmetric_memoized(funcdef)
+    
+    sfuncdef = splitdef(funcdef)
+    
+    sfuncdef[:body] = quote
+        args = [$(sfuncdef[:args]...)]
+        sorted_args = sort(args)
+        if args==sorted_args
+            $((sfuncdef[:body]))
+        else
+            $(sfuncdef[:name])(sorted_args...)
+        end
+    end
+    
+    esc(:(@memoize $(combinedef(sfuncdef))))
+    
+end

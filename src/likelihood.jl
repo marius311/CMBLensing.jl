@@ -48,21 +48,20 @@ D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
     P  :: TP  = 1           # pixelization operator to estimate field on higher res than data
 end
 
-function DataSet(ds::DataSet; kwargs...)
-    FN = fieldnames(typeof(ds))
-    DataSet(;NamedTuple{FN}(getfield.(Ref(ds),FN))..., kwargs...)
+function subblock(ds::DataSet, block)
+    DataSet(map(collect(pairs(fields(ds)))) do (k,v)
+        @match (k,v) begin
+            ((:Cϕ || :G), v)                    => v
+            (_, L::Union{Nothing,FuncOp,Real})  => L
+            (_, L)                              => getproperty(L,block)
+        end
+    end...)
 end
 
 function (ds::DataSet)(;θ...)
-    @unpack d,Cn,Cϕ,Cf,Cf̃,Cn̂,M,B,B̂,D,G,P=ds
-    DataSet(;@ntpack(d,M,B,B̂,P,
-        D=>evaluate(D;θ...),
-        G=>evaluate(G;θ...),
-        Cn=>evaluate(Cn;θ...),
-        Cϕ=>evaluate(Cϕ;θ...),
-        Cf=>evaluate(Cf;θ...),
-        Cf̃=>evaluate(Cf̃;θ...),
-        Cn̂=>evaluate(Cn̂;θ...))...)
+    DataSet(map(fieldvalues(ds)) do v
+        (v isa ParamDependentOp) ? v(;θ...) : v
+    end...)
 end
 
     
@@ -399,21 +398,21 @@ function MAP_joint(
         @showprogress (progress==:summary ? 1 : Inf) "MAP_joint: " for i=1:nsteps
 
             # ==== f step ====
-            
-            # if we're doing a fixed quasi_sample, set the random seed here,
-            # which controls the sample from the posterior we get from inside
-            # `lensing_wiener_filter`
-            if isa(quasi_sample,Int); seed!(quasi_sample); end
-            
+                
+                # if we're doing a fixed quasi_sample, set the random seed here,
+                # which controls the sample from the posterior we get from inside
+                # `lensing_wiener_filter`
+                if isa(quasi_sample,Int); seed!(quasi_sample); end
+                
             # recache Lϕ for new ϕ
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
             (f, hist) = lensing_wiener_filter(ds, ((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), 
-                (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
-                guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
-                tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
-            
+                    (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
+                    guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
+                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
+                    
             f° = Lϕ * D * f
             lnPcur = lnP(:mix,f°,ϕ,ds,Lϕ)
             
@@ -593,14 +592,6 @@ function load_sim_dataset(;
     return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
     
 end
-
-function ϕqe(ds::DataSet, wiener_filtered=false)
-    @unpack d, Cf, Cf̃, Cn̂, Cϕ, B̂ = ds
-    Cf̃ = B̂^2 * Cf̃
-    Cf = B̂^2 * Cf
-    wiener_filtered ? ϕqe(d, Cf, Cf̃, Cn̂, Cϕ) : ϕqe(d, Cf, Cf̃, Cn̂)
-end
-
 
 
 ###

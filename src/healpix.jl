@@ -232,7 +232,6 @@ broadcast_data(::Type{F}, f::F) where {F<:HealpixS0Cap} = (f.Ix,)
 broadcast_data(::Type{F}, f::F) where {F<:HealpixS2Cap} = (f.QUx,)
 metadata(::Type{F}, f::F) where {F<:HealpixCap} = (f.gradient_cache,)
 metadata_reduce((m1,)::Tuple{GC}, (m2,)::Tuple{GC}) where {GC<:Union{Nothing,GradientCache}} = (m1,)
-metadata_reduce((m1,)::Tuple,     (m2,)::Tuple) = error()
 
 LenseBasis(::Type{<:HealpixS0Cap}) = Map
 LenseBasis(::Type{<:HealpixS2Cap}) = QUMap

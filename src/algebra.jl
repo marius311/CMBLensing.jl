@@ -9,10 +9,10 @@
 # LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
 # BroadcastStyle definitions below do, and they return a Style{F} where F is the
 # final result type.
-broadcastable(f::Union{Field,LinOp}) = f
-BroadcastStyle(::Type{F}) where {F<:Union{Field,LinOp}} = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:Union{Field,LinOp}}   = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{n}) where {F<:Union{Field,LinOp},n} = DefaultArrayStyle{n}()
+broadcastable(f::FieldOrOp) = f
+BroadcastStyle(::Type{F}) where {F<:FieldOrOp} = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:FieldOrOp}   = Style{F}()
+BroadcastStyle(::Style{F}, ::DefaultArrayStyle{n}) where {F<:FieldOrOp,n} = DefaultArrayStyle{n}()
 BroadcastStyle(::Style{F}, ::Style{<:LinOp}) where {F<:Field} = Style{F}()
 BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
 BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
@@ -23,19 +23,22 @@ BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
 # specialize to return different things for different F's, e.g. ∂x returns a
 # different sized array depending on the Nside of F. These are a few generic
 # definitions:
-broadcast_data(f::F) where {F<:Field} = broadcast_data(F,f)
-broadcast_data(::Type{F}, f::F) where {F<:Field} = fieldvalues(f)
-broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:Field} = broadcast_data(F, L.f)
-broadcast_data(::Type{<:Field}, s::Scalar) = s
+broadcast_data(f::F) where {F<:FieldOrOp} = broadcast_data(F,f)
+broadcast_data(::Type{F}, f::F) where {F<:FieldOrOp} = fieldvalues(f)
+broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:FieldOrOp} = broadcast_data(F, L.f)
+broadcast_data(::Type{<:FieldOrOp}, s::Scalar) = s
 broadcast_data(::Any, x::Ref) = (x,) 
 
 
 # (3) Recursively reduce over any metadata that the fields may have
-metadata(::Type{<:Field}, ::Any) = ()
+# todo: should probably switch to metadata_reduce(F, m1, m2) to allow easier
+# customization for types F
+metadata(::Type{<:FieldOrOp}, ::Any) = ()
 metadata_reduce(m) = m
 metadata_reduce(::Tuple{}, m::Tuple) = m
 metadata_reduce(m::Tuple, ::Tuple{}) = m
 metadata_reduce(::Tuple{}, ::Tuple{}) = ()
+metadata_reduce(m1::Tuple, m2::Tuple) = m1==m2 ? m1 : error()
 metadata_reduce(bc::Broadcasted) = metadata_reduce(map(metadata_reduce, bc.args)...)
 metadata_reduce(a,b,c...) = metadata_reduce(metadata_reduce(a,b),c...)
 
@@ -56,16 +59,16 @@ deepen_bc(bc::Broadcasted) = Broadcasted((x...)->Broadcasted(bc.f, tuple(x...)),
 deepen_bc(x) = x
 
 # now the custom materialize functions, these ones for when the result type is a Field
-function _materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
+function _materialize(bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
     meta = metadata_reduce(replace_bc_args(bc, arg->metadata(F,arg)))
     bc′ = materialize(deepen_bc(replace_bc_args(bc, arg->broadcast_data(F,arg))))
     meta, bc′
 end
-function materialize(bc::Broadcasted{Style{F}}) where {F<:Field}
+function materialize(bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
     meta, bc′ = _materialize(bc)
     F(map(materialize, bc′)..., meta...)
 end
-function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:Field}
+function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
     meta, bc′ = _materialize(bc)
     metadata_reduce(meta, metadata(F,dest)) # check the metadata is reducable, even though we don't use the answer
     map(materialize!, broadcast_data(F,dest), bc′)

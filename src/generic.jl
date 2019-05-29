@@ -153,6 +153,7 @@ end
 # implicitly assume our maps are real, and addition/multiplication by a complex
 # number, even of the fourier transform, would break this.
 const Scalar = Real
+const FieldOrOp = Union{Field,LinOp}
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
 

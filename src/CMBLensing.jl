@@ -15,8 +15,10 @@ using JLD2
 using FileIO
 using Loess
 using LinearAlgebra
-using MacroTools: @capture, postwalk, isexpr
+using MacroTools: @capture, postwalk, isexpr, splitdef, combinedef
+using Match
 using Markdown
+using Memoize
 using Optim: optimize
 using Parameters
 using Printf
