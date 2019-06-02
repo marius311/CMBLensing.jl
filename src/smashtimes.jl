@@ -15,7 +15,7 @@ function materialize(bc::Broadcasted{FieldArrayStyle})
         materialize(sbc)
     end
 end
-function materialize!(dest, bc::Broadcasted{FieldArrayStyle})
+function materialize!(dest::F, bc::Broadcasted{FieldArrayStyle}) where {F<:FieldOrOp}
     sbc = simplify_bc(bc)
     if typeof(sbc) == typeof(bc)
         materialize!(dest, convert(Broadcasted{StaticArrayStyle{2}}, sbc))

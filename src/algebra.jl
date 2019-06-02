@@ -11,11 +11,13 @@
 # final result type.
 broadcastable(f::FieldOrOp) = f
 BroadcastStyle(::Type{F}) where {F<:FieldOrOp} = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{0}) where {F<:FieldOrOp}   = Style{F}()
-BroadcastStyle(::Style{F}, ::DefaultArrayStyle{n}) where {F<:FieldOrOp,n} = DefaultArrayStyle{n}()
-BroadcastStyle(::Style{F}, ::Style{<:LinOp}) where {F<:Field} = Style{F}()
-BroadcastStyle(::Style{F0}, ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
-BroadcastStyle(::Style{F},  ::Style{F})  where {F<:Field} = Style{F}()
+# rules:
+BroadcastStyle(::Style{F},       ::DefaultArrayStyle{0}) where {F<:FieldOrOp}   = Style{F}()
+BroadcastStyle(::Style{F},       ::DefaultArrayStyle{n}) where {F<:FieldOrOp,n} = DefaultArrayStyle{n}()
+BroadcastStyle(::Style{F},       ::Style{<:LinOp}) where {F<:Field} = Style{F}()
+BroadcastStyle(::Style{<:LinOp}, ::Style{<:LinOp}) = Style{LinOp}()
+BroadcastStyle(::Style{F0},      ::Style{F2}) where {P,F0<:Field{Map,S0,P},F2<:Field{QUMap,S2,P}} = Style{F2}()
+BroadcastStyle(::Style{F},       ::Style{F})  where {F<:Field} = Style{F}()
 
 # (2) Call broadcast_data(F,⋅) on each of the arguments being broadcasted over
 # to get the actual data which participates in the broadcast. This should return
@@ -67,6 +69,10 @@ end
 function materialize(bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
     meta, bc′ = _materialize(bc)
     F(map(materialize, bc′)..., meta...)
+end
+function materialize!(dest::F, bc::Broadcasted) where {F<:FieldOrOp}
+    # if bc didn't come resolved as Style{F}, force it to be since this is in-place:
+    materialize!(dest, convert(Broadcasted{Style{F}}, bc))
 end
 function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
     meta, bc′ = _materialize(bc)
