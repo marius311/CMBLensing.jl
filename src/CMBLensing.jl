@@ -1,7 +1,7 @@
 module CMBLensing
 
 using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
-using Base.Iterators: repeated
+using Base.Iterators: repeated, product
 using Base.Threads
 using Combinatorics
 using DataStructures

@@ -71,7 +71,7 @@ end
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulated if not provided)
 """
-function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=LenseFlow(ϕ)*f)
+function resimulate(ds::DataSet; L=LenseFlow, f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=L(ϕ)*f)
     @unpack M,P,B = ds
     DataSet(ds, d = M*P*B*f̃ + n)
 end
@@ -391,7 +391,7 @@ function MAP_joint(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(ds,false)[2]/2; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds,:EB).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
     try
@@ -589,7 +589,7 @@ function load_sim_dataset(;
     # put everything in DataSet
     ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B B̂ D G P)...)
     
-    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
+    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ Cℓn
     
 end
 
