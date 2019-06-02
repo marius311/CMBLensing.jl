@@ -13,7 +13,7 @@ struct InterpolatedCℓs{I} <: AbstractCℓs
     etp :: I
     concrete :: Bool
 end
-InterpolatedCℓs(ℓ,Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
+InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
 getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = first(ic.etp.itp.knots)
 getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.itp.coefs
@@ -41,22 +41,24 @@ toDℓ = FuncCℓs(ℓ -> ℓ*(ℓ+1)/2π)
 toCℓ = FuncCℓs(ℓ -> 2π/(ℓ*(ℓ+1)))
 
 # algebra with InterpolatedCℓs and FuncCℓs
-promote(ic::InterpolatedCℓs, fc::FuncCℓs) = (ic, InterpolatedCℓs(ic.ℓ, fc[ic.ℓ]))
+promote(ic::InterpolatedCℓs, fc::FuncCℓs) = (ic, InterpolatedCℓs(ic.ℓ, fc[ic.ℓ], concrete=fc.concrete))
 promote(fc::FuncCℓs, ic::InterpolatedCℓs) = reverse(promote(ic,fc))
 # todo: may make sense to hook into the broadcasting API and make much of
 # the below more succinct:
 for op in (:*, :/, :+, :-)
 	@eval ($op)(ac1::AbstractCℓs, ac2::AbstractCℓs) = ($op)(promote(ac1,ac2)...)
-    @eval ($op)(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = (ℓ = new_ℓs(ic1,ic2); InterpolatedCℓs(ℓ, broadcast($op,ic1[ℓ],ic2[ℓ])))
-    @eval ($op)(x::Real, ic::InterpolatedCℓs) = InterpolatedCℓs(ic.ℓ, broadcast($op,x,ic.Cℓ))
-    @eval ($op)(ic::InterpolatedCℓs, x::Real) = InterpolatedCℓs(ic.ℓ, broadcast($op,ic.Cℓ,x))
+    @eval ($op)(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = (ℓ = new_ℓs(ic1,ic2); InterpolatedCℓs(ℓ, broadcast($op,ic1[ℓ],ic2[ℓ]), concrete=(ic1.concrete||ic2.concrete)))
+    @eval ($op)(x::Real, ic::InterpolatedCℓs) = InterpolatedCℓs(ic.ℓ, broadcast($op,x,ic.Cℓ), concrete=ic.concrete)
+    @eval ($op)(ic::InterpolatedCℓs, x::Real) = InterpolatedCℓs(ic.ℓ, broadcast($op,ic.Cℓ,x), concrete=ic.concrete)
 	@eval ($op)(x::Real, fc::FuncCℓs) = FuncCℓs(ℓ -> ($op)(x,fc.f(ℓ)))
 	@eval ($op)(fc::FuncCℓs, x::Real) = FuncCℓs(ℓ -> ($op)(fc.f(ℓ),x))
 	@eval ($op)(fc1::FuncCℓs, fc2::FuncCℓs) = FuncCℓs(ℓ -> ($op)(fc1.f(ℓ),fc2.f(ℓ)))
 	@eval ($op)(fc::FuncCℓs, v::AbstractArray) = broadcast($op, fc, v)
 	@eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
 end
-
+for op in (:^, :sqrt)
+	@eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
+end
 
 # used to powerlaw extrapolate Cℓs at very high-ℓ (usually ℓ>6000) just so we
 # don't have deal with zeros / infinities there
@@ -67,8 +69,24 @@ function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
 	        @. (exp(itp(log(ℓout))))
 	    else
 	        LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
-	    end
+	    end,
+		concrete=false
 	)
+end
+
+function smooth(Cℓ::InterpolatedCℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.ℓ), xscale=:linear, yscale=:linear, smoothing=0.75)
+    (fx, fx⁻¹) = @match xscale begin
+        :linear => (identity, identity)
+        :log    => (log,      exp)
+        _ => throw(ArgumentError("'xscale' should be :log or :linear"))
+    end
+    (fy, fy⁻¹) = @match yscale begin
+        :linear => (identity, identity)
+        :log    => (log,      exp)
+        _ => throw(ArgumentError("'xscale' should be :log or :linear"))
+    end
+    
+    InterpolatedCℓs(newℓs, fy⁻¹(predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
 end
 
 
