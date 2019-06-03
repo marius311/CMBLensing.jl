@@ -28,7 +28,7 @@ BroadcastStyle(::Style{F},       ::Style{F})  where {F<:Field} = Style{F}()
 broadcast_data(f::F) where {F<:FieldOrOp} = broadcast_data(F,f)
 broadcast_data(::Type{F}, f::F) where {F<:FieldOrOp} = fieldvalues(f)
 broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F<:FieldOrOp} = broadcast_data(F, L.f)
-broadcast_data(::Type{<:FieldOrOp}, s::Scalar) = s
+broadcast_data(::Type{<:FieldOrOp}, s::Number) = s
 broadcast_data(::Any, x::Ref) = (x,) 
 
 

@@ -71,9 +71,14 @@ end
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulated if not provided)
 """
-function resimulate(ds::DataSet; L=LenseFlow, f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=L(ϕ)*f)
+function resimulate(ds::DataSet; L=LenseFlow, f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=L(ϕ)*f, return_truth=false)
     @unpack M,P,B = ds
-    DataSet(ds, d = M*P*B*f̃ + n)
+    @set! ds.d = M*P*B*f̃ + n
+    if return_truth
+        @ntpack ds f ϕ n f̃
+    else
+        ds
+    end
 end
 
 
@@ -391,7 +396,7 @@ function MAP_joint(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds,:EB).Nϕ/2; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
     
     try
@@ -470,7 +475,7 @@ function MAP_marg(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf), Cf, Cf̃, Cn̂)[2]; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ) # fix needing to get zero(ɸ) this way
