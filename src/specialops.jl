@@ -122,6 +122,10 @@ LowPass(ℓ,Δℓ=50)  = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($
 MidPass(ℓmin,ℓmax,Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-Δℓ);  @.(cos($linspace(π,0,2Δℓ))+1)/2; ones(ℓmax-ℓmin-2Δℓ); @.((cos($linspace(0,π,2Δℓ))+1)/2)])
 ud_grade(b::BandPassOp, args...; kwargs...) = b
 adjoint(L::BandPassOp) = L
+getproperty(L::BandPassOp, s::Symbol) = getproperty(L, Val(s))
+getproperty(L::BandPassOp, ::Val{s}) where {s} = getfield(L,s)
+getproperty(L::BandPassOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = L
+
 
 # An Op which turns all NaN's to zero
 const Squash = SymmetricFuncOp(op=x->broadcast(nan2zero,x))

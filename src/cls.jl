@@ -86,7 +86,7 @@ function smooth(Cℓ::InterpolatedCℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.
         _ => throw(ArgumentError("'xscale' should be :log or :linear"))
     end
     
-    InterpolatedCℓs(newℓs, fy⁻¹(predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
+    InterpolatedCℓs(newℓs, fy⁻¹(Loess.predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
 end
 
 

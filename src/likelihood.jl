@@ -33,14 +33,15 @@ D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
      ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))))
 
 # Stores variables needed to construct the likelihood
-@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
+@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TM,TM̂,TB,TB̂,TD,TG,TP}
     d  :: Td                # data
-    Cn :: TCn               # noise covariance
     Cϕ :: TCϕ               # ϕ covariance
     Cf :: TCf               # unlensed field covariance
     Cf̃ :: TCf̃ = nothing     # lensed field covariance (not always needed)
+    Cn :: TCn               # noise covariance
     Cn̂ :: TCn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
     M  :: TM  = 1           # user mask
+    M̂  :: TM̂  = M           # approximate user mask, diagonal in same basis as Cf
     B  :: TB  = 1           # beam and instrumental transfer functions
     B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
@@ -516,7 +517,7 @@ function load_sim_dataset(;
     Cn = nothing,
     seed = nothing,
     M = nothing,
-    B = nothing, B̂ = nothing,
+    B = nothing,
     D = nothing,
     G = nothing,
     ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # override any of these simulated fields
@@ -536,13 +537,6 @@ function load_sim_dataset(;
     
     # types which depend on whether T/E/B
     use = Symbol(use)
-    if (use == :EB)
-        @warn("switch to use=:P")
-        use = :P
-    elseif (use == :TEB)
-        @warn("switch to use=:TP")
-        use = :TP
-    end
     SS,ks = Dict(:TP=>((S0,S2),(:TT,:EE,:BB,:TE)), :P=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
     F,F̂,nF = Dict(:TP=>(FlatIQUMap,FlatTEBFourier,3), :P=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
     
@@ -574,9 +568,6 @@ function load_sim_dataset(;
     if (B == nothing)
         B = let ℓ=0:ℓmax; Cℓ_to_cov(T,Pix,SS..., (InterpolatedCℓs(ℓ, (k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2)))) for k=ks)...); end;
     end
-    if (B̂ == nothing)
-        B̂ = B
-    end
     
     # mixing matrices
     if (D == nothing); D = D_mix(Cf,rfid=rfid); end
@@ -592,7 +583,7 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B B̂ D G P)...)
+    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B D G P)...)
     
     return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ Cℓn
     

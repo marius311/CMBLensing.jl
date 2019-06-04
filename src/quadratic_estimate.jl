@@ -9,9 +9,9 @@ Compute quadratic estimate of ϕ given data.
 
 The `ds` or `(ds1,ds2)` tuple contain the DataSet object(s) which houses the
 data and covariances used in the estimate. Note that only the Fourier-diagonal
-approximations for the beam and noise, `ds.B̂` and `ds.Cn̂`, are accounted for,
-and the mask `M` is completely ignored. To account for these fully, you should
-compute their impact using Monte Carlo.
+approximations for the beam, mask, and noise,, i.e. `ds.B̂`, `ds.M̂`, and
+`ds.Cn̂`, are accounted for. To account full operators (if they are not actually
+Fourier-diagonal), you should compute the impact using Monte Carlo.
 
 If a tuple is passed in, the result will come from correlating the data from
 `ds1` with that from `ds2`, which can be useful for debugging / isolating
@@ -32,14 +32,14 @@ function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wi
         ds1 = subblock(ds1, (which==:TT) ? :T : :P)
         ds2 = subblock(ds2, (which==:TT) ? :T : :P)
     end
-    @unpack Cf, Cf̃, Cn̂, Cϕ, B̂ = ds1
+    @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds1
     quadratic_estimate_func = @match which begin
         :TT => quadratic_estimate_TT
         :EE => quadratic_estimate_EE
         :EB => quadratic_estimate_EB
         _   => error("`which` argument to `quadratic_estimate` should be one of (:TT, :EE, :EB)")
     end
-    quadratic_estimate_func((ds1.d, ds2.d), Cf, Cf̃, Cn̂, Cϕ, wiener_filtered, Nϕ)
+    quadratic_estimate_func((ds1.d, ds2.d), Cf, Cf̃, Cn̂, Cϕ, M̂*B̂, wiener_filtered, Nϕ)
 end
 quadratic_estimate(ds::DataSet, which; kwargs...) = quadratic_estimate((ds,ds), which; kwargs...)
 quadratic_estimate(ds::DataSet{<:Field{<:Any,S0}}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
@@ -93,20 +93,21 @@ end
 inds(n) = collect(product(repeated(1:2,n)...))[:]
 
 
-
-function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, wiener_filtered, Nϕ=nothing)
+function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing)
 
     term = get_term_memoizer(d1)
+    ΣTtot = TF^2 * Cf̃ + Cn
+    CT = Cf
     
     # unnormalized estimate
-    ϕqe_unnormalized = @subst -sum(∇[i] * Fourier(term($((Cf̃+Cn)\d1)) * term($(Cf*((Cf̃+Cn)\d2)), [i])) for i=1:2)
+    ϕqe_unnormalized = @subst -sum(∇[i] * Fourier(term($(ΣTtot\(TF*d1))) * term($(CT*(ΣTtot\(TF*d2))), [i])) for i=1:2)
     
     # normalization
     if Nϕ == nothing
         Nϕ = @subst begin
             A(i,j) = (
-                term($(@. Cf^2 / (Cf̃+Cn)), [i], [j]) * term($(@. 1  / (Cf̃+Cn))     )
-              + term($(@. Cf   / (Cf̃+Cn)), [i]     ) * term($(@. Cf / (Cf̃+Cn)), [j])
+                term($(@. TF^2 * CT^2 / ΣTtot), [i], [j]) * term($(@. TF^2      / ΣTtot)     )
+              + term($(@. TF^2 * CT   / ΣTtot), [i]     ) * term($(@. TF^2 * CT / ΣTtot), [j])
             )
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A(i,j)) for (i,j) in inds(2))))
         end
@@ -119,16 +120,18 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, wie
 end
 
 
-function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wiener_filtered, Nϕ=nothing)
+function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing)
     
     term = get_term_memoizer(d1.E)
-    (CE, CẼ, CEn) = (Cf[:E], Cf̃[:E], Cn[:E])
+    TF² = TF[:E]^2
+    ΣEtot = TF² * Cf̃[:E] + Cn[:E]
+    CE = Cf[:E]
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
         I(i) = -(
-            2sum(term($(CE * ((CẼ+CEn) \ d1.E)), [i], j, k) * term($(((CẼ+CEn) \ d2.E)), j, k) for (j,k) in inds(2))
-               - term($(CE * ((CẼ+CEn) \ d1.E)), [i]      ) * term($(((CẼ+CEn) \ d2.E))      )
+            2sum(term($(CE * (ΣEtot \ (TF*d1).E)), [i], j, k) * term($((ΣEtot \ (TF*d2).E)), j, k) for (j,k) in inds(2))
+               - term($(CE * (ΣEtot \ (TF*d1).E)), [i]      ) * term($((ΣEtot \ (TF*d2).E))      )
         )
         sum(∇[i] * Fourier(I(i)) for i=1:2)
     end
@@ -137,13 +140,13 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
     if Nϕ == nothing
         Nϕ = @subst begin
             A1(i,j) = -4 * sum( ϵ(m,p,3) * ϵ(n,q,3) * (
-                  term($(@. CE^2 / (CẼ+CEn)), [i], [j], k, l, m, n) * term($(@. 1    / (CẼ+CEn)),           k, l, p, q)
-                + term($(@. CE   / (CẼ+CEn)), [i],      k, l, m, n) * term($(@. CE   / (CẼ+CEn)),      [j], k, l, p, q))
+                  term($(@. TF² * CE^2 / ΣEtot), [i], [j], k, l, m, n) * term($(@. TF²      / ΣEtot),      k, l, p, q)
+                + term($(@. TF² * CE   / ΣEtot), [i],      k, l, m, n) * term($(@. TF² * CE / ΣEtot), [j], k, l, p, q))
                 for (k,l,m,n,p,q) in inds(6)
             )
             A2(i,j) = (
-                  term($(@. CE^2 / (CẼ+CEn)), [i], [j]) * term($(@. 1    / (CẼ+CEn))     )
-                + term($(@. CE   / (CẼ+CEn)), [i]     ) * term($(@. CE   / (CẼ+CEn)), [j])
+                  term($(@. TF² * CE^2 / ΣEtot), [i], [j]) * term($(@. TF²      / ΣEtot)     )
+                + term($(@. TF² * CE   / ΣEtot), [i]     ) * term($(@. TF² * CE / ΣEtot), [j])
             )
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
         end
@@ -156,18 +159,19 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
 end
 
 
-function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wiener_filtered, Nϕ=nothing; zeroB=false)
+function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing; zeroB=false)
     
     term = get_term_memoizer(d1.E)
-    (CE, CB)   = (Cf[:E], Cf[:B])
-    (CẼ, CB̃)   = (Cf̃[:E], Cf̃[:B])
-    (CEn, CBn) = (Cn[:E], Cn[:B])
+    CE, CB = Cf[:E], Cf[:B]
+    TF²E, TF²B = TF[:E]^2, TF[:B]^2
+    ΣEtot = TF²E * Cf̃[:E] + Cn[:E]
+    ΣBtot = TF²B * Cf̃[:B] + Cn[:B]
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
         I(i) = 2 * sum(  ϵ(k,l,3) * (
-                           term($(CE * ((CẼ+CEn) \ d1.E)), [i], j, k) * term($(     ((CB̃+CBn) \ d2.B)),      j, l)
-            - (zeroB ? 0 : term($(      (CẼ+CEn) \ d1.E),       j, k) * term($(CB * ((CB̃+CBn) \ d2.B)), [i], j, l)))
+                           term($(CE * (ΣEtot \ (TF*d1).E)), [i], j, k) * term($(     (ΣBtot \ (TF*d2).B)),      j, l)
+            - (zeroB ? 0 : term($(      ΣEtot \ (TF*d1).E),       j, k) * term($(CB * (ΣBtot \ (TF*d2).B)), [i], j, l)))
             for (j,k,l) in inds(3)
         )
         sum(∇[i] * Fourier(I(i)) for i=1:2)
@@ -177,9 +181,9 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
     if Nϕ == nothing
         Nϕ = @subst begin
             @sym_memo A(@sym(i,j)) = 4 * sum( ϵ(m,p,3) * ϵ(n,q,3) * (
-                                 term($(@. CE^2 / (CẼ+CEn)), [i], [j], k, l, m, n) * term($(@. 1    / (CB̃+CBn)),           k, l, p, q)
-                + (zeroB ? 0 : -2term($(@. CE   / (CẼ+CEn)), [i],      k, l, m, n) * term($(@. CB   / (CB̃+CBn)),      [j], k, l, p, q))
-                + (zeroB ? 0 :   term($(@. 1    / (CẼ+CEn)),           k, l, m, n) * term($(@. CB^2 / (CB̃+CBn)), [i], [j], k, l, p, q)))
+                                 term($(@. TF²E * CE^2 / ΣEtot), [i], [j], k, l, m, n) * term($(@. TF²B        / ΣBtot),           k, l, p, q)
+                + (zeroB ? 0 : -2term($(@. TF²E * CE   / ΣEtot), [i],      k, l, m, n) * term($(@. TF²B * CB   / ΣBtot),      [j], k, l, p, q))
+                + (zeroB ? 0 :   term($(@. TF²E        / ΣEtot),           k, l, m, n) * term($(@. TF²B * CB^2 / ΣBtot), [i], [j], k, l, p, q)))
                 for (k,l,m,n,p,q) in inds(6)
             )
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A(i,j)) for i=1:2,j=1:2)))

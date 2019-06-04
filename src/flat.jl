@@ -214,8 +214,11 @@ mul!(v::FlatS0Map{T,P}, a::AdjField{Map,S0,P,F}, b::F) where {T,P,F<:FlatS0Map{T
 # bandpass
 HarmonicBasis(::Type{<:FlatS0}) = Fourier
 HarmonicBasis(::Type{<:FlatS2}) = QUFourier
-broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
+broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:BaseFlatFourier{T,P}} =
     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],)
+*(D::FullDiagOp{F}, L::BandPassOp) where {T,P,F<:BaseFlatFourier{T,P}} = L*D
+*(L::BandPassOp, D::FullDiagOp{F}) where {T,P,F<:BaseFlatFourier{T,P}} =
+    Cℓ_to_cov(T,P,spin(D.f),fill(InterpolatedCℓs(L.ℓ,L.Wℓ), spin(D.f)==S0 ? 1 : 2)...) * D
 
 
 # allows std and var of a Vector of FlatFields to work
