@@ -98,6 +98,16 @@ end
 # the @! macro, which just rewrites @! x = f(y) to x = f!(x,y) for easier
 # reading. 
 
+velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = @… (cache=L.cache) p' * (∇ᵢ*f)
+
+velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = @… (cache=L.cache) (f*p)
+
+memcache = @allocate_temp_arrays_for L(ϕ)*f
+
+@use_memcache memcache L(ϕ)*f
+
+
+
 function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
     p = L.p[τ(t)]
@@ -105,7 +115,7 @@ function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     @! Ðf  = Ð(f)
     @! Ð∇f = ∇ᵢ*Ðf
     @! Ł∇f = Ł(Ð∇f)
-    @. v  = p' ⨳ Ł∇f
+    @… v  = p' * Ł∇f
 end
 
 function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
@@ -135,11 +145,11 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
     @! Ðf     = Ð(f)
     @! Ð∇f    = ∇ᵢ * Ðf
     @! Ł∇f    = Ł(Ð∇f)
-    @. df_dt  = p' ⨳ Ł∇f
+    @… df_dt  = p' * Ł∇f
 
     # dδϕ/dt
     δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
-    @! δfᵀ_∇f       = Łδf' * Ł∇f
+    @! δfᵀ_∇f       = spin_adjoint(Łδf) * Ł∇f
     @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
     @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
     @! dδϕ_dt       = ∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f

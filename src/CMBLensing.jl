@@ -1,8 +1,9 @@
 module CMBLensing
 
-using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle
+using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle, ArrayStyle
 using Base.Iterators: repeated
 using Base.Threads
+using Base: @propagate_inbounds
 using Combinatorics
 using DataStructures
 using Distributed
@@ -38,11 +39,12 @@ using Strided
 
 
 
+
 import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, broadcastable,
     BroadcastStyle, convert, copy, eltype, getindex, getproperty, inv, iterate,
     length, literal_pow, materialize!, materialize, one, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, similar, size, sqrt, sqrt,
-    transpose, zero
+    promote_rule, promote_type, propertynames, real, setindex!, similar, size,
+    sqrt, sqrt, transpose, zero
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 import PyPlot: plot, loglog, semilogx, semilogy
 
@@ -64,22 +66,22 @@ include("util.jl")
 include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
-include("specialops.jl")
-include("algebra.jl")
-include("smashtimes.jl")
-include("field_tuples.jl")
-include("lensing.jl")
+# include("specialops.jl")
+# include("algebra.jl")
+# include("smashtimes.jl")
+# include("field_tuples.jl")
+# include("lensing.jl")
 include("flat.jl")
-include("healpix.jl")
-include("taylens.jl")
-include("vec_conv.jl")
-include("plotting.jl")
-include("likelihood.jl")
-include("sampling.jl")
-include("minimize.jl")
-include("masking.jl")
-include("quadratic_estimate.jl")
-include("properties.jl")
-include("weave_pyplot.jl")
+# include("healpix.jl")
+# include("taylens.jl")
+# include("vec_conv.jl")
+# include("plotting.jl")
+# include("likelihood.jl")
+# include("sampling.jl")
+# include("minimize.jl")
+# include("masking.jl")
+# include("quadratic_estimate.jl")
+# include("properties.jl")
+# include("weave_pyplot.jl")
 
 end

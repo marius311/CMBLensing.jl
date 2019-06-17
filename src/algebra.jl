@@ -1,9 +1,23 @@
 
 ### broadcasting over combinations of Scalars, Fields, and LinDiagOps
 
-# Broadcasted expressions are evaluated in four phases, hooking into the Julia
-# broadcasting API (https://docs.julialang.org/en/latest/manual/interfaces/#man-interfaces-broadcasting-1)
-# The four phases are:
+# 
+# CMBLensing broadcasting basically works by turning expressions like:
+# 
+# ∂ * f + g
+# 
+# into:
+# 
+# broadcast_data(F,∂) .* broadcast_data(F,f) .+ broadcast_data(F,g)
+# 
+# where F is the inferred result type of the expression. For fields,
+# `broadcast_data` just returns the matrix storing the map(s). The fact that F
+# appears as an argument to `broadcast_data` means that things like derivative
+# operators, ∂, can return an array appropriate for a given result type. 
+# 
+
+
+# We hook into the Julia broadcasting API (https://docs.julialang.org/en/latest/manual/interfaces/#man-interfaces-broadcasting-1)
 
 # (1) Infer the type of the result, e.g. Field+Scalar=Field,
 # LinDiagOp*Field=Field, or LinDiagOp+LinDiagOp=LinDiagOp. This is what the
@@ -43,46 +57,8 @@ metadata_reduce(bc::Broadcasted) = metadata_reduce(map(metadata_reduce, bc.args)
 metadata_reduce(a,b,c...) = metadata_reduce(metadata_reduce(a,b),c...)
 
 
-# (4) Finally, we intercept the broadcast machinery at the materialize function,
-# and modify the Broadcasted object there to replace all the args with
-# broadcast_data(F,arg), and then forward the broadcast one level deeper to
-# the tuples returned by broadcast_data.
 
-# recursively replaces all arguments in a Broadcasted object with new_arg(arg)
-# e.g. replace_bc_args(Broadcasted(+,(1,2)), x->2x) = Broadcasted(+,(2,4))
-replace_bc_args(bc::Broadcasted{S}, new_arg) where {S} = Broadcasted{S}(bc.f, map(replace_bc_args, bc.args, map(_->new_arg, bc.args)))
-replace_bc_args(arg, new_arg) = new_arg(arg)
-# forward the broadcast one level "deeper", eg here is what happens when you
-# then apply materialize to the output of this function:
-# materialize(deepen_bc(Broadcasted(+,((1,2),(3,4))))) =  (Broadcasted(+,(1,3)), Broadcasted(+,(2,4)))
-deepen_bc(bc::Broadcasted) = Broadcasted((x...)->Broadcasted(bc.f, tuple(x...)), map(deepen_bc, bc.args))
-deepen_bc(x) = x
 
-# now the custom materialize functions, these ones for when the result type is a Field
-function _materialize(bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
-    meta = metadata_reduce(replace_bc_args(bc, arg->metadata(F,arg)))
-    bc′ = materialize(deepen_bc(replace_bc_args(bc, arg->broadcast_data(F,arg))))
-    meta, bc′
-end
-function materialize(bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
-    meta, bc′ = _materialize(bc)
-    F(map(materialize, bc′)..., meta...)
-end
-function materialize!(dest::F, bc::Broadcasted{Style{F}}) where {F<:FieldOrOp}
-    meta, bc′ = _materialize(bc)
-    metadata_reduce(meta, metadata(F,dest)) # check the metadata is reducable, even though we don't use the answer
-    map(materialize!, broadcast_data(F,dest), bc′)
-    dest
-end
-# and for when the result type is a FullDiagOp
-materialize(bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
-    FullDiagOp(materialize(convert(Broadcasted{Style{F}}, bc)))
-materialize!(dest, bc::Broadcasted{<:Style{<:FullDiagOp{F}}}) where {F<:Field} = 
-    (materialize!(dest.f, convert(Broadcasted{Style{F}}, bc)); dest)
-# fallback for things we can't broadcast, e.g. `∂x .* ∂x` alone without a field
-cant_broadcast() = error("Can't broadcast this expression.")
-materialize(bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()
-materialize!(dest, bc::Broadcasted{<:Style{<:LinDiagOp}}) where {F<:Field} = cant_broadcast()
 
 
 
