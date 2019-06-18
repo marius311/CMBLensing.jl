@@ -9,8 +9,8 @@ struct map∂ <: ∂modes end
 promote_type(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 
 # Flat{θpix,Nside,∂mode} is a flat sky pixelization with `Nside` pixels per side
-# and pixels of width `Θpix` arcmins, where derivatives are done according to ∂mode
-abstract type Flat{Nside,Θpix,∂mode<:∂modes} <: Pix end
+# and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
+abstract type Flat{Nside,θpix,∂mode<:∂modes} <: Pix end
 
 # for convenience
 Nside(::Type{P}) where {N,P<:Flat{N}} = N
@@ -46,10 +46,10 @@ function FFTgrid(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=
 end
 
 
-# Use generated functions to get planned FFT's only once for any given (T, Θpix,
+# Use generated functions to get planned FFT's only once for any given (T, θpix,
 # Nside) combination
-@generated function FFTgrid(::Type{T},::Type{P}) where {Θpix, Nside, T<:Real,P<:Flat{Nside,Θpix}}
-    FFTgrid(T, deg2rad(Θpix/60)*Nside, Nside)
+@generated function FFTgrid(::Type{T},::Type{P}) where {θpix, Nside, T<:Real,P<:Flat{Nside,θpix}}
+    FFTgrid(T, deg2rad(θpix/60)*Nside, Nside)
 end
 
 # some syntatic sugar for applying the FFT plans stored in FFTgrid
