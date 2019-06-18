@@ -1,9 +1,9 @@
 module CMBLensing
 
-using Base.Broadcast: Broadcasted, Style, flatten, DefaultArrayStyle, ArrayStyle
+using Base.Broadcast: ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, Style
 using Base.Iterators: repeated
 using Base.Threads
-using Base: @propagate_inbounds
+using Base: @propagate_inbounds, show_vector
 using Combinatorics
 using DataStructures
 using Distributed
@@ -40,13 +40,16 @@ using Strided
 
 
 
-import Base: +, -, *, \, /, ^, ~, adjoint, broadcast, broadcastable,
-    BroadcastStyle, convert, copy, eltype, getindex, getproperty, inv, iterate,
-    length, literal_pow, materialize!, materialize, one, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, setindex!, similar, size,
-    sqrt, sqrt, transpose, zero
+import Base: +, -, *, \, /, ^, ~,
+    adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, eltype,
+    getindex, getproperty, inv, iterate, keys, length, literal_pow,
+    materialize!, materialize, one, print_array, promote, promote_rule,
+    promote_rule, promote_type, propertynames, real, setindex!, show, similar,
+    size, sqrt, sqrt, summary, transpose, zero
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 import PyPlot: plot, loglog, semilogx, semilogy
+
+
 
 
 export
@@ -70,8 +73,8 @@ include("cls.jl")
 # include("algebra.jl")
 # include("smashtimes.jl")
 # include("lensing.jl")
+include("field_tuples.jl")
 include("flat.jl")
-include("field_tuples_idea.jl")
 # include("healpix.jl")
 # include("taylens.jl")
 # include("vec_conv.jl")

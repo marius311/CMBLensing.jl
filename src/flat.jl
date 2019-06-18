@@ -98,7 +98,7 @@ spectrum will be given by pixwin(θpix, ℓ)^2.
 pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 
 include("flat_s0.jl")
-# include("flat_s2.jl")
+include("flat_s2.jl")
 # include("flat_s0s2.jl")
 # 
 # Some Unions to specify various S0, S2, or S02 fields

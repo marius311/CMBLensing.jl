@@ -21,8 +21,8 @@ FlatFourier(Il; θpix=θpix₀, ∂mode=fourier∂) = FlatFourier{Flat{size(Il,2
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 
 ## pretty printing
-Base.print_array(io::IO, f::FlatS0) = Base.print_array(io, broadcast_data(f)[:])
-Base.summary(io::IO, f::F) where {N,θpix,∂mode,F<:FlatS0{Flat{N,θpix,∂mode}}} = 
+print_array(io::IO, f::FlatS0) = print_array(io, broadcast_data(f)[:])
+summary(io::IO, f::F) where {N,θpix,∂mode,F<:FlatS0{Flat{N,θpix,∂mode}}} = 
 print(io, "$(length(f))-element $(F.name.name){$N×$N map, $(θpix)′ pixels, $(∂mode.name.name)}")
 
 ## array interface 
