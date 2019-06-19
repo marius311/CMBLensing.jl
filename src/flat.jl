@@ -6,7 +6,7 @@ export Flat, FFTgrid, FlatIQUMap, get_Cℓ
 abstract type ∂modes end
 struct fourier∂ <: ∂modes end
 struct map∂ <: ∂modes end
-promote_type(::Type{map∂}, ::Type{fourier∂}) = fourier∂
+promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 
 # Flat{θpix,Nside,∂mode} is a flat sky pixelization with `Nside` pixels per side
 # and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
@@ -31,9 +31,9 @@ struct FFTgrid{T,F}
     sincos2ϕ :: Tuple{Matrix{T},Matrix{T}}
     FFT :: F
 end
-
+ 
 # use @generated function to memoize FFTgrid for given (T,θ,Nside) combinations
-FFTgrid(::Type{T},::Type{<:Flat{Nside,θpix}}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
+FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
 @generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
     Δx  = deg2rad(θpix/60)
     FFTW.set_num_threads(Sys.CPU_THREADS)
@@ -56,7 +56,7 @@ Cℓ_2D(::Type{P}, ℓ, Cℓ) where {N,P<:Flat{N}} = Cℓ_2D(ℓ,Cℓ,FFTgrid(Fl
 corresponds to exactly the nyquist frequency """
 function Mnyq(::Type{T},::Type{P}, M) where {T,N,P<:Flat{N}}
     if iseven(N)
-        inyq = first((1:N)[@. FFTgrid(T,P).k ≈ -FFTgrid(T,P).nyq])
+        inyq = first((1:N)[@. FFTgrid(P,T).k ≈ -FFTgrid(P,T).nyq])
         M[inyq,:] .= 0
         M[:,inyq] .= 0
     end
@@ -77,46 +77,26 @@ pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 
 include("flat_s0.jl")
 include("flat_s2.jl")
-# include("flat_s0s2.jl")
-# 
-# Some Unions to specify various S0, S2, or S02 fields
-# const FlatMap{T,P}     = Union{FlatS0Map{T,P},     FlatS2Map{T,P},     FieldTuple{<:Tuple{FlatS0Map{T,P},    FlatS2Map{T,P}}}}
-# const FlatFourier{T,P} = Union{FlatS0Fourier{T,P}, FlatS2Fourier{T,P}, FieldTuple{<:Tuple{FlatS0Fourier{T,P},FlatS2Fourier{T,P}}}}
-# const FlatField{T,P}   = Union{FlatS0{T,P},        FlatS2{T,P},        FlatS02{T,P}}
-# 
-# "Base" fields are the fields which have they own non-FieldTuple concrete types,
-# i.e. S0 and S2. Fields like S02 are still flat fields but they're not "Base"
-# because they are implemented as a FieldTuple of (S0,S2). 
-# const BaseFlatMap{T,P}       = Union{FlatS0Map{T,P},     FlatS2Map{T,P}}
-# const BaseFlatFourier{T,P}   = Union{FlatS0Fourier{T,P}, FlatS2Fourier{T,P}}
-# const BaseFlatField{T,P}     = Union{FlatS0{T,P},        FlatS2{T,P}}
-# 
-# ## promotion
-# 
-# function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:BaseFlatField{T1,Flat{θ1,N1,∂mode1}},T2,θ2,N2,∂mode2,F2<:BaseFlatField{T2,Flat{θ2,N2,∂mode2}}}
-#     T     = promote_type(T1,T2)
-#     B     = promote_type(basis(F1),basis(F2))
-#     ∂mode = promote_type(∂mode1,∂mode2)
-#     B(T(∂mode(f1))), B(T(∂mode(f2)))
-# end
-# 
-# 
-# ## conversion
-# 
-# # e.g. Float32(f::FlatField) or Float64(f::FlatField)
-# (::Type{T′})(f::F) where {T′<:Real,T,P,F<:BaseFlatMap{T,P}} = 
-#     basetype(F){T′,P}(convert.(Matrix{T′}, fieldvalues(f))...)
-# (::Type{T′})(f::F) where {T′<:Real,T,P,F<:BaseFlatFourier{T,P}} = 
-#     basetype(F){T′,P}(convert.(Matrix{Complex{T′}}, fieldvalues(f))...)
-# # map∂(f::FlatField) or fourier∂(f::FlatField)
-# (::Type{∂mode})(f::F) where {∂mode<:∂modes,T,θ,N,F<:BaseFlatField{T,<:Flat{θ,N}}} = 
-#     basetype(F){T,Flat{θ,N,∂mode}}(fieldvalues(f)...)
-# 
-# 
-# FFTgrid(::FlatField{T,P}) where {T,P} = FFTgrid(T,P)
-# 
-# eltype(::Type{<:FlatField{T}}) where {T} = T
-# 
+
+## promotion
+
+function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatS0{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatS0{Flat{θ2,N2,∂mode2},T2}}
+    T     = promote_type(T1,T2)
+    B     = promote_type(basis(F1),basis(F2))
+    ∂mode = promote_type(∂mode1,∂mode2)
+    B(T(∂mode(f1))), B(T(∂mode(f2)))
+end
+
+## conversion
+
+(::Type{T})(f::FlatMap{P}) where {T<:Real,P} =  FlatMap{P}(convert(Matrix{T}, f.Ix))
+(::Type{T})(f::FlatFourier{P}) where {T<:Real,P} =  FlatFourier{P}(convert(Matrix{Complex{T}}, f.Il))
+(::Type{∂mode})(f::F) where {∂mode<:∂modes,θ,N,F<:FlatS0{<:Flat{θ,N}}} = basetype(F){Flat{θ,N,∂mode}}(fieldvalues(f)...)
+
+
+FFTgrid(::FlatS0{P,T}) where {P,T} = FFTgrid(P,T)
+
+
 # broadcast_data(::Type{F}, f::F) where {F<:BaseFlatField} = map(StridedView, fieldvalues(f))
 # broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = broadcast_data(F0,f)
 # *(f0::FlatS0Map, f2::FlatS2Map) = f0 .* f2
@@ -124,19 +104,18 @@ include("flat_s2.jl")
 # 
 # ## derivatives
 # 
-# # fourier space derivatives
-# DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
-# DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,fourier∂}}}) where {T,θ,N} = QUFourier
-# @generated function broadcast_data(::Type{<:BaseFlatFourier{T,P}}, ∇i::Union{∇i{coord},AdjOp{<:∇i{coord}}}) where {coord,T,P}
-#     α = ∇i isa AdjOp ? -im : im
-#     if coord==0
-#         (α * FFTgrid(T,P).k',)
-#     elseif coord==1
-#         (α * FFTgrid(T,P).k[1:Nside(P)÷2+1],)
-#     end
-# end
+# fourier space derivatives
+DerivBasis(::Type{<:FlatS0{Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
+@generated function broadcast_data(::Type{<:FlatFourier{P,T}}, ∇i::∇i{coord}) where {coord,P,T}
+    α = im #∇i isa AdjOp ? -im : im
+    if coord==0
+        α * FFTgrid(P,T).k'
+    elseif coord==1
+        α * FFTgrid(P,T).k[1:Nside(P)÷2+1]
+    end
+end
 # @generated function broadcast_data(::Type{<:BaseFlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
-#     (FFTgrid(T,P).k' .^2 .+ FFTgrid(T,P).k[1:Nside(P)÷2+1].^2,)
+#     (FFTgrid(P,T).k' .^2 .+ FFTgrid(P,T).k[1:Nside(P)÷2+1].^2,)
 # end
 # mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
 # ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
@@ -193,7 +172,7 @@ include("flat_s2.jl")
 # HarmonicBasis(::Type{<:FlatS0}) = Fourier
 # HarmonicBasis(::Type{<:FlatS2}) = QUFourier
 # broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
-#     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(T,P).r)[1:Nside(P)÷2+1,:],)
+#     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(P,T).r)[1:Nside(P)÷2+1,:],)
 # 
 # 
 # # allows std and var of a Vector of FlatFields to work

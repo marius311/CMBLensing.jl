@@ -22,8 +22,8 @@ FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,
 
 ## pretty printing
 print_array(io::IO, f::FlatS0) = print_array(io, broadcast_data(f)[:])
-summary(io::IO, f::F) where {N,θpix,∂mode,F<:FlatS0{Flat{N,θpix,∂mode}}} = 
-print(io, "$(length(f))-element $(F.name.name){$N×$N map, $(θpix)′ pixels, $(∂mode.name.name)}")
+summary(io::IO, f::F) where {N,θpix,∂mode,T,F<:FlatS0{Flat{N,θpix,∂mode},T}} = 
+    print(io, "$(length(f))-element $(F.name.name){$T, $N×$N map, $(θpix)′ pixels, $(∂mode.name.name)}")
 
 ## array interface 
 size(f::FlatS0) = (length(broadcast_data(f)),)
@@ -34,33 +34,35 @@ similar(f::F) where {F<:FlatS0} = F(similar(broadcast_data(f)))
 ## broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
 BroadcastStyle(::Style{FieldTuple}, ::ArrayStyle{<:FlatS0}) = Style{FieldTuple}()
-similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatS0{P}} = FlatMap{P}(similar(Array{T}, N, N))
+similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatMap{P}} = FlatMap{P}(similar(Array{T}, N, N))
+similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatFourier{P}} = FlatFourier{P}(similar(Array{T}, N÷2+1, N))
 function preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:Field}
     bc′ = flatten(bc)
     Broadcasted{Nothing}(bc′.f, map(arg->broadcast_data(F,arg), bc′.args), axes(dest))
 end
-broadcast_data(::Any, f) = f
-broadcast_data(f::FlatS0) = first(fieldvalues(f))
+broadcast_data(::Any, x::Number) = x
+broadcast_data(f::F) where {F} = broadcast_data(F,f)
+broadcast_data(::Type{<:FlatS0{P}}, f::F) where {P, F<:FlatS0{P}} = first(fieldvalues(f))
 
 
 ## convenience conversion funtions:
-Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(T,P).FFT * f.Ix)
-Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(T,P).FFT \ f.Il)
+Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(P,T).FFT * f.Ix)
+Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(P,T).FFT \ f.Il)
 
 ## inplace conversions
-Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(T,P).FFT, f.Ix); f′)
-Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(T,P).FFT, f.Il); f′)
+Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(P,T).FFT, f.Ix); f′)
+Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
 
 # 
 # LenseBasis(::Type{<:FlatS0}) = Map
 # 
 # function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,P}}
-#     FlatMap{T,P}(randn(Nside,Nside) / FFTgrid(T,P).Δx)
+#     FlatMap{T,P}(randn(Nside,Nside) / FFTgrid(P,T).Δx)
 # end
 # 
 # """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
 # function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, CℓTT::InterpolatedCℓs) where {T,P}
-#     g = FFTgrid(T,P)
+#     g = FFTgrid(P,T)
 #     FullDiagOp(FlatFourier{T,P}(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.nside÷2+1,:]))
 # end
 # 
@@ -70,7 +72,7 @@ Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, F
 # end
 # 
 # function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1) where {T,P}
-#     g = FFTgrid(T,P)
+#     g = FFTgrid(P,T)
 #     α = g.Δx^2/(4π^2)*g.nside^2
 # 
 #     L = g.r[:]
@@ -89,9 +91,9 @@ Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, F
 # one(::Type{<:FlatFourier{T,P}}) where {T,P} = FlatFourier{T,P}(ones(Complex{T},Nside(P)÷2+1,Nside(P)))
 # 
 # # dot products
-# dot(a::FlatMap{T,P}, b::FlatMap{T,P}) where {T,P} = dot(a.Ix,b.Ix) * FFTgrid(T,P).Δx^2
+# dot(a::FlatMap{T,P}, b::FlatMap{T,P}) where {T,P} = dot(a.Ix,b.Ix) * FFTgrid(P,T).Δx^2
 # dot(a::FlatFourier{T,P}, b::FlatFourier{T,P}) where {T,P} = begin
-#     @unpack nside,Δℓ = FFTgrid(T,P)
+#     @unpack nside,Δℓ = FFTgrid(P,T)
 #     if isodd(nside)
 #         @views real(2 * (a.Tl[2:end,:][:] ⋅ b.Tl[2:end,:][:]) + (a.Tl[1,:][:] ⋅ b.Tl[1,:][:])) * Δℓ^2
 #     else
@@ -142,7 +144,7 @@ Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, F
 #     if θnew>θ
 #         # downgrade
 #         if anti_aliasing
-#             kmask = ifelse.(abs.(FFTgrid(T,P).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
+#             kmask = ifelse.(abs.(FFTgrid(P,T).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
 #             AA = FullDiagOp(FlatFourier{T,P}(kmask[1:N÷2+1] .* kmask'))
 #         else
 #             AA = 1

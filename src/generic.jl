@@ -75,55 +75,60 @@ abstract type Basislike <: Basis end
 # 
 # 
 # 
-# ### LinOp
+### LinOp
+
+#
+# A LinOp{B,S,P} represents a linear operator which acts on a field with a
+# particular pixelization scheme P and spin S. The meaning of basis B is not
+# that the operator is stored in this basis, but rather that fields should be
+# converted to this basis before the operator is applied (this makes writing the
+# implementing functions somewhat more convenient)
 # 
-# #
-# # A LinOp{B,S,P} represents a linear operator which acts on a field with a
-# # particular pixelization scheme P and spin S. The meaning of basis B is not
-# # that the operator is stored in this basis, but rather that fields should be
-# # converted to this basis before the operator is applied (this makes writing the
-# # implementing functions somewhat more convenient)
-# # 
-# # In the simplest case, LinOps should implement mul!, ldiv!, and adjoint. 
-# # 
-# #     * mul!(result, ::LinOp, ::Field) - apply the operator, storing the answer in `result`
-# #     * ldiv!(result, ::LinOp, ::Field) - apply the inverse operator, storing the answer in `result`
-# #     * adjoint(::LinOp) - return the adjoint operator
-# # 
-# # By default `*` and `\` use `mul!` and `ldiv!`, assuming the result will be
-# # `simlar` to the field being acted on. If the operator returns a different kind
-# # of field, this can be specified by overloading `allocate_result(::LinOp,
-# # ::Field)` (see below)
-# #
-# # Other functions which can be implemented:
-# #
-# #     * sqrt(L::LinOp) - the sqrt of the operator s.t. sqrt(L)*sqrt(L) = L
-# # 
-# #
-# # By default, LinOps receive the following functionality:
-# # 
-# #     * Automatic basis conversion: L * f first converts f to L's basis, then
-# #     applies *, so that LinOps only need to implement *(::LinOp, ::F) where F
-# #     is a type already in the correct basis. 
-# # 
-# #     * Lazy evaluation: C = A + B returns a LazyBinaryOp object which when
-# #     applied to a field, C*f, computes A*f + B*f.
-# # 
-# #     * Vector conversion: Af = A[~f] returns an object which when acting on an
-# #     AbstractVector, Af * v, converts v to a Field, then applies A.
-# # 
-# abstract type LinOp{B<:Basis, S<:Spin, P<:Pix} end
+# In the simplest case, LinOps should implement mul!, ldiv!, and adjoint. 
 # 
-# # allocate the result of applying a LinOp to a given field. 
-# # the default below assumes the result is the same type as the Field itself, but
-# # this can be specialized (e.g. ∇*f returns instead a vector of fields)
-# allocate_result(::LinOp, f::Field) = similar(f)
+#     * mul!(result, ::LinOp, ::Field) - apply the operator, storing the answer in `result`
+#     * ldiv!(result, ::LinOp, ::Field) - apply the inverse operator, storing the answer in `result`
+#     * adjoint(::LinOp) - return the adjoint operator
 # 
-# # `*` and `\` use `mul!` and `ldiv!` which we require each LinOp implement
-# # here we also do the automatic basis conversion to the LinOps specified basis
+# By default `*` and `\` use `mul!` and `ldiv!`, assuming the result will be
+# `simlar` to the field being acted on. If the operator returns a different kind
+# of field, this can be specified by overloading `allocate_result(::LinOp,
+# ::Field)` (see below)
+#
+# Other functions which can be implemented:
+#
+#     * sqrt(L::LinOp) - the sqrt of the operator s.t. sqrt(L)*sqrt(L) = L
+# 
+#
+# By default, LinOps receive the following functionality:
+# 
+#     * Automatic basis conversion: L * f first converts f to L's basis, then
+#     applies *, so that LinOps only need to implement *(::LinOp, ::F) where F
+#     is a type already in the correct basis. 
+# 
+#     * Lazy evaluation: C = A + B returns a LazyBinaryOp object which when
+#     applied to a field, C*f, computes A*f + B*f.
+# 
+#     * Vector conversion: Af = A[~f] returns an object which when acting on an
+#     AbstractVector, Af * v, converts v to a Field, then applies A.
+# 
+# abstract type LinOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
+
+# allocate the result of applying a LinOp to a given field. 
+# the default below assumes the result is the same type as the Field itself, but
+# this can be specialized (e.g. ∇*f returns instead a vector of fields)
+allocate_result(::Any, f::Field) = similar(f)
+
+# `*` and `\` use `mul!` and `ldiv!` which we require each LinOp implement
+# here we also do the automatic basis conversion to the LinOps specified basis
 # *(L::LinOp{B}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
 # \(L::LinOp{B}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
-# 
+
+*(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
+\(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
+
+
+
 # # Left multiplication uses `adjoint` which we require each LinOp implement
 # *(f::AdjField, L::LinOp) = (L'*f')'
 # 
@@ -147,12 +152,12 @@ abstract type Basislike <: Basis end
 # end
 # 
 # 
-# ### Scalars
-# 
-# # scalars which are allowed in our expressions must be real because we
-# # implicitly assume our maps are real, and addition/multiplication by a complex
-# # number, even of the fourier transform, would break this.
-# const Scalar = Real
+### Scalars
+
+# scalars which are allowed in our expressions must be real because we
+# implicitly assume our maps are real, and addition/multiplication by a complex
+# number, even of the fourier transform, would break this.
+const Scalar = Real
 # const FieldOrOp = Union{Field,LinOp}
 # const FieldOpScal = Union{Field,LinOp,Scalar}
 # 
@@ -198,16 +203,16 @@ abstract type Basislike <: Basis end
 # Shorthand for `f⋅(L\f)`, i.e. the squared-norm of `f` w.r.t. the operator `L`.
 # """
 # norm²(f::Field, L::LinOp) = f⋅(L\f)
-# 
-# # convenience "getter" functions for the Basis/Spin/Pix
-# basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
-# basis(::F) where {F<:Field} = basis(F)
-# spin(::Type{<:Field{B,S,P}}) where {B,S,P} = S
-# spin(::F) where {F<:Field} = spin(F)
-# pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
-# pix(::F) where {F<:Field} = pix(F)
-# 
-# 
+
+# convenience "getter" functions for the Basis/Spin/Pix
+basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
+basis(::F) where {F<:Field} = basis(F)
+spin(::Type{<:Field{B,S,P}}) where {B,S,P} = S
+spin(::F) where {F<:Field} = spin(F)
+pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
+pix(::F) where {F<:Field} = pix(F)
+
+
 # shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""), "Main."=>"")
 # 
 # zero(::F) where {F<:Field} = zero(F)
