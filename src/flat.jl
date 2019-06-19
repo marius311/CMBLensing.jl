@@ -105,7 +105,10 @@ FFTgrid(::FlatS0{P,T}) where {P,T} = FFTgrid(P,T)
 # ## derivatives
 # 
 # fourier space derivatives
-DerivBasis(::Type{<:FlatS0{Flat{θ,N,fourier∂}}}) where {T,θ,N} = Fourier
+DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
+DerivBasis(::Type{<:FlatQU{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
+DerivBasis(::Type{<:FlatEB{<:Flat{<:Any,<:Any,fourier∂}}}) = EBFourier
+
 @generated function broadcast_data(::Type{<:FlatFourier{P,T}}, ∇i::∇i{coord}) where {coord,P,T}
     α = im #∇i isa AdjOp ? -im : im
     if coord==0

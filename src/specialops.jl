@@ -40,10 +40,12 @@ Base.axes(::∇i) = ()
 const ∇⁰, ∇¹, ∇₀, ∇₁ = Diagonal(∇i{0,false}()), Diagonal(∇i{1,false}()), Diagonal(∇i{0,true}()), Diagonal(∇i{1,true}())
 
 # printing
-show(io::IO, ::MIME"text/plain", ∇i::Diagonal{<:Any,<:∇i}) = show(io, ∇i)
-function show(io::IO, ::Diagonal{<:Any,∇i{coord, covariant}}) where {coord, covariant}
-    print(io, "LinearAlgebra.Diagonal{∇", covariant ? (coord==0 ? "₀" : "₁") : (coord==0 ? "⁰" : "¹"),"}()")
-end
+show(io::IO, m::MIME"text/plain", D::Diagonal{<:Any,<:∇i}) = show(io, D)
+show(io::IO, m::MIME"text/plain", ∇i::∇i) = show(io, ∇i) 
+show(io::IO, D::Diagonal{<:Any,<:∇i}) = 
+    (print(io, "LinearAlgebra.Diagonal{"); show(io, D.diag, false); print(io, "}()"))
+show(io::IO, ::∇i{coord, covariant}, parens=true) where {coord, covariant} = 
+    print(io, "∇", covariant ? (coord==0 ? "₀" : "₁") : (coord==0 ? "⁰" : "¹"), parens ? "()" : "")
 
 
 function gradhess(f)

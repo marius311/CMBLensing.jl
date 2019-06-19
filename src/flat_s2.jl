@@ -49,7 +49,7 @@ getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 
 
 
-LenseBasis(::Type{<:FlatS2}) = EUMap
+### conversions
 
 QUFourier(f::FlatQUMap) = FlatQUFourier(Fourier(f))
 QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier

@@ -48,6 +48,7 @@ similar(f::FT) where {FT<:FieldTuple}= FT(map(similar,f.fs))
 broadcastable(f::FieldTuple) = f
 BroadcastStyle(::Type{FT}) where {FT<:FieldTuple} = Style{FT}()
 BroadcastStyle(::Style{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} = Style{FT}()
+BroadcastStyle(::Style{FT}, ::DefaultArrayStyle{1}) where {FT<:FieldTuple} = Style{FT}()
 BroadcastStyle(::Style{FT}, ::Style{Tuple}) where {FT<:FieldTuple} = Style{FT}()
 instantiate(bc::Broadcasted{<:Style{<:FieldTuple}}) = bc
 tuple_data(f::FieldTuple) = values(f.fs)
@@ -56,7 +57,7 @@ tuple_data(x) = x
 function copy(bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((args...)->broadcast(bc′.f,args...), map(tuple_data,bc′.args))
-    FT(NamedTuple{Names}(copy(preprocess(bc))))
+    FT(NamedTuple{Names}(copy(bc″)))
 end
 function copyto!(dest::FT, bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
@@ -67,13 +68,17 @@ end
 
 
 ### conversion
-# (::Type{B})(::Type{<:FieldTuple{FS}}) where {FS,B<:Basislike} = BasisTuple{Tuple{map_tupleargs(F->B(F),FS)...}}
-# (::Type{BasisTuple{BS}})(ft::FieldTuple) where {BS} = FieldTuple(map_tupleargs((B,f)->B(f), BS, ft.fs)...)
-(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B,ft.fs))
-# (::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B,ft.fs)...) # needed for ambiguity
-# (::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basis}     = (map(B, ft′.fs, ft.fs); ft′)
-# (::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basislike} = (map(B, ft′.fs, ft.fs); ft′) # needed for ambiguity
-# Basis(ft::FieldTuple) where {B<:Basis} = ft # needed for ambiguity
+# no conversion needed
+(::Type{B})(f::F)  where {B<:Basis,F<:FieldTuple{B}} = f
+# FieldTuple is in BasisTuple
+(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B}} = error("not implemented yet")
+(::Type{B′})(f::F) where {B′<:Basis,     B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
+(::Type{B′})(f::F) where {B′<:Basislike, B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
+# FieldTuple is in a concrete basis
+(::Type{B′})(f::F) where {B′<:Basis,     B<:Basis,     F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
+(::Type{B′})(f::F) where {B′<:Basislike, B<:Basis,     F<:FieldTuple{B}} = B′(F)(f)
+
+
 
 
 ### properties

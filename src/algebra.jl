@@ -5,7 +5,7 @@
 for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
-dot(a::Field,b::Field) = dot(promote(a,b)...)
+# dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 
 ### basis conversion

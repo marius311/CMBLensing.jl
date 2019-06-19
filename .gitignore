@@ -15,6 +15,5 @@ plots/
 0.6/
 paper/
 scripts/
-test/
 *.jld*
 docs/
