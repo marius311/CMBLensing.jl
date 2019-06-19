@@ -5,10 +5,6 @@
 for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
-for op in (:*,:/), (T1,T2) in ((:F,:Scalar),(:Scalar,:F),(:F,:F))
-    @eval ($op)(a::$T1, b::$T2) where {F<:Field} = broadcast($(op),a,b)
-end
--(f::Field) = .-(f)
 dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 

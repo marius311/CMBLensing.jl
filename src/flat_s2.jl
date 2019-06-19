@@ -4,7 +4,7 @@
 
 
 ## constructors
-const FlatQUMap{P,T,M} = FieldTuple{NamedTuple{(:Q,:U), NTuple{2,FlatMap{P,T,M}}}}
+const FlatQUMap{P,T,M} = FieldTuple{NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}},QUMap}
 FlatQUMap(Qx, Ux; θpix=θpix₀, ∂mode=fourier∂) = FlatQUMap{Flat{size(Qx,2),θpix,∂mode}}(Qx, Ux)
 FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((Q=FlatMap{P,T,M}(Qx), U=FlatMap{P,T,M}(Ux)))
 

@@ -1,44 +1,13 @@
 ### FullDiagOp
 
-# A FullDiagOp is a LinDiagOp which is stored explicitly as all of its diagonal
-# coefficients in the basis in which it's diagonal. It also has the convenient
-# `unsafe_invert` option which, if true, makes it so we don't have to worry
-# about inverting such operators which have zero-entries. 
-# struct FullDiagOp{F<:Field,B,S,P} <: LinDiagOp{B,S,P}
-#     f::F
-#     unsafe_invert::Bool
-#     FullDiagOp(f::F, unsafe_invert=true) where {B,S,P,F<:Field{B,S,P}} = new{F,B,S,P}(f,unsafe_invert)
-# end
-# 
-# *(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .* F(f)) : L.f .* F(f)
-# \(L::FullDiagOp{F}, f::Field) where {F} = L.unsafe_invert ? nan2zero.(L.f .\ F(f)) : L.f .\ F(f)
-# 
-# zero(L::FullDiagOp) = zero(L.f)
-# one(L::FullDiagOp) = one(L.f)
-# 
-# # non-broadcasted algebra on FullDiagOps
-# for op in (:+,:-,:*,:\,:/)
-#     @eval ($op)(L::FullDiagOp, s::Scalar)           = FullDiagOp($op(L.f, s))
-#     @eval ($op)(s::Scalar,     L::FullDiagOp)       = FullDiagOp($op(s,   L.f))
-#     # ops with FullDiagOps only produce a FullDiagOp if the two are in the same basis
-#     @eval ($op)(La::F, Lb::F) where {F<:FullDiagOp} = FullDiagOp($op(La.f,Lb.f))
-#     # if they're not, we will fall back to creating a LazyBinaryOp (see algebra.jl)
-# end
-# sqrt(L::FullDiagOp) = FullDiagOp(sqrt.(L.f))
-# adjoint(L::FullDiagOp) = FullDiagOp(conj.(L.f))
-# simulate(L::FullDiagOp{F}) where {F} = sqrt(L) .* F(white_noise(F))
-# broadcast_data(::Type{F}, L::FullDiagOp{F}) where {F} = broadcast_data(F,L.f)
-# containertype(L::FullDiagOp) = containertype(L.f)
-# inv(L::FullDiagOp) = FullDiagOp(L.unsafe_invert ? nan2inf.(1 ./ L.f) : 1 ./ L.f, L.unsafe_invert)
-# literal_pow(::typeof(^), L::FullDiagOp, ::Val{-1}) = inv(L)
-# literal_pow(::typeof(^), L::FullDiagOp, ::Val{n}) where {n} = FullDiagOp(L.f .^ 2)
-# ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Fourier,EBFourier,QUFourier}} = 
-#     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:fourier,deconv_pixwin=false,anti_aliasing=false)))
-# ud_grade(L::FullDiagOp{<:Field{B}}, θnew) where {B<:Union{Map,EBMap,QUMap}} = 
-#     FullDiagOp(B(ud_grade((L.unsafe_invert ? nan2zero.(L.f) : L.f),θnew,mode=:map,    deconv_pixwin=false,anti_aliasing=false)))
-# getproperty(L::FullDiagOp, s::Symbol) = getproperty(L, Val(s))
-# getproperty(L::FullDiagOp, ::Val{s}) where {s} = getfield(L,s)
-# getproperty(L::FullDiagOp, s::Union{Val{:T},Val{:P},Val{:TP}}) = FullDiagOp(getproperty(L.f,s))
+function showarg(io::IO, D::Diagonal{<:Any,<:Field}, toplevel)
+    print(io, "Diagonal{")
+    showarg(io, D.diag, toplevel)
+    print(io, "}")
+end
+function getindex(D::Diagonal{<:Any,<:FieldTuple}, i::Int, j::Int)
+    i==j ? CatView(map(x->view(x,:), D.diag.fs)...)[i] : 0
+end
 
 
 

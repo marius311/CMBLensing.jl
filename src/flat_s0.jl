@@ -22,8 +22,9 @@ FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,
 
 ## pretty printing
 print_array(io::IO, f::FlatS0) = print_array(io, broadcast_data(f)[:])
-summary(io::IO, f::F) where {N,θpix,∂mode,T,F<:FlatS0{Flat{N,θpix,∂mode},T}} = 
-    print(io, "$(length(f))-element $(F.name.name){$T, $N×$N map, $(θpix)′ pixels, $(∂mode.name.name)}")
+function showarg(io::IO, f::F, toplevel) where {N,θpix,∂mode,T,F<:FlatS0{Flat{N,θpix,∂mode},T}}
+    print(io, "$(F.name.name){$T, $N×$N map, $(θpix)′ pixels, $(∂mode.name.name)}")
+end
 
 ## array interface 
 size(f::FlatS0) = (length(broadcast_data(f)),)
@@ -33,10 +34,10 @@ similar(f::F) where {F<:FlatS0} = F(similar(broadcast_data(f)))
 
 ## broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
-BroadcastStyle(::Style{FieldTuple}, ::ArrayStyle{<:FlatS0}) = Style{FieldTuple}()
+BroadcastStyle(::Style{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = Style{FT}()
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatMap{P}} = FlatMap{P}(similar(Array{T}, N, N))
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatFourier{P}} = FlatFourier{P}(similar(Array{T}, N÷2+1, N))
-function preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:Field}
+function preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:FlatS0}
     bc′ = flatten(bc)
     Broadcasted{Nothing}(bc′.f, map(arg->broadcast_data(F,arg), bc′.args), axes(dest))
 end

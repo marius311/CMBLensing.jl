@@ -4,6 +4,7 @@ using Base.Broadcast: ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, f
 using Base.Iterators: repeated
 using Base.Threads
 using Base: @propagate_inbounds, show_vector
+using CatViews
 using Combinatorics
 using DataStructures
 using Distributed
@@ -41,11 +42,11 @@ using Strided
 
 
 import Base: +, -, *, \, /, ^, ~,
-    adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, eltype,
-    getindex, getproperty, inv, iterate, keys, length, literal_pow,
+    adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, copyto!,
+    eltype, getindex, getproperty, inv, iterate, keys, length, literal_pow,
     materialize!, materialize, one, print_array, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, setindex!, show, similar,
-    size, sqrt, sqrt, summary, transpose, zero
+    promote_rule, promote_type, propertynames, real, setindex!, show, showarg,
+    similar, size, sqrt, sqrt, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
 import PyPlot: plot, loglog, semilogx, semilogy
@@ -69,11 +70,11 @@ include("util.jl")
 include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
+include("field_tuples.jl")
 include("specialops.jl")
 include("algebra.jl")
 # include("smashtimes.jl")
 # include("lensing.jl")
-include("field_tuples.jl")
 include("flat.jl")
 # include("healpix.jl")
 # include("taylens.jl")
