@@ -21,6 +21,9 @@ abstract type EBMap <: Basis end
 abstract type QUFourier <: Basis end
 abstract type EBFourier <: Basis end
 
+# printing
+# show(io::IO,::Type{B}) where {B<:Basis} = print(io, B.name.name)
+
 basis_promotion_rules = Dict(
     # S0
     (Map,       Fourier)    => Map,

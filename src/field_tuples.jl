@@ -8,18 +8,21 @@ abstract type BasisTuple{T} <: Basis end
 ## FieldTuple type 
 # a thin wrapper around a NamedTuple which additionally forwards all
 # broadcasts one level deeper
-struct FieldTuple{FS<:NamedTuple,B} <: Field{B,Spin,Pix,Real}
+struct FieldTuple{B,FS<:NamedTuple} <: Field{B,Spin,Pix,Real}
     fs::FS
 end
-FieldTuple(fs::FS) where {FS} = FieldTuple{FS,BasisTuple{Tuple{map(basis,fs)...}}}(fs)
-
+FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
+FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
+FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS}(fs)
+(::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
+(::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
 
 
 ## printing
-function showarg(io::IO, ft::FieldTuple{<:NamedTuple{Names}}, toplevel) where {Names}
-    print(io, "$(Names) FieldTuple")
+function showarg(io::IO, ft::FieldTuple{B,<:NamedTuple{Names}}, toplevel) where {B,Names}
+    print(io, "$(Names) FieldTuple{$B}")
 end
-function show(io::IO, ::MIME"text/plain", ft::FieldTuple{<:NamedTuple})
+function show(io::IO, ::MIME"text/plain", ft::FieldTuple)
     print(io, "$(sum(map(length,values(ft.fs))))-element ")
     showarg(io, ft, false)
     println(io, ":")
@@ -50,14 +53,30 @@ instantiate(bc::Broadcasted{<:Style{<:FieldTuple}}) = bc
 tuple_data(f::FieldTuple) = values(f.fs)
 tuple_data(f::Field) = (f,)
 tuple_data(x) = x
-function copy(bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:NamedTuple{Names}}}
+function copy(bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((args...)->broadcast(bc′.f,args...), map(tuple_data,bc′.args))
     FT(NamedTuple{Names}(copy(preprocess(bc))))
 end
-function copyto!(dest::FT, bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:NamedTuple{Names}}}
+function copyto!(dest::FT, bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (tuple_data(dest), map(tuple_data,bc′.args)...))
     copy(bc″)
     dest
 end
+
+
+### conversion
+# (::Type{B})(::Type{<:FieldTuple{FS}}) where {FS,B<:Basislike} = BasisTuple{Tuple{map_tupleargs(F->B(F),FS)...}}
+# (::Type{BasisTuple{BS}})(ft::FieldTuple) where {BS} = FieldTuple(map_tupleargs((B,f)->B(f), BS, ft.fs)...)
+(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B,ft.fs))
+# (::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B,ft.fs)...) # needed for ambiguity
+# (::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basis}     = (map(B, ft′.fs, ft.fs); ft′)
+# (::Type{B})(ft′::FieldTuple, ft::FieldTuple) where {B<:Basislike} = (map(B, ft′.fs, ft.fs); ft′) # needed for ambiguity
+# Basis(ft::FieldTuple) where {B<:Basis} = ft # needed for ambiguity
+
+
+### properties
+getproperty(f::FieldTuple, s::Symbol) = getproperty(f::FieldTuple, Val(s))
+getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs)
+getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)

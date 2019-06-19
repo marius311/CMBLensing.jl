@@ -2,85 +2,81 @@
 # this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
 # and operators on this map
 
+export
+    QUMap, EBMap, QUFourier, EBFourier,
+    FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
+    FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
 
 ## constructors
-const FlatQUMap{P,T,M} = FieldTuple{NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}},QUMap}
+const FlatQUMap{P,T,M}     = FieldTuple{QUMap,     NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}}}
+const FlatQUFourier{P,T,M} = FieldTuple{QUFourier, NamedTuple{(:Q,:U),NTuple{2,FlatFourier{P,T,M}}}}
+const FlatEBMap{P,T,M}     = FieldTuple{EBMap,     NamedTuple{(:E,:B),NTuple{2,FlatMap{P,T,M}}}}
+const FlatEBFourier{P,T,M} = FieldTuple{EBFourier, NamedTuple{(:E,:B),NTuple{2,FlatFourier{P,T,M}}}}
+
 FlatQUMap(Qx, Ux; θpix=θpix₀, ∂mode=fourier∂) = FlatQUMap{Flat{size(Qx,2),θpix,∂mode}}(Qx, Ux)
 FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((Q=FlatMap{P,T,M}(Qx), U=FlatMap{P,T,M}(Ux)))
 
 
 
-# export
-#     QUMap, EBMap, QUFourier, EBFourier,
-#     FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
-#     FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
-# 
-# 
-# struct FlatS2EBMap{T<:Real,P<:Flat} <: Field{EBMap,S2,P}
-#     Ex::Matrix{T}
-#     Bx::Matrix{T}
-#     FlatS2EBMap{T,P}(Ex, Bx) where {T,P} = new(checkmap(P,Ex),checkmap(P,Bx))
-# end
-# 
-# struct FlatS2EBFourier{T<:Real,P<:Flat} <: Field{EBFourier,S2,P}
-#     El::Matrix{Complex{T}}
-#     Bl::Matrix{Complex{T}}
-#     FlatS2EBFourier{T,P}(El, Bl) where {T,P} = new(checkfourier(P,El),checkfourier(P,Bl))
-# end
-# 
-# struct FlatS2QUMap{T<:Real,P<:Flat} <: Field{QUMap,S2,P}
-#     Qx::Matrix{T}
-#     Ux::Matrix{T}
-#     FlatS2QUMap{T,P}(Qx,Ux) where {T,P} = new(checkmap(P,Qx),checkmap(P,Ux))
-# end
-# 
-# struct FlatS2QUFourier{T<:Real,P<:Flat} <: Field{QUFourier,S2,P}
-#     Ql::Matrix{Complex{T}}
-#     Ul::Matrix{Complex{T}}
-#     FlatS2QUFourier{T,P}(Ql,Ul) where {T,P} = new(checkfourier(P,Ql),checkfourier(P,Ul))
-# end
-# 
-# const FlatS2{T,P}=Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P},FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
-# const FlatS2QU{T,P}=Union{FlatS2QUMap{T,P},FlatS2QUFourier{T,P}}
-# const FlatS2EB{T,P}=Union{FlatS2EBMap{T,P},FlatS2EBFourier{T,P}}
-# const FlatS2Map{T,P}=Union{FlatS2QUMap{T,P},FlatS2EBMap{T,P}}
-# const FlatS2Fourier{T,P}=Union{FlatS2QUFourier{T,P},FlatS2EBFourier{T,P}}
-# 
+
+const FlatS2{P,T,M}=Union{FlatEBMap{P,T,M},FlatEBFourier{P,T,M},FlatQUMap{P,T,M},FlatQUFourier{P,T,M}}
+const FlatQU{P,T,M}=Union{FlatQUMap{P,T,M},FlatQUFourier{P,T,M}}
+const FlatEB{P,T,M}=Union{FlatEBMap{P,T,M},FlatEBFourier{P,T,M}}
+const FlatS2Map{P,T,M}=Union{FlatQUMap{P,T,M},FlatEBMap{P,T,M}}
+const FlatS2Fourier{P,T,M}=Union{FlatQUFourier{P,T,M},FlatEBFourier{P,T,M}}
+
 # # convenience constructors
 # for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
 #     @eval ($F)(a::Matrix{$T},b::Matrix{$T},θpix=θpix₀,∂mode=fourier∂) where {T} = ($F){T,Flat{θpix,size(a,2),∂mode}}(a,b)
 # end
 # FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q.Tx, U.Tx)
 # 
-# 
-# LenseBasis(::Type{<:FlatS2}) = QUMap
-# 
-# QUFourier(f::FlatS2QUMap{T,P})     where {T,P} = FlatS2QUFourier{T,P}(ℱ{P}*f.Qx, ℱ{P}*f.Ux)
-# QUFourier(f::FlatS2EBMap{T,P})     where {T,P} = f |> EBFourier |> QUFourier
-# QUFourier(f::FlatS2EBFourier{T,P}) where {T,P} = begin
-#     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-#     Ql = @. - f.El * cos2ϕ + f.Bl * sin2ϕ
-#     Ul = @. - f.El * sin2ϕ - f.Bl * cos2ϕ
-#     FlatS2QUFourier{T,P}(Ql,Ul)
-# end
-# 
-# QUMap(f::FlatS2QUFourier{T,P}) where {T,P} = FlatS2QUMap{T,P}(ℱ{P}\f.Ql, ℱ{P}\f.Ul)
-# QUMap(f::FlatS2EBMap{T,P})     where {T,P} = f |> EBFourier |> QUFourier |> QUMap
-# QUMap(f::FlatS2EBFourier{T,P}) where {T,P} = f |> QUFourier |> QUMap
-# 
-# EBFourier(f::FlatS2EBMap{T,P})     where {T,P} = FlatS2EBFourier{T,P}(ℱ{P}*f.Ex, ℱ{P}*f.Bx)
-# EBFourier(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier
-# EBFourier(f::FlatS2QUFourier{T,P}) where {T,P} = begin
-#     sin2ϕ, cos2ϕ = FFTgrid(T,P).sincos2ϕ
-#     El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
-#     Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
-#     FlatS2EBFourier{T,P}(El,Bl)
-# end
-# 
-# EBMap(f::FlatS2EBFourier{T,P}) where {T,P} = FlatS2EBMap{T,P}(ℱ{P}\f.El, ℱ{P}\f.Bl)
-# EBMap(f::FlatS2QUMap{T,P})     where {T,P} = f |> QUFourier |> EBFourier |> EBMap
-# EBMap(f::FlatS2QUFourier{T,P}) where {T,P} = f |> EBFourier |> EBMap
-# 
+
+### properties
+function propertynames(f::FlatS2)
+    (:fs, propertynames(f.fs)..., 
+     (Symbol(string(k,(f isa FlatMap ? "x" : "l"))) for (k,f) in pairs(f.fs) if f isa FlatMap)...)
+end
+getproperty(f::FlatQUMap,     ::Val{:Qx}) = getfield(f,:fs).Q.Ix
+getproperty(f::FlatQUMap,     ::Val{:Ux}) = getfield(f,:fs).U.Ix
+getproperty(f::FlatQUFourier, ::Val{:Ql}) = getfield(f,:fs).Q.Il
+getproperty(f::FlatQUFourier, ::Val{:Ul}) = getfield(f,:fs).U.Il
+getproperty(f::FlatEBMap,     ::Val{:Ex}) = getfield(f,:fs).E.Ix
+getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
+getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
+getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
+
+
+
+
+LenseBasis(::Type{<:FlatS2}) = EUMap
+
+QUFourier(f::FlatQUMap) = FlatQUFourier(Fourier(f))
+QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier
+QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
+    sin2ϕ, cos2ϕ = FFTgrid(P,T).sincos2ϕ
+    Ql = @. - f.El * cos2ϕ + f.Bl * sin2ϕ
+    Ul = @. - f.El * sin2ϕ - f.Bl * cos2ϕ
+    FlatQUFourier(Q=FlatFourier{P}(Ql), U=FlatFourier{P}(Ul))
+end
+
+QUMap(f::FlatQUFourier)  = FlatQUMap(Map(f))
+QUMap(f::FlatEBMap)      = f |> EBFourier |> QUFourier |> QUMap
+QUMap(f::FlatEBFourier)  = f |> QUFourier |> QUMap
+
+EBFourier(f::FlatEBMap) = FlatEBFourier(Fourier(f))
+EBFourier(f::FlatQUMap) = f |> QUFourier |> EBFourier
+EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
+    sin2ϕ, cos2ϕ = FFTgrid(P,T).sincos2ϕ
+    El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
+    Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
+    FlatEBFourier(E=FlatFourier{P}(El), B=FlatFourier{P}(Bl))
+end
+
+EBMap(f::FlatEBFourier) = FlatEBMap(Map(f))
+EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
+EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
+
 # function QUFourier(f′::FlatS2QUFourier{T,P}, f::FlatS2QUMap{T,P}) where {T,P}
 #     mul!(f′.Ql, FFTgrid(T,P).FFT, f.Qx)
 #     mul!(f′.Ul, FFTgrid(T,P).FFT, f.Ux)
