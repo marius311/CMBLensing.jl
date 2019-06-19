@@ -29,29 +29,28 @@ print(io, "$(length(f))-element $(F.name.name){$N×$N map, $(θpix)′ pixels, $
 size(f::FlatS0) = (length(broadcast_data(f)),)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(broadcast_data(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = setindex!(broadcast_data(f), X, I...)
+similar(f::F) where {F<:FlatS0} = F(similar(broadcast_data(f)))
 
 ## broadcasting
-BroadcastStyle(::Type{F}) where {F<:FlatMap} = ArrayStyle{F}()
-similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatMap{P}} = FlatMap{P}(similar(Array{T}, N, N))
-function Broadcast.preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:Field}
-    bc′ = Broadcast.flatten(bc)
+BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
+BroadcastStyle(::Style{FieldTuple}, ::ArrayStyle{<:FlatS0}) = Style{FieldTuple}()
+similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatS0{P}} = FlatMap{P}(similar(Array{T}, N, N))
+function preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:Field}
+    bc′ = flatten(bc)
     Broadcasted{Nothing}(bc′.f, map(arg->broadcast_data(F,arg), bc′.args), axes(dest))
 end
 broadcast_data(::Any, f) = f
 broadcast_data(f::FlatS0) = first(fieldvalues(f))
 
 
+## convenience conversion funtions:
+Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(T,P).FFT * f.Ix)
+Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(T,P).FFT \ f.Il)
 
+## inplace conversions
+Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(T,P).FFT, f.Ix); f′)
+Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(T,P).FFT, f.Il); f′)
 
-# 
-# # convenience conversion funtions:
-# Fourier(f::FlatMap{T,P}) where {T,P} = FlatFourier{T,P}(ℱ{P}*f.Ix)
-# Map(f::FlatFourier{T,P}) where {T,P} = FlatMap{T,P}(ℱ{P}\f.Tl)
-# 
-# # inplace conversions
-# Fourier(f′::FlatFourier{T,P}, f::FlatMap{T,P}) where {T,P} = (mul!(f′.Tl,  FFTgrid(T,P).FFT, f.Ix); f′)
-# Map(f′::FlatMap{T,P}, f::FlatFourier{T,P}) where {T,P}     = (ldiv!(f′.Ix, FFTgrid(T,P).FFT, f.Tl); f′)
-# 
 # 
 # LenseBasis(::Type{<:FlatS0}) = Map
 # 

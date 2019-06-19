@@ -19,56 +19,34 @@ Nside(::Type{P}) where {N,P<:Flat{N}} = N
 θpix₀ = 1
 
 # stores FFT plan and other info needed for manipulating a Flat map
-struct FFTgrid{dm, T, F}
-    period::T
-    nside::Int64
-    Δx::T
-    Δℓ::T
-    nyq::T
-    x::Vector{T}
-    k::Vector{T}
-    r::Array{T,dm}
-    sincos2ϕ::Tuple{Array{T,dm},Array{T,dm}}
-    FFT::F
+struct FFTgrid{T,F}
+    θpix :: T
+    Nside :: Int64
+    Δx :: T
+    Δℓ :: T
+    nyq :: T
+    x :: Vector{T}
+    k :: Vector{T}
+    r :: Matrix{T}
+    sincos2ϕ :: Tuple{Matrix{T},Matrix{T}}
+    FFT :: F
 end
 
-function FFTgrid(::Type{T}, period, nside, dm=2; flags=FFTW.ESTIMATE, timelimit=5) where {T<:Real}
-    Δx  = period/nside
+# use @generated function to memoize FFTgrid for given (T,θ,Nside) combinations
+FFTgrid(::Type{T},::Type{<:Flat{Nside,θpix}}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
+@generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
+    Δx  = deg2rad(θpix/60)
     FFTW.set_num_threads(Sys.CPU_THREADS)
-    FFT = T((Δx/√(2π))^dm) * plan_rfft(Array{T}(undef,fill(nside,dm)...); flags=flags, timelimit=timelimit)
-    Δℓ  = 2π/period
+    FFT = T(Δx^2/(2π)) * plan_rfft(Matrix{T}(undef,Nside,Nside); flags=FFTW.ESTIMATE, timelimit=5)
+    Δℓ  = 2π/(Nside*Δx)
     nyq = 2π/(2Δx)
-    x,k = (ifftshift(-nside÷2:(nside-1)÷2),) .* [Δx,Δℓ]'
-    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,dm); s[i]=nside; tuple(s...))) for i=1:dm)...))
-    ϕ   = angle.(k' .+ im*k)[1:nside÷2+1,:]
+    x,k = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* [Δx,Δℓ]'
+    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,2); s[i]=Nside; tuple(s...))) for i=1:2)...))
+    ϕ   = angle.(k' .+ im*k)[1:Nside÷2+1,:]
     sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    FFTgrid(period, nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
+    FFTgrid(T(θpix), Nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
-
-# Use generated functions to get planned FFT's only once for any given (T, θpix,
-# Nside) combination
-@generated function FFTgrid(::Type{T},::Type{P}) where {θpix, Nside, T<:Real,P<:Flat{Nside,θpix}}
-    FFTgrid(T, deg2rad(θpix/60)*Nside, Nside)
-end
-
-# some syntatic sugar for applying the FFT plans stored in FFTgrid
-abstract type ℱ{P} end
-*(::Type{ℱ{P}},x::Matrix{T}) where {T,P} = FFTgrid(T,P).FFT * x
-\(::Type{ℱ{P}},x::Matrix{Complex{T}}) where {T,P} = FFTgrid(T,P).FFT \ x
-
-# Check map and fourier coefficient arrays are the right size
-function checkmap(::Type{P},A::AbstractMatrix{T}) where {T,P}
-    @assert ==(Nside(P),size(A)...) "Wrong size for a map."
-    A
-end
-checkfourier(::Type{P},A::AbstractMatrix{T}) where {T<:Real,P} = checkfourier(P,complex(A))
-function checkfourier(::Type{P},A::AbstractMatrix{Complex{T}}) where {T,P}
-    n,m = size(A)
-    @assert m==Nside(P) && n==Nside(P)÷2+1 "Wrong size for a fourier transform."
-    #could check symmetries here?
-    A
-end
 
 
 Cℓ_2D(ℓ, Cℓ, r) = LinearInterpolation(ℓ, Cℓ, extrapolation_bc = 0).(r)

@@ -29,11 +29,13 @@ broadcastable(f::FieldTuple) = f
 BroadcastStyle(::Type{<:FieldTuple}) = Style{FieldTuple}()
 BroadcastStyle(::Style{FieldTuple}, ::DefaultArrayStyle{0}) = Style{FieldTuple}()
 BroadcastStyle(::Style{FieldTuple}, ::Style{Tuple}) = Style{FieldTuple}()
-Broadcast.instantiate(bc::Broadcasted{<:Style{FieldTuple}}) = bc
-broadcast_data(f::FieldTuple) = values(f.fs)
-@inline function copy(bc::Broadcasted{Style{FieldTuple}})
-    bc′ = Broadcast.flatten(bc)
-    bc″ = Broadcasted{Style{Tuple}}((args...)->broadcast(bc′.f,args...), map(broadcast_data,bc′.args))
+instantiate(bc::Broadcasted{<:Style{FieldTuple}}) = bc
+tuple_data(f::FieldTuple) = values(f.fs)
+tuple_data(f::Field) = (f,)
+tuple_data(x) = x
+function copy(bc::Broadcasted{Style{FieldTuple}})
+    bc′ = flatten(bc)
+    bc″ = Broadcasted{Style{Tuple}}((args...)->broadcast(bc′.f,args...), map(tuple_data,bc′.args))
     FieldTuple(NamedTuple{keys(bc′)}(copy(bc″)))
 end
 keys(f::FieldTuple) = keys(f.fs)

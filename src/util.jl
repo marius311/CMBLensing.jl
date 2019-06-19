@@ -28,6 +28,8 @@ macro !(ex)
     elseif @capture(ex, x_ = f_(args__))
         if f == :*
             f = :mul!
+        elseif f==:\
+            f = :ldiv!
         end
         esc(:($x = $f($x,$(args...))))
     else
