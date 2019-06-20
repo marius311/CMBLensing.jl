@@ -1,4 +1,9 @@
-### FullDiagOp
+### Diagonal ops
+
+# we use Base.Diagonal(f) for diagonal operators so very little specific code is
+# actually needed here. 
+
+# adjoint(D::Diagonal{<:Number,<:Field}) = Diagonal(conj.(D.diag))
 
 function showarg(io::IO, D::Diagonal{<:Any,<:Field}, toplevel)
     print(io, "Diagonal{")
@@ -15,12 +20,15 @@ end
 ### Derivative ops
 
 # These ops just store the coordinate with respect to which a derivative is
-# being taken, and each Field type F should implement broadcast_data(::Type{F},
-# ::∂) to describe how this is actually applied. 
+# being taken, and each Field type F should implement how to actually take the
+# derivative. Note that ∇i objects are Fields. ∇⁰, ∇¹, ∇₀, ∇₁ wrap these in a
+# Diagonal so that multipliying by these does the necessary basis conversion.
+# Finally, ∇, ∇ⁱ, and ∇ᵢ are StaticVectors which can be used with Field-vector
+# algebra, e.g. ∇*f. 
 
 # Note: We define the components of vectors, including ∇, to be with respect to
-# the unnormalized covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
-# and ∇ᵢ = d/dxⁱ. This is different than with respect to the normalized
+# the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
+# and ∇ᵢ = d/dxⁱ. This is different than with respect to the _normalized)
 # covariant basis vectors, which, e.g., in spherical coordinates, gives the more
 # familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are neither covariant
 # nor contravariant). 
@@ -29,15 +37,21 @@ abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 Ð!(args...) = Ð(args...)
 
-# bit of a hack: ∇i is marked as Float32 here so that it can be widened to
-# whatever its broadcast with by combine_eltypes in Broadcast.copy
-struct ∇i{coord, covariant} <: Field{DerivBasis,Spin,Pix,Float32} end
+# ∇i is a Field which when multiplied with a Field will perform a derivative.
+# Note, ∇i is marked as Complex{Float32} here so that it can be widened
+# to whatever its broadcast with by combine_eltypes in Broadcast.copy
+struct ∇i{coord, covariant} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
 
 # ∇i doesn't have a set size, it will take the size of the fields its broadcasted with:
 Base.axes(::∇i) = ()
 
-# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
-const ∇⁰, ∇¹, ∇₀, ∇₁ = Diagonal(∇i{0,false}()), Diagonal(∇i{1,false}()), Diagonal(∇i{0,true}()), Diagonal(∇i{1,true}())
+# wrap ∇i instances in a Diagonal so that e.g. ∇⁰*f first converts f to the
+# DerivBasis.
+const ∇⁰ = Diagonal(∇i{0,false}()) 
+const ∇¹ = Diagonal(∇i{1,false}())
+const ∇₀ = Diagonal(∇i{0,true}())
+const ∇₁ = Diagonal(∇i{1,true}())
+
 
 # printing
 show(io::IO, m::MIME"text/plain", D::Diagonal{<:Any,<:∇i}) = show(io, D)
@@ -47,29 +61,30 @@ show(io::IO, D::Diagonal{<:Any,<:∇i}) =
 show(io::IO, ::∇i{coord, covariant}, parens=true) where {coord, covariant} = 
     print(io, "∇", covariant ? (coord==0 ? "₀" : "₁") : (coord==0 ? "⁰" : "¹"), parens ? "()" : "")
 
-
+# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
 function gradhess(f)
     g = ∇ⁱ*f
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
 end
 
+# Gradient vector which can be used with Field-vector algebra. 
 struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
 getindex(::∇Op{covariant}, i::Int) where {covariant} = Diagonal(∇i{i-1,covariant}())
 const ∇ⁱ = ∇Op{false}()
 const ∇ᵢ = ∇Op{true}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
-# allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
-# allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
-# allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
-# mul!(f′::FieldVector, ∇Op::∇Op, f::Field) = @SVector[mul!(f′[1],∇Op[1],f), mul!(f′[2],∇Op[2],f)]
+
+
+mul!(v::FieldOrOpVector, ∇Op::∇Op, f::Field) = (mul!(v[1],∇Op[1],f); mul!(v[2],∇Op[2],f); v)
+
 # struct ∇²Op <: LinOp{Basis,Spin,Pix} end
 # *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
 # const ∇² = ∇²Op()
 
-# # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
-# # coordinate, e.g. ∂θ), but this is useful shorthand to have for the flat-sky:
-# const ∂x = ∇[1]
-# const ∂y = ∇[2]
+# this is not strictly true (∇[1] is generically a gradient w.r.t. the first
+# coordinate, e.g. ∂θ), but this is useful shorthand to have for the flat-sky:
+const ∂x = ∇[1]
+const ∂y = ∇[2]
 
     
 

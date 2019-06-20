@@ -1,10 +1,20 @@
 
-# non-broadcasted algebra on fields just uses the broadcasted versions
-# (although in a less efficient way than if you were to directly use
-# broadcasting)
+# addition/subtraction works between any fields and scalar, promotion is done
+# automatically if fields are in different bases
 for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
+
+# multiplication would not strictly be defined for abstract vectors, but make it
+# work anyway if the two fields are exactly the same type, in which case its
+# clear we wanted broadcasted multiplication. 
+for f in (:*, :/)
+    @eval function ($f)(A::F, B::F) where {F<:Field}
+        broadcast($f, A, B)
+    end
+end
+
+
 # dot(a::Field,b::Field) = dot(promote(a,b)...)
 
 
@@ -53,22 +63,6 @@ Basis(f::Field) = f
 # # correctly... maybe at some point evaluate if its really worth it?
 # 
 # 
-# # useful since v .* f is not type stable
-# *(v::FieldVector, f::Field) = @SVector[v[1]*f, v[2]*f]
-# *(f::Field, v::FieldVector) = @SVector[f*v[1], f*v[2]]
-# # until StaticArrays better implements adjoints
-# *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
-# # and until StaticArrays better implements invereses... 
-# function inv(dst::FieldMatrix, src::FieldMatrix)
-#     a,b,c,d = src
-#     det⁻¹ = @. 1/(a*d-b*c)
-#     @. dst[1,1] =  det⁻¹*d
-#     @. dst[1,2] = -det⁻¹*b
-#     @. dst[2,1] = -det⁻¹*c
-#     @. dst[2,2] =  det⁻¹*a
-#     dst
-# end
-# mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]
 # 
 # # helps StaticArrays infer various results correctly:
 # promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F

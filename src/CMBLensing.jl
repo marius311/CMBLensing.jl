@@ -64,15 +64,15 @@ export
     HealpixS0Cap, HealpixS2Cap, HealpixCap, GradientCache, azeqproj, HighPass, LowPass, MidPass,
     plot, @unpack, OuterProdOp, resimulate,
     ℓ², ℓ⁴, toCℓ, toDℓ, InterpolatedCℓs, ParamDependentOp,
-    IsotropicHarmonicCov, load_healpix_sim_dataset, dot, ⋅, cache, fourier∂, map∂
+    IsotropicHarmonicCov, load_healpix_sim_dataset, dot, ⋅, cache, fourier∂, map∂, Diagonal
 
 include("util.jl")
 include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
 include("field_tuples.jl")
-include("specialops.jl")
 include("field_vectors.jl")
+include("specialops.jl")
 include("algebra.jl")
 # include("smashtimes.jl")
 # include("lensing.jl")

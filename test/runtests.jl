@@ -10,10 +10,22 @@ using Test
         
         @testset "f::$(typeof(f))" begin
             
-            @test ((@inferred f + f); true)
-            @test ((@inferred ∇₀ * f); true)
+            local Ðf, Ðv
+            
+            @test (@inferred f + f) isa typeof(f)
+            
+            @test (Ðf = @inferred ∇₀*f) isa Field
+            @test (@inferred mul!(Ðf,∇₀,Ð(f))) isa Field
+
+            @test (Ðv = @inferred ∇*f) isa FieldOrOpVector
+            @test (@inferred mul!(Ðv,∇,Ð(f))) isa FieldOrOpVector
+            
+            @test (@inferred gradhess(f)) isa Tuple{FieldOrOpVector, FieldOrOpMatrix}
             
         end
+        
+        # @! ft = @SVector[f,f]' * @SVector[ft,ft]
+
         
     end
     

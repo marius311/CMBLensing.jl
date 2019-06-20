@@ -130,6 +130,10 @@ allocate_result(::Any, f::Field) = similar(f)
 # *(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
 # \(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
 
+# automatic basis conversion:
+(*)(D::Diagonal{<:Any,<:Field{B}}, V::Field) where {B} = D.diag .* B(V)
+
+
 
 
 # # Left multiplication uses `adjoint` which we require each LinOp implement
@@ -165,14 +169,10 @@ const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # const FieldOpScal = Union{Field,LinOp,Scalar}
 # 
 # 
-# ### Vectors of fields
-# 
-# const FieldVector{F<:Union{Field,LinOp}} = StaticVector{2,F}
-# const FieldRowVector{F<:Union{Field,LinOp}} = Adjoint{F,<:FieldVector}
-# const FieldMatrix{F<:Union{Field,LinOp}} = StaticMatrix{2,2,F}
-# const FieldArray{F<:Union{Field,LinOp}} = Union{FieldVector{F}, FieldRowVector{F}, FieldMatrix{F}}
-# 
-# 
+### Vectors of fields
+
+
+
 # ### Matrix conversion
 # 
 # # We can build explicit matrix representations of linear operators by applying
