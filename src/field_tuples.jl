@@ -19,15 +19,15 @@ FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS}(fs)
 
 
 ## printing
-function showarg(io::IO, ft::FieldTuple{B,<:NamedTuple{Names}}, toplevel) where {B,Names}
+showarg(io::IO, ft::FT, toplevel) where {FT<:FieldTuple} = showarg(io,FT)
+showarg(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names}}}) where {B,Names} =
     print(io, "$(Names) FieldTuple{$B}")
-end
 function show(io::IO, ::MIME"text/plain", ft::FieldTuple)
     print(io, "$(sum(map(length,values(ft.fs))))-element ")
     showarg(io, ft, false)
     println(io, ":")
     for (k,f) in pairs(ft.fs)
-        print(io, k, " = ")
+        print(io, " ", k, " = ")
         summary(IOContext(io, :limit=>true), f)
         show_vector(io, f)
         println(io)

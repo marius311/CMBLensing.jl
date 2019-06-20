@@ -1,6 +1,6 @@
 module CMBLensing
 
-using Base.Broadcast: ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, Style
+using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, Style
 using Base.Iterators: repeated
 using Base.Threads
 using Base: @propagate_inbounds, show_vector
@@ -17,7 +17,7 @@ using JLD2
 using FileIO
 using Loess
 using LinearAlgebra
-using MacroTools: @capture, postwalk, isexpr, splitdef, combinedef
+using MacroTools: @capture, combinedef, isexpr, postwalk, splitdef
 using Match
 using Markdown
 using Memoize
@@ -33,7 +33,7 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
-using StaticArrays: StaticArray, StaticVector, StaticMatrix, SVector, SMatrix, @SVector, @SMatrix
+using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
 using Strided
@@ -48,8 +48,8 @@ import Base: +, -, *, \, /, ^, ~,
     promote_rule, promote_type, propertynames, real, setindex!, show, showarg,
     similar, size, sqrt, sqrt, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: dot, isnan, logdet, mul!, ldiv!
-import PyPlot: plot, loglog, semilogx, semilogy
+import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!
+import PyPlot: loglog, plot, semilogx, semilogy
 
 
 
@@ -72,6 +72,7 @@ include("generic.jl")
 include("cls.jl")
 include("field_tuples.jl")
 include("specialops.jl")
+include("field_vectors.jl")
 include("algebra.jl")
 # include("smashtimes.jl")
 # include("lensing.jl")

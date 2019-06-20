@@ -52,11 +52,12 @@ function gradhess(f)
     g = ∇ⁱ*f
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
 end
-# struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
-# getindex(::∇Op{covariant}, i::Int) where {covariant} = ∇i{i-1,covariant}()
-# const ∇ⁱ = ∇Op{false}()
-# const ∇ᵢ = ∇Op{true}()
-# const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
+
+struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
+getindex(::∇Op{covariant}, i::Int) where {covariant} = Diagonal(∇i{i-1,covariant}())
+const ∇ⁱ = ∇Op{false}()
+const ∇ᵢ = ∇Op{true}()
+const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
 # allocate_result(::∇Op, f::Field) = @SVector[similar(f), similar(f)]
 # allocate_result(::typeof(∇ⁱ'),f) = allocate_result(∇,f)
 # allocate_result(::typeof(∇ᵢ'),f) = allocate_result(∇,f)
@@ -64,8 +65,9 @@ end
 # struct ∇²Op <: LinOp{Basis,Spin,Pix} end
 # *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
 # const ∇² = ∇²Op()
+
 # # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
-# # coordinate, e.g. ∂θ), but this is useful shorthand for the flat-sky:
+# # coordinate, e.g. ∂θ), but this is useful shorthand to have for the flat-sky:
 # const ∂x = ∇[1]
 # const ∂y = ∇[2]
 

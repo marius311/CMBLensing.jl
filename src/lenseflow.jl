@@ -98,16 +98,6 @@ end
 # the @! macro, which just rewrites @! x = f(y) to x = f!(x,y) for easier
 # reading. 
 
-velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = @… (cache=L.cache) p' * (∇ᵢ*f)
-
-velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real) = @… (cache=L.cache) (f*p)
-
-memcache = @allocate_temp_arrays_for L(ϕ)*f
-
-@use_memcache memcache L(ϕ)*f
-
-
-
 function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
     p = L.p[τ(t)]

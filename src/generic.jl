@@ -127,8 +127,8 @@ allocate_result(::Any, f::Field) = similar(f)
 # *(L::LinOp{B}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
 # \(L::LinOp{B}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
 
-*(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
-\(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
+# *(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
+# \(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
 
 
 
@@ -161,7 +161,7 @@ allocate_result(::Any, f::Field) = similar(f)
 # implicitly assume our maps are real, and addition/multiplication by a complex
 # number, even of the fourier transform, would break this.
 const Scalar = Real
-# const FieldOrOp = Union{Field,LinOp}
+const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # const FieldOpScal = Union{Field,LinOp,Scalar}
 # 
 # 
