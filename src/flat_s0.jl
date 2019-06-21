@@ -15,9 +15,10 @@ end
 const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
 ## convenience constructors
-FlatMap(Ix; θpix=θpix₀, ∂mode=fourier∂) = FlatMap{Flat{size(Ix,2),θpix,∂mode}}(Ix)
+Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
+FlatMap(Ix; kwargs...) = FlatMap{Flat(Nside=size(Ix,2);kwargs...)}(Ix)
 FlatMap{P}(Ix::M) where {P,T,M<:AbstractMatrix{T}} = FlatMap{P,T,M}(Ix)
-FlatFourier(Il; θpix=θpix₀, ∂mode=fourier∂) = FlatFourier{Flat{size(Il,2),θpix,∂mode}}(Il)
+FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 
 ## pretty printing
@@ -57,15 +58,16 @@ Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, F
 Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
 
 
-# function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS0{T,P}}
-#     FlatMap{T,P}(randn(Nside,Nside) / FFTgrid(P,T).Δx)
-# end
-# 
-# """ Convert power spectrum Cℓ to a flat sky diagonal covariance """
-# function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S0}, CℓTT::InterpolatedCℓs) where {T,P}
-#     g = FFTgrid(P,T)
-#     FullDiagOp(FlatFourier{T,P}(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.nside÷2+1,:]))
-# end
+function white_noise(::Type{F}) where {Θ,N,T,P<:Flat{N,Θ},F<:FlatS0{P,T}}
+    FlatMap{P}(randn(T,N,N) / FFTgrid(P,T).Δx)
+end
+
+""" Convert power spectrum Cℓ to a flat sky diagonal covariance """
+function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S0}, CℓTT::InterpolatedCℓs) where {T,P}
+    g = FFTgrid(P,T)
+    Diagonal(FlatFourier{P}(Complex{T}.(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.Nside÷2+1,:])))
+end
+
 # 
 # function cov_to_Cℓ(L::FullDiagOp)
 #     ii = sortperm(FFTgrid(L.f).r[:])

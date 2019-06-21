@@ -50,7 +50,7 @@ end
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]
 
 # eventually replace having to do this by hand with Cassette-based solution
-mul!(f::Field, v::FieldOrOpRowVector, w::FieldOrOpVector) = (@. f = v.parent[1]*w[2] + v.parent[2]*w[2])
+mul!(f::Field, v::FieldOrOpRowVector, w::FieldOrOpVector) = (@. f = v.parent[1]*w[1] + v.parent[2]*w[2])
 
 # # until StaticArrays better implements adjoints
 # *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'

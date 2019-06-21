@@ -4,6 +4,7 @@
 # actually needed here. 
 
 # adjoint(D::Diagonal{<:Number,<:Field}) = Diagonal(conj.(D.diag))
+simulate(D::Diagonal{<:Any,F}) where {F<:Field} = sqrt(D) * white_noise(F)
 
 function showarg(io::IO, D::Diagonal{<:Any,<:Field}, toplevel)
     print(io, "Diagonal{")

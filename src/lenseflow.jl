@@ -69,7 +69,7 @@ function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁
     ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
     T = eltype(L.ϕ)
     for (t,τ) in zip(ts,τ.(ts))
-        @! cL.M⁻¹[τ] = inv(T(1)*I + T(t)*Hϕ)
+        @! cL.M⁻¹[τ] = inv(I + t*Hϕ)
         @! cL.p[τ] = permutedims(cL.M⁻¹[τ]) * ∇ϕ
     end
     cL.ϕ[] = L.ϕ

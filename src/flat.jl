@@ -44,7 +44,7 @@ FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgri
     r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,2); s[i]=Nside; tuple(s...))) for i=1:2)...))
     ϕ   = angle.(k' .+ im*k)[1:Nside÷2+1,:]
     sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    FFTgrid(T(θpix), Nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
+    FFTgrid{T,typeof(FFT)}(θpix, Nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
 
