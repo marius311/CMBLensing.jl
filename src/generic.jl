@@ -115,20 +115,23 @@ abstract type Basislike <: Basis end
 #     * Vector conversion: Af = A[~f] returns an object which when acting on an
 #     AbstractVector, Af * v, converts v to a Field, then applies A.
 # 
-# abstract type LinOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
 
-# allocate the result of applying a LinOp to a given field. 
-# the default below assumes the result is the same type as the Field itself, but
-# this can be specialized (e.g. ∇*f returns instead a vector of fields)
-allocate_result(::Any, f::Field) = similar(f)
 
-# `*` and `\` use `mul!` and `ldiv!` which we require each LinOp implement
-# here we also do the automatic basis conversion to the LinOps specified basis
-# *(L::LinOp{B}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
-# \(L::LinOp{B}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
+# todo: maybe drop all B,S,P tracking on ImplicitOps ?
 
-# *(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f);  mul!(allocate_result(L,f′),L,f′))
-# \(L::Diagonal{<:Any,<:Field{B}}, f::Field) where {B} = (f′=B(f); ldiv!(allocate_result(L,f′),L,f′))
+# implicit Ops are operators on fields, but they are neither Diagonal nor is
+# their full matrix representation ever explicitly stored, hence they are
+# "implicit" operators. 
+abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
+
+
+# show(io::IO, L::ImplicitOp) = show_default(io, L)
+show(io::IO, m::MIME"text/plain", L::ImplicitOp) = show_default(io, L)
+
+
+
+# Linear operators on Fields
+const LinOp{B,S,P,T} = Union{ImplicitOp{B,S,P,T},Diagonal{<:Any,Field{B,S,P,T}}}
 
 # automatic basis conversion:
 (*)(D::Diagonal{<:Any,<:Field{B}}, V::Field) where {B} = D.diag .* B(V)

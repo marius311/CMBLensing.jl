@@ -1,7 +1,7 @@
 export FΦTuple, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, Ł, LenseOp
 
 # Abstract type for lensing operators
-abstract type LenseOp <: LinOp{Basis,Spin,Pix} end
+abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix,Any} end
 
 # For each Field type, lensing algorithms needs to know the basis in which
 # lensing is a remapping. E.g. for FlatS0 it's Map but for FlatS2 it's QUMap.
@@ -29,7 +29,7 @@ const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}
 # Note, the bottom row is trivially [0,1], but included to make the Jacobian
 # square and easier to reason about
 # 
-struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: LinOp{Basis,Spin,Pix}
+struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: ImplicitOp{Basis,Spin,Pix,Any}
     L::L
     fₛ::Fₛ
     fₜ::Fₜ

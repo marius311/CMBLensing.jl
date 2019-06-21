@@ -40,7 +40,7 @@ size(f::FieldTuple) = (sum(map(length, f.fs)),)
 # @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(broadcast_data(f), I...)
 # @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = setindex!(broadcast_data(f), X, I...)
 similar(f::FT) where {FT<:FieldTuple}= FT(map(similar,f.fs))
-
+copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
 
 
 ## broadcasting

@@ -51,13 +51,13 @@ zero(L::CachedLenseFlow) = zero(L.memŁϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
 *(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
-*(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
+# *(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
 \(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
-\(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
+# \(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
 
 # Define integrations for Jacobians
-*(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
-    (cL=cache(J'.L,δf); FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...))
+# *(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
+#     (cL=cache(J'.L,δf); FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...))
 
 
 τ(t) = Float16(t)

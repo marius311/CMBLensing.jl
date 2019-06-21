@@ -5,9 +5,9 @@ for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field)
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
 
-# multiplication would not strictly be defined for abstract vectors, but make it
-# work anyway if the two fields are exactly the same type, in which case its
-# clear we wanted broadcasted multiplication. 
+# multiplication/division is not strictly be defined for abstract vectors, but
+# make it work anyway if the two fields are exactly the same type, in which case
+# its clear we wanted broadcasted multiplication/division. 
 for f in (:*, :/)
     @eval function ($f)(A::F, B::F) where {F<:Field}
         broadcast($f, A, B)
@@ -64,11 +64,5 @@ Basis(f::Field) = f
 # 
 # 
 # 
-# # helps StaticArrays infer various results correctly:
-# promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
-# arithmetic_closure(::F) where {F<:Field} = F
-# using LinearAlgebra: matprod
-# Base.promote_op(::typeof(adjoint), ::Type{T}) where {T<:∇i} = T
-# Base.promote_op(::typeof(matprod), ::Type{<:∇i}, ::Type{<:F}) where {F<:Field} = Base._return_type(*, Tuple{∇i{0,true},F})
 # 
 # ud_grade(s::Scalar, args...; kwargs...) = s

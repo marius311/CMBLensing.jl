@@ -77,17 +77,9 @@ EBMap(f::FlatEBFourier) = FlatEBMap(Map(f))
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
-# function QUFourier(f′::FlatS2QUFourier{T,P}, f::FlatS2QUMap{T,P}) where {T,P}
-#     mul!(f′.Ql, FFTgrid(T,P).FFT, f.Qx)
-#     mul!(f′.Ul, FFTgrid(T,P).FFT, f.Ux)
-#     f′
-# end
-# 
-# function QUMap(f′::FlatS2QUMap{T,P}, f::FlatS2QUFourier{T,P}) where {T,P}
-#     ldiv!(f′.Qx, FFTgrid(T,P).FFT, f.Ql)
-#     ldiv!(f′.Ux, FFTgrid(T,P).FFT, f.Ul)
-#     f′
-# end
+QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
+QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
+
 # 
 # 
 # 

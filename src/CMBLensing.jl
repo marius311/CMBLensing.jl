@@ -3,7 +3,7 @@ module CMBLensing
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, Style
 using Base.Iterators: repeated
 using Base.Threads
-using Base: @propagate_inbounds, show_vector
+using Base: @propagate_inbounds, show_vector, show_default
 using CatViews
 using Combinatorics
 using DataStructures
@@ -74,8 +74,7 @@ include("field_tuples.jl")
 include("field_vectors.jl")
 include("specialops.jl")
 include("algebra.jl")
-# include("smashtimes.jl")
-# include("lensing.jl")
+include("lensing.jl")
 include("flat.jl")
 # include("healpix.jl")
 # include("taylens.jl")
