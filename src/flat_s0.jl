@@ -22,7 +22,7 @@ FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 
 ## pretty printing
-print_array(io::IO, f::FlatS0) = print_array(io, broadcast_data(f)[:])
+print_array(io::IO, f::FlatS0) = print_array(io, firstfield(f)[:])
 showarg(io::IO, f::F, toplevel) where {F<:FlatS0} = showarg(io,F)
 showarg(io::IO, ::Type{F}) where {N,θ,∂mode,T,F<:FlatS0{Flat{N,θ,∂mode},T}} =
     print(io, "$(F.name.name){$T, $N×$N map, $(θ)′ pixels, $(∂mode.name.name)}")
@@ -30,23 +30,20 @@ showarg(io::IO, f::Vector{F}, toplevel) where {F<:Field} =
     (print(io,"Vector{"); showarg(io,F); print(io,"}"))
 
 ## array interface 
-size(f::FlatS0) = (length(broadcast_data(f)),)
-@propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(broadcast_data(f), I...)
-@propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = setindex!(broadcast_data(f), X, I...)
-similar(f::F) where {F<:FlatS0} = F(similar(broadcast_data(f)))
+size(f::FlatS0) = (length(firstfield(f)),)
+@propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
+@propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
+similar(f::F) where {F<:FlatS0} = F(similar(firstfield(f)))
 
 ## broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
 BroadcastStyle(::Style{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = Style{FT}()
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatMap{P}} = FlatMap{P}(similar(Array{T}, N, N))
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatFourier{P}} = FlatFourier{P}(similar(Array{T}, N÷2+1, N))
-function preprocess(dest::F, bc::Broadcasted{Nothing}) where {F<:FlatS0}
-    bc′ = flatten(bc)
-    Broadcasted{Nothing}(bc′.f, map(arg->broadcast_data(F,arg), bc′.args))
-end
-broadcast_data(::Any, x::Number) = x
-broadcast_data(f::F) where {F} = broadcast_data(F,f)
-broadcast_data(::Type{<:FlatS0{P}}, f::F) where {P, F<:FlatS0{P}} = first(fieldvalues(f))
+@inline preprocess(dest::F, bc::Broadcasted{Style}) where {F<:FlatS0,Style} = Broadcasted{Style}(bc.f, preprocess_args(dest, bc.args), bc.axes)
+preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
+broadcastable(::Type{F}, f::F) where {F<:FlatS0} = firstfield(f)
+broadcastable(::Any, x) = x
 
 
 ## convenience conversion funtions:

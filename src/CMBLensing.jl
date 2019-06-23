@@ -1,6 +1,6 @@
 module CMBLensing
 
-using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, Style
+using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated
 using Base.Threads
 using Base: @propagate_inbounds, show_vector, show_default
@@ -33,7 +33,7 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
-using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticMatrix, StaticVector, SVector
+using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle, StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
 using Strided
@@ -44,8 +44,9 @@ using Strided
 import Base: +, -, *, \, /, ^, ~,
     adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, copyto!,
     eltype, getindex, getproperty, inv, iterate, keys, length, literal_pow,
-    materialize!, materialize, one, print_array, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, setindex!, show, showarg,
+    materialize!, materialize, one, print_array, promote,
+    promote_rule, promote_rule, promote_type, propertynames, real, setindex!,
+    show, showarg,
     similar, size, sqrt, sqrt, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!

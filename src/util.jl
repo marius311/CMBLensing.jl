@@ -9,7 +9,7 @@ Return the type's fields as a tuple
 """
 @generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
 @generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
-
+firstfield(x) = first(fieldvalues(x))
 
 """
 Replaces every occurence of ∷ with `<:Any`
@@ -31,7 +31,7 @@ macro !(ex)
         elseif f==:\
             f = :ldiv!
         end
-        esc(:($x = $f($x,$(args...))))
+        esc(:($x = $f($x,$(args...))::typeof($x))) # ::typeof part helps inference sometimes
     else
         error("Usage: @! x = f!(...)")
     end
@@ -173,12 +173,16 @@ inv(d::Diagonal) = Diagonal(1 ./ d.diag)
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
 
 
-# some usefule tuple manipulation functions
-using Base: tuple_type_cons, tuple_type_head, tuple_type_tail, first, tail
+# some usefule tuple manipulation functions:
+
+# see: https://discourse.julialang.org/t/efficient-tuple-concatenation/5398/10
+# and https://github.com/JuliaLang/julia/issues/27988
 @inline tuplejoin(x) = x
 @inline tuplejoin(x, y) = (x..., y...)
 @inline tuplejoin(x, y, z...) = (x..., tuplejoin(y, z...)...)
+
 # see https://discourse.julialang.org/t/any-way-to-make-this-one-liner-type-stable/10636/2
+using Base: tuple_type_cons, tuple_type_head, tuple_type_tail, first, tail
 map_tupleargs(f,::Type{T}) where {T<:Tuple} = 
     (f(tuple_type_head(T)), map_tupleargs(f,tuple_type_tail(T))...)
 map_tupleargs(f,::Type{T},::Type{S}) where {T<:Tuple,S<:Tuple} = 

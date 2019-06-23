@@ -175,7 +175,10 @@ function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
         @! k₂ = F!(t + (h/2), (@. y′ = y + (h/2)*k₁))
         @! k₃ = F!(t + (h/2), (@. y′ = y + (h/2)*k₂))
         @! k₄ = F!(t +   (h), (@. y′ = y +   (h)*k₃))
-        @. y += h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+        
+        # see https://github.com/JuliaLang/julia/issues/27988 for odd choice of
+        # parenthesis, which is intentional and affects inference
+        @. y += h*((k₁ + 2k₂) + 2k₃ + k₄)/6
     end
     return y
 end

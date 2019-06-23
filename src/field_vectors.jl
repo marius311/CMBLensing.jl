@@ -2,13 +2,13 @@
 # length-2 StaticVectors or 2x2 StaticMatrices of Fields or LinOps are what we
 # consider "Field or Op" arrays, for which we define some special behavior
 const FieldOrOpVector{F<:FieldOrOp}    = StaticVector{2,F}
-const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Adjoint{<:Any,F},<:FieldOrOpVector{F}}
 const FieldOrOpMatrix{F<:FieldOrOp}    = StaticMatrix{2,2,F}
+const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Adjoint{<:Any,F},<:FieldOrOpVector{F}}
 const FieldOrOpArray{F<:FieldOrOp}     = Union{FieldOrOpVector{F}, FieldOrOpMatrix{F}, FieldOrOpRowVector{F}}
 # or just Fields: 
-const FieldVector{F<:Field}    = FieldOrOpVector{F}
+const FieldVector{F<:Field}    = SVector{2,F}
+const FieldMatrix{F<:Field}    = SMatrix{2,2,F,4}
 const FieldRowVector{F<:Field} = FieldOrOpRowVector{F}
-const FieldMatrix{F<:Field}    = FieldOrOpMatrix{F}
 const FieldArray{F<:Field}     = FieldOrOpArray{F}
 
 
@@ -17,7 +17,7 @@ const FieldArray{F<:Field}     = FieldOrOpArray{F}
 ### broadcasting
 # FieldArray broadcasting wins over Field and FieldTuple broadcasting, so go
 # through the broadcast expression, wrap all Field and FieldTuple args in Refs,
-# then forward to DefaultArrayStyle broadcasting
+# then forward to StaticArrayStyle broadcasting
 struct FieldOrOpArrayStyle{N} <: AbstractArrayStyle{N} end
 (::Type{<:FieldOrOpArrayStyle})(::Val{N}) where {N} = FieldOrOpArrayStyle{N}()
 BroadcastStyle(::Type{<:FieldOrOpVector}) = FieldOrOpArrayStyle{1}()
@@ -27,7 +27,7 @@ BroadcastStyle(::FieldOrOpArrayStyle{N}, ::Style{FT}) where {N,FT<:FieldTuple} =
 instantiate(bc::Broadcasted{<:FieldOrOpArrayStyle}) = bc
 function copy(bc::Broadcasted{FieldOrOpArrayStyle{N}}) where {N}
     bc′ = flatten(bc)
-    bc″ = Broadcasted{DefaultArrayStyle{N}}(bc′.f, map(fieldvector_data,bc′.args))
+    bc″ = Broadcasted{StaticArrayStyle{N}}(bc′.f, map(fieldvector_data,bc′.args))
     materialize(bc″)
 end
 fieldvector_data(f::FieldOrOp) = Ref(f)
@@ -50,7 +50,10 @@ end
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]
 
 # eventually replace having to do this by hand with Cassette-based solution
-mul!(f::Field, v::FieldOrOpRowVector, w::FieldOrOpVector) = (@. f = v.parent[1]*w[1] + v.parent[2]*w[2])
+mul!(f::Field, v::FieldOrOpRowVector, w::FieldVector) = 
+    ((@. f = parent(v)[1]*w[1] + parent(v)[2]*w[2]); f)
+mul!(v::FieldVector, M::FieldOrOpMatrix, w::FieldVector) = 
+    ((@. v[1] = M[1,1]*w[1] + M[1,2]*w[2]); (@. v[2] = M[2,1]*w[1] + M[2,2]*w[2]); v)
 
 # # until StaticArrays better implements adjoints
 # *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
