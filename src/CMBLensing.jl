@@ -49,7 +49,7 @@ import Base: +, -, *, \, /, ^, ~,
     show, showarg,
     similar, size, sqrt, sqrt, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!
+import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, structured_broadcast_alloc, StructuredMatrixStyle
 import PyPlot: loglog, plot, semilogx, semilogy
 
 

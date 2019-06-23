@@ -168,7 +168,6 @@ end
 import StaticArrays: arithmetic_closure
 import Base: sqrt, inv, /, permutedims
 arithmetic_closure(::Type{Diagonal{T}}) where {T} = Diagonal{arithmetic_closure(T)}
-inv(d::Diagonal) = Diagonal(1 ./ d.diag)
 /(a::Number, b::Diagonal) = Diagonal(a ./ diag(b))
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
 
@@ -229,4 +228,10 @@ macro symmetric_memoized(funcdef)
     
     esc(:(@memoize $(combinedef(sfuncdef))))
     
+end
+
+
+function ensuresame(args...)
+    @assert all(args .== args[1])
+    args[1]
 end

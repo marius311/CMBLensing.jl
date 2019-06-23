@@ -24,8 +24,8 @@ FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,
 ## pretty printing
 print_array(io::IO, f::FlatS0) = print_array(io, firstfield(f)[:])
 showarg(io::IO, f::F, toplevel) where {F<:FlatS0} = showarg(io,F)
-showarg(io::IO, ::Type{F}) where {N,θ,∂mode,T,F<:FlatS0{Flat{N,θ,∂mode},T}} =
-    print(io, "$(F.name.name){$T, $N×$N map, $(θ)′ pixels, $(∂mode.name.name)}")
+showarg(io::IO, ::Type{F}) where {N,θ,∂mode,T,M,F<:FlatS0{Flat{N,θ,∂mode},T,M}} =
+    print(io, "$(F.name.name){$N×$N map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
 showarg(io::IO, f::Vector{F}, toplevel) where {F<:Field} =
     (print(io,"Vector{"); showarg(io,F); print(io,"}"))
 
@@ -33,13 +33,18 @@ showarg(io::IO, f::Vector{F}, toplevel) where {F<:Field} =
 size(f::FlatS0) = (length(firstfield(f)),)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
-similar(f::F) where {F<:FlatS0} = F(similar(firstfield(f)))
+similar(f::F) where {F<:FlatS0} = similar(F,eltype(f))
+similar(f::F,::Type{T}) where {T,F<:FlatS0} = similar(F,T)
+similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatMap{P,<:Any,M}} = FlatMap{P}(basetype(M){T}(undef,N,N))
+similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,<:Any,M}} = FlatFourier{P}(basetype(M){T}(undef,N÷2+1,N))
+
 
 ## broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
+BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:FlatMap{P}} = ArrayStyle{FlatMap{P,Real,Matrix{Real}}}()
+BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
 BroadcastStyle(::Style{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = Style{FT}()
-similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatMap{P}} = FlatMap{P}(similar(Array{T}, N, N))
-similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, N, P<:Flat{N}, F<:FlatFourier{P}} = FlatFourier{P}(similar(Array{T}, N÷2+1, N))
+similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
 @inline preprocess(dest::F, bc::Broadcasted{Style}) where {F<:FlatS0,Style} = Broadcasted{Style}(bc.f, preprocess_args(dest, bc.args), bc.axes)
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::F) where {F<:FlatS0} = firstfield(f)

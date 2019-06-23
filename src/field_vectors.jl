@@ -61,10 +61,10 @@ mul!(v::FieldVector, M::FieldOrOpMatrix, w::FieldVector) =
 function inv(dst::FieldMatrix, src::FieldMatrix)
     a,b,c,d = src
     det⁻¹ = @. 1/(a*d-b*c)
-    @. dst[1,1] =  det⁻¹*d
-    @. dst[1,2] = -det⁻¹*b
-    @. dst[2,1] = -det⁻¹*c
-    @. dst[2,2] =  det⁻¹*a
+    @. dst[1,1] =  det⁻¹ * d
+    @. dst[1,2] = -det⁻¹ * b
+    @. dst[2,1] = -det⁻¹ * c
+    @. dst[2,2] =  det⁻¹ * a
     dst
 end
 # mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]

@@ -5,6 +5,16 @@
 
 simulate(D::Diagonal{<:Any,F}) where {F<:Field} = sqrt(D) * white_noise(F)
 
+# broadcasting
+structured_broadcast_alloc(bc, ::Type{<:Diagonal{<:Any,F}}, ::Type{T}, n) where {F<:Field,T} =
+    Diagonal(similar(F,T))
+function copyto!(dest::Diagonal{<:Any,<:Field}, bc::Broadcasted{<:StructuredMatrixStyle})
+    bc′ = flatten(bc)
+    copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(firstfield, bc′.args)))
+    dest
+end
+
+# printing
 function showarg(io::IO, D::Diagonal{<:Any,<:Field}, toplevel)
     print(io, "Diagonal{")
     showarg(io, D.diag, toplevel)

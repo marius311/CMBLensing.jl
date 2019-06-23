@@ -1,27 +1,25 @@
 
 
 abstract type BasisTuple{T} <: Basis end
-# abstract type SpinTuple{T} <: Spin end
-# abstract type PixTuple{T} <: Pix end
-
 
 ## FieldTuple type 
 # a thin wrapper around a NamedTuple which additionally forwards all
 # broadcasts one level deeper
-struct FieldTuple{B,FS<:NamedTuple} <: Field{B,Spin,Pix,Real}
+struct FieldTuple{B,FS<:NamedTuple,T} <: Field{B,Spin,Pix,T}
     fs::FS
 end
 FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
 FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
-FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS}(fs)
+FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map(eltype,values(fs))...)}(fs)
 (::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
 (::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
 
 
+
 ## printing
 showarg(io::IO, ft::FT, toplevel) where {FT<:FieldTuple} = showarg(io,FT)
-showarg(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names}}}) where {B,Names} =
-    print(io, "$(Names) FieldTuple{$B}")
+showarg(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names},T}}) where {B,Names,T} =
+    print(io, "$(Names) FieldTuple{$(B.name.name), $T}")
 function show(io::IO, ::MIME"text/plain", ft::FieldTuple)
     print(io, "$(sum(map(length,values(ft.fs))))-element ")
     showarg(io, ft, false)
@@ -37,27 +35,24 @@ end
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
-similar(f::FT) where {FT<:FieldTuple}= FT(map(similar,f.fs))
 copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
-
+similar(f::FT) where {FT<:FieldTuple}= FT(map(similar,f.fs))
+similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{Names,FS}}} = 
+    FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
 
 ## broadcasting
 @propagate_inbounds @inline getindex(f::FieldTuple, i) = getindex(f.fs, i)
 broadcastable(f::FieldTuple) = f
-BroadcastStyle(::Type{FT}) where {FT<:FieldTuple} = Style{FT}()
-BroadcastStyle(::Style{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} = Style{FT}()
-BroadcastStyle(::Style{FT}, ::DefaultArrayStyle{1}) where {FT<:FieldTuple} = Style{FT}()
-BroadcastStyle(::Style{FT}, ::Style{Tuple}) where {FT<:FieldTuple} = Style{FT}()
-instantiate(bc::Broadcasted{<:Style{<:FieldTuple}}) = bc
+BroadcastStyle(::Type{FT}) where {FT<:FieldTuple} = ArrayStyle{FT}()
+BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
+BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{1}) where {FT<:FieldTuple} = ArrayStyle{FT}()
+BroadcastStyle(::ArrayStyle{FT}, ::Style{Tuple}) where {FT<:FieldTuple} = ArrayStyle{FT}()
+instantiate(bc::Broadcasted{<:ArrayStyle{<:FieldTuple}}) = bc
 tuple_data(f::FieldTuple) = values(f.fs)
 tuple_data(f::Field) = (f,)
 tuple_data(x) = x
-function copy(bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
-    bc′ = flatten(bc)
-    bc″ = Broadcasted{Style{Tuple}}((args...)->broadcast(bc′.f,args...), map(tuple_data,bc′.args))
-    FT(NamedTuple{Names}(copy(bc″)))
-end
-function copyto!(dest::FT, bc::Broadcasted{Style{FT}}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
+similar(bc::Broadcasted{ArrayStyle{FT}}, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
+function copyto!(dest::FT, bc::Broadcasted{Nothing}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (tuple_data(dest), map(tuple_data,bc′.args)...))
     copy(bc″)
