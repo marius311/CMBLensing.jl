@@ -1,4 +1,3 @@
-export @repeated, nan2zero
 
 import Base: ==
 ==(x,y,z,ws...) = x==y && ==(y,z,ws...)

@@ -1,7 +1,6 @@
 using PyPlot
 import PyPlot: plot
 
-export plot
 
 plotsize₀ = 4
 

@@ -1,3 +1,8 @@
+using CMBLensing
+using CMBLensing: basis
+
+##
+
 using Test
 using SparseArrays
 using LinearAlgebra

@@ -1,5 +1,4 @@
 
-export Taylens
 
 struct Taylens{N,T<:Real} <: LenseOp
     # pixel remapping

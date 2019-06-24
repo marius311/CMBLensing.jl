@@ -2,10 +2,6 @@
 # this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
 # and operators on this map
 
-export
-    QUMap, EBMap, QUFourier, EBFourier,
-    FlatS2QUMap, FlatS2EBMap, FlatS2QUFourier, FlatS2EBFourier,
-    FlatS2QU, FlatS2EB, FlatS2Map, FlatS2Fourier, FlatS2
 
 ## constructors
 const FlatQUMap{P,T,M}     = FieldTuple{QUMap,     NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}}, T}

@@ -1,5 +1,4 @@
 
-export LenseFlow, CachedLenseFlow
 
 abstract type ODESolver end
 # only one single ODE solver implemented for now, a simple custom RK4:

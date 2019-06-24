@@ -10,7 +10,6 @@
 # taken, this is called "PowerLens"
 #
 
-export PowerLens
 
 struct PowerLens{N,F<:Field{<:Any,<:S0}} <: LenseOp
     ∂xϕⁱ::Dict{Int,Union{Int,F}}

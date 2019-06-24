@@ -1,4 +1,3 @@
-export sptlike_mask
 
 """
 An SPT-like mask, based mostly on,

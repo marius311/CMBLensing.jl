@@ -203,12 +203,6 @@ const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # 
 # ### Other generic stuff
 # 
-# @doc doc"""
-#     norm²(f::Field, L::LinOp)
-# 
-# Shorthand for `f⋅(L\f)`, i.e. the squared-norm of `f` w.r.t. the operator `L`.
-# """
-# norm²(f::Field, L::LinOp) = f⋅(L\f)
 
 # convenience "getter" functions for the Basis/Spin/Pix
 basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B

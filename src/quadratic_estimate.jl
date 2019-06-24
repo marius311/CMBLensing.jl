@@ -1,4 +1,3 @@
-export quadratic_estimate
 
 """
 

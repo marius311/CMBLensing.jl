@@ -2,7 +2,6 @@
 # this file defines a flat-sky pixelized spin-0 map (like T or ϕ)
 # and operators on this map
 
-export FlatFourier, FlatMap, FlatS0
 
 
 ## FlatMap and FlatFourier types

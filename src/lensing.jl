@@ -1,4 +1,3 @@
-export FΦTuple, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, Ł, LenseOp
 
 # Abstract type for lensing operators
 abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix,Any} end

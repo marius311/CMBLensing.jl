@@ -1,4 +1,3 @@
-export Flat, FFTgrid, FlatIQUMap, get_Cℓ
 
 # derivatives can either be applied in fourier space by multipliying by im*k or
 # in map space by finite differences. this tracks which option to use for a

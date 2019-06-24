@@ -1,4 +1,3 @@
-export bcggd, cg, pcg, pcg2, gdsteps
 
 """
 Simple generic conjugate gradient implementation that works on Vectors, Fields, etc... 

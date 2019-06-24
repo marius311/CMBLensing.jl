@@ -1,4 +1,3 @@
-export DataSet, lnP, δlnP_δfϕₜ
 
 
 # 
