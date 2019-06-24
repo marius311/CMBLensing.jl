@@ -116,8 +116,8 @@ DerivBasis(::Type{<:FlatEB{<:Flat{<:Any,<:Any,fourier∂}}}) = EBFourier
 
 
 # α = im #∇i isa AdjOp ? -im : im
-broadcastable(::Type{<:FlatFourier{P,T}}, ∇i::∇i{0}) where {P,T} = im * FFTgrid(P,T).k'
-broadcastable(::Type{<:FlatFourier{P,T}}, ∇i::∇i{1}) where {P,T} = im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
+broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{0}) where {P,T} = im * FFTgrid(P,T).k'
+broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{1}) where {P,T} = im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
 
 # @generated function broadcast_data(::Type{<:BaseFlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
 #     (FFTgrid(P,T).k' .^2 .+ FFTgrid(P,T).k[1:Nside(P)÷2+1].^2,)

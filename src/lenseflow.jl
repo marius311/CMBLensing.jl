@@ -16,14 +16,14 @@ struct LenseFlow{I<:ODESolver,t₀,t₁,Φ<:Field{<:Any,<:S0}} <: LenseFlowOp{I,
     ϕ::Φ
 end
 
-struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field} <: LenseFlowOp{jrk4{N},t₀,t₁}
+struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{jrk4{N},t₀,t₁}
     
     # save ϕ to know when to trigger recaching
     ϕ :: Ref{Φ}
     
     # p and M⁻¹ quantities precomputed at every time step
-    p   :: Dict{Float16,FieldVector{ŁΦ}}
-    M⁻¹ :: Dict{Float16,FieldMatrix{ŁΦ}}
+    p   :: Dict{Float16,FieldOrOpVector{Diagonal{T,ŁΦ}}}
+    M⁻¹ :: Dict{Float16,FieldOrOpMatrix{Diagonal{T,ŁΦ}}}
     
     # f type memory
     memŁf  :: ŁF
@@ -66,11 +66,11 @@ cache(cL::CachedLenseFlow, f) = cL
 cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{jrk4{N},t₀,t₁}(ϕ),cL.memŁf)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
-    ∇ϕ,Hϕ = Map.(gradhess(L.ϕ))
+    ∇ϕ,Hϕ = Ł.(gradhess(L.ϕ))
     T = eltype(L.ϕ)
     for (t,τ) in zip(ts,τ.(ts))
-        @! cL.M⁻¹[τ] = inv(I + t*Hϕ)
-        @! cL.p[τ] = permutedims(cL.M⁻¹[τ]) * ∇ϕ
+        @! cL.M⁻¹[τ] = pinv(Diagonal.(I + t*Hϕ))
+        @! cL.p[τ] = cL.M⁻¹[τ]' * Diagonal.(∇ϕ)
     end
     cL.ϕ[] = L.ϕ
     cL
@@ -81,10 +81,10 @@ function alloc_cache(L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
     Łf,Ðf = Ł(f),  Ð(f)
     Łϕ,Ðϕ = Ł(L.ϕ),Ð(L.ϕ)
     for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ])
-        p[τ]   = similar.(@SVector[Łϕ,Łϕ])
+        M⁻¹[τ] = Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))
+        p[τ]   = Diagonal.(similar.(@SVector[Łϕ,Łϕ]))
     end
-    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ),typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf)}(
+    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ),typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf),eltype(Łϕ)}(
         Ref(L.ϕ), p, M⁻¹, 
         similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
         similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
@@ -171,10 +171,10 @@ function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
     for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
-        @! k₁ = F!(t, y)
-        @! k₂ = F!(t + (h/2), (@. y′ = y + (h/2)*k₁))
-        @! k₃ = F!(t + (h/2), (@. y′ = y + (h/2)*k₂))
-        @! k₄ = F!(t +   (h), (@. y′ = y +   (h)*k₃))
+        @! k₁ = F(t, y)
+        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
+        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
+        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
         
         # see https://github.com/JuliaLang/julia/issues/27988 for odd choice of
         # parenthesis, which is intentional and affects inference

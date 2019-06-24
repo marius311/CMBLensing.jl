@@ -235,3 +235,10 @@ pix(::F) where {F<:Field} = pix(F)
 #     Cℓx = get_Cℓ(f1,f2; kwargs...)
 #     InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
 # end
+
+
+# we use Field cat'ing mainly for e.g. plot([f f; f f]) which makes a 2×2 matrix
+# of maps. the following definitions make it so that Fields aren't splatted into
+# a giant matrix when doing [f f; f f]
+hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
+hcat(values::Field...) = hcat(([x] for x in values)...)

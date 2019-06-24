@@ -19,21 +19,22 @@ macro ∷(ex)
 end
 
 
+
 """
-@! x = f!(args...) is equivalent to x = f!(x,args...)
+@! x = f(args...) is equivalent to x = f!(x,args...)
 """
 macro !(ex)
     if @capture(ex, x_ = f_(args__; kwargs_...))
-        esc(:($f($x,$(args...); $kwargs...)))
+        esc(:($(Symbol(string(f,"!")))($x,$(args...); $kwargs...)))
     elseif @capture(ex, x_ = f_(args__))
         if f == :*
-            f = :mul!
+            f = :mul
         elseif f==:\
-            f = :ldiv!
+            f = :ldiv
         end
-        esc(:($x = $f($x,$(args...))::typeof($x))) # ::typeof part helps inference sometimes
+        esc(:($x = $(Symbol(string(f,"!")))($x,$(args...))::typeof($x))) # ::typeof part helps inference sometimes
     else
-        error("Usage: @! x = f!(...)")
+        error("Usage: @! x = f(...)")
     end
 end
 

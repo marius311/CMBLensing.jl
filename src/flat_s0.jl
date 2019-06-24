@@ -34,6 +34,7 @@ size(f::FlatS0) = (length(firstfield(f)),)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 similar(f::F) where {F<:FlatS0} = similar(F,eltype(f))
+similar(::Type{F}) where {T,F<:FlatS0{<:Any,T}} = similar(F,T)
 similar(f::F,::Type{T}) where {T,F<:FlatS0} = similar(F,T)
 similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatMap{P,<:Any,M}} = FlatMap{P}(basetype(M){T}(undef,N,N))
 similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,<:Any,M}} = FlatFourier{P}(basetype(M){T}(undef,N÷2+1,N))
@@ -45,9 +46,9 @@ BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:F
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
 BroadcastStyle(::Style{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = Style{FT}()
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
-@inline preprocess(dest::F, bc::Broadcasted{Style}) where {F<:FlatS0,Style} = Broadcasted{Style}(bc.f, preprocess_args(dest, bc.args), bc.axes)
+@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
-broadcastable(::Type{F}, f::F) where {F<:FlatS0} = firstfield(f)
+broadcastable(::Type{<:FlatS0{P}}, f::FlatS0{P}) where {P} = firstfield(f)
 broadcastable(::Any, x) = x
 
 

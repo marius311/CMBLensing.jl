@@ -134,7 +134,7 @@ function lnP(::Val{t}, fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ::LenseOp) where {t}
     # the unnormalized part of the posterior
     Δ = d-M*P*B*Lϕ[t→1]*fₜ
     f = Lϕ[t→0]*fₜ
-    lnP = -(Δ⋅(Cn\Δ) + f⋅(Cf\f) + ϕ⋅(Cϕ\ϕ))/2
+    lnP = -(Δ'*pinv(Cn)*Δ) + f'*pinv(Cf)*f) + ϕ'*pinv(Cϕ)*ϕ))/2
     
     # add the normalization (the logdet terms), offset by their values at
     # fiducial parameters (to avoid roundoff errors, since its otherwise a large

@@ -43,13 +43,12 @@ using Strided
 
 import Base: +, -, *, \, /, ^, ~,
     adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, copyto!,
-    eltype, getindex, getproperty, inv, iterate, keys, length, literal_pow,
-    materialize!, materialize, one, print_array, promote,
+    eltype, getindex, getproperty, hcat, hvcat, inv, iterate, keys, length,
+    literal_pow, materialize!, materialize, one, print_array, promote,
     promote_rule, promote_rule, promote_type, propertynames, real, setindex!,
-    show, showarg,
-    similar, size, sqrt, sqrt, summary, transpose, zero
+    show, showarg, similar, size, sqrt, sqrt, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, structured_broadcast_alloc, StructuredMatrixStyle
+import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, structured_broadcast_alloc, StructuredMatrixStyle, pinv
 import PyPlot: loglog, plot, semilogx, semilogy
 
 

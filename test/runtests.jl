@@ -1,4 +1,8 @@
 using Test
+using SparseArrays
+using LinearAlgebra
+
+##
 
 @testset "CMBLensing" begin
 
@@ -6,27 +10,52 @@ using Test
 
 @testset "Algebra" begin
     
-    for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4), rand(4,4))]
+    f0,f2 = [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
+    
+    for f in [f0,f2]
         
         @testset "f::$(typeof(f))" begin
             
-            local Ðf, Ðv
+            local Ðf, Ðv, g, H
             
             @test (@inferred f + f) isa typeof(f)
             
+            # gradients
             @test (Ðf = @inferred ∇₀*f) isa Field
             @test (@inferred mul!(Ðf,∇₀,Ð(f))) isa Field
-
-            @test (Ðv = @inferred ∇*f) isa FieldOrOpVector
-            @test (@inferred mul!(Ðv,∇,Ð(f))) isa FieldOrOpVector
+            @test (Ðv = @inferred ∇*f) isa FieldVector
+            @test (@inferred mul!(Ðv,∇,Ð(f))) isa FieldVector
+            @test ((g,H) = Ł.(@inferred gradhess(f))) isa Tuple{FieldVector, FieldMatrix}
             
-            @test (@inferred gradhess(f)) isa Tuple{FieldOrOpVector, FieldOrOpMatrix}
+            # Diagonal broadcasting
+            @test (@inferred Diagonal(f) .* Diagonal(f) .* Diagonal(f)) isa typeof(Diagonal(f))
+            
+            # inverses
+            @test (@inferred pinv(Diagonal(f))) isa Diagonal{<:Any,<:typeof(f)}
+            @test_throws SingularException inv(Diagonal(0*f))
+            
+            # Field dot products
+            @test (@inferred f' * f) isa eltype(f)
+            # @test (@inferred @SVector[f,f]' * @SVector[f,f]) isa eltype(f)
+            
+            if f isa FlatS0
+                # FieldVector dot product
+                @test (@inferred Diagonal.(g)' * g) isa typeof(g[1])
+                @test (@inferred mul!(similar(g[1]), Diagonal.(g)', g)) isa typeof(g[1])
+                
+                # FieldMatrix-FieldVector product
+                @test (@inferred Diagonal.(H) * g) isa FieldVector
+                @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector
+                @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector
+            end
             
         end
         
-        # @! ft = @SVector[f,f]' * @SVector[ft,ft]
+        # eltype promotion
+        @test (@inferred broadcast(+, FlatMap(rand(Float32,2,2)), FlatMap(rand(Float64,2,2)))) isa FlatMap{<:Any,Float64}
+        # matrix type promotion
+        @test (@inferred FlatMap(rand(Float32,2,2)) + FlatMap(spzeros(Float64,2,2))) isa FlatMap{<:Any,Float64,<:Matrix}
 
-        
     end
     
 end

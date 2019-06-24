@@ -23,7 +23,7 @@ g = FlatMap(rand(N,N))
 
 @test @belapsed(@.     f + f) ≲ @belapsed(@.        f.Ix + f.Ix)
 @test @belapsed(@. g = f + f) ≲ @belapsed(@. g.Ix = f.Ix + f.Ix)
-@test @belapsed(∇₀*Ðf)        ≲ @belapsed($(broadcast_data(typeof(Ðf), ∇₀.diag)) .* Ðf.Il)
+@test @belapsed(∇₀*Ðf)        ≲ @belapsed($(broadcastable(typeof(Ðf), ∇₀.diag)) .* Ðf.Il)
 
 # spin 2
 ft = FlatQUMap(rand(N,N),rand(N,N))

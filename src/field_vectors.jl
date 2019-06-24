@@ -3,7 +3,7 @@
 # consider "Field or Op" arrays, for which we define some special behavior
 const FieldOrOpVector{F<:FieldOrOp}    = StaticVector{2,F}
 const FieldOrOpMatrix{F<:FieldOrOp}    = StaticMatrix{2,2,F}
-const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Adjoint{<:Any,F},<:FieldOrOpVector{F}}
+const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Any,<:FieldOrOpVector{F}}
 const FieldOrOpArray{F<:FieldOrOp}     = Union{FieldOrOpVector{F}, FieldOrOpMatrix{F}, FieldOrOpRowVector{F}}
 # or just Fields: 
 const FieldVector{F<:Field}    = SVector{2,F}
@@ -45,22 +45,27 @@ for f in (:/, :\, :*)
 end
 
 
+
+
+
+# this makes Vector{Diagonal}' * Vector{Field} work right
+dot(D::Diagonal{<:Any,<:Field}, f::Field) = conj(D.diag) * f
+
 # needed since v .* f is not type stable
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]
 
 # eventually replace having to do this by hand with Cassette-based solution
-mul!(f::Field, v::FieldOrOpRowVector, w::FieldVector) = 
-    ((@. f = parent(v)[1]*w[1] + parent(v)[2]*w[2]); f)
-mul!(v::FieldVector, M::FieldOrOpMatrix, w::FieldVector) = 
-    ((@. v[1] = M[1,1]*w[1] + M[1,2]*w[2]); (@. v[2] = M[2,1]*w[1] + M[2,2]*w[2]); v)
+mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) = 
+    ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)
+mul!(v::FieldOrOpVector{<:Diagonal}, M::FieldOrOpMatrix{<:Diagonal}, w::FieldOrOpVector{<:Diagonal}) = 
+    ((@. v[1].diag = M[1,1].diag*w[1].diag + M[1,2].diag*w[2].diag); (@. v[2].diag = M[2,1].diag*w[1].diag + M[2,2].diag*w[2].diag); v)
 
 # # until StaticArrays better implements adjoints
 # *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
-# # and until StaticArrays better implements invereses... 
-function inv(dst::FieldMatrix, src::FieldMatrix)
+function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
     a,b,c,d = src
-    det⁻¹ = @. 1/(a*d-b*c)
+    det⁻¹ = pinv(@. a*d-b*c)
     @. dst[1,1] =  det⁻¹ * d
     @. dst[1,2] = -det⁻¹ * b
     @. dst[2,1] = -det⁻¹ * c

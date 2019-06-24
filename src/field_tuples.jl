@@ -36,7 +36,7 @@ end
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
 copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
-similar(f::FT) where {FT<:FieldTuple}= FT(map(similar,f.fs))
+similar(f::FT) where {FT<:FieldTuple} = FT(map(similar,f.fs))
 similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{Names,FS}}} = 
     FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
 
@@ -78,3 +78,12 @@ end
 getproperty(f::FieldTuple, s::Symbol) = getproperty(f::FieldTuple, Val(s))
 getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs)
 getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
+
+
+# generic AbstractVector inv/pinv/dot don't work with FieldTuples because those
+# implementations depends on getindex which we don't implement for FieldTuples
+for func in [:inv, :pinv]
+    @eval $(func)(D::Diagonal{<:Any,FT}) where {FT<:FieldTuple} = 
+        Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
+end
+dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))
