@@ -16,15 +16,8 @@ function copyto!(dest::Diagonal{<:Any,<:Field}, bc::Broadcasted{<:StructuredMatr
 end
 
 # printing
-function showarg(io::IO, D::Diagonal{<:Any,<:Field}, toplevel)
-    print(io, "Diagonal{")
-    showarg(io, D.diag, toplevel)
-    print(io, "}")
-end
-function getindex(D::Diagonal{<:Any,<:FieldTuple}, i::Int, j::Int)
-    i==j ? CatView(map(x->view(x,:), D.diag.fs)...)[i] : 0
-end
-
+show(io::IO, ::Type{<:Diagonal{<:Any,F}}) where {F<:Field} = (print(io, "Diagonal{"); show(io, F); print(io, "}"))
+print_array(io::IO, D::Diagonal{<:Any,<:Field}) = print_array(io, Diagonal(D.diag[:]))
 
 
 

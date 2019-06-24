@@ -236,3 +236,8 @@ pix(::F) where {F<:Field} = pix(F)
 # a giant matrix when doing [f f; f f]
 hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
 hcat(values::Field...) = hcat(([x] for x in values)...)
+
+
+### printing
+print_array(io::IO, f::Field) = print_array(io, f[:])
+show_vector(io::IO, f::Field) = show_vector(io, f[:])

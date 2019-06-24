@@ -17,20 +17,11 @@ FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map
 
 
 ## printing
-showarg(io::IO, ft::FT, toplevel) where {FT<:FieldTuple} = showarg(io,FT)
-showarg(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names},T}}) where {B,Names,T} =
-    print(io, "$(Names) FieldTuple{$(B.name.name), $T}")
-function show(io::IO, ::MIME"text/plain", ft::FieldTuple)
-    print(io, "$(sum(map(length,values(ft.fs))))-element ")
-    showarg(io, ft, false)
-    println(io, ":")
-    for (k,f) in pairs(ft.fs)
-        print(io, " ", k, " = ")
-        summary(IOContext(io, :limit=>true), f)
-        show_vector(io, f)
-        println(io)
-    end
-end
+getindex(f::FieldTuple,::Colon) = vcat(values(f.fs)...)[:]
+# print_array(io::IO, f::FieldTuple) = print_array(io, f[:])
+show(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names},T}}) where {B,Names,T} =
+    print(io, "FieldTuple{$(Names), $(B.name.name), $T}")
+# todo: let Atom display individual components in drop-down
 
 
 ## array interface
