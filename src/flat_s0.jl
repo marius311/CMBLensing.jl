@@ -38,7 +38,7 @@ similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,<:Any,M}} 
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:FlatMap{P}} = ArrayStyle{FlatMap{P,Real,Matrix{Real}}}()
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
-BroadcastStyle(::Style{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = Style{FT}()
+BroadcastStyle(::ArrayStyle{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)

@@ -5,7 +5,7 @@ abstract type BasisTuple{T} <: Basis end
 ## FieldTuple type 
 # a thin wrapper around a NamedTuple which additionally forwards all
 # broadcasts one level deeper
-struct FieldTuple{B,FS<:NamedTuple,T} <: Field{B,Spin,Pix,T}
+struct FieldTuple{B<:Basis,FS<:NamedTuple,T} <: Field{B,Spin,Pix,T}
     fs::FS
 end
 FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
@@ -18,7 +18,6 @@ FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map
 
 ## printing
 getindex(f::FieldTuple,::Colon) = vcat(values(f.fs)...)[:]
-# print_array(io::IO, f::FieldTuple) = print_array(io, f[:])
 show(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names},T}}) where {B,Names,T} =
     print(io, "FieldTuple{$(Names), $(B.name.name), $T}")
 # todo: let Atom display individual components in drop-down
@@ -39,13 +38,13 @@ BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} 
 BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{1}) where {FT<:FieldTuple} = ArrayStyle{FT}()
 BroadcastStyle(::ArrayStyle{FT}, ::Style{Tuple}) where {FT<:FieldTuple} = ArrayStyle{FT}()
 instantiate(bc::Broadcasted{<:ArrayStyle{<:FieldTuple}}) = bc
-tuple_data(f::FieldTuple) = values(f.fs)
-tuple_data(f::Field) = (f,)
-tuple_data(x) = x
+fieldtuple_data(f::FieldTuple) = values(f.fs)
+fieldtuple_data(f::Field) = (f,)
+fieldtuple_data(x) = x
 similar(bc::Broadcasted{ArrayStyle{FT}}, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
 function copyto!(dest::FT, bc::Broadcasted{Nothing}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
     bc′ = flatten(bc)
-    bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (tuple_data(dest), map(tuple_data,bc′.args)...))
+    bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (fieldtuple_data(dest), map(fieldtuple_data,bc′.args)...))
     copy(bc″)
     dest
 end

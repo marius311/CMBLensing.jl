@@ -87,7 +87,7 @@ end
 Plotting fields. 
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
-function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(F), title=nothing, vlim=nothing, return_all=false, kwargs...) where {F<:Field}
+function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(fs), title=nothing, vlim=nothing, return_all=false, kwargs...) where {F<:Field}
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
@@ -95,10 +95,16 @@ function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which
     tight_layout(w_pad=-10)
     return_all ? (fig,axs,which) : fig
 end
-default_which(::Type{<:FlatS0}) = [:Ix]
-default_which(::Type{<:FlatS2}) = [:Ex :Bx]
-default_which(::Type{<:FieldTuple{FS}}) where {FS} = hcat(map(default_which,FS.parameters)...)
-default_which(::Type{F}) where {F} = throw(ArgumentError("Must specify `which` by hand for $F field."))
+default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
+default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:FieldTuple{<:Any,FS}}) where {FS} = hcat(map(default_which,FS.parameters)...)
+function default_which(fs::AbstractVecOrMat{<:Field})
+    try
+        ensuresame((default_which([f]) for f in fs)...)
+    catch x
+        x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for this combination of fields to plot.")) : rethrow()
+    end
+end
 
 
 @doc doc"""

@@ -104,18 +104,14 @@ FFTgrid(::FlatS0{P,T}) where {P,T} = FFTgrid(P,T)
 # 
 
 
+### basis-like definitions
 LenseBasis(::Type{<:FlatS0}) = Map
 LenseBasis(::Type{<:FlatS2}) = QUMap
-
-# 
-# ## derivatives
-# 
-# fourier space derivatives
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
-DerivBasis(::Type{<:FlatQU{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
-DerivBasis(::Type{<:FlatEB{<:Flat{<:Any,<:Any,fourier∂}}}) = EBFourier
+DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
 
 
+### derivatives
 # α = im #∇i isa AdjOp ? -im : im
 broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{0}) where {P,T} = im * FFTgrid(P,T).k'
 broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{1}) where {P,T} = im * FFTgrid(P,T).k[1:Nside(P)÷2+1]

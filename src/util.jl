@@ -232,6 +232,6 @@ end
 
 
 function ensuresame(args...)
-    @assert all(args .== args[1])
+    @assert all(args .== Ref(args[1]))
     args[1]
 end
