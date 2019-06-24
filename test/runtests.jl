@@ -1,5 +1,5 @@
 using CMBLensing
-using CMBLensing: basis
+using CMBLensing: basis, BasisTuple
 
 ##
 
@@ -103,5 +103,23 @@ end
 
 ##
 
+@testset "Lensing" begin
+    
+    @test begin 
+        
+        Cℓ = camb().unlensed_total
+        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
+        Cϕ = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ)
+        f = simulate(Cf)
+        ϕ = simulate(Cϕ)
+        
+        (@inferred LenseFlow(ϕ)*f) isa Field
+    
+    end
+    
+end
+
+
+##
 
 end

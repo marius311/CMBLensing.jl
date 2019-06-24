@@ -11,17 +11,18 @@ pretty_name(::Val{:T},::Val{:x}) where {s} = "Map"
 pretty_name(::Val{:T},::Val{:l}) where {s} = "Fourier"
 
 # generic plotting some components of a FlatField
-function _plot(f::Field{<:Any,<:Any,P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {θ,N,P<:Flat{N,θ}}
+function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {N,θ,P<:Flat{N,θ}}
     if string(k)[2] == 'x'
         x = θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
-    else
+    elseif string(k)[2] == 'l'
         x = FFTgrid(f).nyq
+    else
+        throw(ArgumentError("Invalid `which`: $k"))
     end
     extent = [-x,x,-x,x]
     (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(θ)')")
     (vlim == nothing) && (vlim=:sym)
-    f = (string(k)[2] == 'x') ? Map(f) : Fourier(f)
-    _plot(getproperty(f,k); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
+    _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
         if string(k)[2] == 'x'
             @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
@@ -94,8 +95,8 @@ function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which
     tight_layout(w_pad=-10)
     return_all ? (fig,axs,which) : fig
 end
-default_which(::Type{<:Field{<:Any,S0,<:Flat}}) = [:Ix]
-default_which(::Type{<:Field{<:Any,S2,<:Flat}}) = [:Ex :Bx]
+default_which(::Type{<:FlatS0}) = [:Ix]
+default_which(::Type{<:FlatS2}) = [:Ex :Bx]
 default_which(::Type{<:FieldTuple{FS}}) where {FS} = hcat(map(default_which,FS.parameters)...)
 default_which(::Type{F}) where {F} = throw(ArgumentError("Must specify `which` by hand for $F field."))
 

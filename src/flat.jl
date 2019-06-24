@@ -77,6 +77,8 @@ pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 include("flat_s0.jl")
 include("flat_s2.jl")
 
+const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M}}
+
 ## promotion
 
 function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatS0{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatS0{Flat{θ2,N2,∂mode2},T2}}

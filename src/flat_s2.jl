@@ -3,30 +3,22 @@
 # and operators on this map
 
 
-## constructors
+### FlatS2 types
+# spin-2 fields are just special FieldTuple's
 const FlatQUMap{P,T,M}     = FieldTuple{QUMap,     NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}}, T}
 const FlatQUFourier{P,T,M} = FieldTuple{QUFourier, NamedTuple{(:Q,:U),NTuple{2,FlatFourier{P,T,M}}}, Complex{T}}
 const FlatEBMap{P,T,M}     = FieldTuple{EBMap,     NamedTuple{(:E,:B),NTuple{2,FlatMap{P,T,M}}}, T}
 const FlatEBFourier{P,T,M} = FieldTuple{EBFourier, NamedTuple{(:E,:B),NTuple{2,FlatFourier{P,T,M}}}, Complex{T}}
-
-FlatQUMap(Qx, Ux; θpix=θpix₀, ∂mode=fourier∂) = FlatQUMap{Flat{size(Qx,2),θpix,∂mode}}(Qx, Ux)
-FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((Q=FlatMap{P,T,M}(Qx), U=FlatMap{P,T,M}(Ux)))
-
-
-
-
+# some handy Unions
 const FlatS2{P,T,M}=Union{FlatEBMap{P,T,M},FlatEBFourier{P,T,M},FlatQUMap{P,T,M},FlatQUFourier{P,T,M}}
 const FlatQU{P,T,M}=Union{FlatQUMap{P,T,M},FlatQUFourier{P,T,M}}
 const FlatEB{P,T,M}=Union{FlatEBMap{P,T,M},FlatEBFourier{P,T,M}}
 const FlatS2Map{P,T,M}=Union{FlatQUMap{P,T,M},FlatEBMap{P,T,M}}
 const FlatS2Fourier{P,T,M}=Union{FlatQUFourier{P,T,M},FlatEBFourier{P,T,M}}
 
-# # convenience constructors
-# for (F,T) in [(:FlatS2EBMap,:T),(:FlatS2QUMap,:T),(:FlatS2EBFourier,:(Complex{T})),(:FlatS2QUFourier,:(Complex{T}))]
-#     @eval ($F)(a::Matrix{$T},b::Matrix{$T},θpix=θpix₀,∂mode=fourier∂) where {T} = ($F){T,Flat{θpix,size(a,2),∂mode}}(a,b)
-# end
-# FlatS2QUMap(Q::FlatS0Map{T,P},U::FlatS0Map{T,P}) where {T,P} = FlatS2QUMap{T,P}(Q.Tx, U.Tx)
-# 
+### convenience constructors
+FlatQUMap(Qx, Ux; θpix=θpix₀, ∂mode=fourier∂) = FlatQUMap{Flat{size(Qx,2),θpix,∂mode}}(Qx, Ux)
+FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((Q=FlatMap{P,T,M}(Qx), U=FlatMap{P,T,M}(Ux)))
 
 ### properties
 function propertynames(f::FlatS2)
@@ -42,7 +34,10 @@ getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
 getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 
-
+function getindex(f::FlatS2, k::Symbol)
+    k in [:Ex,:Bx,:El,:Bl,:Qx,:Ux,:Ql,:Ul] || throw(ArgumentError("Invalid FlatS2 index: $k"))
+    getproperty([EBMap,EBFourier,QUMap,QUFourier][in.(k, [(:Ex,:Bx),(:El,:Bl),(:Qx,:Ux),(:Ql,:Ul)])][1](f),k)
+end
 
 
 ### conversions
@@ -76,17 +71,20 @@ EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
 QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
 
-# 
-# 
-# 
-# function white_noise(::Type{F}) where {Θ,Nside,T,P<:Flat{Θ,Nside},F<:FlatS2{T,P}}
-#     FlatS2QUMap{T,P}((randn(Nside,Nside) / FFTgrid(T,P).Δx for i=1:2)...)
-# end
-# 
-# function Cℓ_to_cov(::Type{T}, ::Type{P}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; mask_nyquist=true) where {T,θ,N,P<:Flat{θ,N}}
-#     _Mnyq = mask_nyquist ? Mnyq : identity
-#     FullDiagOp(FlatS2EBFourier{T,P}((_Mnyq(T,P,Cℓ_2D(P, Cℓ.ℓ, Cℓ.Cℓ)[1:(N÷2+1),:]) for Cℓ in (CℓEE,CℓBB))...))
-# end
+
+### simulation and power spectra
+
+function white_noise(::Type{<:FlatS2{P,T}}) where {P,T}
+    FlatEBMap(;(x => white_noise(FlatMap{P,T}) for x in [:E,:B])...)
+end
+
+function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; mask_nyquist=true) where {P,T}
+    Diagonal(FlatEBFourier(;(x => Cℓ_to_cov(P,T,S0,Cℓ).diag for (x,Cℓ) in ((:E,CℓEE),(:B,CℓBB)))...))
+end
+
+
+
+
 # 
 # function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}
 #     [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]

@@ -4,7 +4,7 @@
 
 
 
-## FlatMap and FlatFourier types
+### FlatMap and FlatFourier types
 struct FlatMap{P<:Flat,T<:Real,M<:AbstractMatrix{T}} <: Field{Map,S0,P,T}
     Ix :: M
 end
@@ -13,14 +13,14 @@ struct FlatFourier{P<:Flat,T<:Real,M<:AbstractMatrix{Complex{T}}} <: Field{Fouri
 end
 const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
-## convenience constructors
+### convenience constructors
 Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
 FlatMap(Ix; kwargs...) = FlatMap{Flat(Nside=size(Ix,2);kwargs...)}(Ix)
 FlatMap{P}(Ix::M) where {P,T,M<:AbstractMatrix{T}} = FlatMap{P,T,M}(Ix)
 FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 
-## pretty printing
+### pretty printing
 print_array(io::IO, f::FlatS0) = print_array(io, firstfield(f)[:])
 showarg(io::IO, f::F, toplevel) where {F<:FlatS0} = showarg(io,F)
 showarg(io::IO, ::Type{F}) where {N,θ,∂mode,T,M,F<:FlatS0{Flat{N,θ,∂mode},T,M}} =
@@ -28,7 +28,7 @@ showarg(io::IO, ::Type{F}) where {N,θ,∂mode,T,M,F<:FlatS0{Flat{N,θ,∂mode},
 showarg(io::IO, f::Vector{F}, toplevel) where {F<:Field} =
     (print(io,"Vector{"); showarg(io,F); print(io,"}"))
 
-## array interface 
+### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
@@ -38,8 +38,7 @@ similar(f::F,::Type{T}) where {T,F<:FlatS0} = similar(F,T)
 similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatMap{P,<:Any,M}} = FlatMap{P}(basetype(M){T}(undef,N,N))
 similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,<:Any,M}} = FlatFourier{P}(basetype(M){T}(undef,N÷2+1,N))
 
-
-## broadcasting
+### broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:FlatMap{P}} = ArrayStyle{FlatMap{P,Real,Matrix{Real}}}()
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
@@ -50,24 +49,30 @@ preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0{P}}, f::FlatS0{P}) where {P} = firstfield(f)
 broadcastable(::Any, x) = x
 
-
-## convenience conversion funtions:
+### convenience conversion funtions:
 Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(P,T).FFT * f.Ix)
 Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(P,T).FFT \ f.Il)
 
-## inplace conversions
+### inplace conversions
 Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(P,T).FFT, f.Ix); f′)
 Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
 
+### properties
+function getindex(f::FlatS0, k::Symbol)
+    k in [:Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
+    getproperty([Map,Fourier][k .== [:Ix,:Il]][1](f),k)
+end
 
-function white_noise(::Type{F}) where {Θ,N,T,P<:Flat{N,Θ},F<:FlatS0{P,T}}
+
+### simulation and power spectra
+
+function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
     FlatMap{P}(randn(T,N,N) / FFTgrid(P,T).Δx)
 end
 
-""" Convert power spectrum Cℓ to a flat sky diagonal covariance """
-function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S0}, CℓTT::InterpolatedCℓs) where {T,P}
+function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
     g = FFTgrid(P,T)
-    Diagonal(FlatFourier{P}(Complex{T}.(Cℓ_2D(CℓTT.ℓ, CℓTT.Cℓ, g.r)[1:g.Nside÷2+1,:])))
+    Diagonal(FlatFourier{P}(Complex{T}.(Cℓ_2D(Cℓ.ℓ, Cℓ.Cℓ, g.r)[1:g.Nside÷2+1,:])))
 end
 
 # 
