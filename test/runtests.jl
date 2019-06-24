@@ -105,20 +105,25 @@ end
 
 @testset "Lensing" begin
     
-    @test begin 
-        
-        Cℓ = camb().unlensed_total
-        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
-        Cϕ = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ)
-        f = simulate(Cf)
-        ϕ = simulate(Cϕ)
-        
-        (@inferred LenseFlow(ϕ)*f) isa Field
+    local f,ϕ
     
+    Cℓ = camb().unlensed_total
+    
+    for T in (Float32, Float64)
+        
+        @test (ϕ = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ))) isa FlatS0
+        
+        # S0 lensing
+        @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT))) isa FlatS0
+        @test (@inferred LenseFlow(ϕ)*f) isa FlatS0
+        
+        # S2 lensing
+        @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB))) isa FlatS2
+        @test (@inferred LenseFlow(ϕ)*f) isa FlatS2
+        
     end
     
 end
-
 
 ##
 

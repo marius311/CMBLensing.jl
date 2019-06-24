@@ -175,9 +175,13 @@ function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
         @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
         @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
         
-        # see https://github.com/JuliaLang/julia/issues/27988 for odd choice of
-        # parenthesis, which is intentional and affects inference
-        @. y += h*((k₁ + 2k₂) + 2k₃ + k₄)/6
+        # due to https://github.com/JuliaLang/julia/issues/27988, if this were
+        # written the natural way as:
+        #    @. y .+= h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+        # it has god-awful performance for FieldTuples (although is fine for
+        # FlatS0s). until a solution for that issue comes around, a workaround
+        # is to write out the broadcasting kernel by hand:
+        broadcast!((y,k₁,k₂,k₃,k₄)->(y + h*(k₁ + 2k₂ + 2k₃ + k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
     end
     return y
 end
