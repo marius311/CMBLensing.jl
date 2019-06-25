@@ -2,13 +2,6 @@
 # Abstract type for lensing operators
 abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix,Any} end
 
-# For each Field type, lensing algorithms needs to know the basis in which
-# lensing is a remapping. E.g. for FlatS0 it's Map but for FlatS2 it's QUMap.
-# Fields implement their own LenseBasis(::Type{F}) to specify.
-abstract type LenseBasis <: Basislike end
-const Ł = LenseBasis
-Ł!(args...) = Ł(args...)
-
 
 const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}
 

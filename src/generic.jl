@@ -48,6 +48,15 @@ abstract type Basislike <: Basis end
 (::Type{B})(f′::Field, f::F) where {F<:Field,B<:Basislike} = B(F)(f′,f)
 (::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
 
+# Basis in which derivatives are sparse for a given field
+abstract type DerivBasis <: Basislike end
+const Ð = DerivBasis
+Ð!(args...) = Ð(args...)
+
+# Basis in which lensing is a pixel remapping for a given field
+abstract type LenseBasis <: Basislike end
+const Ł = LenseBasis
+Ł!(args...) = Ł(args...)
 
 
 # ### Adjoint Fields
@@ -230,16 +239,15 @@ pix(::F) where {F<:Field} = pix(F)
 # end
 
 
-# we use Field cat'ing mainly for e.g. plot([f f; f f]) which makes a 2×2 matrix
-# of maps. the following definitions make it so that Fields aren't splatted into
-# a giant matrix when doing [f f; f f]
+# we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plts a 2×2
+# matrix of maps. the following definitions make it so that Fields aren't
+# splatted into a giant matrix when doing [f f; f f] (which they would othewise
+# be since they're Arrays)
 hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
 hcat(values::Field...) = hcat(([x] for x in values)...)
-
 
 ### printing
 print_array(io::IO, f::Field) = print_array(io, f[:])
 show_vector(io::IO, f::Field) = show_vector(io, f[:])
 
-
-dot(a::Field, b::Field) = Map(a)[:] ⋅ Map(b)[:]
+dot(a::Field, b::Field) = Ł(a)[:] ⋅ Ł(b)[:]

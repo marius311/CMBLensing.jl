@@ -15,21 +15,22 @@ function copyto!(dest::Diagonal{<:Any,<:Field}, bc::Broadcasted{<:StructuredMatr
     dest
 end
 
-# printing
-# show(io::IO, ::Type{<:Diagonal{<:Any,F}}) where {F<:Field} = (print(io, "Diagonal{"); show(io, F); print(io, "}"))
-# print_array(io::IO, D::Diagonal{<:Any,<:Field}) = print_array(io, Diagonal(D.diag[:]))
-
-
 
 ### Derivative ops
 
 # These ops just store the coordinate with respect to which a derivative is
 # being taken, and each Field type F should implement how to actually take the
-# derivative. The ∇i objects are Fields, and ∇[i] returns one of these wrapped
-# in a Diagonal so that multipliying by these does the necessary basis
-# conversion. ∇ (along with ∇ⁱ, and ∇ᵢ) are StaticVectors which can also be used
-# with FieldVector algebra, e.g. ∇*f. 
-
+# derivative.
+# 
+# f∇i{coord, covariance, conj} is a Field which represents the diagonal entries
+# of the Fourier representation of the gradient operation, with `coord`
+# specifiying the coordinate for the gradient direction (1 or 2), `covariance`
+# being :covariant or :contravariant, and `conj` keeping track of if an adjoint
+# has been taken. ∇[i] returns one of these wrapped in a Diagonal so that
+# multipliying by these does the necessary basis conversion. ∇ (along with ∇ⁱ,
+# and ∇ᵢ) are StaticVectors which can also be used with FieldVector algebra,
+# e.g. ∇*f. 
+# 
 # Note: We define the components of vectors, including ∇, to be with respect to
 # the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
 # and ∇ᵢ = d/dxⁱ. This is different than with respect to the _normalized)
@@ -37,32 +38,19 @@ end
 # familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are neither covariant
 # nor contravariant). 
 
-abstract type DerivBasis <: Basislike end
-const Ð = DerivBasis
-Ð!(args...) = Ð(args...)
-
-
-# f∇i{coord, covariance, conj} is a Field which represents the diagonal entries
-# of the Fourier representation of the gradient operation, with `coord`
-# specifiying the coordinate for the gradient direction (1 or 2), `covariance`
-# being :covariant or :contravariant, and `conj` keeping track of if an adjoint
-# has been taken. 
-# 
 # Note, ∇i is marked as Complex{Float32} here so that it can be widened
 # to whatever its broadcast with by combine_eltypes in Broadcast.copy
 struct f∇i{coord, covariance, conj} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
 
-# ∇i doesn't have a set size, it will take the size of the fields its broadcasted with:
+# adjoint(D::Diagonal{<:f∇i}) calls conj(D.diag) and here lazily we keep track
+# of that a conjugate was taken
+conj(::f∇i{coord,covariance,false}) where {coord,covariance} = f∇i{coord,covariance,true}()
+
+# f∇i doesn't have a set size, it will take the size of the fields its broadcasted with:
 # (these definitions also make printing work more easily)
 axes(::f∇i) = ()
 size(::f∇i) = ()
 length(::f∇i) = 0
-
-# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
-function gradhess(f)
-    g = ∇ⁱ*f
-    g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
-end
 
 # Gradient vector which can be used with FieldVector algebra. 
 struct ∇Op{covariance} <: StaticArray{Tuple{2}, Diagonal{Complex{Float32},f∇i{<:Any,covariance,false}}, 1} end 
@@ -71,19 +59,20 @@ const ∇ⁱ = ∇Op{:contravariant}()
 const ∇ᵢ = ∇Op{:covariant}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
 
-conj(::f∇i{coord,covariance,false}) where {coord,covariance} = f∇i{coord,covariance,true}()
-
-
-
-# struct ∇²Op <: LinOp{Basis,Spin,Pix} end
-# *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
-# const ∇² = ∇²Op()
+# gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
+function gradhess(f)
+    g = ∇ⁱ*f
+    g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
+end
 
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
 # coordinate, e.g. ∂θ), but this is useful shorthand to have for the flat-sky:
 const ∂x = ∇[1]
 const ∂y = ∇[2]
 
+# struct ∇²Op <: LinOp{Basis,Spin,Pix} end
+# *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))
+# const ∇² = ∇²Op()
     
 
 # ### FuncOp

@@ -76,4 +76,3 @@ for func in [:inv, :pinv]
     @eval $(func)(D::Diagonal{<:Any,FT}) where {FT<:FieldTuple} = 
         Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
 end
-dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))

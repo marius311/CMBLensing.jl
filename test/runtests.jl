@@ -112,19 +112,25 @@ end
     for T in (Float32, Float64)
         
         @test (ϕ = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ))) isa FlatS0
+        Lϕ = LenseFlow(ϕ)
         
         # S0 lensing
-        @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT))) isa FlatS0
-        @test (@inferred LenseFlow(ϕ)*f) isa FlatS0
+        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
+        @test (f = @inferred simulate(Cf)) isa FlatS0
+        @test (@inferred Lϕ*f) isa FlatS0
         
-        # Transpose
+        # S2 adjoint lensing
         f,g = simulate(Cf),simulate(Cf)
         @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
         
         # S2 lensing
-        @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB))) isa FlatS2
-        @test (@inferred LenseFlow(ϕ)*f) isa FlatS2
+        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB)
+        @test (f = @inferred simulate(Cf)) isa FlatS2
+        @test (@inferred Lϕ*f) isa FlatS2
         
+        # S2 adjoint lensing
+        f,g = simulate(Cf),simulate(Cf)
+        @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
     end
     
 end
