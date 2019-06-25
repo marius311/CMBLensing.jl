@@ -16,8 +16,8 @@ function copyto!(dest::Diagonal{<:Any,<:Field}, bc::Broadcasted{<:StructuredMatr
 end
 
 # printing
-show(io::IO, ::Type{<:Diagonal{<:Any,F}}) where {F<:Field} = (print(io, "Diagonal{"); show(io, F); print(io, "}"))
-print_array(io::IO, D::Diagonal{<:Any,<:Field}) = print_array(io, Diagonal(D.diag[:]))
+# show(io::IO, ::Type{<:Diagonal{<:Any,F}}) where {F<:Field} = (print(io, "Diagonal{"); show(io, F); print(io, "}"))
+# print_array(io::IO, D::Diagonal{<:Any,<:Field}) = print_array(io, Diagonal(D.diag[:]))
 
 
 
@@ -25,10 +25,10 @@ print_array(io::IO, D::Diagonal{<:Any,<:Field}) = print_array(io, Diagonal(D.dia
 
 # These ops just store the coordinate with respect to which a derivative is
 # being taken, and each Field type F should implement how to actually take the
-# derivative. Note that ∇i objects are Fields. ∇⁰, ∇¹, ∇₀, ∇₁ wrap these in a
-# Diagonal so that multipliying by these does the necessary basis conversion.
-# Finally, ∇, ∇ⁱ, and ∇ᵢ are StaticVectors which can be used with Field-vector
-# algebra, e.g. ∇*f. 
+# derivative. The ∇i objects are Fields, and ∇[i] returns one of these wrapped
+# in a Diagonal so that multipliying by these does the necessary basis
+# conversion. ∇ (along with ∇ⁱ, and ∇ᵢ) are StaticVectors which can also be used
+# with FieldVector algebra, e.g. ∇*f. 
 
 # Note: We define the components of vectors, including ∇, to be with respect to
 # the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
@@ -41,29 +41,22 @@ abstract type DerivBasis <: Basislike end
 const Ð = DerivBasis
 Ð!(args...) = Ð(args...)
 
-# ∇i is a Field which when multiplied with a Field will perform a derivative.
+
+# f∇i{coord, covariance, conj} is a Field which represents the diagonal entries
+# of the Fourier representation of the gradient operation, with `coord`
+# specifiying the coordinate for the gradient direction (1 or 2), `covariance`
+# being :covariant or :contravariant, and `conj` keeping track of if an adjoint
+# has been taken. 
+# 
 # Note, ∇i is marked as Complex{Float32} here so that it can be widened
 # to whatever its broadcast with by combine_eltypes in Broadcast.copy
-struct ∇i{coord, covariant} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
+struct f∇i{coord, covariance, conj} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
 
 # ∇i doesn't have a set size, it will take the size of the fields its broadcasted with:
-Base.axes(::∇i) = ()
-
-# wrap ∇i instances in a Diagonal so that e.g. ∇⁰*f first converts f to the
-# DerivBasis.
-const ∇⁰ = Diagonal(∇i{0,false}()) 
-const ∇¹ = Diagonal(∇i{1,false}())
-const ∇₀ = Diagonal(∇i{0,true}())
-const ∇₁ = Diagonal(∇i{1,true}())
-
-
-# printing
-show(io::IO, m::MIME"text/plain", D::Diagonal{<:Any,<:∇i}) = show(io, D)
-show(io::IO, m::MIME"text/plain", ∇i::∇i) = show(io, ∇i) 
-show(io::IO, D::Diagonal{<:Any,<:∇i}) = 
-    (print(io, "LinearAlgebra.Diagonal{"); show(io, D.diag, false); print(io, "}()"))
-show(io::IO, ::∇i{coord, covariant}, parens=true) where {coord, covariant} = 
-    print(io, "∇", covariant ? (coord==0 ? "₀" : "₁") : (coord==0 ? "⁰" : "¹"), parens ? "()" : "")
+# (these definitions also make printing work more easily)
+axes(::f∇i) = ()
+size(::f∇i) = ()
+length(::f∇i) = 0
 
 # gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
 function gradhess(f)
@@ -71,15 +64,16 @@ function gradhess(f)
     g, SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])])
 end
 
-# Gradient vector which can be used with Field-vector algebra. 
-struct ∇Op{covariant} <: StaticArray{Tuple{2}, ∇i, 1} end 
-getindex(::∇Op{covariant}, i::Int) where {covariant} = Diagonal(∇i{i-1,covariant}())
-const ∇ⁱ = ∇Op{false}()
-const ∇ᵢ = ∇Op{true}()
-const ∇ = ∇ⁱ # ∇ is contravariant by default unless otherwise specified
+# Gradient vector which can be used with FieldVector algebra. 
+struct ∇Op{covariance} <: StaticArray{Tuple{2}, Diagonal{Complex{Float32},f∇i{<:Any,covariance,false}}, 1} end 
+getindex(::∇Op{covariance}, i::Int) where {covariance} = Diagonal(f∇i{i,covariance,false}())
+const ∇ⁱ = ∇Op{:contravariant}()
+const ∇ᵢ = ∇Op{:covariant}()
+const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
+
+conj(::f∇i{coord,covariance,false}) where {coord,covariance} = f∇i{coord,covariance,true}()
 
 
-mul!(v::FieldOrOpVector, ∇Op::∇Op, f::Field) = (mul!(v[1],∇Op[1],f); mul!(v[2],∇Op[2],f); v)
 
 # struct ∇²Op <: LinOp{Basis,Spin,Pix} end
 # *(::∇²Op, f::Field) = sum(diag(gradhess(f)[2]))

@@ -49,7 +49,7 @@ end
 
 
 # this makes Vector{Diagonal}' * Vector{Field} work right
-dot(D::Diagonal{<:Any,<:Field}, f::Field) = conj(D.diag) * f
+dot(D::Diagonal{<:Any,<:Field}, f::Field) = conj(D.diag) .* f
 
 # needed since v .* f is not type stable
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
@@ -60,6 +60,8 @@ mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) =
     ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)
 mul!(v::FieldOrOpVector{<:Diagonal}, M::FieldOrOpMatrix{<:Diagonal}, w::FieldOrOpVector{<:Diagonal}) = 
     ((@. v[1].diag = M[1,1].diag*w[1].diag + M[1,2].diag*w[2].diag); (@. v[2].diag = M[2,1].diag*w[1].diag + M[2,2].diag*w[2].diag); v)
+mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
+    ((@. v[1] = w[1].diag * f); (@. v[2] = w[2].diag * f); v)
 
 # # until StaticArrays better implements adjoints
 # *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'

@@ -124,10 +124,9 @@ abstract type Basislike <: Basis end
 # "implicit" operators. 
 abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
 
-
-# show(io::IO, L::ImplicitOp) = show_default(io, L)
-show(io::IO, m::MIME"text/plain", L::ImplicitOp) = show_default(io, L)
-
+# printing
+# show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)
+# show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,parent(L)); print(io,"}"))
 
 
 # Linear operators on Fields
@@ -241,3 +240,6 @@ hcat(values::Field...) = hcat(([x] for x in values)...)
 ### printing
 print_array(io::IO, f::Field) = print_array(io, f[:])
 show_vector(io::IO, f::Field) = show_vector(io, f[:])
+
+
+dot(a::Field, b::Field) = Map(a)[:] ⋅ Map(b)[:]

@@ -8,8 +8,8 @@ using Combinatorics
 using DataStructures
 using Distributed
 using FFTW
-using Images: feature_transform, imfilter
-using Images.Kernel
+# using Images: feature_transform, imfilter
+# using Images.Kernel
 using InteractiveUtils
 using Interpolations
 using JLD2
@@ -39,12 +39,12 @@ using Strided
 
 
 import Base: +, -, *, \, /, ^, ~,
-    adjoint, broadcast, broadcastable, BroadcastStyle, convert, copy, copyto!,
-    eltype, getindex, getproperty, hcat, hvcat, inv, iterate, keys, length,
-    literal_pow, materialize!, materialize, one, print_array, promote,
+    adjoint, broadcast, broadcastable, BroadcastStyle, conj, convert, copy,
+    copyto!, eltype, getindex, getproperty, hcat, hvcat, inv, iterate, keys,
+    length, literal_pow, materialize!, materialize, one, print_array, promote,
     promote_rule, promote_rule, promote_type, propertynames, real, setindex!,
-    show, show_vector, similar, size, sqrt, sqrt, summary, transpose, zero
-import Base.Broadcast: instantiate, preprocess
+    show, show_vector, similar, size, sqrt, sqrt, string, summary, transpose,
+    zero import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc
 import PyPlot: loglog, plot, semilogx, semilogy

@@ -110,11 +110,10 @@ LenseBasis(::Type{<:FlatS2}) = QUMap
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
 
-
 ### derivatives
-# α = im #∇i isa AdjOp ? -im : im
-broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{0}) where {P,T} = im * FFTgrid(P,T).k'
-broadcastable(::Type{<:FlatFourier{P,T}}, ::∇i{1}) where {P,T} = im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
+broadcastable(::Type{<:FlatFourier{P,T}}, ::f∇i{1,<:Any,conj}) where {P,T,conj} = @. (-1)^conj * im * FFTgrid(P,T).k'
+broadcastable(::Type{<:FlatFourier{P,T}}, ::f∇i{2,<:Any,conj}) where {P,T,conj} = @. (-1)^conj * im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
+
 
 # @generated function broadcast_data(::Type{<:BaseFlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
 #     (FFTgrid(P,T).k' .^2 .+ FFTgrid(P,T).k[1:Nside(P)÷2+1].^2,)

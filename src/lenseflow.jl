@@ -4,18 +4,18 @@ abstract type ODESolver end
 # only one single ODE solver implemented for now, a simple custom RK4:
 abstract type jrk4{nsteps} <: ODESolver  end
 
-abstract type LenseFlowOp{I<:ODESolver,t₀,t₁} <: LenseOp end
+abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,Φ} <: LenseOp end
 
 
 # `L = LenseFlow(ϕ)` just creates a wrapper holding ϕ. Then when you do `L*f` or
 # `cache(L,f)` we create a CachedLenseFlow object which holds all the
 # precomputed quantities and preallocated memory needed to do the lense.
 
-struct LenseFlow{I<:ODESolver,t₀,t₁,Φ<:Field{<:Any,<:S0}} <: LenseFlowOp{I,t₀,t₁}
+struct LenseFlow{I<:ODESolver,t₀,t₁,Φ<:Field{<:Any,<:S0}} <: LenseFlowOp{I,t₀,t₁,Φ}
     ϕ::Φ
 end
 
-struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{jrk4{N},t₀,t₁}
+struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{jrk4{N},t₀,t₁,Φ}
     
     # save ϕ to know when to trigger recaching
     ϕ :: Ref{Φ}
@@ -37,22 +37,30 @@ struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,
     memÐvϕ :: FieldVector{ÐΦ}
 end
 
-# constructors
+### constructors
 LenseFlow(ϕ,n=7) = LenseFlow{jrk4{n}}(ϕ)
 LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),typeof(ϕ)}(ϕ)
 
-zero(L::LenseFlow) = zero(L.ϕ)
-zero(L::CachedLenseFlow) = zero(L.memŁϕ)
+# zero(L::LenseFlow) = zero(L.ϕ)
+# zero(L::CachedLenseFlow) = zero(L.memŁϕ)
+
+
+### printing
+show(io::IO, ::MIME"text/plain", L::LenseFlowOp) = show(io,L)
+show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:LenseFlow{I,t₀,t₁,Φ}} = print(io, "$(L.name.name){$t₀→$t₁, $I}(ϕ::$Φ)")
+show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(jrk4{N})}(ϕ::$Φ, Łf::$ŁF)")
+string(::Type{jrk4{N}}) where {N} = "$N-step RK4"
+
 
 # todo, remove this `→` crap, maybe
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
-*(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
-# *(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
-\(L::        LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
-# \(L::AdjOp{<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
+*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t),  1, Ł(f), t₀, t₁))
+*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), -1, Ð(f), t₁, t₀))
+\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t),  1, Ł(f), t₁, t₀))
+\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), -1, Ð(f), t₀, t₁))
 
 # Define integrations for Jacobians
 # *(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
@@ -102,7 +110,7 @@ function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     p = L.p[τ(t)]
     
     @! Ðf  = Ð(f)
-    @! Ð∇f = ∇ᵢ*Ðf
+    @! Ð∇f = ∇ᵢ * Ðf
     @! Ł∇f = Ł(Ð∇f)
     @! v   = p' * Ł∇f
 end
@@ -112,7 +120,7 @@ function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     p = L.p[τ(t)]
     
     @! Łf = Ł(f)
-    @! Łf_p = Łf * p
+    @! Łf_p = p * Łf
     @! Ð_Łf_p = Ð(Łf_p)
     @! v = ∇ᵢ' * Ð_Łf_p
 end
@@ -160,20 +168,20 @@ _getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}
 # ud_grade(L::CachedLenseFlow, args...; kwargs...)  = cache(ud_grade(L.L,args...;kwargs...))
 
 """
-Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
+Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = α*F(t,y) and y(t₀) = y₀
 
 Arguments
 * F! : a function F!(v,t,y) which sets v=F(t,y)
 """
-function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
+function jrk4(F!::Function, α, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
     for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
-        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
-        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
-        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
+        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*α*k₁))
+        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*α*k₂))
+        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*α*k₃))
         
         # due to https://github.com/JuliaLang/julia/issues/27988, if this were
         # written the natural way as:
@@ -181,8 +189,8 @@ function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
         # it has god-awful performance for FieldTuples (although is fine for
         # FlatS0s). until a solution for that issue comes around, a workaround
         # is to write out the broadcasting kernel by hand:
-        broadcast!((y,k₁,k₂,k₃,k₄)->(y + h*(k₁ + 2k₂ + 2k₃ + k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
+        broadcast!((y,k₁,k₂,k₃,k₄)->(y+h*α*(k₁+2k₂+2k₃+k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
     end
     return y
 end
-jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
+jrk4{N}(F!,α,y₀,t₀,t₁) where {N} = jrk4(F!,α,y₀,t₀,t₁,N)

@@ -26,8 +26,8 @@ using LinearAlgebra
             @test (@inferred f + f) isa typeof(f)
             
             # gradients
-            @test (Ðf = @inferred ∇₀*f) isa Field
-            @test (@inferred mul!(Ðf,∇₀,Ð(f))) isa Field
+            @test (Ðf = @inferred ∇[1]*f) isa Field
+            @test (@inferred mul!(Ðf,∇[1],Ð(f))) isa Field
             @test (Ðv = @inferred ∇*f) isa FieldVector
             @test (@inferred mul!(Ðv,∇,Ð(f))) isa FieldVector
             @test ((g,H) = Ł.(@inferred gradhess(f))) isa Tuple{FieldVector, FieldMatrix}
@@ -116,6 +116,10 @@ end
         # S0 lensing
         @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT))) isa FlatS0
         @test (@inferred LenseFlow(ϕ)*f) isa FlatS0
+        
+        # Transpose
+        f,g = simulate(Cf),simulate(Cf)
+        @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
         
         # S2 lensing
         @test (f = @inferred simulate(Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB))) isa FlatS2
