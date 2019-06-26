@@ -22,14 +22,14 @@ end
 # being taken, and each Field type F should implement how to actually take the
 # derivative.
 # 
-# f∇i{coord, covariance, conj} is a Field which represents the diagonal entries
+# f∇i{coord, covariance, prefactor} is a Field which represents the diagonal entries
 # of the Fourier representation of the gradient operation, with `coord`
 # specifiying the coordinate for the gradient direction (1 or 2), `covariance`
-# being :covariant or :contravariant, and `conj` keeping track of if an adjoint
-# has been taken. ∇[i] returns one of these wrapped in a Diagonal so that
-# multipliying by these does the necessary basis conversion. ∇ (along with ∇ⁱ,
-# and ∇ᵢ) are StaticVectors which can also be used with FieldVector algebra,
-# e.g. ∇*f. 
+# being :covariant or :contravariant, and multiplied by a `prefactor` (generally
+# 1 or -1 to keep track of if an adjoint has been taken). ∇[i] returns one of
+# these wrapped in a Diagonal so that multipliying by these does the necessary
+# basis conversion. ∇ (along with ∇ⁱ, and ∇ᵢ) are StaticVectors which can also
+# be used with FieldVector algebra, e.g. ∇*f. 
 # 
 # Note: We define the components of vectors, including ∇, to be with respect to
 # the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
@@ -40,11 +40,13 @@ end
 
 # Note, ∇i is marked as Complex{Float32} here so that it can be widened
 # to whatever its broadcast with by combine_eltypes in Broadcast.copy
-struct f∇i{coord, covariance, conj} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
+struct f∇i{coord, covariance, prefactor} <: Field{DerivBasis,Spin,Pix,Complex{Float32}} end
 
 # adjoint(D::Diagonal{<:f∇i}) calls conj(D.diag) and here lazily we keep track
 # of that a conjugate was taken
-conj(::f∇i{coord,covariance,false}) where {coord,covariance} = f∇i{coord,covariance,true}()
+conj(f∇i::f∇i) = -f∇i
+-(::f∇i{coord,covariance,prefactor}) where {coord,covariance,prefactor} = f∇i{coord,covariance,-prefactor}()
+
 
 # f∇i doesn't have a set size, it will take the size of the fields its broadcasted with:
 # (these definitions also make printing work more easily)
@@ -53,10 +55,10 @@ size(::f∇i) = ()
 length(::f∇i) = 0
 
 # Gradient vector which can be used with FieldVector algebra. 
-struct ∇Op{covariance} <: StaticArray{Tuple{2}, Diagonal{Complex{Float32},f∇i{<:Any,covariance,false}}, 1} end 
-getindex(::∇Op{covariance}, i::Int) where {covariance} = Diagonal(f∇i{i,covariance,false}())
-const ∇ⁱ = ∇Op{:contravariant}()
-const ∇ᵢ = ∇Op{:covariant}()
+struct ∇Op{covariance,prefactor} <: StaticArray{Tuple{2}, Diagonal{Complex{Float32},f∇i{<:Any,covariance,prefactor}}, 1} end 
+getindex(::∇Op{covariance,prefactor}, i::Int) where {covariance,prefactor} = Diagonal(f∇i{i,covariance,prefactor}())
+const ∇ⁱ = ∇Op{:contravariant,1}()
+const ∇ᵢ = ∇Op{:covariant,1}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
 
 # gives the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf

@@ -5,21 +5,27 @@ abstract type BasisTuple{T} <: Basis end
 ## FieldTuple type 
 # a thin wrapper around a NamedTuple which additionally forwards all
 # broadcasts one level deeper
-struct FieldTuple{B<:Basis,FS<:NamedTuple,T} <: Field{B,Spin,Pix,T}
+struct FieldTuple{B<:Basis,FS<:Union{Tuple,NamedTuple},T} <: Field{B,Spin,Pix,T}
     fs::FS
 end
+# constructors for FieldTuples with names
 FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
 FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
 FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map(eltype,values(fs))...)}(fs)
+(::Type{<:FT})(f1,f2,fs...) where {Names,FT<:FieldTuple{<:Any,<:NamedTuple{Names}}} = FieldTuple(NamedTuple{Names}((f1,f2,fs...)))
 (::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
 (::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
-
+# constructors for FieldTuples without names
+FieldTuple(f1,f2,fs...) = FieldTuple((f1,f2,fs...))
+FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},typeof(fs),promote_type(map(eltype,values(fs))...)}(fs)
 
 
 ## printing
 getindex(f::FieldTuple,::Colon) = vcat(values(f.fs)...)[:]
 show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
     print(io, "FieldTuple{$(Names), $(B.name.name), $(@safe_get(T))}")
+show_datatype(io::IO, ::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
+    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(B.name.name), $(@safe_get(T))}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
@@ -27,6 +33,8 @@ copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs)
 similar(f::FT) where {FT<:FieldTuple} = FT(map(similar,f.fs))
 similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{Names,FS}}} = 
     FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
+similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} = 
+    FieldTuple(map_tupleargs(F->similar(F,T), FS))
 
 ## broadcasting
 @propagate_inbounds @inline getindex(f::FieldTuple, i) = getindex(f.fs, i)
@@ -40,7 +48,7 @@ fieldtuple_data(f::FieldTuple) = values(f.fs)
 fieldtuple_data(f::Field) = (f,)
 fieldtuple_data(x) = x
 similar(bc::Broadcasted{ArrayStyle{FT}}, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
-function copyto!(dest::FT, bc::Broadcasted{Nothing}) where {Names, FT<:FieldTuple{<:Any,<:NamedTuple{Names}}}
+function copyto!(dest::FieldTuple, bc::Broadcasted{Nothing})
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (fieldtuple_data(dest), map(fieldtuple_data,bc′.args)...))
     copy(bc″)
@@ -68,9 +76,28 @@ getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs)
 getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
 
 
-# generic AbstractVector inv/pinv/dot don't work with FieldTuples because those
-# implementations depends on getindex which we don't implement for FieldTuples
+# generic AbstractVector inv/pinv don't work with FieldTuples because those
+# implementations depends on get/setindex which we don't implement for FieldTuples
 for func in [:inv, :pinv]
     @eval $(func)(D::Diagonal{<:Any,FT}) where {FT<:FieldTuple} = 
         Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
 end
+
+≈(a::FieldTuple, b::FieldTuple) = all(map(≈, a.fs, b.fs))
+
+
+
+### adjoint tuples
+
+# represents a field which is adjoint over just the "tuple" indices. multiplying
+# such a field by a non-adjointed one should be the inner product over just the
+# tuple indices, and hence return a tuple-less, i.e a spin-0, field. 
+# note: these are really only lightly used in one place in LenseFlow, so they
+# have almost no real functionality, the code here is in fact all there is. 
+struct TupleAdjoint{T<:Field}
+    f :: T
+end
+tuple_adjoint(f::Field) = TupleAdjoint(f)
+
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple} = dst .= sum(map(*, a.f.fs, b.fs))
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:Field{<:Any,S0}} = dst .= a.f .* b

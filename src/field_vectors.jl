@@ -60,8 +60,12 @@ mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) =
     ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)
 mul!(v::FieldOrOpVector{<:Diagonal}, M::FieldOrOpMatrix{<:Diagonal}, w::FieldOrOpVector{<:Diagonal}) = 
     ((@. v[1].diag = M[1,1].diag*w[1].diag + M[1,2].diag*w[2].diag); (@. v[2].diag = M[2,1].diag*w[1].diag + M[2,2].diag*w[2].diag); v)
+mul!(v::FieldVector, M::FieldOrOpMatrix{<:Diagonal}, w::FieldVector) = 
+    ((@. v[1] = M[1,1].diag*w[1] + M[1,2].diag*w[2]); (@. v[2] = M[2,1].diag*w[1] + M[2,2].diag*w[2]); v)
 mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
     ((@. v[1] = w[1].diag * f); (@. v[2] = w[2].diag * f); v)
+# only thing needed for TupleAdjoints
+mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
 # # until StaticArrays better implements adjoints
 # *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
@@ -74,9 +78,9 @@ function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
     @. dst[2,2] =  det⁻¹ * a
     dst
 end
-# mul!(f::Field, ::typeof(∇'), v::FieldVector) = f .= (∇*v[1])[1] .+ (∇*v[2])[2]
 
-# helps StaticArrays infer various results correctly:
+
+
 promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
 arithmetic_closure(::F) where {F<:Field} = F
 # using LinearAlgebra: matprod

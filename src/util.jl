@@ -246,3 +246,6 @@ macro safe_get(ex)
     x = head(ex)
     :($(Expr(:isdefined, esc(x))) ? $(esc(ex)) : $(QuoteNode(x)))
 end
+
+
+tuple_type_len(::Type{<:NTuple{N,Any}}) where {N} = N

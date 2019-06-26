@@ -56,14 +56,14 @@ string(::Type{jrk4{N}}) where {N} = "$N-step RK4"
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
-*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t),  1, Ł(f), t₀, t₁))
-*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), -1, Ð(f), t₁, t₀))
-\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t),  1, Ł(f), t₁, t₀))
-\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), -1, Ð(f), t₀, t₁))
+*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
+*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
+\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
+\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
 
 # Define integrations for Jacobians
-# *(J::AdjOp{<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
-#     (cL=cache(J'.L,δf); FieldTuple(I((v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...))
+*(J::Adjoint{<:Any,<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
+    (cL=cache(J'.L,δf); FΦTuple(I((v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...))
 
 
 τ(t) = Float16(t)
@@ -121,7 +121,7 @@ function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
     @! Łf = Ł(f)
     @! Łf_p = p * Łf
     @! Ð_Łf_p = Ð(Łf_p)
-    @! v = ∇ᵢ' * Ð_Łf_p
+    @! v = -∇ᵢ' * Ð_Łf_p
 end
 
 function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLenseFlow, (f, δf, δϕ)::FieldTuple, t::Real)
@@ -132,9 +132,9 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
     # dδf/dt
     Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
     @! Łδf     = Ł(δf)
-    @! Łδf_p   = Łδf * p
+    @! Łδf_p   = p * Łδf
     @! Ð_Łδf_p = Ð(Łδf_p)
-    @! dδf_dt  = ∇ᵢ' * Ð_Łδf_p
+    @! dδf_dt  = -∇ᵢ' * Ð_Łδf_p
     
     # df/dt
     Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
@@ -145,13 +145,13 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
 
     # dδϕ/dt
     δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
-    @! δfᵀ_∇f       = spin_adjoint(Łδf) * Ł∇f
+    @! δfᵀ_∇f       = tuple_adjoint(Łδf) * Ł∇f
     @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
     @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
-    @! dδϕ_dt       = ∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
+    @! dδϕ_dt       = -∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
     memÐϕ = L.memÐϕ
     for i=1:2, j=1:2
-        dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j] * M⁻¹_δfᵀ_∇f[i]))))
+        dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j].diag * M⁻¹_δfᵀ_∇f[i]))))
     end
     
     FieldTuple(df_dt, dδf_dt, dδϕ_dt)
@@ -172,15 +172,15 @@ Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = α*F(t,y) and y(t�
 Arguments
 * F! : a function F!(v,t,y) which sets v=F(t,y)
 """
-function jrk4(F!::Function, α, y₀, t₀, t₁, nsteps)
+function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
     for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
-        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*α*k₁))
-        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*α*k₂))
-        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*α*k₃))
+        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
+        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
+        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
         
         # due to https://github.com/JuliaLang/julia/issues/27988, if this were
         # written the natural way as:
@@ -188,8 +188,8 @@ function jrk4(F!::Function, α, y₀, t₀, t₁, nsteps)
         # it has god-awful performance for FieldTuples (although is fine for
         # FlatS0s). until a solution for that issue comes around, a workaround
         # is to write out the broadcasting kernel by hand:
-        broadcast!((y,k₁,k₂,k₃,k₄)->(y+h*α*(k₁+2k₂+2k₃+k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
+        broadcast!((y,k₁,k₂,k₃,k₄)->(y+h*(k₁+2k₂+2k₃+k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
     end
     return y
 end
-jrk4{N}(F!,α,y₀,t₀,t₁) where {N} = jrk4(F!,α,y₀,t₀,t₁,N)
+jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)

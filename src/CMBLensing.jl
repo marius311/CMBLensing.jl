@@ -3,7 +3,7 @@ module CMBLensing
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated
 using Base.Threads
-using Base: @propagate_inbounds, show_vector, show_default, showarg, show_datatype
+using Base: @propagate_inbounds, show_vector, show_default, showarg, show_datatype, typed_vcat
 using Combinatorics
 using DataStructures
 using Distributed
@@ -38,7 +38,7 @@ using StatsBase
 using Strided
 
 
-import Base: +, -, *, \, /, ^, ~,
+import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, broadcast, broadcastable, BroadcastStyle, conj, convert, copy,
     copyto!, eltype, getindex, getproperty, hcat, hvcat, inv, iterate, keys,
     length, literal_pow, materialize!, materialize, one, print_array, promote,
