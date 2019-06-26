@@ -56,14 +56,17 @@ string(::Type{jrk4{N}}) where {N} = "$N-step RK4"
 @∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
-*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
-*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
-\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  I((v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
-\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); I((v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
+*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  odesolve(I, (v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
+*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); odesolve(I, (v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
+\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  odesolve(I, (v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
+\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); odesolve(I, (v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
 
 # Define integrations for Jacobians
-*(J::Adjoint{<:Any,<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I} =
-    (cL=cache(J'.L,δf); FΦTuple(I((v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)[2:3]...))
+function *(J::Adjoint{<:Any,<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I}
+    cL=cache(J'.L,δf)
+    (_,δf′,δϕ′) = odesolve(I, (v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)
+    FΦTuple(δf′,δϕ′)
+end
 
 
 τ(t) = Float16(t)
@@ -192,4 +195,4 @@ function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
     end
     return y
 end
-jrk4{N}(F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)
+odesolve(::Type{jrk4{N}},F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)

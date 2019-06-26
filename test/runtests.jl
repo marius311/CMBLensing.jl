@@ -1,5 +1,5 @@
 using CMBLensing
-using CMBLensing: basis, BasisTuple
+using CMBLensing: basis, BasisTuple, @SVector
 
 ##
 

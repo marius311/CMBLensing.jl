@@ -67,9 +67,9 @@ export
     load_sim_dataset, LowPass, Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero,
     noisecls, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
     quadratic_estimate, QUFourier, QUMap, resimulate, S0, S02, S2, sample_joint,
-    shortname, simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ,
-    ∇₀, ∇₁, ⋅, ⨳
+    shortname, simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ,
+    toDℓ, tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴,
+    ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
 include("util.jl")
 include("rfftvectors.jl")

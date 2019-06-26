@@ -35,9 +35,11 @@ similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{
     FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
 similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} = 
     FieldTuple(map_tupleargs(F->similar(F,T), FS))
+iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
+getindex(f::FieldTuple, i) = getindex(f.fs, i)
+
 
 ## broadcasting
-@propagate_inbounds @inline getindex(f::FieldTuple, i) = getindex(f.fs, i)
 broadcastable(f::FieldTuple) = f
 BroadcastStyle(::Type{FT}) where {FT<:FieldTuple} = ArrayStyle{FT}()
 BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
