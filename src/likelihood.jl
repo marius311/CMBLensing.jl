@@ -281,7 +281,7 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
         b += Cf\simulate(Cf) + L'*B'*P'*M'*(Cn\simulate(Cn))
     end
     
-    pcg2(
+    conjugate_gradient(
         (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
         (Cf^-1) + L'*B'*P'*M'*(Cn^-1)*M*P*B*L,
         b,
@@ -308,7 +308,7 @@ and inverted.
 
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*L*Cf*L'*B'*M'*P')*x,
-        op⁻¹ = x -> pcg2((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x, nsteps=100, tol=1e-1)
+        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x, nsteps=100, tol=1e-1)
     )
 
 end

@@ -1,11 +1,5 @@
 
-
-abstract type ODESolver end
-# only one single ODE solver implemented for now, a simple custom RK4:
-abstract type jrk4{nsteps} <: ODESolver  end
-
 abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,Φ} <: LenseOp end
-
 
 # `L = LenseFlow(ϕ)` just creates a wrapper holding ϕ. Then when you do `L*f` or
 # `cache(L,f)` we create a CachedLenseFlow object which holds all the
@@ -15,7 +9,7 @@ struct LenseFlow{I<:ODESolver,t₀,t₁,Φ<:Field{<:Any,<:S0}} <: LenseFlowOp{I,
     ϕ::Φ
 end
 
-struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{jrk4{N},t₀,t₁,Φ}
+struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{RK4Solver{N},t₀,t₁,Φ}
     
     # save ϕ to know when to trigger recaching
     ϕ :: Ref{Φ}
@@ -38,7 +32,7 @@ struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,
 end
 
 ### constructors
-LenseFlow(ϕ,n=7) = LenseFlow{jrk4{n}}(ϕ)
+LenseFlow(ϕ,n=7) = LenseFlow{RK4Solver{n}}(ϕ)
 LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),typeof(ϕ)}(ϕ)
 
@@ -48,8 +42,8 @@ LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t
 
 ### printing
 show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:LenseFlow{I,t₀,t₁,Φ}} = print(io, "$(L.name.name){$t₀→$t₁, $I}(ϕ::$Φ)")
-show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(jrk4{N})}(ϕ::$Φ, Łf::$ŁF)")
-string(::Type{jrk4{N}}) where {N} = "$N-step RK4"
+show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(RK4Solver{N})}(ϕ::$Φ, Łf::$ŁF)")
+string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
 
 
 # todo, remove this `→` crap, maybe
@@ -72,8 +66,8 @@ end
 τ(t) = Float16(t)
 cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
-cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{jrk4{N},t₀,t₁}(ϕ),cL.memŁf)
-function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
+cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
+function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     ∇ϕ,Hϕ = Ł.(gradhess(L.ϕ))
     T = eltype(L.ϕ)
@@ -84,7 +78,7 @@ function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{jrk4{N},t₀,t₁
     cL.ϕ[] = L.ϕ
     cL
 end
-function alloc_cache(L::LenseFlow{jrk4{N},t₀,t₁}, f) where {N,t₀,t₁}
+function alloc_cache(L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = linspace(t₀,t₁,2N+1)
     p, M⁻¹ = Dict(), Dict()
     Łf,Ðf = Ł(f),  Ð(f)
@@ -168,31 +162,3 @@ _getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}
 # # ud_grading lenseflow ud_grades the ϕ map
 # ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))
 # ud_grade(L::CachedLenseFlow, args...; kwargs...)  = cache(ud_grade(L.L,args...;kwargs...))
-
-"""
-Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = α*F(t,y) and y(t₀) = y₀
-
-Arguments
-* F! : a function F!(v,t,y) which sets v=F(t,y)
-"""
-function jrk4(F!::Function, y₀, t₀, t₁, nsteps)
-    h = (t₁-t₀)/nsteps
-    y = copy(y₀)
-    k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
-        @! k₁ = F(t, y)
-        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
-        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
-        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
-        
-        # due to https://github.com/JuliaLang/julia/issues/27988, if this were
-        # written the natural way as:
-        #    @. y .+= h*(k₁ + 2k₂ + 2k₃ + k₄)/6
-        # it has god-awful performance for FieldTuples (although is fine for
-        # FlatS0s). until a solution for that issue comes around, a workaround
-        # is to write out the broadcasting kernel by hand:
-        broadcast!((y,k₁,k₂,k₃,k₄)->(y+h*(k₁+2k₂+2k₃+k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
-    end
-    return y
-end
-odesolve(::Type{jrk4{N}},F!,y₀,t₀,t₁) where {N} = jrk4(F!,y₀,t₀,t₁,N)

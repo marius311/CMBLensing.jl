@@ -72,6 +72,7 @@ export
     ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
 include("util.jl")
+include("numerical_algorithms.jl")
 include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
@@ -87,7 +88,6 @@ include("flat.jl")
 include("plotting.jl")
 # include("likelihood.jl")
 # include("sampling.jl")
-# include("minimize.jl")
 # include("masking.jl")
 # include("quadratic_estimate.jl")
 # include("properties.jl")
