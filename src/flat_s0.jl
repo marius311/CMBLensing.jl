@@ -21,8 +21,8 @@ FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 
 ### pretty printing
-show(io::IO, ::Type{F}) where {N,θ,∂mode,T,M,F<:FlatS0{Flat{N,θ,∂mode},T,M}} =
-    print(io, "$(F.name.name){$N×$N map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+show_datatype(io::IO, ::Type{F}) where {N,θ,∂mode,T,M,F<:FlatS0{Flat{N,θ,∂mode},T,M}} =
+    print(io, "$(F.name.name){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
 
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)

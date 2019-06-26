@@ -47,7 +47,6 @@ LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t
 
 
 ### printing
-show(io::IO, ::MIME"text/plain", L::LenseFlowOp) = show(io,L)
 show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:LenseFlow{I,t₀,t₁,Φ}} = print(io, "$(L.name.name){$t₀→$t₁, $I}(ϕ::$Φ)")
 show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(jrk4{N})}(ϕ::$Φ, Łf::$ŁF)")
 string(::Type{jrk4{N}}) where {N} = "$N-step RK4"

@@ -13,10 +13,31 @@ using LinearAlgebra
 
 ##
 
+@testset "Printing" begin
+
+    # basic printing sanity checks, which were super annoying to get right...
+    # see: https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+    for m in ((), (MIME("text/plain"),))
+        # concrete types:
+        for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
+            @test 5 < length(sprint(show, m..., f))                                 < 1000
+            @test 5 < length(sprint(show, m..., [f,f]))                             < 1000
+        end
+        # unionall types: (the #s indicates printing correctly dropped to the default behavior)
+        @test occursin("#s",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
+        @test occursin("#s",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
+        @test occursin("#s",sprint(show, m..., FΦTuple))
+        # this is the case that we need the @safe_get for in field_tuples.jl:
+        @test_broken occursin("#s",sprint(show, m..., FlatQUMap))
+    end
+
+end
+##
+
 @testset "Algebra" begin
     
     f0,f2 = [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
-    
+    f=f2
     for f in [f0,f2]
         
         @testset "f::$(typeof(f))" begin
@@ -67,19 +88,23 @@ end
 
 ##
 
-@testset "FieldTuple basis conversions" begin 
+@testset "FieldTuple constructors & conversions" begin 
 
     f = FlatMap(rand(4,4))
-    f_basistuple = FieldTuple(A=f, B=f)
 
+    # constructors
+    @test FieldTuple(Q=f, U=f) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple((Q=f, U=f)) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple{QUMap}((Q=f, U=f)) isa FieldTuple{<:QUMap, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple{<:Any, <:NamedTuple{(:Q,:U)}}(f,f) isa FieldTuple
+
+    # basis conversions
+    f_basistuple = FieldTuple(A=f, B=f)
+    f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
     @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
     @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
     @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-
     @test_broken BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)
-
-    f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
-
     @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
     @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
     @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier

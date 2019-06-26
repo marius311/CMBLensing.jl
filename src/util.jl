@@ -235,3 +235,14 @@ function ensuresame(args...)
     @assert all(args .== Ref(args[1]))
     args[1]
 end
+
+
+"""
+Can be used to safely get method parameters which may not be defined due to e.g.:
+https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+"""
+macro safe_get(ex)
+    head(x) = x isa Symbol ? x : head(x.args[1])
+    x = head(ex)
+    :($(Expr(:isdefined, esc(x))) ? $(esc(ex)) : $(QuoteNode(x)))
+end

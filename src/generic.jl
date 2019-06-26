@@ -134,9 +134,11 @@ const Ł = LenseBasis
 abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
 
 # printing
-# show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)
-# show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,parent(L)); print(io,"}"))
-
+show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
+show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)
+show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,parent(L)); print(io,"}"))
+# this is the main function ImplicitOps should specialize if this default behavior isn't enough:
+show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
 # Linear operators on Fields
 const LinOp{B,S,P,T} = Union{ImplicitOp{B,S,P,T},Diagonal{<:Any,Field{B,S,P,T}}}
@@ -145,31 +147,6 @@ const LinOp{B,S,P,T} = Union{ImplicitOp{B,S,P,T},Diagonal{<:Any,Field{B,S,P,T}}}
 (*)(D::Diagonal{<:Any,<:Field{B}}, V::Field) where {B} = D.diag .* B(V)
 
 
-
-
-# # Left multiplication uses `adjoint` which we require each LinOp implement
-# *(f::AdjField, L::LinOp) = (L'*f')'
-# 
-# 
-# ### LinDiagOp
-# 
-# #
-# # LinDiagOp{B,S,P} is an operator which is diagonal in basis B. This is
-# # important because it means we can do fast broadcasting between these
-# # operators and other fields which are also in basis B.
-# # 
-# # Each LinDiagOp needs to implement broadcast_data(::Type{F}, L::LinDiagOp) which
-# # should return a tuple of data which can be broadcast together with the data of a
-# # field of type F.
-# #
-# abstract type LinDiagOp{B,S,P} <: LinOp{B,S,P} end
-# transpose(L::LinDiagOp) = L
-# Diagonal(L::LinDiagOp) = L
-# for op=(:*,:\)
-#     @eval ($op)(L::LinDiagOp{B}, f::Field) where {B} = broadcast($op,L,B(f))
-# end
-# 
-# 
 ### Scalars
 
 # scalars which are allowed in our expressions must be real because we
@@ -178,12 +155,8 @@ const LinOp{B,S,P,T} = Union{ImplicitOp{B,S,P,T},Diagonal{<:Any,Field{B,S,P,T}}}
 const Scalar = Real
 const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # const FieldOpScal = Union{Field,LinOp,Scalar}
+
 # 
-# 
-### Vectors of fields
-
-
-
 # ### Matrix conversion
 # 
 # # We can build explicit matrix representations of linear operators by applying
@@ -210,7 +183,7 @@ const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # 
 # 
 # ### Other generic stuff
-# 
+
 
 # convenience "getter" functions for the Basis/Spin/Pix
 basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
@@ -239,7 +212,7 @@ pix(::F) where {F<:Field} = pix(F)
 # end
 
 
-# we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plts a 2×2
+# we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
 # matrix of maps. the following definitions make it so that Fields aren't
 # splatted into a giant matrix when doing [f f; f f] (which they would othewise
 # be since they're Arrays)

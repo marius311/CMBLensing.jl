@@ -18,10 +18,8 @@ FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map
 
 ## printing
 getindex(f::FieldTuple,::Colon) = vcat(values(f.fs)...)[:]
-show(io::IO, ::Type{<:FieldTuple{B,<:NamedTuple{Names},T}}) where {B,Names,T} =
-    print(io, "FieldTuple{$(Names), $(B.name.name), $T}")
-# todo: let Atom display individual components in drop-down
-
+show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
+    print(io, "FieldTuple{$(Names), $(B.name.name), $(@safe_get(T))}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)

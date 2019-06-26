@@ -3,7 +3,7 @@
 abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix,Any} end
 
 
-const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}
+const FΦTuple = FieldTuple{<:Basis,<:NamedTuple{(:f,:ϕ)}}
 
 # 
 # δfϕₛ_δfϕₜ is an operator which computes the lensing jacobian between time s
@@ -12,7 +12,7 @@ const FΦTuple = FieldTuple{<:Tuple{Field,Field{<:Any,<:S0}}}
 # [δfₛ/δfₜ  δfₛ/δϕ;
 #  δϕ/δfₜ  δϕ/δϕ]
 # 
-# The operator acts on a Field2Tuple containing (f,ϕ). 
+# The operator acts on a FieldTuple containing (f,ϕ). 
 # 
 # Individual lensing algorithms need to implement how to apply this operator,
 # inverse, and/or transpose. Different algorithms may need the field at time s,
