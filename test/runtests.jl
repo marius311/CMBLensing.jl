@@ -53,7 +53,7 @@ end
             @test (@inferred mul!(Ðf,∇[1],Ð(f))) isa Field
             @test (Ðv = @inferred ∇*f) isa FieldVector
             @test (@inferred mul!(Ðv,∇,Ð(f))) isa FieldVector
-            @test ((g,H) = Ł.(@inferred gradhess(f))) isa Tuple{FieldVector, FieldMatrix}
+            @test ((g,H) = map(Ł, (@inferred gradhess(f)))) isa NamedTuple{<:Any, <:Tuple{FieldVector, FieldMatrix}}
             
             # Diagonal broadcasting
             @test (@inferred Diagonal(f) .* Diagonal(f) .* Diagonal(f)) isa typeof(Diagonal(f))
@@ -75,8 +75,13 @@ end
                 @test (@inferred Diagonal.(H) * g) isa FieldVector
                 @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector
                 @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector
+            
             end
             
+            # Explicit vs. lazy DiagOp algebra
+            @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{Ð(typeof(f))}}
+            @test (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
+            @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{Ł(typeof(f))}}
         end
         
         # eltype promotion
@@ -146,12 +151,12 @@ end
     for T in (Float32, Float64)
         
         ϵ = sqrt(eps(T))
-        Cϕ = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ)
+        Cϕ = Cℓ_to_Cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ)
         @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
         Lϕ = LenseFlow(ϕ)
         
         ## S0
-        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
+        Cf = Cℓ_to_Cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
         @test (f = @inferred simulate(Cf)) isa FlatS0
         @test (@inferred Lϕ*f) isa FlatS0
         # adjoints
@@ -162,7 +167,7 @@ end
         @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
 
         # S2 lensing
-        Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB)
+        Cf = Cℓ_to_Cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB)
         @test (f = @inferred simulate(Cf)) isa FlatS2
         @test (@inferred Lϕ*f) isa FlatS2
         #adjoints

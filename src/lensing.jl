@@ -1,6 +1,6 @@
 
 # Abstract type for lensing operators
-abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix,Any} end
+abstract type LenseOp <: ImplicitOp{Basis,Spin,Pix} end
 
 
 const FΦTuple = FieldTuple{<:Basis,<:NamedTuple{(:f,:ϕ)}}
@@ -21,7 +21,7 @@ const FΦTuple = FieldTuple{<:Basis,<:NamedTuple{(:f,:ϕ)}}
 # Note, the bottom row is trivially [0,1], but included to make the Jacobian
 # square and easier to reason about
 # 
-struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: ImplicitOp{Basis,Spin,Pix,Any}
+struct δfϕₛ_δfϕₜ{s, t, L<:LenseOp, Fₛ<:Field, Fₜ<:Field} <: ImplicitOp{Basis,Spin,Pix}
     L::L
     fₛ::Fₛ
     fₜ::Fₜ

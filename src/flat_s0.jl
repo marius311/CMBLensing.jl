@@ -61,14 +61,11 @@ end
 
 
 ### simulation and power spectra
-
 function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
     FlatMap{P}(randn(T,N,N) / FFTgrid(P,T).Δx)
 end
-
-function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
-    g = FFTgrid(P,T)
-    Diagonal(FlatFourier{P}(Complex{T}.(Cℓ_2D(Cℓ.ℓ, Cℓ.Cℓ, g.r)[1:g.Nside÷2+1,:])))
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
+    Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)))
 end
 
 # 

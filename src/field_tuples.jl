@@ -22,6 +22,7 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 
 ## printing
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
+getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
     print(io, "FieldTuple{$(Names), $(B.name.name), $(@safe_get(T))}")
 show_datatype(io::IO, ::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
@@ -81,7 +82,7 @@ getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
 # generic AbstractVector inv/pinv don't work with FieldTuples because those
 # implementations depends on get/setindex which we don't implement for FieldTuples
 for func in [:inv, :pinv]
-    @eval $(func)(D::Diagonal{<:Any,FT}) where {FT<:FieldTuple} = 
+    @eval $(func)(D::DiagOp{FT}) where {FT<:FieldTuple} = 
         Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
 end
 

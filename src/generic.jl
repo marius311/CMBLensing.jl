@@ -21,8 +21,6 @@ abstract type EBMap <: Basis end
 abstract type QUFourier <: Basis end
 abstract type EBFourier <: Basis end
 
-# printing
-# show(io::IO,::Type{B}) where {B<:Basis} = print(io, B.name.name)
 
 basis_promotion_rules = Dict(
     # S0
@@ -59,79 +57,20 @@ const Ł = LenseBasis
 Ł!(args...) = Ł(args...)
 
 
-# ### Adjoint Fields
-# 
-# # Fields implicitly have pixel indices which run from 1:Npix and "spin" indices
-# # which run e.g. from 1:3 labelling (I,Q,U) in the case of an S02 Field.
-# # Additionally, we may have vectors of fields like ∇*f which have an additional
-# # index labeling the component. By choice, we chose to make the Julia `'` symbol
-# # only take the adjoint of the spin and vector components, but not of the pixel.
-# # This means that f' * f will return a spin-0 field. To fully transpose and
-# # contract all indices, one would use the `⋅` function, f⋅f, which yields a
-# # scalar, as expected.
-# 
-# # Much like the Julia Base library, doing an adjoint like `f'` just creates a
-# # wrapper around the field to keep track of things. Adjoint fields have very
-# # limited functionality implemented as compared to normal fields, so its best to
-# # work with normal fields and only take the adjoint at the end if you need it.
-# struct AdjField{B,S,P,F<:Field{B,S,P}} <: Field{B,S,P}
-#     f :: F
-#     # need this seeingly redundant constructor to avoid ambiguity with 
-#     # F(f) = convert(F,f) definition in algebra.jl:
-#     AdjField(f::F) where {B,S,P,F<:Field{B,S,P}} = new{B,S,P,F}(f) 
-# end
-# adjoint(f::Field) = AdjField(f)
-# adjoint(f::AdjField) = f.f
-# *(a::AdjField{<:Any,S0}, b::Field{<:Any,<:S0}) = a.f * b
-# *(a::Field{<:Any,S0}, b::AdjField{<:Any,<:S0}) = a * b.f
-# 
-# 
-# 
-### LinOp
+### ImplicitOp
+# ImplicitOps and ImplicitFields are operators and fields which may not be
+# explicitly stored, but can be multiplied, etc... and generally implicitly take
+# on whatever size they need. The specification of Float32 as the the Array
+# type is only for inference, such that its widened to whatever is needed to be
+# the end. 
+abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix} <: AbstractMatrix{Float32} end
+abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} end
 
-#
-# A LinOp{B,S,P} represents a linear operator which acts on a field with a
-# particular pixelization scheme P and spin S. The meaning of basis B is not
-# that the operator is stored in this basis, but rather that fields should be
-# converted to this basis before the operator is applied (this makes writing the
-# implementing functions somewhat more convenient)
-# 
-# In the simplest case, LinOps should implement mul!, ldiv!, and adjoint. 
-# 
-#     * mul!(result, ::LinOp, ::Field) - apply the operator, storing the answer in `result`
-#     * ldiv!(result, ::LinOp, ::Field) - apply the inverse operator, storing the answer in `result`
-#     * adjoint(::LinOp) - return the adjoint operator
-# 
-# By default `*` and `\` use `mul!` and `ldiv!`, assuming the result will be
-# `simlar` to the field being acted on. If the operator returns a different kind
-# of field, this can be specified by overloading `allocate_result(::LinOp,
-# ::Field)` (see below)
-#
-# Other functions which can be implemented:
-#
-#     * sqrt(L::LinOp) - the sqrt of the operator s.t. sqrt(L)*sqrt(L) = L
-# 
-#
-# By default, LinOps receive the following functionality:
-# 
-#     * Automatic basis conversion: L * f first converts f to L's basis, then
-#     applies *, so that LinOps only need to implement *(::LinOp, ::F) where F
-#     is a type already in the correct basis. 
-# 
-#     * Lazy evaluation: C = A + B returns a LazyBinaryOp object which when
-#     applied to a field, C*f, computes A*f + B*f.
-# 
-#     * Vector conversion: Af = A[~f] returns an object which when acting on an
-#     AbstractVector, Af * v, converts v to a Field, then applies A.
-# 
-
-
-# todo: maybe drop all B,S,P tracking on ImplicitOps ?
-
-# implicit Ops are operators on fields, but they are neither Diagonal nor is
-# their full matrix representation ever explicitly stored, hence they are
-# "implicit" operators. 
-abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractMatrix{T} end
+# no size and 0-length represents the fact that implicit ops aquire the size of
+# the fields they're applied to. it also helps makes the generic printing
+# methods for AbstractMatrix work well.
+size(::Union{ImplicitOp,ImplicitField}) = ()
+length(::Union{ImplicitOp,ImplicitField}) = 0
 
 # printing
 show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
@@ -140,21 +79,18 @@ show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,pa
 # this is the main function ImplicitOps should specialize if this default behavior isn't enough:
 show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
-# Linear operators on Fields
-const LinOp{B,S,P,T} = Union{ImplicitOp{B,S,P,T},Diagonal{<:Any,Field{B,S,P,T}}}
-
-# automatic basis conversion:
-(*)(D::Diagonal{<:Any,<:Field{B}}, V::Field) where {B} = D.diag .* B(V)
+# All CMBLensing operators are either Diagonals or ImplicitOps
+const DiagOp{F<:Field, T} = Diagonal{T,F} 
+const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
 
 ### Scalars
-
 # scalars which are allowed in our expressions must be real because we
 # implicitly assume our maps are real, and addition/multiplication by a complex
 # number, even of the fourier transform, would break this.
 const Scalar = Real
-const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
-# const FieldOpScal = Union{Field,LinOp,Scalar}
+const FieldOrOp = Union{Field,LinOp}
+const FieldOpScal = Union{Field,LinOp,Scalar}
 
 # 
 # ### Matrix conversion
@@ -182,7 +118,9 @@ const FieldOrOp = Union{Field,Diagonal{<:Any,<:Field}}
 # full(::Type{F}, L::LinOp; kwargs...) where {F<:Field} = full(F,F,L; kwargs...)
 # 
 # 
-# ### Other generic stuff
+
+
+### Other generic stuff
 
 
 # convenience "getter" functions for the Basis/Spin/Pix
@@ -194,22 +132,20 @@ pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
 pix(::F) where {F<:Field} = pix(F)
 
 
-# shortname(::Type{T}) where {T<:Union{Field,LinOp,Basis}} = replace(replace(string(T),"CMBLensing."=>""), "Main."=>"")
-# 
 # zero(::F) where {F<:Field} = zero(F)
 # one(::F) where {F<:Field} = one(F)
 # similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
 # copy(f::Field) = deepcopy(f)
-# 
-# 
-# get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
-# get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
-# function get_ρℓ(f1,f2; kwargs...)
-#     Cℓ1 = get_Cℓ(f1; kwargs...)
-#     Cℓ2 = get_Cℓ(f2; kwargs...)
-#     Cℓx = get_Cℓ(f1,f2; kwargs...)
-#     InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
-# end
+
+
+get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
+get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
+function get_ρℓ(f1,f2; kwargs...)
+    Cℓ1 = get_Cℓ(f1; kwargs...)
+    Cℓ2 = get_Cℓ(f2; kwargs...)
+    Cℓx = get_Cℓ(f1,f2; kwargs...)
+    InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
+end
 
 
 # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
@@ -222,5 +158,6 @@ hcat(values::Field...) = hcat(([x] for x in values)...)
 ### printing
 print_array(io::IO, f::Field) = print_array(io, f[:])
 show_vector(io::IO, f::Field) = show_vector(io, f[:])
+getindex(::ImplicitField, ::Colon) = ()
 
 dot(a::Field, b::Field) = Ł(a)[:] ⋅ Ł(b)[:]

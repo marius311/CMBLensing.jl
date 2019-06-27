@@ -40,16 +40,16 @@ FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgri
     Δℓ  = 2π/(Nside*Δx)
     nyq = 2π/(2Δx)
     x,k = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* [Δx,Δℓ]'
-    r   = sqrt.(.+((reshape(k.^2, (s=ones(Int,2); s[i]=Nside; tuple(s...))) for i=1:2)...))
-    ϕ   = angle.(k' .+ im*k)[1:Nside÷2+1,:]
+    r   = @. sqrt(k'^2 + k^2)
+    ϕ   = @. angle(k' + im*k)[1:Nside÷2+1,:]
     sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
     FFTgrid{T,typeof(FFT)}(θpix, Nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
 end
 
 
-
-Cℓ_2D(ℓ, Cℓ, r) = LinearInterpolation(ℓ, Cℓ, extrapolation_bc = 0).(r)
-Cℓ_2D(::Type{P}, ℓ, Cℓ) where {N,P<:Flat{N}} = Cℓ_2D(ℓ,Cℓ,FFTgrid(Float64,P).r)[1:N÷2+1,:]
+function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
+    Complex{T}.(nan2zero.(Cℓ.(FFTgrid(P,T).r[1:N÷2+1,:])))
+end
 
 """ filter out the single row/column in the real FFT matrix `M` which
 corresponds to exactly the nyquist frequency """
@@ -93,15 +93,7 @@ end
 (::Type{T})(f::FlatMap{P}) where {T<:Real,P} =  FlatMap{P}(convert(Matrix{T}, f.Ix))
 (::Type{T})(f::FlatFourier{P}) where {T<:Real,P} =  FlatFourier{P}(convert(Matrix{Complex{T}}, f.Il))
 (::Type{∂mode})(f::F) where {∂mode<:∂modes,θ,N,F<:FlatS0{<:Flat{θ,N}}} = basetype(F){Flat{θ,N,∂mode}}(fieldvalues(f)...)
-
-
 FFTgrid(::FlatS0{P,T}) where {P,T} = FFTgrid(P,T)
-
-
-# broadcast_data(::Type{F}, f::F) where {F<:BaseFlatField} = map(StridedView, fieldvalues(f))
-# broadcast_data(::Type{F2}, f::F0) where {F2<:FlatS2Map, F0<:FlatS0Map} = broadcast_data(F0,f)
-# *(f0::FlatS0Map, f2::FlatS2Map) = f0 .* f2
-# 
 
 
 ### basis-like definitions
@@ -111,8 +103,8 @@ DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
 
 ### derivatives
-broadcastable(::Type{<:FlatFourier{P,T}}, ::f∇i{1,<:Any,prefactor}) where {P,T,prefactor} = @. prefactor * im * FFTgrid(P,T).k'
-broadcastable(::Type{<:FlatFourier{P,T}}, ::f∇i{2,<:Any,prefactor}) where {P,T,prefactor} = @. prefactor * im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
+broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{1,<:Any,prefactor}) where {P,T,prefactor} = @. prefactor * im * FFTgrid(P,T).k'
+broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {P,T,prefactor} = @. prefactor * im * FFTgrid(P,T).k[1:Nside(P)÷2+1]
 
 
 # @generated function broadcast_data(::Type{<:BaseFlatFourier{T,P}}, ::∇²Op) where {coord,T,P}
@@ -155,25 +147,12 @@ broadcastable(::Type{<:FlatFourier{P,T}}, ::f∇i{2,<:Any,prefactor}) where {P,T
 # end
 # 
 # 
-# # specialized mul! to avoid allocation when doing `∇' * vector` when stuff is in
-# # the right the basis. expects memf′ is a preallocated memory that can be used
-# # to store an intermediate result. the default value uses v[1], hence destroys
-# # the original v. if this is not desired, provide a different field.
-# mul!(f′::F, ∇::Adjoint{∇i,<:∇Op}, v::FieldVector{F}, memf′::F=v[1]) where {F<:Union{FlatMap{<:Any,<:Flat{<:Any,<:Any,map∂}},FlatFourier{<:Any,<:Flat{<:Any,<:Any,fourier∂}}}} =
-#     (mul!(f′,∇[1],v[1]); mul!(memf′,∇[2],v[2]); (f′ .+= memf′))
-# 
-# # some other mul! which will eventually be generalized into broadcasted stuff
-# mul!(v::FlatS0Map{T,P}, a::AdjField{QUMap,S2,P,F}, b::F) where {T,P,F<:FlatS2QUMap{T,P}} = 
-#     ((@. v.Tx = (a').Qx*b.Qx + (a').Ux*b.Ux); v)
-# mul!(v::FlatS0Map{T,P}, a::AdjField{Map,S0,P,F}, b::F) where {T,P,F<:FlatS0Map{T,P}} = 
-#     ((@. v.Tx = (a').Tx*b.Tx); v)
-# 
-# 
-# # bandpass
-# HarmonicBasis(::Type{<:FlatS0}) = Fourier
-# HarmonicBasis(::Type{<:FlatS2}) = QUFourier
-# broadcast_data(::Type{F}, op::BandPassOp) where {T,P,F<:FlatFourier{T,P}} =
-#     (Cℓ_2D(op.ℓ,op.Wℓ,FFTgrid(P,T).r)[1:Nside(P)÷2+1,:],)
+# bandpass
+HarmonicBasis(::Type{<:FlatS0}) = Fourier
+HarmonicBasis(::Type{<:FlatQU}) = QUFourier
+HarmonicBasis(::Type{<:FlatEB}) = EBFourier
+broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to_2D(P,T,bp.Wℓ)
+    
 # 
 # 
 # # allows std and var of a Vector of FlatFields to work

@@ -73,13 +73,11 @@ QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
 
 
 ### simulation and power spectra
-
 function white_noise(::Type{<:FlatS2{P,T}}) where {P,T}
     FlatEBMap(E=white_noise(FlatMap{P,T}), B=white_noise(FlatMap{P,T}))
 end
-
-function Cℓ_to_cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T}
-    Diagonal(FlatEBFourier(E=Cℓ_to_cov(P,T,S0,CℓEE).diag, B=Cℓ_to_cov(P,T,S0,CℓBB).diag))
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T}
+    Diagonal(FlatEBFourier(E=Cℓ_to_Cov(P,T,S0,CℓEE).diag, B=Cℓ_to_Cov(P,T,S0,CℓBB).diag))
 end
 
 

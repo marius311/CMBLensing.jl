@@ -1,9 +1,11 @@
 module CMBLensing
 
-using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted, DefaultArrayStyle, flatten, preprocess_args, Style
+using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
+    DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated
 using Base.Threads
-using Base: @propagate_inbounds, show_vector, show_default, showarg, show_datatype, typed_vcat
+using Base: @propagate_inbounds, @kwdef, show_vector, show_default, showarg,
+    show_datatype, typed_vcat, Bottom
 using Combinatorics
 using DataStructures
 using Distributed
@@ -16,6 +18,7 @@ using JLD2
 using FileIO
 using Loess
 using LinearAlgebra
+using LinearAlgebra: diagzero
 using MacroTools: @capture, combinedef, isexpr, postwalk, splitdef
 using Match
 using Markdown
@@ -32,7 +35,8 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
-using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle, StaticMatrix, StaticVector, SVector
+using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
+    StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
 using Strided
@@ -54,7 +58,7 @@ import PyPlot: loglog, plot, semilogx, semilogy
 
 export
     @animate, @repeated, @unpack, azeqproj, BandPassOp, cache, CachedLenseFlow,
-    camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_cov, DataSet, DerivBasis, Diagonal,
+    camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis, Diagonal,
     dot, EBFourier, EBMap, FFTgrid, Field, FieldArray, FieldMatrix, FieldOrOpArray,
     FieldOrOpMatrix, FieldOrOpRowVector, FieldOrOpVector, FieldRowVector,
     FieldTuple, FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
@@ -86,7 +90,8 @@ include("flat.jl")
 # include("taylens.jl")
 # include("vec_conv.jl")
 include("plotting.jl")
-# include("likelihood.jl")
+# include("dataset.jl")
+# include("posterior.jl")
 # include("sampling.jl")
 # include("masking.jl")
 # include("quadratic_estimate.jl")

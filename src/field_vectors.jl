@@ -49,7 +49,7 @@ end
 
 
 # this makes Vector{Diagonal}' * Vector{Field} work right
-dot(D::Diagonal{<:Any,<:Field}, f::Field) = conj(D.diag) .* f
+dot(D::DiagOp, f::Field) = conj(D.diag) .* f
 
 # needed since v .* f is not type stable
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
