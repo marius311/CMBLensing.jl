@@ -159,7 +159,7 @@ end
         @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
         # gradients
         δf, δϕ = simulate(Cf), simulate(Cϕ)
-        @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-3
+        @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
 
         # S2 lensing
         Cf = Cℓ_to_cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB)
@@ -168,6 +168,9 @@ end
         #adjoints
         f,g = simulate(Cf),simulate(Cf)
         @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+        # gradients
+        δf, δϕ = simulate(Cf), simulate(Cϕ)
+        @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
     end
     
 end

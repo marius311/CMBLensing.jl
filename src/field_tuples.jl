@@ -21,7 +21,7 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 
 
 ## printing
-getindex(f::FieldTuple,::Colon) = vcat(values(f.fs)...)[:]
+getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
     print(io, "FieldTuple{$(Names), $(B.name.name), $(@safe_get(T))}")
 show_datatype(io::IO, ::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
@@ -36,7 +36,7 @@ similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{
 similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} = 
     FieldTuple(map_tupleargs(F->similar(F,T), FS))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
-getindex(f::FieldTuple, i) = getindex(f.fs, i)
+getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 
 
 ## broadcasting
@@ -101,5 +101,8 @@ struct TupleAdjoint{T<:Field}
 end
 tuple_adjoint(f::Field) = TupleAdjoint(f)
 
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple} = dst .= sum(map(*, a.f.fs, b.fs))
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple{<:Any, <:NamedTuple{<:Any,<:NTuple}}} = 
+    dst .= sum(map(*, a.f.fs, b.fs))
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple{<:Any, <:NamedTuple{<:Any,<:NTuple{2}}}} = 
+    (@. dst = a.f[1]*b[1] + a.f[2]*b[2])
 mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:Field{<:Any,S0}} = dst .= a.f .* b
