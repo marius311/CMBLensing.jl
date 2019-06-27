@@ -75,27 +75,38 @@ export
     toDℓ, tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴,
     ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
+# generic stuff
 include("util.jl")
+include("util_fft.jl")
 include("numerical_algorithms.jl")
-include("rfftvectors.jl")
 include("generic.jl")
 include("cls.jl")
 include("field_tuples.jl")
 include("field_vectors.jl")
 include("specialops.jl")
-include("algebra.jl")
+
+# lensing
 include("lensing.jl")
-include("flat.jl")
+include("powerlens.jl")
+include("lenseflow.jl")
 # include("healpix.jl")
 # include("taylens.jl")
-# include("vec_conv.jl")
+
+# flat-sky maps
+include("flat_fftgrid.jl")
+include("flat_s0.jl")
+include("flat_s2.jl")
+include("flat_generic.jl")
+# include("masking.jl")
+
 include("plotting.jl")
+
+# sampling and maximizing the posteriors
 # include("dataset.jl")
 # include("posterior.jl")
 # include("sampling.jl")
-# include("masking.jl")
+
+# other estimates
 # include("quadratic_estimate.jl")
-# include("properties.jl")
-# include("weave_pyplot.jl")
 
 end

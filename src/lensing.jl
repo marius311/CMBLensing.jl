@@ -62,6 +62,3 @@ NoLensing(ϕ) = NoLensing()
 adjoint(L::NoLensing) = L
 _getindex(L::NoLensing, i::→) = L
 δfϕₛ_δfϕₜ{t₀,t₁}(L::NoLensing,::Any,::Any) where {t₀,t₁} = IdentityOp
-
-include("powerlens.jl")
-include("lenseflow.jl")

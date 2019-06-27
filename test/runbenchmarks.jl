@@ -14,6 +14,9 @@ N = 256
 
 ##
 
+# broadcasting with Fields should be exactly as fast working with the arrays
+# directly, no overhead allowed
+
 @testset "Algebra" begin 
 
 # spin 0 

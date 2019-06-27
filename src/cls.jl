@@ -59,6 +59,19 @@ for op in (:^, :sqrt)
 	@eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
 end
 
+
+
+function get_Cℓ end
+get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
+get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
+function get_ρℓ(f1,f2; kwargs...)
+    Cℓ1 = get_Cℓ(f1; kwargs...)
+    Cℓ2 = get_Cℓ(f2; kwargs...)
+    Cℓx = get_Cℓ(f1,f2; kwargs...)
+    InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
+end
+
+
 # used to powerlaw extrapolate Cℓs at very high-ℓ (usually ℓ>6000) just so we
 # don't have deal with zeros / infinities there
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)

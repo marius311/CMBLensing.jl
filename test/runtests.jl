@@ -151,12 +151,12 @@ end
     for T in (Float32, Float64)
         
         ϵ = sqrt(eps(T))
-        Cϕ = Cℓ_to_Cov(Flat(Nside=128), Float64, S0, Cℓ.ϕϕ)
+        Cϕ = Cℓ_to_Cov(Flat(Nside=128), T, S0, Cℓ.ϕϕ)
         @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
         Lϕ = LenseFlow(ϕ)
         
         ## S0
-        Cf = Cℓ_to_Cov(Flat(Nside=128), Float64, S0, Cℓ.TT)
+        Cf = Cℓ_to_Cov(Flat(Nside=128), T, S0, Cℓ.TT)
         @test (f = @inferred simulate(Cf)) isa FlatS0
         @test (@inferred Lϕ*f) isa FlatS0
         # adjoints
@@ -167,10 +167,10 @@ end
         @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
 
         # S2 lensing
-        Cf = Cℓ_to_Cov(Flat(Nside=128), Float64, S2, Cℓ.EE, Cℓ.BB)
+        Cf = Cℓ_to_Cov(Flat(Nside=128), T, S2, Cℓ.EE, Cℓ.BB)
         @test (f = @inferred simulate(Cf)) isa FlatS2
         @test (@inferred Lϕ*f) isa FlatS2
-        #adjoints
+        # adjoints
         f,g = simulate(Cf),simulate(Cf)
         @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
         # gradients

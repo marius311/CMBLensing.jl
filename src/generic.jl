@@ -57,16 +57,31 @@ const Ł = LenseBasis
 Ł!(args...) = Ł(args...)
 
 
+# B(f) where B is a basis converts f to that basis. This is the fallback if the
+# field is already in the right basis.
+(::Type{B})(f::Field{B}) where {B} = f
+
+# The abstract `Basis` type means "any basis", hence this conversion rule:
+Basis(f::Field) = f
+
+# B(f′, f) converts f to basis B and stores the result inplace in f′. If f is
+# already in basis B, we just return f (but note, we never actually set f′ in
+# this case, which is more efficient, but necessitates some care when using this
+# construct)
+(::Type{B})(f′::Field{B}, f::Field{B}) where {B} = f
+
+
+
 ### ImplicitOp
 # ImplicitOps and ImplicitFields are operators and fields which may not be
 # explicitly stored, but can be multiplied, etc... and generally implicitly take
-# on whatever size they need. The specification of Float32 as the the Array
-# type is only for inference, such that its widened to whatever is needed to be
-# the end. 
+# on whatever size they need. The specification of Float32 as the the Array type
+# is only for inference, such that its widened to whatever its needed to be the
+# end. 
 abstract type ImplicitOp{B<:Basis, S<:Spin, P<:Pix} <: AbstractMatrix{Float32} end
 abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} end
 
-# no size and 0-length represents the fact that implicit ops aquire the size of
+# no size and 0-length represents the fact that ImplicitOps aquire the size of
 # the fields they're applied to. it also helps makes the generic printing
 # methods for AbstractMatrix work well.
 size(::Union{ImplicitOp,ImplicitField}) = ()
@@ -79,7 +94,7 @@ show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,pa
 # this is the main function ImplicitOps should specialize if this default behavior isn't enough:
 show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
-# All CMBLensing operators are either Diagonals or ImplicitOps
+# all CMBLensing operators are then either Diagonals or ImplicitOps
 const DiagOp{F<:Field, T} = Diagonal{T,F} 
 const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
@@ -91,6 +106,7 @@ const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 const Scalar = Real
 const FieldOrOp = Union{Field,LinOp}
 const FieldOpScal = Union{Field,LinOp,Scalar}
+
 
 # 
 # ### Matrix conversion
@@ -132,22 +148,6 @@ pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
 pix(::F) where {F<:Field} = pix(F)
 
 
-# zero(::F) where {F<:Field} = zero(F)
-# one(::F) where {F<:Field} = one(F)
-# similar(f::F) where {F<:Field} = F(map(similar,broadcast_data(F,f))...)
-# copy(f::Field) = deepcopy(f)
-
-
-get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
-get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
-function get_ρℓ(f1,f2; kwargs...)
-    Cℓ1 = get_Cℓ(f1; kwargs...)
-    Cℓ2 = get_Cℓ(f2; kwargs...)
-    Cℓx = get_Cℓ(f1,f2; kwargs...)
-    InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
-end
-
-
 # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
 # matrix of maps. the following definitions make it so that Fields aren't
 # splatted into a giant matrix when doing [f f; f f] (which they would othewise
@@ -158,6 +158,17 @@ hcat(values::Field...) = hcat(([x] for x in values)...)
 ### printing
 print_array(io::IO, f::Field) = print_array(io, f[:])
 show_vector(io::IO, f::Field) = show_vector(io, f[:])
-getindex(::ImplicitField, ::Colon) = ()
 
-dot(a::Field, b::Field) = Ł(a)[:] ⋅ Ł(b)[:]
+
+# addition/subtraction works between any fields and scalars, promotion is done
+# automatically if fields are in different bases
+for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
+end
+
+# multiplication/division is not strictly defined for abstract vectors, but
+# make it work anyway if the two fields are exactly the same type, in which case
+# its clear we wanted broadcasted multiplication/division. 
+for op in (:*, :/)
+    @eval ($op)(A::F, B::F) where {F<:Field} = broadcast($op, A, B)
+end

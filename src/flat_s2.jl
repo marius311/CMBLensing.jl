@@ -1,10 +1,6 @@
 
-# this file defines a flat-sky pixelized spin-2 map (like a polarization Q&U map)
-# and operators on this map
-
-
 ### FlatS2 types
-# spin-2 fields are just special FieldTuples
+# (spin-2 fields are just special FieldTuples)
 const FlatQUMap{P,T,M}     = FieldTuple{QUMap,     NamedTuple{(:Q,:U),NTuple{2,FlatMap{P,T,M}}}, T}
 const FlatQUFourier{P,T,M} = FieldTuple{QUFourier, NamedTuple{(:Q,:U),NTuple{2,FlatFourier{P,T,M}}}, Complex{T}}
 const FlatEBMap{P,T,M}     = FieldTuple{EBMap,     NamedTuple{(:E,:B),NTuple{2,FlatMap{P,T,M}}}, T}
@@ -33,14 +29,13 @@ getproperty(f::FlatEBMap,     ::Val{:Ex}) = getfield(f,:fs).E.Ix
 getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
 getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
-
 function getindex(f::FlatS2, k::Symbol)
     k in [:Ex,:Bx,:El,:Bl,:Qx,:Ux,:Ql,:Ul] || throw(ArgumentError("Invalid FlatS2 index: $k"))
     getproperty([EBMap,EBFourier,QUMap,QUFourier][in.(k, [(:Ex,:Bx),(:El,:Bl),(:Qx,:Ux),(:Ql,:Ul)])][1](f),k)
 end
 
 
-### conversions
+### basis conversion
 
 QUFourier(f::FlatQUMap) = FlatQUFourier(Fourier(f))
 QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier

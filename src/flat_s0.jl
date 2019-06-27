@@ -1,9 +1,4 @@
 
-# this file defines a flat-sky pixelized spin-0 map (like T or ϕ)
-# and operators on this map
-
-
-
 ### FlatMap and FlatFourier types
 struct FlatMap{P<:Flat,T<:Real,M<:AbstractMatrix{T}} <: Field{Map,S0,P,T}
     Ix :: M
@@ -45,11 +40,11 @@ preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0{P}}, f::FlatS0{P}) where {P} = firstfield(f)
 broadcastable(::Any, x) = x
 
-### convenience conversion funtions:
+### basis conversion
 Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(P,T).FFT * f.Ix)
 Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(P,T).FFT \ f.Il)
 
-### inplace conversions
+### inplace conversion
 Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(P,T).FFT, f.Ix); f′)
 Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
 
@@ -58,7 +53,6 @@ function getindex(f::FlatS0, k::Symbol)
     k in [:Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
     getproperty([Map,Fourier][k .== [:Ix,:Il]][1](f),k)
 end
-
 
 ### simulation and power spectra
 function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
