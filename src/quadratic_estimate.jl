@@ -49,7 +49,7 @@ function quadratic_estimate_TT(d::FlatS0, Cf, Cf̃, Cn, Cϕ, wiener_filtered)
     
     ϕqe = (wiener_filtered ? (Cϕ * inv(Cϕ + Nϕ)) : 1) * ϕqe_normalized
     
-    @ntpack ϕqe Nϕ
+    @NamedTuple ϕqe Nϕ
 
 end
 
@@ -77,7 +77,7 @@ function quadratic_estimate_EB(d::FlatS2, Cf, Cf̃, Cn, Cϕ, wiener_filtered)
     
     ϕqe = (wiener_filtered ? (Cϕ * inv(Cϕ + Nϕ)) : 1) * ϕqe_normalized
     
-    @ntpack ϕqe Nϕ
+    @NamedTuple ϕqe Nϕ
     
 end
 
@@ -105,7 +105,7 @@ function quadratic_estimate_EE(d::FlatS2, Cf, Cf̃, Cn, Cϕ, wiener_filtered)
     
     ϕqe = (wiener_filtered ? (Cϕ * inv(Cϕ + Nϕ)) : 1) * ϕqe_normalized
     
-    @ntpack ϕqe Nϕ
+    @NamedTuple ϕqe Nϕ
 
 end
 

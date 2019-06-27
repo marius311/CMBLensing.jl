@@ -5,16 +5,20 @@
 
 simulate(D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(F)
 
-# automatic basis conversion:
+
+# automatic basis conversion (and NaN-zeroing)
 (*)(D::DiagOp{<:Field{B}}, V::Field) where {B} = D.diag .* B(V)
+(\)(D::DiagOp{<:Field{B}}, V::Field) where {B} = nan2zero.(D.diag .\ B(V))
 
 # broadcasting
 function structured_broadcast_alloc(bc, ::Type{<:DiagOp{F}}, ::Type{T}, n) where {F<:Field,T}
     Diagonal(similar(F,T))
 end
+diag_data(D::Diagonal) = D.diag
+diag_data(x) = x
 function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
     bc′ = flatten(bc)
-    copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(firstfield, bc′.args)))
+    copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(diag_data, bc′.args)))
     dest
 end
 
@@ -108,9 +112,9 @@ struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Spin,Pix}
     Wℓ::W
 end
 BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
-HighPass(ℓ,Δℓ=50) = BandPassOp(0:10000,    [zeros(ℓ-Δℓ); @.((cos($linspace(π,0,2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
-LowPass(ℓ,Δℓ=50)  = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ);  @.(cos($linspace(0,π,2Δℓ))+1)/2])
-MidPass(ℓmin,ℓmax,Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-Δℓ);  @.(cos($linspace(π,0,2Δℓ))+1)/2; ones(ℓmax-ℓmin-2Δℓ); @.((cos($linspace(0,π,2Δℓ))+1)/2)])
+HighPass(ℓ,Δℓ=50) = BandPassOp(0:10000, [zeros(ℓ-Δℓ); @.((cos($range(π,0,length=2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
+LowPass(ℓ,Δℓ=50) = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ); @.(cos($range(0,π,length=2Δℓ))+1)/2])
+MidPass(ℓmin,ℓmax,Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-Δℓ);  @.(cos($range(π,0,length=2Δℓ))+1)/2; ones(ℓmax-ℓmin-2Δℓ); @.((cos($range(0,π,length=2Δℓ))+1)/2)])
 
 
 ### ParamDependentOp

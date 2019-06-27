@@ -68,7 +68,7 @@ cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
 cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
-    ts = linspace(t₀,t₁,2N+1)
+    ts = range(t₀,t₁,length=2N+1)
     ∇ϕ,Hϕ = map(Ł, gradhess(L.ϕ))
     T = eltype(L.ϕ)
     for (t,τ) in zip(ts,τ.(ts))
@@ -79,7 +79,7 @@ function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀
     cL
 end
 function alloc_cache(L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
-    ts = linspace(t₀,t₁,2N+1)
+    ts = range(t₀,t₁,length=2N+1)
     p, M⁻¹ = Dict(), Dict()
     Łf,Ðf = Ł(f),  Ð(f)
     Łϕ,Ðϕ = Ł(L.ϕ),Ð(L.ϕ)

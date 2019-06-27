@@ -69,7 +69,7 @@ export
     InterpolatedCℓs, IsotropicHarmonicCov, LenseBasis, LenseFlow, LenseOp,
     lensing_wiener_filter, LinDiagOp, LinOp, lnP, load_healpix_sim_dataset,
     load_sim_dataset, LowPass, Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero,
-    noisecls, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
+    noiseCℓs, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
     quadratic_estimate, QUFourier, QUMap, resimulate, S0, S02, S2, sample_joint,
     shortname, simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ,
     toDℓ, tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴,
@@ -102,7 +102,7 @@ include("flat_generic.jl")
 include("plotting.jl")
 
 # sampling and maximizing the posteriors
-# include("dataset.jl")
+include("dataset.jl")
 # include("posterior.jl")
 # include("sampling.jl")
 

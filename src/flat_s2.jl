@@ -30,8 +30,14 @@ getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
 getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 function getindex(f::FlatS2, k::Symbol)
-    k in [:Ex,:Bx,:El,:Bl,:Qx,:Ux,:Ql,:Ul] || throw(ArgumentError("Invalid FlatS2 index: $k"))
-    getproperty([EBMap,EBFourier,QUMap,QUFourier][in.(k, [(:Ex,:Bx),(:El,:Bl),(:Qx,:Ux),(:Ql,:Ul)])][1](f),k)
+    B = @match k begin
+        (:E || :B || :Ex || :Bx) => EBMap
+        (:E || :B || :El || :Bl) => EBFourier
+        (:Q || :U || :Qx || :Ux) => QUMap
+        (:Q || :U || :Ql || :Ul) => QUFourier
+        _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
+    end
+    getproperty(B(f),k)
 end
 
 
@@ -76,25 +82,11 @@ function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs
 end
 
 
+function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
+    Cℓ = [get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]
+    which isa Symbol ? Cℓ[1] : Cℓ
+end
 
-
-# 
-# function get_Cℓ(f::FlatS2{T,P}; which=(:EE,:BB), kwargs...) where {T,P}
-#     [get_Cℓ((FlatS0Fourier{T,P}(f[Symbol(x,:l)]) for x=xs)...; kwargs...) for xs in string.(which)]
-# end
-# 
-# 
-# zero(::Type{F}) where {T,P,F<:FlatS2{T,P}} = FlatS2QUMap{T,P}(@repeated(zeros(Nside(P),Nside(P)),2)...)
-# 
-# 
-# # dot products
-# dot(a::F,b::F) where {T,P,F<:FlatS2Map{T,P}} = (a[:] ⋅ b[:]) * FFTgrid(T,P).Δx^2
-# @generated function dot(a::F,b::F) where {T,P,F<:FlatS2Fourier{T,P}}
-#     F0 = FlatS0Fourier{T,P}
-#     fn = fieldnames(a)
-#     :($F0(a.$(fn[1])) ⋅ $F0(b.$(fn[1])) + $F0(a.$(fn[2])) ⋅ $F0(b.$(fn[2])))
-# end
-# 
 # # vector conversions
 # length(::Type{<:FlatS2{T,P}}) where {T,P} = 2Nside(P)^2
 # @generated getindex(f::FlatS2Map,::Colon) = :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
@@ -106,15 +98,4 @@ end
 # fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(vec[1:end÷2]), vec2rfft(vec[end÷2+1:end]))
 # 
 # 
-# Ac_mul_B(a::FlatS2QUMap{T,P},b::FlatS2QUMap{T,P}) where {T,P} = FlatS0Map{T,P}(@. a.Qx*b.Qx+a.Ux*b.Ux)
-# 
 # ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
-# 
-# getproperty(f::FlatS2{T,P},::Val{:E}) where {T,P} = FlatS0Map{T,P}(f.Ex)
-# getproperty(f::FlatS2{T,P},::Val{:B}) where {T,P} = FlatS0Map{T,P}(f.Bx)
-# getproperty(f::FlatS2{T,P},::Val{:Q}) where {T,P} = FlatS0Map{T,P}(f.Qx)
-# getproperty(f::FlatS2{T,P},::Val{:U}) where {T,P} = FlatS0Map{T,P}(f.Ux)
-# 
-# getindex(op::FullDiagOp, s::Symbol) = getindex(op, Val(s))
-# getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Val{:E}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.El))
-# getindex(op::FullDiagOp{FlatS2EBFourier{T,P}},::Val{:B}) where {T,P} = FullDiagOp(FlatS0Fourier{T,P}(op.f.Bl))

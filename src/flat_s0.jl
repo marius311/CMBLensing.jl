@@ -62,27 +62,27 @@ function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) 
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)))
 end
 
-# 
-# function cov_to_Cℓ(L::FullDiagOp)
-#     ii = sortperm(FFTgrid(L.f).r[:])
-#     InterpolatedCℓs(FFTgrid(L.f).r[ii], real.(unfold(L.f.Tl))[ii], concrete=false)
-# end
-# 
-# function get_Cℓ(f::FlatS0{T,P}, f2::FlatS0{T,P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1) where {T,P}
-#     g = FFTgrid(P,T)
-#     α = g.Δx^2/(4π^2)*g.nside^2
-# 
-#     L = g.r[:]
-#     CLobs = real.(dot.(unfold(f.Tl),unfold(f2.Tl)))[:]
-#     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
-# 
-#     power       = fit(Histogram, L, Weights(w .* CLobs), ℓedges).weights
-#     bandcenters = fit(Histogram, L, Weights(w .* L),     ℓedges).weights
-#     counts      = fit(Histogram, L, Weights(w),          ℓedges).weights
-# 
-#     InterpolatedCℓs(bandcenters ./ counts,  power ./ counts ./ α)
-# end
-# 
+
+function cov_to_Cℓ(L::DiagOp{<:FlatS0})
+    ii = sortperm(FFTgrid(L.diag).r[:])
+    InterpolatedCℓs(FFTgrid(L.diag).r[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
+end
+
+function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1) where {P}
+    g = FFTgrid(f)
+    α = g.Δx^2/(4π^2)*g.Nside^2
+
+    L = g.r[:]
+    CLobs = real.(dot.(unfold(f.Il),unfold(f2.Il)))[:]
+    w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
+
+    power       = fit(Histogram, L, Weights(w .* CLobs), ℓedges).weights
+    bandcenters = fit(Histogram, L, Weights(w .* L),     ℓedges).weights
+    counts      = fit(Histogram, L, Weights(w),          ℓedges).weights
+
+    InterpolatedCℓs(bandcenters ./ counts,  power ./ counts ./ α)
+end
+
 # zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatMap{T,P}(zeros(Nside(P),Nside(P)))
 # one(::Type{<:FlatMap{T,P}}) where {T,P} = FlatMap{T,P}(ones(Nside(P),Nside(P)))
 # one(::Type{<:FlatFourier{T,P}}) where {T,P} = FlatFourier{T,P}(ones(Complex{T},Nside(P)÷2+1,Nside(P)))

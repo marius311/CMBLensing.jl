@@ -110,6 +110,8 @@ function camb(;
     Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
     Aϕ = 1,
     k_pivot = 0.002)
+	
+	params = Base.@locals
     
     camb = pyimport(:camb)
     ℓmax′ = min(5000,ℓmax)
@@ -152,7 +154,8 @@ function camb(;
 				end..., 
 				ϕϕ = Cℓϕϕ
 			)
-		end...
+		end...,
+		params = (;params...)
 	)
 
 end
@@ -160,19 +163,32 @@ end
 
 ### noise
 
+@doc doc"""
+	noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
+	
+Compute the (:TT,:EE,:BB,:TE) noise power spectra given white noise + 1/f.
+Polarization noise is scaled by $\sqrt{2}$ relative to `μKarcminT`. `beamFWHM` is
+in arcmin.
 """
-* `μKarcminT`: temperature noise in μK-arcmin
-* `beamFWHM`: beam-FWHM in arcmin
-"""
-function noisecls(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
+function noiseCℓs(;μKarcminT, beamFWHM=sqrt0, ℓmax=8000, ℓknee=100, αknee=3)
     ℓ = 2:ℓmax
-    Bℓ = @. exp(ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2)))
+    Bℓ = beamCℓs(beamFWHM=beamFWHM, ℓmax=ℓmax)[ℓ]
     Nℓ1f = @. 1 + (ℓknee/ℓ)^αknee
 
 	return (;
 		map([:TT,:EE,:BB]) do x
-			x => InterpolatedCℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) .* Bℓ .* Nℓ1f)
+			x => InterpolatedCℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) ./ Bℓ .* Nℓ1f)
 		end...,
 		TE = InterpolatedCℓs(ℓ, zeros(ℓmax-1))
 	)
+end
+
+@doc doc"""
+	beamCℓs(;beamFWHM, ℓmax=8000)
+	
+Compute the beam power spectrum, often called $W_\ell$. A map should be
+multiplied by $\sqrt$ of this.
+"""
+function beamCℓs(;beamFWHM, ℓmax=8000)
+	InterpolatedCℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))
 end

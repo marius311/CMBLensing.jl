@@ -1,7 +1,7 @@
 
 # mixing matrix for mixed parametrization
-D_mix(Cf::LinOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
-     ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.((Diagonal(evaluate(Cf,r=rfid))+σ²len) ./ Diagonal(evaluate(Cf,r=r))))))
+D_mix(Cf::ParamDependentOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
+     ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.(Diagonal((evaluate(Cf,r=rfid).diag .+ σ²len) ./ evaluate(Cf,r=r).diag)))))
 
 # Stores variables needed to construct the likelihood
 @with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
@@ -84,53 +84,50 @@ function load_sim_dataset(;
     )
     
     # the biggest ℓ on the 2D fourier grid
-    ℓmax = round(Int,ceil(√2*FFTgrid(T,Flat{θpix,Nside}).nyq))
+    ℓmax = round(Int,ceil(√2*FFTgrid(Flat(θpix=θpix,Nside=Nside),T).nyq))
     
-    # Cℓs
+    # noise Cℓs
     if (Cℓn == nothing)
-        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
+        Cℓn = noiseCℓs(μKarcminT=μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
     end
-    Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
     
-    # types which depend on whether T/E/B
+    # some things which depend on whether we chose :T, :P, or :TP
     use = Symbol(use)
-    if (use == :EB)
-        @warn("switch to use=:P")
-        use = :P
-    elseif (use == :TEB)
-        @warn("switch to use=:TP")
-        use = :TP
+    SS,ks,F,F̂,nF = @match Symbol(use) begin
+        :T  => ((S0,),   (:TT,),            FlatMap,    FlatFourier,    1)
+        :P  => ((S2,),   (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
+        :TP => ((S0,S2), (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
     end
-    SS,ks = Dict(:TP=>((S0,S2),(:TT,:EE,:BB,:TE)), :P=>((S2,),(:EE,:BB)), :T=>((S0,),(:TT,)))[use]
-    F,F̂,nF = Dict(:TP=>(FlatIQUMap,FlatTEBFourier,3), :P=>(FlatS2QUMap,FlatS2EBFourier,2), :T=>(FlatS0Map,FlatS0Fourier,1))[use]
     
     # pixelization
-    P = (θpix_data == θpix) ? 1 : FuncOp(
+    P = (θpix_data == θpix) ? IdentityOp : FuncOp(
         op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
         opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
     )
-    Pix      = Flat{θpix,Nside,∂mode}
-    Pix_data = Flat{θpix_data,Nside÷(θpix_data÷θpix),∂mode}
+    Pix      = Flat(Nside=Nside,                  θpix=θpix,      ∂mode=∂mode)
+    Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
     
     # covariances
-    Cϕ₀            =  Cℓ_to_Cov(T,Pix,     S0,    Cℓf[:ϕϕ])
-    Cfs,Cft,Cf̃,Cn̂  = (Cℓ_to_Cov(T,Pix,     SS..., (Cℓx[k] for k=ks)...) for Cℓx in (Cℓ[:fs],Cℓ[:ft],Cℓf̃,Cℓn))
+    Cϕ₀ =  Cℓ_to_Cov(Pix, T, S0, Cℓ.total.ϕϕ)
+    (Cfs,Cft,Cf̃,Cn̂) = (Cℓ_to_Cov(Pix, T, SS..., (Cℓx[k] for k=ks)...)
+        for Cℓx in (Cℓ.unlensed_scalar, Cℓ.tensor, Cℓ.total, Cℓn))
     if (Cn == nothing)
-        Cn         =  Cℓ_to_Cov(T,Pix_data,SS..., (Cℓn[k] for k=ks)...)
+        Cn = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k] for k=ks)...)
     end
-    Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + (r/rfid)*Cft))
-    Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. Aϕ*Cϕ₀))
+    rfid = T(Cℓ.params.r)
+    Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + T(r/rfid)*Cft))
+    Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. T(Aϕ)*Cϕ₀))
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
-        M = LowPass(ℓmax_data) * FullDiagOp(F{T,Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
+        M = LowPass(ℓmax_data) * FullDiagOp(F{Pix,T_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
     elseif (M == nothing)
         M = LowPass(ℓmax_data)
     end
     
     # beam
     if (B == nothing)
-        B = let ℓ=0:ℓmax; Cℓ_to_Cov(T,Pix,SS..., (InterpolatedCℓs(ℓ, (k==:TE ? zero(ℓ) : @.(exp(-ℓ^2*deg2rad(beamFWHM/60)^2/(8*log(2))/2)))) for k=ks)...); end;
+        B = Cℓ_to_Cov(Pix, T, SS..., ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     if (B̂ == nothing)
         B̂ = B
@@ -150,9 +147,9 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cn̂ Cf Cf̃ Cϕ M B B̂ D G P)...)
-    
-    return @ntpack f f̃ ϕ n ds ds₀=>ds() T P=>Pix Cℓ
+    ds = DataSet(;@NamedTuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, B̂, D, G, P)...)
+   
+    return @NamedTuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ)
     
 end
 
@@ -189,7 +186,7 @@ function load_healpix_sim_dataset(;
     
     # Cℓs
     if (Cℓn == nothing)
-        Cℓn = noisecls(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax_ops)
+        Cℓn = noiseCℓs(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax_ops)
     end
     Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
 
@@ -209,10 +206,10 @@ function load_healpix_sim_dataset(;
 
     
     # put everything in DataSet
-    ds = DataSet(;(@ntpack d Cn Cf Cf̃ Cϕ M)...)
+    ds = DataSet(;@NamedTuple(d, Cn, Cf, Cf̃, Cϕ, M)...)
 
     
-    return @ntpack f f̃ ϕ n ds ds₀=>ds()
+    return @NamedTuple(f, f̃, ϕ, n, ds, ds₀=ds())
 
 
 end

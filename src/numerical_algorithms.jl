@@ -14,7 +14,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in linspace(t₀,t₁,nsteps+1)[1:end-1]
+    for t in range(t₀,t₁,length=nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
         @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
         @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))

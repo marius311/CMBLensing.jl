@@ -85,21 +85,20 @@ macro dictpack(exs...)
 end
 
 """ 
-Pack some variables in a named tuple 
+Pack some variables into a NamedTuple
 
 ```
 > x = 3
 > y = 4
-> @dictpack x y z=>5
+> @NamedTuple(x, y, z=5)
 (x=3,y=4,z=5)
 ```
 """
-macro ntpack(exs...)
+macro NamedTuple(exs...)
     kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
-    kv(ex) = isexpr(ex,:call) && ex.args[1]==:(=>) ? :($(esc(ex.args[2]))=$(esc(ex.args[3]))) : error()
+    kv(ex) = isexpr(ex,:(=)) ? :($(esc(ex.args[1]))=$(esc(ex.args[2]))) : error()
     Expr(:tuple, (kv(ex) for ex=exs)...)
 end
-
 
 """
 Take an expression like
@@ -192,17 +191,8 @@ map_tupleargs(f,::Type{<:Tuple{}}...) = ()
 map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 
 
-# I really don't like that 0.7 got rid of the much more succinct `linspace`, so
-# bring it back
-linspace(start,stop,length::Integer) = range(start,stop=stop,length=length)
-
-
 # returns the base parametric type with all type parameters stripped out
 basetype(::Type{T}) where {T} = T.name.wrapper
-
-# amazing Julia doesn't have this yet...
-eachcol(A) = @views [A[:,i] for i=1:size(A,2)]
-eachrow(A) = @views [A[i,:] for i=1:size(A,1)]
 
 
 """
@@ -249,3 +239,7 @@ end
 
 
 tuple_type_len(::Type{<:NTuple{N,Any}}) where {N} = N
+
+
+ensure1d(x::Union{Tuple,AbstractArray}) = x
+ensure1d(x) = (x,)
