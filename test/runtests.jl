@@ -20,8 +20,8 @@ using LinearAlgebra
     for m in ((), (MIME("text/plain"),))
         # concrete types:
         for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
-            @test 5 < length(sprint(show, m..., f))                                 < 1000
-            @test 5 < length(sprint(show, m..., [f,f]))                             < 1000
+            @test 5 < length(sprint(show, m..., f))                                 < 2000
+            @test 5 < length(sprint(show, m..., [f,f]))                             < 2000
         end
         # unionall types: (the #s indicates printing correctly dropped to the default behavior)
         @test occursin("#s",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
@@ -36,14 +36,23 @@ end
 
 @testset "Algebra" begin
     
-    f0,f2 = [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
+    f0,f2,ft = [
+        FlatMap(rand(4,4)), 
+        FlatQUMap(rand(4,4),rand(4,4)), # named FieldTuple
+        FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4))) # unnamed FieldTuple
+    ]
     
-    for f in [f0,f2]
+    for f in [f0,f2,ft]
         
         @testset "f::$(typeof(f))" begin
             
             local Ðf, Ðv, g, H
             
+            @test similar(f) isa typeof(f)
+            @test similar(f,Float32) isa Field
+            @test eltype(similar(f,Float32)) == Float32
+                        
+            # algebra/broadcasting
             @test (@inferred f + f) isa typeof(f)
             
             # gradients
@@ -63,8 +72,9 @@ end
             @test_throws SingularException inv(Diagonal(0*f))
             
             # Field dot products
-            @test (@inferred f' * f) isa eltype(f)
-            # @test (@inferred @SVector[f,f]' * @SVector[f,f]) isa eltype(f)
+            D = Diagonal(f)
+            @test (@inferred f' * f) isa Real
+            @test (@inferred f' * D * f) isa Real
             
             if f isa FlatS0
                 # FieldVector dot product
@@ -79,9 +89,9 @@ end
             end
             
             # Explicit vs. lazy DiagOp algebra
-            @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{Ð(typeof(f))}}
+            @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{basis(Ð(f))}}
             @test (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
-            @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{Ł(typeof(f))}}
+            @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
         end
         
         # eltype promotion
@@ -91,6 +101,7 @@ end
 
         # tuple adjoints
         v = similar.(@SVector[f0,f0])
+        @test (@inferred mul!(f0, tuple_adjoint(f), f)) isa Field{<:Any,S0}
         @test (@inferred mul!(v, tuple_adjoint(f), @SVector[f,f])) isa FieldVector{<:Field{<:Any,S0}}
 
     end
@@ -147,16 +158,17 @@ end
     local f,ϕ
     
     Cℓ = camb().unlensed_total
+    Nside = 128
     
     for T in (Float32, Float64)
         
         ϵ = sqrt(eps(T))
-        Cϕ = Cℓ_to_Cov(Flat(Nside=128), T, S0, Cℓ.ϕϕ)
+        Cϕ = Cℓ_to_Cov(Flat(Nside=Nside), T, S0, Cℓ.ϕϕ)
         @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
         Lϕ = LenseFlow(ϕ)
         
         ## S0
-        Cf = Cℓ_to_Cov(Flat(Nside=128), T, S0, Cℓ.TT)
+        Cf = Cℓ_to_Cov(Flat(Nside=Nside), T, S0, Cℓ.TT)
         @test (f = @inferred simulate(Cf)) isa FlatS0
         @test (@inferred Lϕ*f) isa FlatS0
         # adjoints
@@ -167,7 +179,7 @@ end
         @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
 
         # S2 lensing
-        Cf = Cℓ_to_Cov(Flat(Nside=128), T, S2, Cℓ.EE, Cℓ.BB)
+        Cf = Cℓ_to_Cov(Flat(Nside=Nside), T, S2, Cℓ.EE, Cℓ.BB)
         @test (f = @inferred simulate(Cf)) isa FlatS2
         @test (@inferred Lϕ*f) isa FlatS2
         # adjoints

@@ -103,7 +103,7 @@ include("plotting.jl")
 
 # sampling and maximizing the posteriors
 include("dataset.jl")
-# include("posterior.jl")
+include("posterior.jl")
 # include("sampling.jl")
 
 # other estimates

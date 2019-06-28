@@ -12,7 +12,7 @@ end
 (::Type{T})(f::FlatMap{P}) where {T<:Real,P} =  FlatMap{P}(T.(f.Ix))
 (::Type{T})(f::FlatFourier{P}) where {T<:Real,P} =  FlatFourier{P}(Complex{T}.(f.Il))
 (::Type{∂mode})(f::F) where {∂mode<:∂modes,θ,N,F<:FlatS0{<:Flat{θ,N}}} = basetype(F){Flat{θ,N,∂mode}}(fieldvalues(f)...)
-FFTgrid(::FlatS0{P,T}) where {P,T} = FFTgrid(P,T)
+FFTgrid(::FlatField{P,T}) where {P,T} = FFTgrid(P,T)
 
 ### basis-like definitions
 LenseBasis(::Type{<:FlatS0}) = Map
@@ -80,4 +80,4 @@ logdet(L::DiagOp{<:FlatMap})       = real(sum(nan2zero.(log.(complex(L.diag.Tx))
 logdet(L::DiagOp{<:FlatEBFourier}) = real(sum(nan2zero.(log.(unfold(L.diag.El))) + nan2zero.(log.(unfold(L.diag.Bl)))))
 
 # always do dot product in map basis
-dot(a::Field, b::Field) = Ł(a)[:] ⋅ Ł(b)[:]
+dot(a::FlatField{P}, b::FlatField{P}) where {P} = Ł(a)[:] ⋅ Ł(b)[:] * FFTgrid(a).Δx^2

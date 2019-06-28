@@ -4,7 +4,7 @@ D_mix(Cf::ParamDependentOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
      ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.(Diagonal((evaluate(Cf,r=rfid).diag .+ σ²len) ./ evaluate(Cf,r=r).diag)))))
 
 # Stores variables needed to construct the likelihood
-@with_kw struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
+@kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
     d  :: Td                # data
     Cn :: TCn               # noise covariance
     Cϕ :: TCϕ               # ϕ covariance
@@ -108,15 +108,14 @@ function load_sim_dataset(;
     Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
     
     # covariances
-    Cϕ₀ =  Cℓ_to_Cov(Pix, T, S0, Cℓ.total.ϕϕ)
-    (Cfs,Cft,Cf̃,Cn̂) = (Cℓ_to_Cov(Pix, T, SS..., (Cℓx[k] for k=ks)...)
-        for Cℓx in (Cℓ.unlensed_scalar, Cℓ.tensor, Cℓ.total, Cℓn))
-    if (Cn == nothing)
-        Cn = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k] for k=ks)...)
-    end
-    rfid = T(Cℓ.params.r)
-    Cf = ParamDependentOp((;r=rfid, _...)->(@. Cfs + T(r/rfid)*Cft))
-    Cϕ = ParamDependentOp((;Aϕ=1,   _...)->(@. T(Aϕ)*Cϕ₀))
+    Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0,    (Cℓ.total.ϕϕ))
+    Cfs = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.unlensed_scalar[k] for k=ks)...)
+    Cft = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.tensor[k]          for k=ks)...)
+    Cf̃  = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.total[k]           for k=ks)...)
+    Cn̂  = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k]                for k=ks)...)
+    if (Cn == nothing); Cn = Cn̂; end
+    Cf = ParamDependentOp((mem; r=rfid, _...)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
+    Cϕ = ParamDependentOp((mem; Aϕ=1,   _...)->(@. $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)

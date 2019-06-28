@@ -26,7 +26,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
         # it has god-awful performance for FieldTuples (although is fine for
         # FlatS0s). until a solution for that issue comes around, a workaround
         # is to write out the broadcasting kernel by hand:
-        broadcast!((y,k₁,k₂,k₃,k₄)->(y+h*(k₁+2k₂+2k₃+k₄)/6), y, (y,k₁,k₂,k₃,k₄)...)
+        broadcast!((y,h,k₁,k₂,k₃,k₄)->(y+h*(k₁+2k₂+2k₃+k₄)/6), y, (y,h,k₁,k₂,k₃,k₄)...)
     end
     return y
 end

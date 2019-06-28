@@ -24,14 +24,15 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
-    print(io, "FieldTuple{$(Names), $(B.name.name), $(@safe_get(T))}")
+    print(io, "FieldTuple{$(@safe_get(Names)), $(@safe_get(B.name.name)), $(@safe_get(T))}")
 show_datatype(io::IO, ::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
-    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(B.name.name), $(@safe_get(T))}")
+    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(@safe_get(B.name.name)), $(@safe_get(T))}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
 copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
 similar(f::FT) where {FT<:FieldTuple} = FT(map(similar,f.fs))
+similar(f::FT, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
 similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{Names,FS}}} = 
     FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
 similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} = 
@@ -63,7 +64,7 @@ end
 # no conversion needed
 (::Type{B})(f::F)  where {B<:Basis,F<:FieldTuple{B}} = f
 # FieldTuple is in BasisTuple
-(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B}} = error("not implemented yet")
+(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B}} = B′==B ? f : error("not implemented yet")
 (::Type{B′})(f::F) where {B′<:Basis,     B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 (::Type{B′})(f::F) where {B′<:Basislike, B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 # FieldTuple is in a concrete basis
@@ -87,7 +88,7 @@ for func in [:inv, :pinv]
 end
 
 ≈(a::FieldTuple, b::FieldTuple) = all(map(≈, a.fs, b.fs))
-
+dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))
 
 
 ### adjoint tuples
@@ -102,8 +103,8 @@ struct TupleAdjoint{T<:Field}
 end
 tuple_adjoint(f::Field) = TupleAdjoint(f)
 
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple{<:Any, <:NamedTuple{<:Any,<:NTuple}}} = 
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple} = 
     dst .= sum(map(*, a.f.fs, b.fs))
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:FieldTuple{<:Any, <:NamedTuple{<:Any,<:NTuple{2}}}} = 
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {B<:Basis,FT<:FieldTuple{B, <:NamedTuple{<:Any,NTuple{2}}}} = 
     (@. dst = a.f[1]*b[1] + a.f[2]*b[2])
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{F}, b::F) where {F<:Field{<:Any,S0}} = dst .= a.f .* b
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:Field{<:Any,S0}} = dst .= a.f .* b

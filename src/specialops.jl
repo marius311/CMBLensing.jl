@@ -5,13 +5,12 @@
 
 simulate(D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(F)
 
-
 # automatic basis conversion (and NaN-zeroing)
-(*)(D::DiagOp{<:Field{B}}, V::Field) where {B} = D.diag .* B(V)
-(\)(D::DiagOp{<:Field{B}}, V::Field) where {B} = nan2zero.(D.diag .\ B(V))
+(*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = D.diag .* B(f)
+(\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(D.diag .\ B(f))
 
 # broadcasting
-function structured_broadcast_alloc(bc, ::Type{<:DiagOp{F}}, ::Type{T}, n) where {F<:Field,T}
+function similar(bc::Broadcasted{<:StructuredMatrixStyle{<:DiagOp{F}}}, ::Type{T}) where {F<:Field,T}
     Diagonal(similar(F,T))
 end
 diag_data(D::Diagonal) = D.diag
@@ -21,6 +20,12 @@ function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
     copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(diag_data, bc′.args)))
     dest
 end
+
+# the generic version of these kind of suck so we need these specializized
+# version:
+(*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
+(*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
+
 
 
 ### Derivative ops
@@ -83,7 +88,7 @@ const ∇² = ∇²Op()
 
 # An Op which applies some arbitrary function to its argument.
 # Transpose and/or inverse operations which are not specified will return an error.
-Base.@kwdef struct FuncOp <: ImplicitOp{Basis,Spin,Pix}
+@kwdef struct FuncOp <: ImplicitOp{Basis,Spin,Pix}
     op   = nothing
     opᴴ  = nothing
     op⁻¹ = nothing
@@ -123,17 +128,56 @@ MidPass(ℓmin,ℓmax,Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-
 # L(;θ...) recomputes the operator at a given set of parameters, but the
 # operator can also be used as-is in which case it is evaluated at a fiducial θ
 # (which is stored inside the operator when it is first constructed). 
-struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S,P}
+
+
+@doc doc"""
+    ParamDependentOp(recompute_function::Function)
+    ParamDependentOp(recompute_function!::Function, mem)
+    
+Creates an ImplicitOp which depends on some parameters $\theta$ and can be
+evaluated at various values of these parameters. There are two forms to
+construct this operator. In the first form, `recompute_function` should be a
+function which accepts keyword arguments for $\theta$ and returns the operator.
+Each keyword must have a default value; the operator will act as if evaluated at
+these defaults unless it is explicitly evaluated at other parameters. In the
+second form, we can preallocate some memory for the results `mem`, in which case
+`recompute_function!` should additionally accept a single positional argument
+holding this memory, which should then be assigned in-place. 
+
+Example:
+
+``julia
+    Cϕ₀ = Diagonal(...) # some fixed Diagonal operator
+    Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
+    
+    Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
+    Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
+    
+    # a version which preallocates the memory:
+    Cϕmem = similar(Cϕ₀)
+    Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), Cϕmem)
+```
+"""
+struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function, M<:Union{L,Nothing}} <: ImplicitOp{B,S,P}
     op::L
     recompute_function::F
     parameters::Vector{Symbol}
+    mem::M
 end
 function ParamDependentOp(recompute_function::Function)
     parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function)), typeof(methods(recompute_function).mt.kwsorter)))
-    ParamDependentOp(recompute_function(), recompute_function, parameters)
+    ParamDependentOp(recompute_function(), recompute_function, parameters, nothing)
 end
-(L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...)
-(L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...)
+function ParamDependentOp(recompute_function!::Function, mem)
+    parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function!)), typeof(methods(recompute_function!).mt.kwsorter)))
+    op = recompute_function!(similar(mem))
+    ParamDependentOp(op, (;kwargs...)->(recompute_function!(mem; kwargs...);mem), parameters, mem)
+end
+# the type annotations here could be useful if we were lazy and allowed some
+# Core.Box'ed variables in our recompute_function, or if we're on Julia 1.1
+# where that always happened:
+(L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...) :: typeof(L.op)
+(L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...) :: typeof(L.op)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
