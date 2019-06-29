@@ -154,8 +154,7 @@ Example:
     Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
     
     # a version which preallocates the memory:
-    Cϕmem = similar(Cϕ₀)
-    Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), Cϕmem)
+    Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), similar(Cϕ₀))
 ```
 """
 struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function, M<:Union{L,Nothing}} <: ImplicitOp{B,S,P}
@@ -208,9 +207,8 @@ for op in (:+, :-, :*)
     @eval ($op)(a::Union{LinOp,Scalar}, b::ImplicitOp)          = LazyBinaryOp($op,a,b)
     @eval ($op)(a::ImplicitOp,          b::Union{LinOp,Scalar}) = LazyBinaryOp($op,a,b)
     # explicit vs. lazy binary operations on Diagonals:
-    @eval ($op)(D1::DiagOp{<:Field{B}},  D2::DiagOp{<:Field{B}})  where {B}     = Diagonal(D1.diag .+ D2.diag)
-    @eval ($op)(D1::DiagOp{<:Field{B1}}, D2::DiagOp{<:Field{B2}}) where {B1,B2} = LazyBinaryOp(+, D1, D2)
-
+    @eval ($op)(D1::DiagOp{<:Field{B}},  D2::DiagOp{<:Field{B}})  where {B}     = Diagonal(broadcast($op,D1.diag,D2.diag))
+    @eval ($op)(D1::DiagOp{<:Field{B1}}, D2::DiagOp{<:Field{B2}}) where {B1,B2} = LazyBinaryOp($op,D1,D2)
 end
 /(op::ImplicitOp, n::Real) = LazyBinaryOp(/,op,n)
 literal_pow(::typeof(^), op::ImplicitOp, ::Val{-1}) = inv(op)

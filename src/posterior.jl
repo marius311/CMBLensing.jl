@@ -223,15 +223,15 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
     
     b = 0
     if (which in (:wf, :sample))
-        b += L'*B'*P'*M'*(Cn^-1)*d
+        b += L'*B'*P'*M'*(Cn\d)
     end
     if (which in (:fluctuation, :sample))
         b += Cf\simulate(Cf) + L'*B'*P'*M'*(Cn\simulate(Cn))
     end
     
     conjugate_gradient(
-        (Cf^-1) + B̂'*(Cn̂^-1)*B̂,
-        (Cf^-1) + L'*B'*P'*M'*(Cn^-1)*M*P*B*L,
+        pinv(Cf) + B̂'*pinv(Cn̂)*B̂,
+        pinv(Cf) + L'*B'*P'*M'*pinv(Cn)*M*P*B*L,
         b,
         guess==nothing ? 0*b : guess;
         kwargs...

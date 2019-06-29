@@ -13,22 +13,24 @@ using LinearAlgebra
 
 ##
 
+# basic printing sanity checks, which were super annoying to get right...
+# see also: https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+
 @testset "Printing" begin
 
-    # basic printing sanity checks, which were super annoying to get right...
-    # see: https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+    # concrete types:
+    for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
+        @test occursin("pixels",sprint(show, MIME("text/plain"), f))
+        @test occursin("pixels",sprint(show, MIME("text/plain"), [f,f]))
+    end
+    
     for m in ((), (MIME("text/plain"),))
-        # concrete types:
-        for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
-            @test 5 < length(sprint(show, m..., f))                                 < 2000
-            @test 5 < length(sprint(show, m..., [f,f]))                             < 2000
-        end
-        # unionall types: (the #s indicates printing correctly dropped to the default behavior)
-        @test occursin("#s",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
-        @test occursin("#s",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
-        @test occursin("#s",sprint(show, m..., FΦTuple))
-        # this is the case that we need the @safe_get for in field_tuples.jl:
-        @test_broken occursin("#s",sprint(show, m..., FlatQUMap))
+        # unionall types: (the presence of "where" indicates printing correctly
+        # forwarded to the default behavior)
+        @test occursin("where",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
+        @test occursin("where",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
+        @test occursin("where",sprint(show, m..., FΦTuple))
+        @test occursin("where",sprint(show, m..., FlatQUMap))
     end
 
 end
@@ -36,13 +38,13 @@ end
 
 @testset "Algebra" begin
     
-    f0,f2,ft = [
-        FlatMap(rand(4,4)), 
-        FlatQUMap(rand(4,4),rand(4,4)), # named FieldTuple
-        FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4))) # unnamed FieldTuple
+    fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
+        (Fourier,   FlatMap(rand(4,4))), 
+        (QUFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
+        (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))) # unnamed FieldTuple
     ]
     
-    for f in [f0,f2,ft]
+    for (B,f) in fs
         
         @testset "f::$(typeof(f))" begin
             
@@ -52,8 +54,22 @@ end
             @test similar(f,Float32) isa Field
             @test eltype(similar(f,Float32)) == Float32
                         
-            # algebra/broadcasting
+            # broadcasting
             @test (@inferred f + f) isa typeof(f)
+            
+            # promotion
+            if f isa FlatField
+                @test (@inferred f + B(f)) isa typeof(f)
+            else
+                @test_broken (@inferred f + B(f)) isa typeof(f)
+            end
+            if f isa FlatS0
+                @test (@inferred f + B(Float32.(f))) isa typeof(f)
+            else
+                @test_broken (@inferred f + B(Float32.(f))) isa typeof(f)
+            end
+            
+            
             
             # gradients
             @test (Ðf = @inferred ∇[1]*f) isa Field

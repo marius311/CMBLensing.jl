@@ -10,8 +10,8 @@ using Combinatorics
 using DataStructures
 using Distributed
 using FFTW
-# using Images: feature_transform, imfilter
-# using Images.Kernel
+using Images: feature_transform, imfilter
+using Images.Kernel
 using InteractiveUtils
 using Interpolations
 using JLD2
@@ -97,7 +97,7 @@ include("flat_fftgrid.jl")
 include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_generic.jl")
-# include("masking.jl")
+include("masking.jl")
 
 include("plotting.jl")
 

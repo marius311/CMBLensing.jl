@@ -119,7 +119,7 @@ function load_sim_dataset(;
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
-        M = LowPass(ℓmax_data) * FullDiagOp(F{Pix,T_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
+        M = LowPass(ℓmax_data) * Diagonal(F{Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
     elseif (M == nothing)
         M = LowPass(ℓmax_data)
     end

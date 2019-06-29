@@ -23,10 +23,10 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 ## printing
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
-show_datatype(io::IO, ::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
-    print(io, "FieldTuple{$(@safe_get(Names)), $(@safe_get(B.name.name)), $(@safe_get(T))}")
-show_datatype(io::IO, ::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
-    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(@safe_get(B.name.name)), $(@safe_get(T))}")
+@show_datatype show_datatype(io::IO, t::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
+    print(io, "FieldTuple{$(Names), $(B.name.name), $(T)}")
+@show_datatype show_datatype(io::IO, t::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
+    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(B.name.name), $(T)}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)

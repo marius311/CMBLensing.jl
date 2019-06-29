@@ -1,17 +1,19 @@
 const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M}}
 
-### promotion
-function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatS0{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatS0{Flat{θ2,N2,∂mode2},T2}}
-    T     = promote_type(T1,T2)
+### pretty printing
+@show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,T,M,F<:FlatField{Flat{N,θ,∂mode},T,M}} =
+    print(io, "Flat$(basis(F).name.name){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+
+### promotion & conversion
+# note: we don't need to promote the eltype T here is that will be automatically
+# handled in broadcasting
+function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatField{Flat{θ2,N2,∂mode2},T2}}
     B     = promote_type(basis(F1),basis(F2))
     ∂mode = promote_type(∂mode1,∂mode2)
-    B(T(∂mode(f1))), B(T(∂mode(f2)))
+    B(∂mode(f1)), B(∂mode(f2))
 end
-
-### conversion
-(::Type{T})(f::FlatMap{P}) where {T<:Real,P} =  FlatMap{P}(T.(f.Ix))
-(::Type{T})(f::FlatFourier{P}) where {T<:Real,P} =  FlatFourier{P}(Complex{T}.(f.Il))
-(::Type{∂mode})(f::F) where {∂mode<:∂modes,θ,N,F<:FlatS0{<:Flat{θ,N}}} = basetype(F){Flat{θ,N,∂mode}}(fieldvalues(f)...)
+(::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,F<:FlatS0{<:Flat{N,θ}}} = basetype(F){Flat{N,θ,∂mode}}(fieldvalues(f)...)
+(::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
 FFTgrid(::FlatField{P,T}) where {P,T} = FFTgrid(P,T)
 
 ### basis-like definitions
