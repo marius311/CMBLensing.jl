@@ -146,15 +146,15 @@ function δlnP_δfϕₜ(::Val{:mix}, f°, ϕ°, ϕ, θ, ds, dsθ, Lϕ::LenseOp)
     δlnP_δf, δlnP_δϕ = δlnP_δfϕₜ(Val(0), f, ϕ, ϕ, θ, ds, dsθ, Lϕ)
     
     # chain rule
-    (δlnP_δf°, δlnP_δϕ°) = δfϕ_δf̃ϕ(Lϕ, Lϕ⁻¹f°, f°)' * FieldTuple(D \ δlnP_δf, δlnP_δϕ)
-    FieldTuple(δlnP_δf°, G \ δlnP_δϕ°)
+    (δlnP_δf°, δlnP_δϕ°) = δfϕ_δf̃ϕ(Lϕ, Lϕ⁻¹f°, f°)' * FΦTuple(D \ δlnP_δf, δlnP_δϕ)
+    FΦTuple(δlnP_δf°, G \ δlnP_δϕ°)
 
 end
 # derivatives of the three posterior probability terms at the times at which
 # they're easy to take (used above)
-δlnL_δf̃ϕ(f̃,ϕ::ɸ,dsθ)  where {ɸ} = (@unpack P,M,B,Cn,Cf,Cϕ,d=dsθ; FieldTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cϕ)))
-δlnΠᶠ_δfϕ(f,ϕ::ɸ,dsθ) where {ɸ} = (@unpack Cf,Cϕ=dsθ;            FieldTuple(-(Cf\f)                  , zero(Cϕ)))
-δlnΠᶲ_δfϕ(f::F,ϕ,dsθ) where {F} = (@unpack Cf,Cϕ=dsθ;            FieldTuple(zero(Cf)                 , -(Cϕ\ϕ)))
+δlnL_δf̃ϕ(f̃,ϕ::ɸ,dsθ)  where {ɸ} = (@unpack P,M,B,Cn,Cf,Cϕ,d=dsθ; FΦTuple(B'*P'*M'*(Cn\(d-M*P*B*f̃)), zero(Cϕ.diag)))
+δlnΠᶠ_δfϕ(f,ϕ::ɸ,dsθ) where {ɸ} = (@unpack Cf,Cϕ=dsθ;            FΦTuple(-(Cf\f)                  , zero(Cϕ.diag)))
+δlnΠᶲ_δfϕ(f::F,ϕ,dsθ) where {F} = (@unpack Cf,Cϕ=dsθ;            FΦTuple(zero(Cf.diag)            , -(Cϕ\ϕ)))
 
 
 

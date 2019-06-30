@@ -44,11 +44,11 @@ using Strided
 
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, broadcast, broadcastable, BroadcastStyle, conj, convert, copy,
-    copyto!, eltype, getindex, getproperty, hcat, hvcat, inv, iterate, keys,
-    length, literal_pow, materialize!, materialize, one, print_array, promote,
-    promote_rule, promote_rule, promote_type, propertynames, real, setindex!,
-    show, show_datatype, show_vector, similar, size, sqrt, sqrt, string,
-    summary, transpose, zero
+    copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv, iterate,
+    keys, length, literal_pow, materialize!, materialize, one, print_array,
+    promote, promote_rule, promote_rule, promote_type, propertynames, real,
+    setindex!, show, show_datatype, show_vector, similar, size, sqrt, sqrt,
+    string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc

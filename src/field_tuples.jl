@@ -3,7 +3,7 @@
 abstract type BasisTuple{T} <: Basis end
 
 ## FieldTuple type 
-# a thin wrapper around a NamedTuple which additionally forwards all
+# a thin wrapper around a Tuple or NamedTuple which additionally forwards all
 # broadcasts one level deeper
 struct FieldTuple{B<:Basis,FS<:Union{Tuple,NamedTuple},T} <: Field{B,Spin,Pix,T}
     fs::FS
@@ -39,6 +39,7 @@ similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} =
     FieldTuple(map_tupleargs(F->similar(F,T), FS))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
+fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 
 
 ## broadcasting
@@ -59,6 +60,11 @@ function copyto!(dest::FieldTuple, bc::Broadcasted{Nothing})
     dest
 end
 
+### promotion
+function promote(ft1::FieldTuple, ft2::FieldTuple)
+    fts = map(promote,ft1.fs,ft2.fs)
+    FieldTuple(map(first,fts)), FieldTuple(map(last,fts))
+end
 
 ### conversion
 # no conversion needed

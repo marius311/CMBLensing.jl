@@ -90,11 +90,11 @@ Pack some variables into a NamedTuple
 ```
 > x = 3
 > y = 4
-> @NamedTuple(x, y, z=5)
+> @namedtuple(x, y, z=5)
 (x=3,y=4,z=5)
 ```
 """
-macro NamedTuple(exs...)
+macro namedtuple(exs...)
     kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
     kv(ex) = isexpr(ex,:(=)) ? :($(esc(ex.args[1]))=$(esc(ex.args[2]))) : error()
     Expr(:tuple, (kv(ex) for ex=exs)...)

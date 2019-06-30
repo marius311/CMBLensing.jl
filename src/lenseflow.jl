@@ -156,8 +156,8 @@ function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLens
 end
 
 # can swap integration points without recaching, although not arbitrarily change them
-_getindex(L::CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF} = L
-_getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF} = CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF}(fieldvalues(L)...)
+_getindex(L::CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = L
+_getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}(fieldvalues(L)...)
 
 # # ud_grading lenseflow ud_grades the ϕ map
 # ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))

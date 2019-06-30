@@ -51,6 +51,7 @@ end
             local Ðf, Ðv, g, H
             
             @test similar(f) isa typeof(f)
+            @test zero(f) isa typeof(f)
             @test similar(f,Float32) isa Field
             @test eltype(similar(f,Float32)) == Float32
                         
@@ -58,18 +59,12 @@ end
             @test (@inferred f + f) isa typeof(f)
             
             # promotion
-            if f isa FlatField
-                @test (@inferred f + B(f)) isa typeof(f)
-            else
-                @test_broken (@inferred f + B(f)) isa typeof(f)
-            end
+            @test (@inferred f + B(f)) isa typeof(f)
             if f isa FlatS0
                 @test (@inferred f + B(Float32.(f))) isa typeof(f)
             else
                 @test_broken (@inferred f + B(Float32.(f))) isa typeof(f)
             end
-            
-            
             
             # gradients
             @test (Ðf = @inferred ∇[1]*f) isa Field
@@ -126,7 +121,7 @@ end
 
 ##
 
-@testset "FieldTuple constructors & conversions" begin 
+@testset "FieldTuples" begin 
 
     f = FlatMap(rand(4,4))
 
@@ -204,6 +199,47 @@ end
         # gradients
         δf, δϕ = simulate(Cf), simulate(Cϕ)
         @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+    end
+    
+end
+
+##
+
+@testset "Posterior" begin
+    
+    Cℓ = camb()
+    L = LenseFlow{RK4Solver{7}}
+    T = Float64
+    
+    for use in (:T,:P)
+        
+        @testset "use = $use" begin
+            
+            @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(
+                Cℓ = Cℓ,
+                θpix  = 3,
+                Nside = 128,
+                T     = T,
+                beamFWHM = 3,
+                use   = :P,
+                L     = L,
+                mask_kwargs = (paddeg=2,)
+                );
+            @unpack Cf,Cϕ,D = ds₀
+            f° = L(ϕ)*D*f
+
+            @test lnP(0,f,ϕ,ds) ≈ lnP(1,f̃,ϕ,ds)                         rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, LenseFlow(ϕ)*ds.D*f, ϕ, ds) rtol=1e-4
+
+            ε = sqrt(eps(T))
+            δf,δϕ = simulate(Cf),simulate(Cϕ)
+
+            @test δlnP_δfϕₜ(0,f,ϕ,ds)'*FΦTuple(δf,δϕ)     ≈ (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)          rtol=1e-2
+            @test δlnP_δfϕₜ(1,f̃,ϕ,ds)'*FΦTuple(δf,δϕ)     ≈ (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)          rtol=1e-1
+            @test δlnP_δfϕₜ(:mix,f°,ϕ,ds)'*FΦTuple(δf,δϕ) ≈ (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
+
+        end
+        
     end
     
 end

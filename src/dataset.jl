@@ -115,7 +115,7 @@ function load_sim_dataset(;
     Cn̂  = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k]                for k=ks)...)
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((mem; r=rfid, _...)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=1,   _...)->(@. $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
+    Cϕ = ParamDependentOp((mem; Aϕ=1,   _...)->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
@@ -146,9 +146,9 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;@NamedTuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, B̂, D, G, P)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, B̂, D, G, P)...)
    
-    return @NamedTuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ)
+    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ)
     
 end
 
@@ -205,10 +205,10 @@ function load_healpix_sim_dataset(;
 
     
     # put everything in DataSet
-    ds = DataSet(;@NamedTuple(d, Cn, Cf, Cf̃, Cϕ, M)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cf, Cf̃, Cϕ, M)...)
 
     
-    return @NamedTuple(f, f̃, ϕ, n, ds, ds₀=ds())
+    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds())
 
 
 end

@@ -27,7 +27,8 @@ struct FFTgrid{T,F}
     x :: Vector{T}
     k :: Vector{T}
     r :: Matrix{T}
-    sincos2ϕ :: Tuple{Matrix{T},Matrix{T}}
+    sin2ϕ :: Matrix{T}
+    cos2ϕ :: Matrix{T}
     FFT :: F
 end
  
@@ -42,24 +43,17 @@ FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgri
     x,k = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* [Δx,Δℓ]'
     r   = @. sqrt(k'^2 + k^2)
     ϕ   = @. angle(k' + im*k)[1:Nside÷2+1,:]
-    sincos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    FFTgrid{T,typeof(FFT)}(θpix, Nside, Δx, Δℓ, nyq, x, k, r, sincos2ϕ, FFT)
+    sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
+    if iseven(Nside)
+        sin2ϕ[end, end:-1:(Nside÷2+2)] .= sin2ϕ[end, 2:Nside÷2]
+    end
+    FFTgrid{T,typeof(FFT)}(θpix, Nside, Δx, Δℓ, nyq, x, k, r, sin2ϕ, cos2ϕ, FFT)
 end
 
 function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
     Complex{T}.(nan2zero.(Cℓ.(FFTgrid(P,T).r[1:N÷2+1,:])))
 end
 
-""" filter out the single row/column in the real FFT matrix `M` which
-corresponds to exactly the nyquist frequency """
-function Mnyq(::Type{T},::Type{P}, M) where {T,N,P<:Flat{N}}
-    if iseven(N)
-        inyq = first((1:N)[@. FFTgrid(P,T).k ≈ -FFTgrid(P,T).nyq])
-        M[inyq,:] .= 0
-        M[:,inyq] .= 0
-    end
-    M
-end
 
 @doc doc"""
     pixwin(θpix, ℓ)
