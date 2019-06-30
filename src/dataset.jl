@@ -1,6 +1,6 @@
 
 # mixing matrix for mixed parametrization
-D_mix(Cf::ParamDependentOp; rfid=0.1, σ²len=deg2rad(5/60)^2) =
+D_mix(Cf::ParamDependentOp; rfid=0.1, σ²len=Float32(deg2rad(5/60)^2)) =
      ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.(Diagonal((evaluate(Cf,r=rfid).diag .+ σ²len) ./ evaluate(Cf,r=r).diag)))))
 
 # Stores variables needed to construct the likelihood

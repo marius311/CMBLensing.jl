@@ -99,7 +99,7 @@ end
 function lnP_logdet_terms(ds, ds₀, dsθ; θ...)
     -(  (depends_on(ds.Cn, θ) ? logdet(inv(ds₀.Cn)*dsθ.Cn) : 0) 
       + (depends_on(ds.Cf, θ) ? logdet(inv(ds₀.Cf)*dsθ.Cf) : 0)
-      + (depends_on(ds.Cϕ, θ) ? logdet(inv(ds₀.Cϕ)*dsθ.Cϕ) : 0))/2
+      + (depends_on(ds.Cϕ, θ) ? logdet(inv(ds₀.Cϕ)*dsθ.Cϕ) : 0))/2f0
 end
 
 
@@ -329,8 +329,9 @@ function MAP_joint(
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart==nothing) ? zero(Cϕ) : ϕstart
+    ϕ = (ϕstart==nothing) ? zero(Cϕ.diag) : ϕstart
     Lϕ = cache(L(ϕ),d)
+    T = real(eltype(d))
     α = 0
     tr = []
     hist = nothing
@@ -375,7 +376,7 @@ function MAP_joint(
             # ==== ϕ step =====
             if (i!=nsteps)
                 ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,Lϕ))[2]
-                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), 0., αmax, abs_tol=αtol)
+                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew
             end
@@ -417,10 +418,10 @@ function MAP_marg(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf), Cf, Cf̃, Cn̂)[2]; end
+    if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf.diag), Cf, Cf̃, Cn̂)[2]; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
 
-    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ) # fix needing to get zero(ɸ) this way
+    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ.diag) # fix needing to get zero(ɸ) this way
     tr = []
 
     for i=1:nsteps

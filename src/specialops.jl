@@ -196,25 +196,25 @@ depends_on(L,                   θ) = false
 # we use LazyBinaryOps to create new operators composed from other operators
 # which don't actually evaluate anything until they've been multiplied by a
 # field
-struct LazyBinaryOp{F,A<:Union{LinOp,Scalar},B<:Union{LinOp,Scalar}} <: ImplicitOp{Basis,Spin,Pix}
+struct LazyBinaryOp{F,A<:Union{LinOrAdjOp,Scalar},B<:Union{LinOrAdjOp,Scalar}} <: ImplicitOp{Basis,Spin,Pix}
     a::A
     b::B
     LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
 end
 # creating LazyBinaryOps
 for op in (:+, :-, :*)
-    @eval ($op)(a::ImplicitOp,          b::ImplicitOp)          = LazyBinaryOp($op,a,b)
-    @eval ($op)(a::Union{LinOp,Scalar}, b::ImplicitOp)          = LazyBinaryOp($op,a,b)
-    @eval ($op)(a::ImplicitOp,          b::Union{LinOp,Scalar}) = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::ImplicitOrAdjOp,          b::ImplicitOrAdjOp)          = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::Union{LinOrAdjOp,Scalar}, b::ImplicitOrAdjOp)          = LazyBinaryOp($op,a,b)
+    @eval ($op)(a::ImplicitOrAdjOp,          b::Union{LinOrAdjOp,Scalar}) = LazyBinaryOp($op,a,b)
     # explicit vs. lazy binary operations on Diagonals:
     @eval ($op)(D1::DiagOp{<:Field{B}},  D2::DiagOp{<:Field{B}})  where {B}     = Diagonal(broadcast($op,D1.diag,D2.diag))
     @eval ($op)(D1::DiagOp{<:Field{B1}}, D2::DiagOp{<:Field{B2}}) where {B1,B2} = LazyBinaryOp($op,D1,D2)
 end
-/(op::ImplicitOp, n::Real) = LazyBinaryOp(/,op,n)
-literal_pow(::typeof(^), op::ImplicitOp, ::Val{-1}) = inv(op)
-literal_pow(::typeof(^), op::ImplicitOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
-inv(op::ImplicitOp) = LazyBinaryOp(^,op,-1)
--(op::ImplicitOp) = -1 * op
+/(op::ImplicitOrAdjOp, n::Real) = LazyBinaryOp(/,op,n)
+literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{-1}) = inv(op)
+literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
+inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
+-(op::ImplicitOrAdjOp) = -1 * op
 # evaluating LazyBinaryOps
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
