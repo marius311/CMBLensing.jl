@@ -195,30 +195,6 @@ map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 basetype(::Type{T}) where {T} = T.name.wrapper
 
 
-"""
-    @symmetric_memoized foo(i,j,k) = ... 
-    
-Should be applied to a definition of a function which is symmetric in all of its
-arguments. The resulting function will be memoized and permutations of the arguments
-which are equal due to symmetry will only be computed once.
-"""
-macro symmetric_memoized(funcdef)
-    
-    sfuncdef = splitdef(funcdef)
-    
-    sfuncdef[:body] = quote
-        args = [$(sfuncdef[:args]...)]
-        sorted_args = sort(args)
-        if args==sorted_args
-            $((sfuncdef[:body]))
-        else
-            $(sfuncdef[:name])(sorted_args...)
-        end
-    end
-    
-    esc(:(@memoize $(combinedef(sfuncdef))))
-    
-end
 
 
 function ensuresame(args...)
@@ -255,4 +231,82 @@ macro show_datatype(ex)
         isconcretetype(t) ? $(def[:body]) : invoke(Base.show_datatype, Tuple{IO,DataType}, io, t)
     end
     esc(combinedef(def))
+end
+
+
+
+"""
+    # symmetric in any of its final arguments except for bar:
+    @sym_memo foo(bar, @sym(args...)) = <body> 
+    # symmetric in (i,j), but not baz
+    @sym_memo foo(baz, @sym(i, j)) = <body> 
+    
+The `@sym_memo` macro should be applied to a definition of a function
+which is symmetric in some of its arguments. The arguments in which its
+symmetric are specified by being wrapping them in @sym, and they must come at
+the very end. The resulting function will be memoized and permutations of the
+arguments which are equal due to symmetry will only be computed once.
+"""
+macro sym_memo(funcdef)
+    
+    
+    sfuncdef = splitdef(funcdef)
+    
+    asymargs = sfuncdef[:args][1:end-1]
+    symargs = collect(@match sfuncdef[:args][end] begin
+        Expr(:macrocall, [head, _, ex...]), if head==Symbol("@sym") end => ex
+        _ => error("final argument(s) should be marked @sym")
+    end)
+    sfuncdef[:args] = [asymargs..., symargs...]
+    
+    sfuncdef[:body] = quote
+        symargs = [$(symargs...)]
+        sorted_symargs = sort(symargs)
+        if symargs==sorted_symargs
+            $((sfuncdef[:body]))
+        else
+            $(sfuncdef[:name])($(asymargs...), sorted_symargs...)
+        end
+    end
+    
+    esc(:(@memoize $(combinedef(sfuncdef))))
+    
+end
+
+
+@doc doc"""
+```
+@subst sum(x*$(y+1) for x=1:2)
+```
+    
+becomes
+
+```
+let tmp=(y+1)
+    sum(x*tmp for x=1:2)
+end
+```
+
+to aid in writing clear/succinct code that doesn't recompute things
+unnecessarily.
+"""
+macro subst(ex)
+    
+    subs = []
+    ex = postwalk(ex) do x
+        if isexpr(x, Symbol(raw"$"))
+            var = gensym()
+            push!(subs, :($(esc(var))=$(esc(x.args[1]))))
+            var
+        else
+            x
+        end
+    end
+    
+    quote
+        let $(subs...)
+            $(esc(ex))
+        end
+    end
+
 end

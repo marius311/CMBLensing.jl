@@ -2,10 +2,10 @@ module CMBLensing
 
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, flatten, preprocess_args, Style
-using Base.Iterators: repeated
+using Base.Iterators: repeated, product
 using Base.Threads
-using Base: @propagate_inbounds, @kwdef, show_vector, show_default, showarg,
-    show_datatype, typed_vcat, Bottom
+using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
+    show_default, show_vector, typed_vcat
 using Combinatorics
 using DataStructures
 using Distributed
@@ -43,12 +43,12 @@ using Strided
 
 
 import Base: +, -, *, \, /, ^, ~, ≈,
-    adjoint, broadcast, broadcastable, BroadcastStyle, conj, convert, copy,
-    copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv, iterate,
-    keys, length, literal_pow, materialize!, materialize, one, print_array,
-    promote, promote_rule, promote_rule, promote_type, propertynames, real,
-    setindex!, show, show_datatype, show_vector, similar, size, sqrt, sqrt,
-    string, summary, transpose, zero
+    adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
+    copy, copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv,
+    iterate, keys, length, literal_pow, materialize!, materialize, one,
+    print_array, promote, promote_rule, promote_rule, promote_type,
+    propertynames, real, setindex!, show, show_datatype, show_vector, similar,
+    size, sqrt, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc
@@ -107,6 +107,6 @@ include("posterior.jl")
 # include("sampling.jl")
 
 # other estimates
-# include("quadratic_estimate.jl")
+include("quadratic_estimate.jl")
 
 end

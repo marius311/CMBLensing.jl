@@ -51,6 +51,7 @@ end
 # nor contravariant). 
 
 struct ∇diag{coord, covariance, prefactor} <: ImplicitField{DerivBasis,Spin,Pix} end
+struct ∇²diag <: ImplicitField{DerivBasis,Spin,Pix} end
 
 # adjoint(D::Diagonal{<:∇diag}) calls conj(D.diag) and here lazily we keep track
 # of that a conjugate was taken
@@ -63,6 +64,7 @@ getindex(::∇Op{covariance,prefactor}, i::Int) where {covariance,prefactor} = D
 const ∇ⁱ = ∇Op{:contravariant,1}()
 const ∇ᵢ = ∇Op{:covariant,1}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
+const ∇² = Diagonal(∇²diag())
 
 """
     gradhess(f)
@@ -78,10 +80,6 @@ end
 # coordinate, e.g. ∂θ), but this is useful shorthand to have for the flat-sky:
 const ∂x = ∇[1]
 const ∂y = ∇[2]
-
-struct ∇²Op <: ImplicitOp{Basis,Spin,Pix} end
-*(::∇²Op, f::Field) = sum(diag(gradhess(f).H))
-const ∇² = ∇²Op()
 
 
 ### FuncOp

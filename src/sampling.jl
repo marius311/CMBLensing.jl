@@ -171,8 +171,8 @@ function sample_joint(
         chains = load(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = ϕqe(ds())[2]/2; end
-    Λm = nan2zero.((Nϕ == nothing) ? Cϕ^-1 : (Cϕ^-1 + Nϕ^-1))
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ/2; end
+    Λm = (Nϕ == nothing) ? pinv(Cϕ) : (pinv(Cϕ) + pinv(Nϕ)
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
 

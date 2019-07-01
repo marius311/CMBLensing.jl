@@ -17,13 +17,14 @@ FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,
 
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
+size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
+size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 similar(f::F) where {F<:FlatS0} = similar(F,eltype(f))
 similar(::Type{F}) where {T,F<:FlatS0{<:Any,T}} = similar(F,T)
 similar(f::F,::Type{T}) where {T,F<:FlatS0} = similar(F,T)
-similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatMap{P,<:Any,M}} = FlatMap{P}(basetype(M){T}(undef,N,N))
-similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,<:Any,M}} = FlatFourier{P}(basetype(M){T}(undef,N÷2+1,N))
+similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,<:Any,M}} = basetype(F){P}(basetype(M){T}(undef,size_2d(F)...))
 
 ### broadcasting
 BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
@@ -31,7 +32,7 @@ BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:F
 BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
 BroadcastStyle(::ArrayStyle{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
-@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args))
+@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0{P}}, f::FlatS0{P}) where {P} = firstfield(f)
 broadcastable(::Any, x) = x

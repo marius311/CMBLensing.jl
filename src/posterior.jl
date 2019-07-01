@@ -339,8 +339,8 @@ function MAP_joint(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(ds,false)[2]/2; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
+    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
     
     try
         @showprogress (progress==:summary ? 1 : Inf) "MAP_joint: " for i=1:nsteps
@@ -418,8 +418,8 @@ function MAP_marg(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = ϕqe(zero(Cf.diag), Cf, Cf̃, Cn̂)[2]; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : (Cϕ^-1 + Nϕ^-1)^-1
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
+    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ.diag) # fix needing to get zero(ɸ) this way
     tr = []

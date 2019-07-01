@@ -24,7 +24,7 @@ function subblock(ds::DataSet, block)
         @match (k,v) begin
             ((:Cϕ || :G), v)                    => v
             (_, L::Union{Nothing,FuncOp,Real})  => L
-            (_, L)                              => getproperty(L,block)
+            (_, L)                              => getindex(L,block)
         end
     end...)
 end

@@ -39,7 +39,8 @@ function getindex(f::FlatS2, k::Symbol)
     end
     getproperty(B(f),k)
 end
-
+getindex(D::DiagOp{<:FlatS2}, k::Symbol) =
+    k in (:E,:B) ? Diagonal(getproperty(D.diag,k)) : throw(ArgumentError("Invalid Diagonal{:<FlatS2} index: $k"))
 
 ### basis conversion
 
