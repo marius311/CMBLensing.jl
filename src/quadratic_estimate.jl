@@ -42,8 +42,8 @@ function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wi
     quadratic_estimate_func((ds1.d, ds2.d), Cf, Cf̃, Cn̂, Cϕ, wiener_filtered, Nϕ)
 end
 quadratic_estimate(ds::DataSet, which; kwargs...) = quadratic_estimate((ds,ds), which; kwargs...)
-quadratic_estimate(ds::DataSet{<:Field{<:Any,S0}}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
-quadratic_estimate(ds::DataSet{<:Field{<:Any,S2}}; kwargs...) = quadratic_estimate(ds, :EB; kwargs...) # somewhat arbitraritly make default P estimate be EB
+quadratic_estimate(ds::DataSet{<:FlatS0}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
+quadratic_estimate(ds::DataSet{<:FlatS2}; kwargs...) = quadratic_estimate(ds, :EB; kwargs...) # somewhat arbitraritly make default P estimate be EB
 
 
 
@@ -85,7 +85,7 @@ function get_term_memoizer(f)
     Lfactors() = 1
     Lfactors(inds...) = broadcast!(*, similar(Ðf), getproperty.(getindex.(Ref(∇),inds),:diag)...)
     term(C::Diagonal, inds...) = term(C.diag, inds...)
-    term(C::Field, inds...) = term(count((x->x isa Int),inds)/2, C, first.(inds)...)
+    term(C::Field, inds...) = term(count((x->x isa Int),inds)/2f0, C, first.(inds)...)
     @sym_memo term(n, C::Field, @sym(inds...)) = Map(nan2zero.(C .* Lfactors(inds...) ./ ∇².diag.^n))
     term
 end
@@ -108,7 +108,7 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, wie
                 term($(@. Cf^2 / (Cf̃+Cn)), [i], [j]) * term($(@. 1  / (Cf̃+Cn))     )
               + term($(@. Cf   / (Cf̃+Cn)), [i]     ) * term($(@. Cf / (Cf̃+Cn)), [j])
             )
-            2π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for (i,j) in inds(2))))
+            2f0 * π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for (i,j) in inds(2))))
         end
     end
     AL = Nϕ
@@ -145,7 +145,7 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
                   term($(@. CE^2 / (CẼ+CEn)), [i], [j]) * term($(@. 1    / (CẼ+CEn))     )
                 + term($(@. CE   / (CẼ+CEn)), [i]     ) * term($(@. CE   / (CẼ+CEn)), [j])
             )
-            2π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
+            2f0 * π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
         end
     end
     AL = Nϕ
@@ -171,7 +171,7 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
             for (j,k,l) in inds(3)
         )
         sum(∇[i] * Fourier(I(i)) for i=1:2)
-end
+    end
 
     # normalization
     if Nϕ == nothing
@@ -182,7 +182,7 @@ end
                 + (zeroB ? 0 :   term($(@. 1    / (CẼ+CEn)),           k, l, m, n) * term($(@. CB^2 / (CB̃+CBn)), [i], [j], k, l, p, q)))
                 for (k,l,m,n,p,q) in inds(6)
             )
-            2π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
+            2f0 * π * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
         end
     end
     AL = Nϕ
