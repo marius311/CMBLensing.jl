@@ -193,7 +193,8 @@ end
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
-
+getproperty(lz::LazyBinaryOp, s::Symbol) = getproperty(lz, Val(s))
+getproperty(lz::LazyBinaryOp{op}, ::Val{s}) where {s,op} = (s in (:a,:b) ? getfield(lz,s) : LazyBinaryOp(op, getproperty(lz.a, s), getproperty(lz.b, s)))
 
 ### OuterProdOp
 

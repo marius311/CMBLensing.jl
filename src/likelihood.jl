@@ -299,8 +299,6 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
 end
 
 
-# todo: figure out if this and `lensing_wiener_filter` above are the same and
-# can be combined
 @doc doc"""
     Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
     Σ(L::LenseOp, ds) 
@@ -309,13 +307,13 @@ Operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can applied
 and inverted.
 """
 Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L} = Σ(L(ϕ),ds)
-Σ(L::LenseOp, ds) = begin
+Σ(L::LenseOp, ds; nsteps=5000, tol=1e-1, kwargs...) = begin
 
-    @unpack d,P,M,B,Cn,Cf,Cn̂, B̂ = ds
+    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
 
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*L*Cf*L'*B'*M'*P')*x,
-        op⁻¹ = x -> pcg2((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x, nsteps=100, tol=1e-1)
+        op⁻¹ = x -> pcg2((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x; nsteps=nsteps, tol=tol, kwargs...)
     )
 
 end

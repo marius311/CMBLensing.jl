@@ -17,14 +17,18 @@ If a tuple is passed in, the result will come from correlating the data from
 `ds1` with that from `ds2`, which can be useful for debugging / isolating
 various noise terms. 
 
-An optional keyword argument `Nϕ` can be passed in in case the noise was already
-computed, in which case it won't be recomputed during the calculation.
+An optional keyword argument `AL` can be passed in in case the QE normalization
+was already computed, in which case it won't be recomputed during the
+calculation.
 
-Returns a NamedTuple `(ϕqe, Nϕ)` where `ϕqe` is the (possibly Wiener filtered,
-depending on `wiener_filtered` option) quadratic estimate and `Nϕ` is the
-analytic N0 noise bias.
+Returns a NamedTuple `(ϕqe, AL, Nϕ)` where `ϕqe` is the (possibly Wiener
+filtered, depending on `wiener_filtered` option) quadratic estimate, `AL` is the
+normalization (which is already applied to ϕqe, it does not need to be applied
+again), and `Nϕ` is the analytic N0 noise bias (Nϕ==AL if using unlensed
+weights, currently only Nϕ==AL is always returned, no matter the weights)
 """
-function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wiener_filtered=true, Nϕ=nothing) where {F1,F2}
+function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wiener_filtered=true, AL=nothing, weights=:unlensed) where {F1,F2}
+    @assert weights in (:lensed, :unlensed) "weights should be :lensed or :unlensed"
     @assert (which in [:TT, :EE, :EB]) "which='$which' not implemented"
     @assert (ds1.Cf===ds2.Cf && ds1.Cf̃===ds2.Cf̃ && ds1.Cn̂===ds2.Cn̂ && ds1.Cϕ===ds2.Cϕ && ds1.B̂===ds2.B̂) "operators in `ds1` and `ds2` should be the same"
     @assert spin(F1)==spin(F2)
@@ -39,7 +43,7 @@ function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wi
         :EB => quadratic_estimate_EB
         _   => error("`which` argument to `quadratic_estimate` should be one of (:TT, :EE, :EB)")
     end
-    quadratic_estimate_func((ds1.d, ds2.d), Cf, Cf̃, Cn̂, Cϕ, M̂*B̂, wiener_filtered, Nϕ)
+    quadratic_estimate_func((ds1.d, ds2.d), Cf, Cf̃, Cn̂, Cϕ, M̂*B̂, wiener_filtered, weights, AL)
 end
 quadratic_estimate(ds::DataSet, which; kwargs...) = quadratic_estimate((ds,ds), which; kwargs...)
 quadratic_estimate(ds::DataSet{<:Field{<:Any,S0}}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
@@ -93,18 +97,18 @@ end
 inds(n) = collect(product(repeated(1:2,n)...))[:]
 
 
-function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing)
+function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, weights, AL=nothing)
 
     term = get_term_memoizer(d1)
     ΣTtot = TF^2 * Cf̃ + Cn
-    CT = Cf
+    CT = (weights==:unlensed) ? Cf : Cf̃
     
     # unnormalized estimate
     ϕqe_unnormalized = @subst -sum(∇[i] * Fourier(term($(ΣTtot\(TF*d1))) * term($(CT*(ΣTtot\(TF*d2))), [i])) for i=1:2)
     
     # normalization
-    if Nϕ == nothing
-        Nϕ = @subst begin
+    if AL == nothing
+        AL = @subst begin
             A(i,j) = (
                 term($(@. TF^2 * CT^2 / ΣTtot), [i], [j]) * term($(@. TF^2      / ΣTtot)     )
               + term($(@. TF^2 * CT   / ΣTtot), [i]     ) * term($(@. TF^2 * CT / ΣTtot), [j])
@@ -112,20 +116,20 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A(i,j)) for (i,j) in inds(2))))
         end
     end
-    AL = Nϕ
+    Nϕ = AL # true only for unlensed weights
     
     ϕqe = (wiener_filtered ? (Cϕ*inv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
-    @ntpack ϕqe Nϕ
+    @ntpack ϕqe AL Nϕ
 
 end
 
 
-function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing)
+function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, weights, AL=nothing)
     
     term = get_term_memoizer(d1.E)
     TF² = TF[:E]^2
     ΣEtot = TF² * Cf̃[:E] + Cn[:E]
-    CE = Cf[:E]
+    CE = ((weights==:unlensed) ? Cf : Cf̃)[:E]
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
@@ -137,8 +141,8 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     end
 
     # normalization
-    if Nϕ == nothing
-        Nϕ = @subst begin
+    if AL == nothing
+        AL = @subst begin
             A1(i,j) = -4 * sum( ϵ(m,p,3) * ϵ(n,q,3) * (
                   term($(@. TF² * CE^2 / ΣEtot), [i], [j], k, l, m, n) * term($(@. TF²      / ΣEtot),      k, l, p, q)
                 + term($(@. TF² * CE   / ΣEtot), [i],      k, l, m, n) * term($(@. TF² * CE / ΣEtot), [j], k, l, p, q))
@@ -151,18 +155,18 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
         end
     end
-    AL = Nϕ
+    Nϕ = AL # true only for unlensed weights
     
     ϕqe = (wiener_filtered ? (Cϕ*inv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
-    @ntpack ϕqe Nϕ
+    @ntpack ϕqe AL Nϕ
 
 end
 
 
-function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, Nϕ=nothing; zeroB=false)
+function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF, wiener_filtered, weights, AL=nothing; zeroB=false)
     
     term = get_term_memoizer(d1.E)
-    CE, CB = Cf[:E], Cf[:B]
+    CE, CB = getindex.(Ref((weights==:unlensed) ? Cf : Cf̃),(:E,:B))
     TF²E, TF²B = TF[:E]^2, TF[:B]^2
     ΣEtot = TF²E * Cf̃[:E] + Cn[:E]
     ΣBtot = TF²B * Cf̃[:B] + Cn[:B]
@@ -178,8 +182,8 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     end
 
     # normalization
-    if Nϕ == nothing
-        Nϕ = @subst begin
+    if AL == nothing
+        AL = @subst begin
             @sym_memo A(@sym(i,j)) = 4 * sum( ϵ(m,p,3) * ϵ(n,q,3) * (
                                  term($(@. TF²E * CE^2 / ΣEtot), [i], [j], k, l, m, n) * term($(@. TF²B        / ΣBtot),           k, l, p, q)
                 + (zeroB ? 0 : -2term($(@. TF²E * CE   / ΣEtot), [i],      k, l, m, n) * term($(@. TF²B * CB   / ΣBtot),      [j], k, l, p, q))
@@ -189,9 +193,9 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
             2π * inv(FullDiagOp(sum(∇[i] .* ∇[j] .* Fourier(A(i,j)) for i=1:2,j=1:2)))
         end
     end
-    AL = Nϕ
+    Nϕ = AL # true only for unlensed weights
     
     ϕqe = (wiener_filtered ? (Cϕ*inv(Cϕ+Nϕ)) : 1) * (AL * ϕqe_unnormalized)
-    @ntpack ϕqe Nϕ
+    @ntpack ϕqe AL Nϕ
 
 end
