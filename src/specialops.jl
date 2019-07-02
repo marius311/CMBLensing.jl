@@ -168,16 +168,16 @@ end
 function ParamDependentOp(recompute_function!::Function, mem)
     parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function!)), typeof(methods(recompute_function!).mt.kwsorter)))
     op = recompute_function!(similar(mem))
-    ParamDependentOp(op, (;kwargs...)->(recompute_function!(mem; kwargs...);mem), parameters, mem)
+    ParamDependentOp(op, (mem=mem;kwargs...)->(isempty(kwargs) ? op : (recompute_function!(mem; kwargs...);mem)), parameters, mem)
 end
 # the type annotations here could be useful if we were lazy and allowed some
 # Core.Box'ed variables in our recompute_function, or if we're on Julia 1.1
 # where that always happened:
-(L::ParamDependentOp)(θ::NamedTuple) = L.recompute_function(;θ...) :: typeof(L.op)
-(L::ParamDependentOp)(;θ...) = L.recompute_function(;θ...) :: typeof(L.op)
+(L::ParamDependentOp)(θ::NamedTuple,args...) = (depends_on(L,θ) ? L.recompute_function(args...;θ...) : L.op) :: typeof(L.op) 
+(L::ParamDependentOp)(args...;θ...) = (depends_on(L,θ) ? L.recompute_function(args...;θ...) : L.op) :: typeof(L.op)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 # the following could be changed to calling ::LinOp directly pending

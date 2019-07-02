@@ -51,7 +51,7 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     size, sqrt, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
-    StructuredMatrixStyle, structured_broadcast_alloc
+    StructuredMatrixStyle, structured_broadcast_alloc, tr
 import PyPlot: loglog, plot, semilogx, semilogy
 
 
@@ -104,7 +104,7 @@ include("plotting.jl")
 # sampling and maximizing the posteriors
 include("dataset.jl")
 include("posterior.jl")
-# include("sampling.jl")
+include("sampling.jl")
 
 # other estimates
 include("quadratic_estimate.jl")

@@ -10,7 +10,7 @@ and momenta. If `hist` is specified a trace of requested variables throughout
 each step is also returned. 
 
 """
-function symplectic_integrate(x₀, p₀, Λ, U, δUδx; N=50, ϵ=0.1, progress=false, hist=nothing)
+function symplectic_integrate(x₀::AbstractVector{T}, p₀, Λ, U, δUδx; N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
     
     xᵢ, pᵢ = x₀, p₀
     δUδxᵢ = δUδx(xᵢ)
@@ -19,9 +19,9 @@ function symplectic_integrate(x₀, p₀, Λ, U, δUδx; N=50, ϵ=0.1, progress=
     _hist = []
 
     @showprogress (progress ? 1 : Inf) "Symplectic Integration: " for i=1:N
-        xᵢ₊₁    = xᵢ - ϵ * (Λ \ (pᵢ - ϵ/2 * δUδxᵢ))
+        xᵢ₊₁    = xᵢ - T(ϵ) * (Λ \ (pᵢ - T(ϵ)/2 * δUδxᵢ))
         δUδx₊₁  = δUδx(xᵢ₊₁)
-        pᵢ₊₁    = pᵢ - ϵ/2 * (δUδx₊₁ + δUδxᵢ)
+        pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδx₊₁ + δUδxᵢ)
         xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδx₊₁
         
         if hist!=nothing
@@ -65,7 +65,7 @@ parameters.
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1) where {S}
+function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1, span=0.75) where {S}
     
     xs = first(range)
     xmin,xmax = first(xs),last(xs)
@@ -73,17 +73,17 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     # sample the pdf
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(NamedTuple{S}(x)), xs)
     lnPs .-= maximum(lnPs)
-    ilnP = loess(xs,lnPs)
+    ilnP = loess(xs,lnPs,span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
     A = quadgk(exp∘ilnP, xmin, xmax)[1]
     lnPs .-= log(A)
-    ilnP = loess(xs,lnPs)
+    ilnP = loess(xs,lnPs,span=span)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(T); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
     
     if nsamples==1
         ilnP, map(first, θsamples), lnPs
@@ -154,7 +154,7 @@ function sample_joint(
             @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
             θstarts = fill(θstart, nchains)
         end
-        if (ϕstart == 0); ϕstart = zero(Cϕ); end
+        if (ϕstart == 0); ϕstart = zero(Cϕ().diag); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
             ϕstarts = fill(ϕstart, nchains)
@@ -172,7 +172,7 @@ function sample_joint(
     end
     
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ/2; end
-    Λm = (Nϕ == nothing) ? pinv(Cϕ) : (pinv(Cϕ) + pinv(Nϕ)
+    Λm = (Nϕ == nothing) ? pinv(Cϕ) : (pinv(Cϕ) + pinv(Nϕ))
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
 

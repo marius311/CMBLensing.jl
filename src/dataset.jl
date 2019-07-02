@@ -1,8 +1,4 @@
 
-# mixing matrix for mixed parametrization
-D_mix(Cf::ParamDependentOp; rfid=0.1, σ²len=Float32(deg2rad(5/60)^2)) =
-     ParamDependentOp((;r=rfid, _...)->(nan2zero.(sqrt.(Diagonal((evaluate(Cf,r=rfid).diag .+ σ²len) ./ evaluate(Cf,r=r).diag)))))
-
 # Stores variables needed to construct the likelihood
 @kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
     d  :: Td                # data
@@ -114,8 +110,8 @@ function load_sim_dataset(;
     Cf̃  = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.total[k]           for k=ks)...)
     Cn̂  = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k]                for k=ks)...)
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=rfid, _...)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=1,   _...)->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((mem; r=rfid)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
+    Cϕ = ParamDependentOp((mem; Aϕ=1  )->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing) && (mask_kwargs != nothing)
@@ -133,7 +129,11 @@ function load_sim_dataset(;
     end
     
     # mixing matrices
-    if (D == nothing); D = D_mix(Cf,rfid=rfid); end
+    if (D == nothing)
+        σ²len = T(deg2rad(5/60)^2)
+        Cf′ = Diagonal(Cf().diag .+ σ²len)
+        D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf′))
+    end
     if (G == nothing); G = IdentityOp; end
     
     # simulate data

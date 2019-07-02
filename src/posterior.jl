@@ -97,9 +97,9 @@ end
 # dataset evaluated at parameters θ.  `ds` is used to check which covariances
 # were param-dependent prior to evaluation, and these are not calculated
 function lnP_logdet_terms(ds, ds₀, dsθ; θ...)
-    -(  (depends_on(ds.Cn, θ) ? logdet(inv(ds₀.Cn)*dsθ.Cn) : 0) 
-      + (depends_on(ds.Cf, θ) ? logdet(inv(ds₀.Cf)*dsθ.Cf) : 0)
-      + (depends_on(ds.Cϕ, θ) ? logdet(inv(ds₀.Cϕ)*dsθ.Cϕ) : 0))/2f0
+    -(  (depends_on(ds.Cn, θ) ? logdet(ds₀.Cn\dsθ.Cn) : 0) 
+      + (depends_on(ds.Cf, θ) ? logdet(ds₀.Cf\dsθ.Cf) : 0)
+      + (depends_on(ds.Cϕ, θ) ? logdet(ds₀.Cϕ\dsθ.Cϕ) : 0))/2f0
 end
 
 
