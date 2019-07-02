@@ -71,7 +71,7 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     xmin,xmax = first(xs),last(xs)
     
     # sample the pdf
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->lnP(NamedTuple{S}(x)), xs)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->Float64(lnP(NamedTuple{S}(x))), xs)
     lnPs .-= maximum(lnPs)
     ilnP = loess(xs,lnPs,span=span)
     
@@ -83,7 +83,7 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(T); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
+    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x)[1]-r),xmin+eps(),xmax)) for i=1:nsamples]),))
     
     if nsamples==1
         ilnP, map(first, θsamples), lnPs
