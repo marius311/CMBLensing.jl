@@ -1,5 +1,5 @@
 using CMBLensing
-using CMBLensing: basis, BasisTuple, @SVector
+using CMBLensing: basis, BasisTuple, @SVector, RK4Solver
 
 ##
 

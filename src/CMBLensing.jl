@@ -57,23 +57,25 @@ import PyPlot: loglog, plot, semilogx, semilogy
 
 
 export
-    @animate, @repeated, @unpack, azeqproj, BandPassOp, cache, CachedLenseFlow,
-    camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis, Diagonal,
-    dot, EBFourier, EBMap, FFTgrid, Field, FieldArray, FieldMatrix, FieldOrOpArray,
-    FieldOrOpMatrix, FieldOrOpRowVector, FieldOrOpVector, FieldRowVector,
-    FieldTuple, FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
-    FlatFourier, FlatIQUMap, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap,
-    FlatS0, FlatS2, FlatS2Fourier, FlatS2Map, FlatTEBFourier, Fourier, fourier∂,
-    FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess,
-    GradientCache, HealpixCap, HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp,
-    InterpolatedCℓs, IsotropicHarmonicCov, LenseBasis, LenseFlow, LenseOp,
-    lensing_wiener_filter, LinDiagOp, LinOp, lnP, load_healpix_sim_dataset,
-    load_sim_dataset, LowPass, Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero,
-    noiseCℓs, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
-    quadratic_estimate, QUFourier, QUMap, resimulate, S0, S02, S2, sample_joint,
-    shortname, simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ,
-    toDℓ, tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴,
-    ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    @animate, @repeated, @unpack, @namedtuple, azeqproj, BandPassOp, cache,
+    CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet,
+    DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid, Field,
+    FieldArray, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
+    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
+    FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
+    FlatFourier, FlatIQUMap, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
+    FlatQUMap, FlatS0, FlatS2, FlatS2Fourier, FlatS2Map, FlatTEBFourier,
+    Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ,
+    get_ρℓ, get_ℓ⁴Cℓ, gradhess, GradientCache, HealpixCap, HealpixS0Cap,
+    HealpixS2Cap, HighPass, IdentityOp, InterpolatedCℓs, IsotropicHarmonicCov,
+    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, lensing_wiener_filter,
+    LinDiagOp, LinOp, lnP, load_healpix_sim_dataset, load_sim_dataset, LowPass,
+    Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero, noiseCℓs, OuterProdOp,
+    pack, ParamDependentOp, pixwin, plot, PowerLens, quadratic_estimate,
+    QUFourier, QUMap, resimulate, S0, S02, S2, sample_joint, shortname,
+    simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ, toDℓ,
+    tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴, ∇, ∇²,
+    ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
 # generic stuff
 include("util.jl")
