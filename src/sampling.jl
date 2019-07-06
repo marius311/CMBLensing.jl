@@ -99,7 +99,7 @@ grid_and_sample(lnP::Function, range, progress=false) = error("Can only currentl
 """
     sample_joint(ds::DataSet; kwargs...)
     
-Sample from the joint PDF of P(f,ϕ,r). Runs `nworkers()` chains in parallel
+Sample from the joint PDF of P(f,ϕ,θ). Runs `nworkers()` chains in parallel
 using `pmap`. 
     
 Possible keyword arguments: 
@@ -114,6 +114,7 @@ Possible keyword arguments:
 * `θstart` - starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
 * `ϕstart` - starting ϕ as a Field, or `:quasi_sample` or `:best_fit`
 * `metadata` - does nothing, but is saved into the chain file
+* `nhmc` - the number of HMC passes per ϕ Gibbs step (default: 1)
 
 """
 function sample_joint(
@@ -133,10 +134,12 @@ function sample_joint(
     θstart = nothing,
     pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
-    symp_kwargs = (N=100, ϵ=0.01),
+    nhmc = 1,
+    symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (αmax=0.3, nsteps=40),
     metadata = nothing,
     progress = false,
+    interruptable = false,
     filename = nothing) where {T,P}
     
     # save input configuration to chain
@@ -161,12 +164,14 @@ function sample_joint(
         else
             ϕstarts = pmap(θstarts) do θstart
                 Random.seed!()
-                MAP_joint(ds(;θstart...), progress=(progress==:verbose), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
+                MAP_joint(ds(;θstart...), progress=(progress==:verbose ? :summary : false), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
             Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>deepcopy(Random.seed!())]
         end
+    elseif chains == :resume
+        chains = load(filename,"chains")
     elseif chains isa String
         chains = load(chains,"chains")
     end
@@ -182,7 +187,7 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃
+                local f°, f̃, ΔH, accept
                 @unpack i,ϕ°,θ,seed = state
                 copy!(Random.GLOBAL_RNG, seed)
                 f = nothing
@@ -210,19 +215,23 @@ function sample_joint(
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     t_ϕ = @elapsed begin
                         
-                        (ΔH, ϕtest°) = symplectic_integrate(
-                            ϕ°, simulate(Λm), Λm, 
-                            ϕ°->      lnP(:mix, f°, ϕ°, θ, dsθ, Lϕ), 
-                            ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, θ, dsθ, Lϕ)[2];
-                            progress=(progress==:verbose),
-                            symp_kwargs...
-                        )
+                        for kwargs in symp_kwargs
+                        
+                            (ΔH, ϕtest°) = symplectic_integrate(
+                                ϕ°, simulate(Λm), Λm, 
+                                ϕ°->      lnP(:mix, f°, ϕ°, θ, dsθ, Lϕ), 
+                                ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, θ, dsθ, Lϕ)[2];
+                                progress=(progress==:verbose),
+                                kwargs...
+                            )
 
-                        if (i < nburnin_always_accept) || (log(rand()) < ΔH)
-                            ϕ° = ϕtest°
-                            accept = true
-                        else
-                            accept = false
+                            if (i < nburnin_always_accept) || (log(rand()) < ΔH)
+                                ϕ° = ϕtest°
+                                accept = true
+                            else
+                                accept = false
+                            end
+                            
                         end
                         
                         # compute un-mixed maps
@@ -263,7 +272,7 @@ function sample_joint(
             
         end
     catch err
-        if err isa InterruptException
+        if interruptable && (err isa InterruptException)
             println()
             @warn("Chain interrupted. Returning current progress.")
         else
