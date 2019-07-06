@@ -121,14 +121,14 @@ end
 
 function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wiener_filtered, Nϕ=nothing)
 
-    term = get_term_memoizer(d1.E)
+    term = get_term_memoizer(d1[:E])
     (CE, CẼ, CEn) = (Cf[:E], Cf̃[:E], Cn[:E])
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
         I(i) = -(
-            2sum(term($(CE * ((CẼ+CEn) \ d1.E)), [i], j, k) * term($(((CẼ+CEn) \ d2.E)), j, k) for (j,k) in inds(2))
-               - term($(CE * ((CẼ+CEn) \ d1.E)), [i]      ) * term($(((CẼ+CEn) \ d2.E))      )
+            2sum(term($(CE * ((CẼ+CEn) \ d1[:E])), [i], j, k) * term($(((CẼ+CEn) \ d2[:E])), j, k) for (j,k) in inds(2))
+               - term($(CE * ((CẼ+CEn) \ d1[:E])), [i]      ) * term($(((CẼ+CEn) \ d2[:E]))      )
         )
         sum(∇[i] * Fourier(I(i)) for i=1:2)
     end
@@ -158,7 +158,7 @@ end
 
 function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wiener_filtered, Nϕ=nothing; zeroB=false)
     
-    term = get_term_memoizer(d1.E)
+    term = get_term_memoizer(d1[:E])
     (CE, CB)   = (Cf[:E], Cf[:B])
     (CẼ, CB̃)   = (Cf̃[:E], Cf̃[:B])
     (CEn, CBn) = (Cn[:E], Cn[:B])
@@ -166,8 +166,8 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, wie
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
         I(i) = 2 * sum(  ϵ(k,l,3) * (
-                           term($(CE * ((CẼ+CEn) \ d1.E)), [i], j, k) * term($(     ((CB̃+CBn) \ d2.B)),      j, l)
-            - (zeroB ? 0 : term($(      (CẼ+CEn) \ d1.E),       j, k) * term($(CB * ((CB̃+CBn) \ d2.B)), [i], j, l)))
+                           term($(CE * ((CẼ+CEn) \ d1[:E])), [i], j, k) * term($(     ((CB̃+CBn) \ d2[:B])),      j, l)
+            - (zeroB ? 0 : term($(      (CẼ+CEn) \ d1[:E]),       j, k) * term($(CB * ((CB̃+CBn) \ d2[:B])), [i], j, l)))
             for (j,k,l) in inds(3)
         )
         sum(∇[i] * Fourier(I(i)) for i=1:2)
