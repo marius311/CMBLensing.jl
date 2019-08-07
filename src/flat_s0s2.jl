@@ -23,6 +23,7 @@ function getindex(f::FlatS02, k::Symbol)
     @match k begin
         (:I) => f.I
         (:P) => f.P
+        (:IP) => f
         (:Ix) => f.Ix
         (:Q || :U || :E || :U) => getindex(f.P,k)
         (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k)

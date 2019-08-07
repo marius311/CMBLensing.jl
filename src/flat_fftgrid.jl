@@ -7,7 +7,7 @@ struct fourier∂ <: ∂modes end
 struct map∂ <: ∂modes end
 promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 
-# Flat{θpix,Nside,∂mode} is a flat sky pixelization with `Nside` pixels per side
+# Flat{Nside,θpix,∂mode} is a flat sky pixelization with `Nside` pixels per side
 # and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
 abstract type Flat{Nside,θpix,∂mode<:∂modes} <: Pix end
 

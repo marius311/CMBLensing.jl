@@ -14,6 +14,7 @@ FlatMap(Ix; kwargs...) = FlatMap{Flat(Nside=size(Ix,2);kwargs...)}(Ix)
 FlatMap{P}(Ix::M) where {P,T,M<:AbstractMatrix{T}} = FlatMap{P,T,M}(Ix)
 FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
+FlatFourier{P}(Il::AbstractMatrix{<:Real}) where {P} = FlatFourier{P}(complex(Il))
 
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
@@ -46,6 +47,7 @@ Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, F
 Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
 
 ### properties
+getproperty(f::FlatS0, ::Val{s}) where {s} = getproperty(f,s)
 function getindex(f::FlatS0, k::Symbol)
     k in [:Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
     getproperty([Map,Fourier][k .== [:Ix,:Il]][1](f),k)
@@ -70,7 +72,7 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     α = g.Δx^2/(4π^2)*g.Nside^2
 
     L = g.r[:]
-    CLobs = real.(dot.(unfold(f.Il),unfold(f2.Il)))[:]
+    CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:]
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
 
     power       = fit(Histogram, L, Weights(w .* CLobs), ℓedges).weights

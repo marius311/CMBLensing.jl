@@ -1,4 +1,4 @@
-const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M}}
+const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M},FlatS02{P,T,M}}
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,T,M,F<:FlatField{Flat{N,θ,∂mode},T,M}} =

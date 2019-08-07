@@ -1,6 +1,7 @@
-using PyPlot
-import PyPlot: plot
 
+# figure out if we're in Juno in which case we do plotting slightly differently
+isjuno = false
+@init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
 
 plotsize₀ = 4
 
@@ -93,11 +94,11 @@ function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim; kwargs...)
     tight_layout(w_pad=-10)
-    return_all ? (fig,axs,which) : fig
+    return_all ? (fig,axs,which) : isjuno ? fig : nothing
 end
 default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
 default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
-default_which(::AbstractVecOrMat{<:FieldTuple{<:Any,FS}}) where {FS} = hcat(map(default_which,FS.parameters)...)
+default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:Field})
     try
         ensuresame((default_which([f]) for f in fs)...)
