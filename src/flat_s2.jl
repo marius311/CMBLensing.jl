@@ -19,7 +19,7 @@ FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((
 ### properties
 function propertynames(f::FlatS2)
     (:fs, propertynames(f.fs)..., 
-     (Symbol(string(k,(f isa FlatMap ? "x" : "l"))) for (k,f) in pairs(f.fs) if f isa FlatMap)...)
+     (Symbol(string(k,(f isa FlatMap ? "x" : "l"))) for (k,f) in pairs(f.fs))...)
 end
 getproperty(f::FlatQUMap,     ::Val{:Qx}) = getfield(f,:fs).Q.Ix
 getproperty(f::FlatQUMap,     ::Val{:Ux}) = getfield(f,:fs).U.Ix

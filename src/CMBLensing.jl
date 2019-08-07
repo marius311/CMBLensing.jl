@@ -98,6 +98,7 @@ include("lenseflow.jl")
 include("flat_fftgrid.jl")
 include("flat_s0.jl")
 include("flat_s2.jl")
+include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
 
