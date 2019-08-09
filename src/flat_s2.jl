@@ -88,15 +88,5 @@ function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end
 
-# # vector conversions
-# length(::Type{<:FlatS2{T,P}}) where {T,P} = 2Nside(P)^2
-# @generated getindex(f::FlatS2Map,::Colon) = :(vcat($((:(f.$x[:]) for x in fieldnames(f))...)))
-# @generated getindex(f::FlatS2Fourier,::Colon) = :(vcat($((:(rfft2vec(f.$x)) for x in fieldnames(f))...)))
-# function fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Map}
-#     nside = round(Int,√(length(vec)÷2))
-#     F(reshape(vec[1:end÷2],(nside,nside)), reshape(vec[end÷2+1:end],(nside,nside)))
-# end
-# fromvec(::Type{F}, vec::AbstractVector) where {F<:FlatS2Fourier} = F(vec2rfft(vec[1:end÷2]), vec2rfft(vec[end÷2+1:end]))
-# 
-# 
-# ud_grade(f::FlatS2{T,P}, args...; kwargs...) where {T,P} = FlatS2QUMap((Map(ud_grade(f[x],args...;kwargs...)) for x=[:Q,:U])...)
+
+ud_grade(f::FlatS2{P}, args...; kwargs...) where {P} = FlatQUMap{P}((ud_grade(f[x],args...;kwargs...).Ix for x=[:Q,:U])...)
