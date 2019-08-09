@@ -11,7 +11,7 @@ end
 # constructors for FieldTuples with names
 FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
 FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
-FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,ensuresame(map(eltype,values(fs))...)}(fs)
+FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,promote_type(map(eltype,values(fs))...)}(fs)
 (::Type{<:FT})(f1,f2,fs...) where {Names,FT<:FieldTuple{<:Any,<:NamedTuple{Names}}} = FieldTuple(NamedTuple{Names}((f1,f2,fs...)))
 (::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
 (::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
@@ -24,9 +24,9 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
-    print(io, "FieldTuple{$(Names), $(B.name.name), $(T)}")
+    print(io, "Field$(tuple_type_len(FS))Tuple{$(Names), $(B.name.name), $(T)}")
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
-    print(io, "FieldTuple{length-$(tuple_type_len(FS)), $(B.name.name), $(T)}")
+    print(io, "Field$(tuple_type_len(FS))Tuple{$(B.name.name), $(T)}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
@@ -68,9 +68,12 @@ end
 
 ### conversion
 # no conversion needed
-(::Type{B})(f::F)  where {B<:Basis,F<:FieldTuple{B}} = f
+(::Type{B})(f::F)  where {B<:Basis,     F<:FieldTuple{B}} = f
 # FieldTuple is in BasisTuple
-(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B}} = B′==B ? f : error("not implemented yet")
+(::Type{B′})(f::F) where {BS′,B′<:BasisTuple{BS′},B<:BasisTuple,F<:FieldTuple{B,<:Tuple}} = 
+    FieldTuple(map((B,f)->B(f), tuple(BS′.parameters...), f.fs))
+(::Type{B′})(f::F) where {BS′,B′<:BasisTuple{BS′},B<:BasisTuple,Names,F<:FieldTuple{B,<:NamedTuple{Names}}} = 
+    FieldTuple(NamedTuple{Names}(map((B,f)->B(f), tuple(BS′.parameters...), values(f.fs))))
 (::Type{B′})(f::F) where {B′<:Basis,     B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 (::Type{B′})(f::F) where {B′<:Basislike, B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 # FieldTuple is in a concrete basis

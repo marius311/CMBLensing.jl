@@ -132,12 +132,13 @@ end
     @test FieldTuple{<:Any, <:NamedTuple{(:Q,:U)}}(f,f) isa FieldTuple
 
     # basis conversions
-    f_basistuple = FieldTuple(A=f, B=f)
+    for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
+        @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
+        @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+    end
     f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
-    @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-    @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
-    @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-    @test_broken BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)
     @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
     @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
     @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
