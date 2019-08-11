@@ -24,9 +24,9 @@ FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},t
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
-    print(io, "Field$(tuple_type_len(FS))Tuple{$(Names), $(B.name.name), $(T)}")
+    print(io, "Field$(tuple_type_len(FS))Tuple{$(Names), $(B), $(T)}")
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
-    print(io, "Field$(tuple_type_len(FS))Tuple{$(B.name.name), $(T)}")
+    print(io, "Field$(tuple_type_len(FS))Tuple{$(B), $(T)}")
 
 ## array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
@@ -88,6 +88,13 @@ getproperty(f::FieldTuple, s::Symbol) = getproperty(f, Val(s))
 getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs)
 getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
 
+
+### simulation
+white_noise(::Type{<:FieldTuple{B,FS}}) where {B,FS<:Tuple} = 
+    FieldTuple(map(white_noise, tuple(FS.parameters...)))
+white_noise(::Type{<:FieldTuple{B,NamedTuple{Names,FS}}}) where {B,Names,FS<:Tuple} = 
+    FieldTuple(NamedTuple{Names}(map(white_noise, tuple(FS.parameters...))))
+    
 
 # generic AbstractVector inv/pinv don't work with FieldTuples because those
 # implementations depends on get/setindex which we don't implement for FieldTuples

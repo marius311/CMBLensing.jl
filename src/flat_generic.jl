@@ -2,7 +2,15 @@ const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M},FlatS02{P,T,M}}
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,T,M,F<:FlatField{Flat{N,θ,∂mode},T,M}} =
-    print(io, "Flat$(basis(F).name.name){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+    print(io, "$(pretty_type_name(F)){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+for F in (:FlatMap, :FlatFourier, 
+          :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
+          :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
+    @eval pretty_type_name(::Type{<:$F}) = $(string(F))
+end
+    
+    
+
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be

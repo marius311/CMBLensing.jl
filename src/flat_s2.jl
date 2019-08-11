@@ -89,4 +89,8 @@ function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
 end
 
 
-ud_grade(f::FlatS2{P}, args...; kwargs...) where {P} = FlatQUMap{P}((ud_grade(f[x],args...;kwargs...).Ix for x=[:Q,:U])...)
+function ud_grade(f::FlatS2{P}, args...; kwargs...) where {P} 
+    f′ = FieldTuple(map(f->ud_grade(f, args...; kwargs...), f.fs))
+    B′ = (f′[1] isa FlatMap) ? (f isa FlatQU ? QUMap : EBMap) : (f isa FlatQU ? QUFourier : EBFourier)
+    FieldTuple{B′}(f′)
+end

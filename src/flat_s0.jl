@@ -12,7 +12,7 @@ const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
 FlatMap(Ix; kwargs...) = FlatMap{Flat(Nside=size(Ix,2);kwargs...)}(Ix)
 FlatMap{P}(Ix::M) where {P,T,M<:AbstractMatrix{T}} = FlatMap{P,T,M}(Ix)
-FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Ix,2);kwargs...)}(Il)
+FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Il,2);kwargs...)}(Il)
 FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
 FlatFourier{P}(Il::AbstractMatrix{<:Real}) where {P} = FlatFourier{P}(complex(Il))
 
@@ -130,36 +130,37 @@ function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
 
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     Nnew = N * θ ÷ θnew
-    Pnew = Flat{θnew,Nnew,∂mode}
+    Pnew = Flat{Nnew,θnew,∂mode}
 
     if deconv_pixwin
-        @unpack Δx,k = FFTgrid(T,Pnew)
+        @unpack Δx,k = FFTgrid(Pnew,T)
         Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
     end
 
     if θnew>θ
         # downgrade
         if anti_aliasing
-            kmask = ifelse.(abs.(FFTgrid(P,T).k) .> FFTgrid(T,Pnew).nyq, 0, 1)
-            AA = FullDiagOp(FlatFourier{T,P}(kmask[1:N÷2+1] .* kmask'))
+            kmask = ifelse.(abs.(FFTgrid(P,T).k) .> FFTgrid(Pnew,T).nyq, 0, 1)
+            AA = Diagonal(FlatFourier{P}(kmask[1:N÷2+1] .* kmask'))
         else
             AA = 1
         end
         if mode==:map
-            fnew = FlatMap{T,Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Nnew,fac,Nnew)),dims=(1,3))[1,:,1,:])
-            deconv_pixwin ? FlatFourier{T,Pnew}(fnew[:Tl] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
+            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Nnew,fac,Nnew)),dims=(1,3))[1,:,1,:])
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
         else
-            FlatFourier{T,Pnew}((AA*f)[:Tl][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
+            FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
         end
     else
+        error("Upgrading resolution not implemented yet.") # still needs updating from old code
         # upgrade
-        if mode==:map
-            fnew = FlatMap{T,Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f.Ix)...)')
-            deconv_pixwin ? FlatFourier{T,Pnew}(fnew[:Tl] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
-        else
-            fnew = Fourier(zero(FlatMap{T,Pnew}))
-            broadcast_setindex!(fnew.Tl, f[:Tl], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
-            fnew
-        end
+        # if mode==:map
+        #     fnew = FlatMap{Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)')
+        #     deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
+        # else
+        #     fnew = FlatFourier{P}(zeros(Nnew÷2+1,Nnew))
+        #     broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
+        #     fnew
+        # end
     end
 end

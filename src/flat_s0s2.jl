@@ -2,9 +2,9 @@
 ### FlatS02 types
 # (FlatS02's are just FieldTuple's of a spin-0 and a spin-2)
 const FlatIQUMap{P,T,M}     = FieldTuple{BasisTuple{Tuple{Map,QUMap}},         NamedTuple{(:I,:P),Tuple{FlatMap{P,T,M},    FlatQUMap{P,T,M}}},     T}
-const FlatIQUFourier{P,T,M} = FieldTuple{BasisTuple{Tuple{Fourier,QUFourier}}, NamedTuple{(:I,:P),Tuple{FlatFourier{P,T,M},FlatQUFourier{P,T,M}}}, T}
+const FlatIQUFourier{P,T,M} = FieldTuple{BasisTuple{Tuple{Fourier,QUFourier}}, NamedTuple{(:I,:P),Tuple{FlatFourier{P,T,M},FlatQUFourier{P,T,M}}}, Complex{T}}
 const FlatIEBMap{P,T,M}     = FieldTuple{BasisTuple{Tuple{Map,EBMap}},         NamedTuple{(:I,:P),Tuple{FlatMap{P,T,M},    FlatEBMap{P,T,M}}},     T}
-const FlatIEBFourier{P,T,M} = FieldTuple{BasisTuple{Tuple{Fourier,EBFourier}}, NamedTuple{(:I,:P),Tuple{FlatFourier{P,T,M},FlatEBFourier{P,T,M}}}, T}
+const FlatIEBFourier{P,T,M} = FieldTuple{BasisTuple{Tuple{Fourier,EBFourier}}, NamedTuple{(:I,:P),Tuple{FlatFourier{P,T,M},FlatEBFourier{P,T,M}}}, Complex{T}}
 # some handy Unions
 const FlatS02{P,T,M} = Union{FlatIQUMap{P,T,M},FlatIQUFourier{P,T,M},FlatIEBMap{P,T,M},FlatIEBFourier{P,T,M}}
 const FlatIQU{P,T,M} = Union{FlatIQUMap{P,T,M},FlatIQUFourier{P,T,M}}
@@ -21,11 +21,11 @@ getproperty(f::FlatS02, s::Union{Val{:Qx},Val{:Ux},Val{:Ex},Val{:Bx},Val{:Ql},Va
 getproperty(f::FlatS02, s::Union{Val{:Ix},Val{:Il}}) = getproperty(getfield(f,:fs).I,s)
 function getindex(f::FlatS02, k::Symbol)
     @match k begin
-        (:I) => f.I
-        (:P) => f.P
         (:IP) => f
-        (:Ix) => f.Ix
+        (:P) => f.P
+        (:I) => f.I
         (:Q || :U || :E || :U) => getindex(f.P,k)
+        (:Ix || :Il) => getindex(f.I,k)
         (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k)
         _ => throw(ArgumentError("Invalid FlatS02 index: $k"))
     end
