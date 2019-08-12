@@ -219,6 +219,7 @@ things:
 """
 function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwargs...) where F
     
+    check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, B, P, B̂ = ds
     
     b = 0

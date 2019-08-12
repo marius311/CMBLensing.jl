@@ -1,13 +1,14 @@
 
 # Stores variables needed to construct the likelihood
-@kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TB̂,TM,TB,TD,TG,TP}
+@kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TM,TM̂,TB,TB̂,TD,TG,TP}
     d  :: Td                # data
-    Cn :: TCn               # noise covariance
     Cϕ :: TCϕ               # ϕ covariance
     Cf :: TCf               # unlensed field covariance
     Cf̃ :: TCf̃ = nothing     # lensed field covariance (not always needed)
+    Cn :: TCn               # noise covariance
     Cn̂ :: TCn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
     M  :: TM  = 1           # user mask
+    M̂  :: TM̂  = M           # approximate user mask, diagonal in same basis as Cf
     B  :: TB  = 1           # beam and instrumental transfer functions
     B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
@@ -29,6 +30,13 @@ function (ds::DataSet)(;θ...)
     DataSet(map(fieldvalues(ds)) do v
         (v isa ParamDependentOp) ? v(;θ...) : v
     end...)
+end
+
+function check_hat_operators(ds::DataSet)
+    @unpack B̂, M̂, Cn̂, Cf = ds()
+    @assert(all(isa.((B̂,M̂,Cn̂), Diagonal)) 
+            && all(basis.(getproperty.((B̂,M̂,Cn̂),:diag)) .== basis(Cf.diag)),
+            "B̂, M̂, Cn̂ should all be Diagonal in the same basis as Cf")
 end
 
     
@@ -54,27 +62,38 @@ Create a `DataSet` object with some simulated data.
 
 """
 function load_sim_dataset(;
+    
+    # basic configuration
     θpix,
     θpix_data = θpix,
     Nside,
     use,
     T = Float32,
+    
+    # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
     ℓknee = 100,
     αknee = 3,
-    ℓmax_data = 3000,
-    beamFWHM = 0,
-    rfid = 0.05,
-    Cℓ = camb(r=rfid),
     Cℓn = nothing,
     Cn = nothing,
-    seed = nothing,
+    
+    # beam parameters, or set B directly
+    beamFWHM = 0,
+    B = nothing,
+    
+    # mask parameters, or set M directly
+    data_pixel_mask_kwargs = nothing,
+    data_bandpass_mask = LowPass(3000),
     M = nothing,
-    B = nothing, B̂ = nothing,
+    
+    # theory
+    rfid = 0.05,
+    Cℓ = camb(r=rfid),
+    
+    seed = nothing,
     D = nothing,
     G = nothing,
-    ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # override any of these simulated fields
-    mask_kwargs = nothing,
+    ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # can override any of these simulated fields
     L = LenseFlow,
     ∂mode = fourier∂
     )
@@ -82,7 +101,7 @@ function load_sim_dataset(;
     # the biggest ℓ on the 2D fourier grid
     ℓmax = round(Int,ceil(√2*FFTgrid(Flat(θpix=θpix,Nside=Nside),T).nyq))
     
-    # noise Cℓs
+    # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
     if (Cℓn == nothing)
         Cℓn = noiseCℓs(μKarcminT=μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
     end
@@ -114,18 +133,16 @@ function load_sim_dataset(;
     Cϕ = ParamDependentOp((mem; Aϕ=1  )->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
     
     # data mask
-    if (M == nothing) && (mask_kwargs != nothing)
-        M = LowPass(ℓmax_data) * Diagonal(F{Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; mask_kwargs...)),nF)...))
-    elseif (M == nothing)
-        M = LowPass(ℓmax_data)
+    if (M == nothing)
+        M = Cℓ_to_Cov(Pix_data, T, SS..., ((k==:TE ? 0 : 1) * data_bandpass_mask.diag.Wℓ for k=ks)...)
+        if (data_pixel_mask_kwargs != nothing)
+            M = M * Diagonal(F{Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; data_pixel_mask_kwargs...)),nF)...))
+        end
     end
     
     # beam
     if (B == nothing)
         B = Cℓ_to_Cov(Pix, T, SS..., ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
-    end
-    if (B̂ == nothing)
-        B̂ = B
     end
     
     # mixing matrices
@@ -146,7 +163,7 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, B̂, D, G, P)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, D, G, P)...)
    
     return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ)
     
