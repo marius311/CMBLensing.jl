@@ -64,7 +64,7 @@ estimator that looks like:
     (CE * (CẼ+Cn) \ d.E)) * l[i] * l̂[j] * l̂[k]
     
 (where note that `l̂[j]` and `l̂[k]` are unit vectors, but `l[i]` is not).  The
-function `get_term_memoizer` returns function `term` which could be called in
+function `get_term_memoizer` returns a function `term` which could be called in
 the following way to compute this term:
 
     term((CE * (CẼ+Cn) \ d.E)), [i], j, k)

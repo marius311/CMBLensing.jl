@@ -26,6 +26,7 @@ end
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
 
+getindex(D::DiagOp, s::Symbol) = Diagonal(getindex(D.diag,s))
 
 
 ### Derivative ops
