@@ -29,8 +29,12 @@ LenseBasis(::Type{<:FlatS0}) = Map
 LenseBasis(::Type{<:FlatS2}) = QUMap
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
+DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})     =   Map
+DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})     = QUMap
 
 ### derivatives
+
+## Fourier-space
 broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{1,<:Any,prefactor}) where {P,T,prefactor} = 
     @. prefactor * im * $FFTgrid(P,T).k'
 broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,prefactor} = 
@@ -38,56 +42,47 @@ broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {N
 broadcastable(::Type{<:FlatFourier{P,T}}, ::∇²diag) where {N,P<:Flat{N},T} =
     @. $FFTgrid(P,T).k'^2 + $FFTgrid(P,T).k[1:N÷2+1]^2
 
-# end
-# mul!( f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i * f
-# ldiv!(f′::F, ∇i::Union{∇i,AdjOp{<:∇i}}, f::F) where {T,θ,N,F<:FlatFourier{T,<:Flat{θ,N,<:fourier∂}}} = @. f′ = ∇i \ f
-# 
-# # map space derivatives
-# DerivBasis(::Type{<:FlatS0{T,Flat{θ,N,map∂}}}) where {T,θ,N} = Map
-# DerivBasis(::Type{<:FlatS2{T,Flat{θ,N,map∂}}}) where {T,θ,N} = QUMap
-# function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS0Map{T,<:Flat{θ,N,<:map∂}}}
-#     n,m = size(f.Tx)
-#     Δx = FFTgrid(f).Δx #* (∇ isa AdjOp ? -1 : 1) why doesn't this need to be here???
-#     if coord==0
-#         @inbounds for j=2:m-1
-#             @simd for i=1:n
-#                 f′.Tx[i,j] = (f.Tx[i,j+1] - f.Tx[i,j-1])/2Δx
-#             end
-#         end
-#         @inbounds for i=1:n
-#             f′.Tx[i,1] = (f.Tx[i,2]-f.Tx[i,end])/2Δx
-#             f′.Tx[i,end] = (f.Tx[i,1]-f.Tx[i,end-1])/2Δx
-#         end
-#     elseif coord==1
-#         @inbounds for j=1:n
-#             @simd for i=2:m-1
-#                 f′.Tx[i,j] = (f.Tx[i+1,j] - f.Tx[i-1,j])/2Δx
-#             end
-#             f′.Tx[1,j] = (f.Tx[2,j]-f.Tx[end,j])/2Δx
-#             f′.Tx[end,j] = (f.Tx[1,j]-f.Tx[end-1,j])/2Δx
-#         end
-#     end
-#     f′
-# end
-# function mul!(f′::F, ∇::Union{∇i{coord},AdjOp{<:∇i{coord}}}, f::F) where {coord,T,θ,N,F<:FlatS2Map{T,<:Flat{θ,N,<:map∂}}}
-#     mul!(f′.Q, ∇, f.Q)
-#     mul!(f′.U, ∇, f.U)
-#     f′
-# end
-# 
-# 
-# bandpass
+## Map-space
+function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,F<:FlatMap{Flat{N,θ,map∂},T}}
+    f = bc.args[2]
+    n,m = size(f.Ix)
+    α = 2 * prefactor * FFTgrid(f).Δx
+    if coord==1
+        @inbounds for j=2:m-1
+            @simd for i=1:n
+                f′.Ix[i,j] = (f.Ix[i,j+1] - f.Ix[i,j-1])/α
+            end
+        end
+        @inbounds for i=1:n
+            f′.Ix[i,1] = (f.Ix[i,2]-f.Ix[i,end])/α
+            f′.Ix[i,end] = (f.Ix[i,1]-f.Ix[i,end-1])/α
+        end
+    elseif coord==2
+        @inbounds for j=1:n
+            @simd for i=2:m-1
+                f′.Ix[i,j] = (f.Ix[i+1,j] - f.Ix[i-1,j])/α
+            end
+            f′.Ix[1,j] = (f.Ix[2,j]-f.Ix[end,j])/α
+            f′.Ix[end,j] = (f.Ix[1,j]-f.Ix[end-1,j])/α
+        end
+    end
+    f′
+end
+
+
+
+### bandpass
 HarmonicBasis(::Type{<:FlatS0}) = Fourier
 HarmonicBasis(::Type{<:FlatQU}) = QUFourier
 HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to_2D(P,T,bp.Wℓ)
     
 
-# logdets
+### logdets
 logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum(nan2zero∘log, unfold(L.diag.Il)))
 logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum(nan2zero∘log, complex(L.diag.Tx)))
 logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum(nan2zero∘log, unfold(L.diag.El)) + sum(nan2zero∘log, unfold(L.diag.Bl)))
-# traces
+### traces
 tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum(unfold(L.diag.Il)))
 tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum(complex(L.diag.Tx)))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum(unfold(L.diag.El)) + sum(unfold(L.diag.Bl)))

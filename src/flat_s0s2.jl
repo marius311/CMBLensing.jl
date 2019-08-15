@@ -31,10 +31,7 @@ function getindex(f::FlatS02, k::Symbol)
     end
 end
 
-
-# # any of the 8 possible (S0,S2) fields
-# const FlatS02{T,P} = FieldTuple{<:Tuple{FlatS0{T,P},FlatS2{T,P}}}
-# 
+#
 # # a block TEB diagonal operator
 # struct FlatTEBCov{T,P} <: LinOp{BasisTuple{Tuple{Fourier,EBFourier}},SpinTuple{Tuple{S0,S2}},P}
 #     ΣTE :: SMatrix{2,2,Diagonal{T},4}
@@ -69,10 +66,6 @@ end
 # function Diagonal(L::FlatTEBCov{T,P}) where {T,N,P<:Flat{<:Any,N}}
 #     FullDiagOp(FlatTEBFourier{T,P}(reshape.(diag.([L.ΣTE[1,1], L.ΣTE[2,2]]),[(N÷2+1,N)])..., L.ΣB))
 # end
-# 
-# # broadcasting
-# broadcast_data(::Type{<:FlatTEBCov}, Σ::FlatTEBCov) = (Σ.ΣTE, Σ.ΣB)
-# metadata(::Type{<:FlatTEBCov}, Σ::FlatTEBCov) = (Σ.unsafe_invert,)
 # 
 # 
 # # multiplication by a Diag{TEB}

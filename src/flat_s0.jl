@@ -82,32 +82,6 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     InterpolatedCℓs(bandcenters ./ counts,  power ./ counts ./ α)
 end
 
-# zero(::Type{<:FlatS0{T,P}}) where {T,P} = FlatMap{T,P}(zeros(Nside(P),Nside(P)))
-# one(::Type{<:FlatMap{T,P}}) where {T,P} = FlatMap{T,P}(ones(Nside(P),Nside(P)))
-# one(::Type{<:FlatFourier{T,P}}) where {T,P} = FlatFourier{T,P}(ones(Complex{T},Nside(P)÷2+1,Nside(P)))
-# 
-# # dot products
-# dot(a::FlatMap{T,P}, b::FlatMap{T,P}) where {T,P} = dot(a.Ix,b.Ix) * FFTgrid(P,T).Δx^2
-# dot(a::FlatFourier{T,P}, b::FlatFourier{T,P}) where {T,P} = begin
-#     @unpack nside,Δℓ = FFTgrid(P,T)
-#     if isodd(nside)
-#         @views real(2 * (a.Tl[2:end,:][:] ⋅ b.Tl[2:end,:][:]) + (a.Tl[1,:][:] ⋅ b.Tl[1,:][:])) * Δℓ^2
-#     else
-#         @views real(2 * (a.Tl[2:end-1,:][:] ⋅ b.Tl[2:end-1,:][:]) + (a.Tl[[1,end],:][:] ⋅ b.Tl[[1,end],:][:])) * Δℓ^2
-#     end
-# end
-# 
-# 
-# 
-# # vector conversion
-# length(::Type{<:FlatS0{T,P}}) where {T,P} = Nside(P)^2
-# getindex(f::FlatMap,::Colon) = f.Ix[:]
-# getindex(f::FlatFourier,::Colon) = rfft2vec(f.Tl)
-# fromvec(::Type{FlatMap{T,P}},     vec::AbstractVector) where {T,P} = FlatMap{T,P}(reshape(vec,(Nside(P),Nside(P))))
-# fromvec(::Type{FlatFourier{T,P}}, vec::AbstractVector) where {T,P} = FlatFourier{T,P}(vec2rfft(vec))
-# 
-# 
-# 
 """
     ud_grade(f::Field, θnew, mode=:map, deconv_pixwin=true, anti_aliasing=true)
 

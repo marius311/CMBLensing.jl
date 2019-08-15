@@ -36,18 +36,14 @@ LenseFlow(ϕ,n=7) = LenseFlow{RK4Solver{n}}(ϕ)
 LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),typeof(ϕ)}(ϕ)
 
-# zero(L::LenseFlow) = zero(L.ϕ)
-# zero(L::CachedLenseFlow) = zero(L.memŁϕ)
-
 
 ### printing
 show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:LenseFlow{I,t₀,t₁,Φ}} = print(io, "$(L.name.name){$t₀→$t₁, $I}(ϕ::$Φ)")
 show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(RK4Solver{N})}(ϕ::$Φ, Łf::$ŁF)")
 string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
 
-
 # todo, remove this `→` crap, maybe
-@∷ _getindex(L::LenseFlow{I,∷,∷,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
+_getindex(L::LenseFlow{I,<:Any,<:Any,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 
 # Define integrations for L*f, L'*f, L\f, and L'\f
 *(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  odesolve(I, (v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))

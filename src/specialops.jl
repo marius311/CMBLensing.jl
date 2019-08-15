@@ -44,7 +44,15 @@ getindex(D::DiagOp, s::Symbol) = Diagonal(getindex(D.diag,s))
 # basis conversion. ∇ (along with ∇ⁱ, and ∇ᵢ) are StaticVectors which can also
 # be used with FieldVector algebra, e.g. ∇*f. 
 # 
-# Note: We define the components of vectors, including ∇, to be with respect to
+# Note: we are cheating a bit, because while ∇ is diagonal when a derivative is
+# taken in Fourier space via FFT's, its tri-diagonal if taking a map-space
+# derivative, so conceptually these should not be wrapped in a Diagonal. Its a
+# bit ugly and I'd like to fix it, but since the auto-basis conversion mechanism
+# is based on Diagonal, keep things this way for now. Individual field types
+# just need to intercept the broadcast machinery at copyto! to implement the
+# map-space derivative, e.g. see: flat_generic.jl.
+# 
+# Also note: We define the components of vectors, including ∇, to be with respect to
 # the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
 # and ∇ᵢ = d/dxⁱ. This is different than with respect to the _normalized)
 # covariant basis vectors, which, e.g., in spherical coordinates, gives the more

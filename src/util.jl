@@ -10,13 +10,6 @@ Return the type's fields as a tuple
 @generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
 firstfield(x) = first(fieldvalues(x))
 
-"""
-Replaces every occurence of ∷ with `<:Any`
-"""
-macro ∷(ex)
-    esc(postwalk(x->(x==:(∷) ? :(<:Any) : x),ex))
-end
-
 
 
 """
