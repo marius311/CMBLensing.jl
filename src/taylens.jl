@@ -17,14 +17,14 @@ end
 
 
 
-function Taylens(ϕ::FlatS0{T,P},N) where {T,P}
+function Taylens(ϕ::FlatS0{P,T}, N) where {P,T}
 
-    g = FFTgrid(T,P)
-    Nside = g.nside
+    g = FFTgrid(P,T)
+    Nside = g.Nside
     
     # total displacement
     d = ∇*ϕ
-    dx, dy = d[1][:Tx], d[2][:Tx]
+    dx, dy = d[1][:Ix], d[2][:Ix]
 
     # nearest pixel displacement
     indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
@@ -47,20 +47,24 @@ function Taylens(ϕ::FlatS0{T,P},N) where {T,P}
 end
 
 # our implementation of Taylens
-function *(L::Taylens{N}, f::FlatS0Map{T,P}) where {N,T,P}
+function *(L::Taylens{N}, f::FlatS0{P,T}) where {N,P,T}
 
     intlense(fx) = getindex.(Ref(fx), L.j, L.i)
-    fl = f[:Tl]
+    fl = f[:Il]
 
     # lens to the nearest whole pixel
-    Lfx = intlense(f.Tx)
+    Lfx = intlense(f[:Ix])
 
     # add in Taylor series correction
     for n in 1:N, α₁ in 0:n
-        Lfx .+= L.xα[n,α₁] .* intlense(ℱ{P} \ (L.kα[n,α₁] .* fl))
+        Lfx .+= L.xα[n,α₁] .* intlense(FFTgrid(P,T).FFT \ (L.kα[n,α₁] .* fl))
     end
 
-    FlatS0Map{T,P}(Lfx)
+    FlatMap{P}(Lfx)
 end
-*(L::Taylens, f::F) where {T,P,F<:FlatS2QUMap{T,P}} = F((L*FlatS0Map{T,P}(f.Qx))[:Tx], (L*FlatS0Map{T,P}(f.Ux))[:Tx])
-*(L::Taylens, f::FlatField) = L*Ł(f)
+
+function *(L::Taylens, f::FieldTuple)
+    Łf = Ł(f)
+    F = typeof(Łf)
+    F(map(f->L*f, f.fs))
+end

@@ -109,7 +109,7 @@ function load_sim_dataset(;
     # some things which depend on whether we chose :T, :P, or :TP
     use = Symbol(use)
     SS,ks,F,F̂,nF = @match Symbol(use) begin
-        :T  => ((S0,),   (:TT,),            FlatMap,    FlatFourier,    1)
+        :I  => ((S0,),   (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => ((S2,),   (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
         :TP => ((S0,S2), (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
     end

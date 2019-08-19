@@ -18,6 +18,7 @@ FlatFourier{P}(Il::AbstractMatrix{<:Real}) where {P} = FlatFourier{P}(complex(Il
 
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
+lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
 size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
 size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)

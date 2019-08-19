@@ -115,7 +115,7 @@ end
 animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
 function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
-    fig, axs, which = plot(first.(fields); kwargs...)
+    fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
     if (annonate!=nothing); annonate(fig,axs,which); end
@@ -125,7 +125,7 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
             for (f,ax,k) in tuple.(fields,axs,which)
                 if length(f)>1
                     img = ax.images[1]
-                    img.set_data(sum(x*getproperty(f[mod1(i-j+1,length(f))],k) for (j,x) in enumerate(motionblur)) / sum(motionblur))
+                    img.set_data(sum(x*getindex(f[mod1(i-j+1,length(f))],k) for (j,x) in enumerate(motionblur)) / sum(motionblur))
                 end
             end
             first.(getproperty.(axs,:images))[:]

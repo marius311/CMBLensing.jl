@@ -95,9 +95,10 @@ show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,pa
 show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
 # all CMBLensing operators are then either Diagonals or ImplicitOps
-const DiagOp{F<:Field, T} = Diagonal{T,F} 
+# ImplicitOrAdjOp are things for which algebra is done lazily, including Diagonal{<:ImplicitField}
+const DiagOp{F<:Field,T} = Diagonal{T,F}
 const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
-const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}}
+const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}, DiagOp{<:ImplicitField{B,S,P}}}
 const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
 ### Scalars

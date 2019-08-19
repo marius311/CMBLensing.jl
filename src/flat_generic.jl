@@ -50,20 +50,20 @@ function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{co
     if coord==1
         @inbounds for j=2:m-1
             @simd for i=1:n
-                f′.Ix[i,j] = (f.Ix[i,j+1] - f.Ix[i,j-1])/α
+                f′[i,j] = (f[i,j+1] - f[i,j-1])/α
             end
         end
         @inbounds for i=1:n
-            f′.Ix[i,1] = (f.Ix[i,2]-f.Ix[i,end])/α
-            f′.Ix[i,end] = (f.Ix[i,1]-f.Ix[i,end-1])/α
+            f′[i,1] = (f[i,2]-f[i,end])/α
+            f′[i,end] = (f[i,1]-f[i,end-1])/α
         end
     elseif coord==2
         @inbounds for j=1:n
             @simd for i=2:m-1
-                f′.Ix[i,j] = (f.Ix[i+1,j] - f.Ix[i-1,j])/α
+                f′[i,j] = (f[i+1,j] - f[i-1,j])/α
             end
-            f′.Ix[1,j] = (f.Ix[2,j]-f.Ix[end,j])/α
-            f′.Ix[end,j] = (f.Ix[1,j]-f.Ix[end-1,j])/α
+            f′[1,j] = (f[2,j]-f[end,j])/α
+            f′[end,j] = (f[1,j]-f[end-1,j])/α
         end
     end
     f′

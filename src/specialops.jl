@@ -64,8 +64,8 @@ struct ∇²diag <: ImplicitField{DerivBasis,Spin,Pix} end
 
 # adjoint(D::Diagonal{<:∇diag}) calls conj(D.diag) and here lazily we keep track
 # of that a conjugate was taken
-conj(∇c::∇diag) = -∇c
--(::∇diag{coord,covariance,prefactor}) where {coord,covariance,prefactor} = ∇diag{coord,covariance,-prefactor}()
+conj(::∇diag{coord,covariance,prefactor}) where {coord,covariance,prefactor} = ∇diag{coord,covariance,-prefactor}()
+-(::DiagOp{∇diag{coord,covariance,prefactor}}) where {coord,covariance,prefactor} = Diagonal(∇diag{coord,covariance,-prefactor}())
 
 # Gradient vector which can be used with FieldVector algebra. 
 struct ∇Op{covariance,prefactor} <: StaticVector{2,Diagonal{Float32,∇diag{<:Any,covariance,prefactor}}} end 
@@ -220,6 +220,7 @@ end
 /(op::ImplicitOrAdjOp, n::Real) = LazyBinaryOp(/,op,n)
 literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{-1}) = inv(op)
 literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
+^(op::ImplicitOrAdjOp, n::Int) = LazyBinaryOp(^,op,n)
 inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
 -(op::ImplicitOrAdjOp) = -1 * op
 # evaluating LazyBinaryOps

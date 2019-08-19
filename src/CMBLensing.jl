@@ -45,8 +45,8 @@ using Strided
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv,
-    iterate, keys, length, literal_pow, materialize!, materialize, one,
-    print_array, promote, promote_rule, promote_rule, promote_type,
+    iterate, keys, lastindex, length, literal_pow, materialize!, materialize,
+    one, print_array, promote, promote_rule, promote_rule, promote_type,
     propertynames, real, setindex!, show, show_datatype, show_vector, similar,
     size, sqrt, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
@@ -57,7 +57,7 @@ import PyPlot: loglog, plot, semilogx, semilogy
 
 
 export
-    @animate, @repeated, @unpack, @namedtuple, azeqproj, BandPassOp, cache,
+    @namedtuple, @repeated, @unpack, animate, azeqproj, BandPassOp, cache,
     CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet,
     DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid, Field,
     FieldArray, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
@@ -89,10 +89,8 @@ include("specialops.jl")
 
 # lensing
 include("lensing.jl")
-include("powerlens.jl")
 include("lenseflow.jl")
-# include("healpix.jl")
-# include("taylens.jl")
+include("powerlens.jl")
 
 # flat-sky maps
 include("flat_fftgrid.jl")
@@ -101,7 +99,9 @@ include("flat_s2.jl")
 include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
+include("taylens.jl")
 
+# plotting
 include("plotting.jl")
 
 # sampling and maximizing the posteriors
@@ -111,5 +111,8 @@ include("sampling.jl")
 
 # other estimates
 include("quadratic_estimate.jl")
+
+# curved-sky (not yet upgraded to new system)
+# include("healpix.jl")
 
 end
