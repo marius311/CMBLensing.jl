@@ -35,11 +35,16 @@ DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})     = QUMap
 ### derivatives
 
 ## Fourier-space
-broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{1,<:Any,prefactor}) where {P,T,prefactor} = 
+# the use of @generated here is for memoization so that we don't have do the
+# `prefactor * im * ...` each time. actually, since for the first two cases
+# these are only 1-d arrays, that's a completely unnecessary optimization, but
+# without the @generated it triggers an order-dependenant compilation bug which
+# e.g. slows down LenseFlow by a factor of ~4 so we gotta keep it for now ¯\_(ツ)_/¯
+@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{1,<:Any,prefactor}) where {P,T,prefactor} = 
     @. prefactor * im * $FFTgrid(P,T).k'
-broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,prefactor} = 
+@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,prefactor} = 
     @. prefactor * im * $FFTgrid(P,T).k[1:N÷2+1]
-broadcastable(::Type{<:FlatFourier{P,T}}, ::∇²diag) where {N,P<:Flat{N},T} =
+@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇²diag) where {N,P<:Flat{N},T} =
     @. $FFTgrid(P,T).k'^2 + $FFTgrid(P,T).k[1:N÷2+1]^2
 
 ## Map-space
