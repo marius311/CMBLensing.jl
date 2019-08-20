@@ -226,25 +226,26 @@ end
     L = LenseFlow{RK4Solver{7}}
     T = Float64
     
-    for use in (:T,:P)
+    for use in (:I,:P)
         
         @testset "use = $use" begin
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(
+                seed = 0,
                 Cℓ = Cℓ,
                 θpix  = 3,
                 Nside = 128,
                 T     = T,
                 beamFWHM = 3,
-                use   = :P,
+                use   = use,
                 L     = L,
-                mask_kwargs = (paddeg=2,)
+                data_pixel_mask_kwargs = (paddeg=2,)
                 );
             @unpack Cf,Cϕ,D = ds₀
             f° = L(ϕ)*D*f
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,f̃,ϕ,ds)                         rtol=1e-4
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, LenseFlow(ϕ)*ds.D*f, ϕ, ds) rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ ,ds) rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
 
             ε = sqrt(eps(T))
             δf,δϕ = simulate(Cf),simulate(Cϕ)
