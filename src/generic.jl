@@ -160,6 +160,7 @@ hcat(values::Field...) = hcat(([x] for x in values)...)
 ### printing
 print_array(io::IO, f::Field) = print_array(io, f[:])
 show_vector(io::IO, f::Field) = show_vector(io, f[:])
+show_vector(io::IO, f::ImplicitField) = print(io, "[…]")
 
 
 # addition/subtraction works between any fields and scalars, promotion is done

@@ -1,11 +1,13 @@
 
 # length-2 StaticVectors or 2x2 StaticMatrices of Fields or LinOps are what we
 # consider "Field or Op" arrays, for which we define some special behavior
+# note: these are non-concrete types to accomodate ∇ which is a custom
+# StaticVector rather than an SVector (this doesn't hurt performance anywhere)
 const FieldOrOpVector{F<:FieldOrOp}    = StaticVector{2,F}
 const FieldOrOpMatrix{F<:FieldOrOp}    = StaticMatrix{2,2,F}
 const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Any,<:FieldOrOpVector{F}}
 const FieldOrOpArray{F<:FieldOrOp}     = Union{FieldOrOpVector{F}, FieldOrOpMatrix{F}, FieldOrOpRowVector{F}}
-# or just Fields: 
+# or just Fields (in this case, they are concrete)
 const FieldVector{F<:Field}    = SVector{2,F}
 const FieldMatrix{F<:Field}    = SMatrix{2,2,F,4}
 const FieldRowVector{F<:Field} = FieldOrOpRowVector{F}

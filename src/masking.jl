@@ -31,14 +31,14 @@ weights the noisy edges of the maps." Story et al. 2015
 Note: some of the above numbers are very slightly tweaked.
 
 """
-function sptlike_mask(nside, θpix; apod=false, nsources=round(Int,((nside*θpix)/60)^2 * 120/100), paddeg=3, srcrad=7)
+function sptlike_mask(nside, θpix; apod=false, roundedges=30, nsources=round(Int,((nside*θpix)/60)^2 * 120/100), paddeg=3, srcrad=7)
     ptsrc = .!bleed(sim_ptsrcs(nside,nsources),srcrad/θpix)
     boundary = boundarymask(nside, θpix, paddeg)
     if apod==false
         boundary .& ptsrc
     else
         apod==true && (apod=90)
-        cos_apod(boundary,apod/θpix,15/θpix) .* cos_apod(ptsrc,7/θpix);
+        cos_apod(boundary,apod/θpix,roundedges/θpix) .* cos_apod(ptsrc,7/θpix);
     end
 end
 
