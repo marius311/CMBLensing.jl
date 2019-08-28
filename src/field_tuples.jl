@@ -67,8 +67,13 @@ function promote(ft1::FieldTuple, ft2::FieldTuple)
 end
 
 ### conversion
+# Note, we use B<:BasisTuple to capture BasisTuples, and B<:Basis to capture
+# concrete bases like Map or QUFourier.  We have to be a bit careful/wordy with
+# all the cases to make sure things dispatch to right method
+# 
 # no conversion needed
-(::Type{B})(f::F)  where {B<:Basis,     F<:FieldTuple{B}} = f
+(::Type{B})(f::F)  where {B<:Basis,      F<:FieldTuple{B}} = f
+(::Type{B})(f::F)  where {B<:BasisTuple, F<:FieldTuple{B}} = f
 # FieldTuple is in BasisTuple
 (::Type{B′})(f::F) where {BS′,B′<:BasisTuple{BS′},B<:BasisTuple,F<:FieldTuple{B,<:Tuple}} = 
     FieldTuple(map((B,f)->B(f), tuple(BS′.parameters...), f.fs))

@@ -63,7 +63,7 @@ export
     FieldArray, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
     FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
     FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
-    FlatFourier, FlatIQUMap, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
+    FlatFourier, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
     FlatQUMap, FlatS0, FlatS2, FlatS2Fourier, FlatS2Map, FlatTEBFourier,
     Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ,
     get_ρℓ, get_ℓ⁴Cℓ, gradhess, GradientCache, HealpixCap, HealpixS0Cap,
