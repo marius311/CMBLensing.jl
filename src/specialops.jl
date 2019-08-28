@@ -236,5 +236,6 @@ struct OuterProdOp{TM<:LinOp} <: ImplicitOp{Basis,Spin,Pix}
 end
 simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = L.M * white_noise(F)
 simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = L.M.a * sqrt(L.M.b) * simulate(L.M.b)
+pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = OuterProdOp(pinv(L.M.a)' * pinv(L.M.b)')
 *(L::OuterProdOp, f::Field) = L.M * (L.M' * f)
 \(L::OuterProdOp, f::Field) = L.M' \ (L.M \ f)
