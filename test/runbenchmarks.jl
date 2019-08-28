@@ -1,3 +1,7 @@
+using CMBLensing
+
+##
+
 using Test
 using BenchmarkTools: @belapsed, @btime
 
@@ -42,6 +46,8 @@ end
 
 @testset "Lensing" begin
     
+local f, ϕ, Lϕ, Cℓ
+
 Cℓ = camb().unlensed_total
 
 # spin 0

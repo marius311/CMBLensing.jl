@@ -1,6 +1,6 @@
 
 # Stores variables needed to construct the likelihood
-@kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TM,TM̂,TB,TB̂,TD,TG,TP}
+@kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TM,TM̂,TB,TB̂,TD,TG,TP,TL}
     d  :: Td                # data
     Cϕ :: TCϕ               # ϕ covariance
     Cf :: TCf               # unlensed field covariance
@@ -13,7 +13,8 @@
     B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
     G  :: TG  = IdentityOp  # reparametrization for ϕ
-    P  :: TP  = 1           # pixelization operator to estimate field on higher res than data
+    P  :: TP  = 1           # pixelization operator (if estimating field on higher res than data)
+    L  :: TL  = LenseFlow   # the type of lensing operator to use
 end
 
 function subblock(ds::DataSet, block)
@@ -46,7 +47,7 @@ end
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulated if not provided)
 """
-function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=LenseFlow(ϕ)*f)
+function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=ds.L(ϕ)*f)
     @unpack M,P,B = ds
     @set ds.d = M*P*B*f̃ + n
 end
@@ -82,8 +83,8 @@ function load_sim_dataset(;
     B = nothing,
     
     # mask parameters, or set M directly
-    data_pixel_mask_kwargs = nothing,
-    data_bandpass_mask = LowPass(3000),
+    pixel_mask_kwargs = nothing,
+    bandpass_mask = LowPass(3000),
     M = nothing,
     
     # theory
@@ -134,9 +135,9 @@ function load_sim_dataset(;
     
     # data mask
     if (M == nothing)
-        M = Cℓ_to_Cov(Pix_data, T, SS..., ((k==:TE ? 0 : 1) * data_bandpass_mask.diag.Wℓ for k=ks)...)
-        if (data_pixel_mask_kwargs != nothing)
-            M = M * Diagonal(F{Pix_data}(repeated(T.(sptlike_mask(Nside÷(θpix_data÷θpix),θpix_data; data_pixel_mask_kwargs...)),nF)...))
+        M̂ = M = Cℓ_to_Cov(Pix_data, T, SS..., ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k=ks)...)
+        if (pixel_mask_kwargs != nothing)
+            M = M * Diagonal(F{Pix_data}(repeated(T.(mask_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
     end
     
@@ -163,9 +164,9 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, B, D, G, P)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, D, G, P, L)...)
    
-    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ)
+    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L)
     
 end
 

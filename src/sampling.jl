@@ -201,7 +201,7 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        f° = Lϕ * dsθ.D * lensing_wiener_filter(dsθ, Lϕ, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f° = Lϕ * dsθ.D * argmaxf_lnP(dsθ, Lϕ, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====

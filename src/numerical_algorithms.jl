@@ -69,7 +69,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
     _hist = [gethist()]
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
-    for i = 2:nsteps
+    for outer i = 2:nsteps
         Ap   = A * p
         α    = res / dot(p,Ap)
         x    = x + α * p

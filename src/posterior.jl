@@ -1,35 +1,8 @@
 
 
-# 
-# This file contains function which compute things dealing with the posterior
-# probability of f and ϕ given data, d. 
-# 
-# By definition, we take as our data model
-# 
-#     `d = P * M * B * L * f + n`
-#
-# where M, B, and L are the mask, beam/instrumental transfer functions, and
-# lensing operators, and P is a pixelization operator. Since we track P, 
-# it means we can estimate the fields on a higher resolution than the data. 
-# Note also that this form means that the noise n is defined as being
-# unbeamed, and also is unmasked. If we're using simulated data, its easy to not
-# mask the noise. For runs with real data, the noise outside the mask should be
-# filled in with a realization of the noise. 
-#
-# Under this data model, the posterior probability is, 
-# 
-#     `-2 ln P(f,ϕ|d) = (d - P*M*B*L*f̃)ᴴ*Cn⁻¹*(d - P*M*B*L*f̃) + fᴴ*Cf⁻¹*f + ϕᴴ*Cϕ⁻¹*ϕ`
-#
-# The various covariances and M, B, and d are stored in a `DataSet` structure. 
-#
-# Below are also functions to compute derivatives of this likelihood, as well as
-# a Wiener filter of the data (since that's `argmax_f P(f|ϕ,d)`).
-
-
-
 @doc doc"""
-    lnP(t, fₜ, ϕₜ,                ds::DataSet, L=LenseFlow)
-    lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L=LenseFlow)
+    lnP(t, fₜ, ϕₜ,                ds::DataSet, Lϕ=nothing)
+    lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, Lϕ=nothing)
 
 Compute the log posterior probability in the joint parameterization as a
 function of the field, $f_t$, the lensing potential, $\phi_t$, and possibly some
@@ -40,23 +13,19 @@ In all cases, the arguments `fₜ` and `ϕₜ` should then be $f$ and $\phi$ in
 that particular parametrization.
 
 If any parameters $\theta$ are passed, we also include the three determinant
-terms to properly normalize the posterior,
+terms to properly normalize the posterior.
 
-```math
-+ \log\det\mathcal{C}_n(\theta) + \log\det\mathcal{C}_f(\theta) + \log\det\mathcal{C}_ϕ(\theta)
-```
-
-The argument `ds` should be a `DataSet` and stores the masks, data, mixing
-matrix, and covariances needed. `L` can be a type of lensing like `PowerLens` or
-`LenseFlow`, or an already constructed `LenseOp`.
+The argument `ds` should be a `DataSet` and stores the masks, data, etc...
+needed to construct the posterior. If `Lϕ` is provided, it will be used as
+memory to recache the lensing operator at the specified ϕ.
 """
-lnP(t, fₜ, ϕₜ,                ds::DataSet, L=LenseFlow) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds, L)
-lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L=LenseFlow) = lnP(Val(t), fₜ, ϕₜ, θ,            ds, L)
+lnP(t, fₜ, ϕₜ,                ds::DataSet, Lϕ=nothing) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds, Lϕ)
+lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, Lϕ=nothing) = lnP(Val(t), fₜ, ϕₜ, θ,            ds, Lϕ)
 
-function lnP(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L) where {t}
+function lnP(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, Lϕ) where {t}
     dsθ = ds(;θ...)
     ϕ = (t==:mix) ? dsθ.G\ϕₜ : ϕₜ
-    Lϕ = (L isa LenseOp) ? cache!(L,ϕ) : cache(L(ϕ),fₜ)
+    Lϕ = (Lϕ == nothing) ? cache(ds.L(ϕ),fₜ) : cache!(Lϕ,ϕ)
     lnP(Val(t), fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ)
 end
 
@@ -108,21 +77,21 @@ end
 
 @doc doc"""
 
-    δlnP_δfϕₜ(t, fₜ, ϕ, ds, ::Type{L}=LenseFlow)
-    δlnP_δfϕₜ(t, fₜ, ϕ, ds, L::LenseOp)
+    δlnP_δfϕₜ(t, fₜ, ϕ,                ds, Lϕ=nothing)
+    δlnP_δfϕₜ(t, fₜ, ϕ, θ::NamedTuple, ds, Lϕ=nothing)
 
 Compute a gradient of the log posterior probability. See `lnP` for definition of
 arguments of this function. 
 
 The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 """
-δlnP_δfϕₜ(t, fₜ, ϕ,                ds, L=LenseFlow) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, NamedTuple(), ds, L)
-δlnP_δfϕₜ(t, fₜ, ϕ, θ::NamedTuple, ds, L=LenseFlow) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, θ,            ds, L)
+δlnP_δfϕₜ(t, fₜ, ϕ,                ds, Lϕ=nothing) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, NamedTuple(), ds, Lϕ)
+δlnP_δfϕₜ(t, fₜ, ϕ, θ::NamedTuple, ds, Lϕ=nothing) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, θ,            ds, Lϕ)
 
 function δlnP_δfϕₜ(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L) where {t}
     dsθ = ds(;θ...)
     ϕ = (t==:mix) ? dsθ.G\ϕₜ : ϕₜ
-    Lϕ = (L isa LenseOp) ? cache!(L,ϕ) : cache(L(ϕ),fₜ)
+    Lϕ = (Lϕ == nothing) ? cache(ds.L(ϕ),fₜ) : cache!(Lϕ,ϕ)
     δlnP_δfϕₜ(Val(t), fₜ, ϕₜ, ϕ, θ, ds, dsθ, Lϕ)
 end
 
@@ -188,51 +157,42 @@ end
 
 
 @doc doc"""
-    lensing_wiener_filter(ds::DataSet, L, which=:wf)
-
-Computes either, 
-* the Wiener filter at fixed $\phi$, i.e. the best-fit of
-$\mathcal{P}(f\,|\,\phi,d)$
-* a sample from $\mathcal{P}(f\,|\,\phi,d)$
-
-The data model assumed is, 
-
-```math
-d = \mathcal{M} \mathcal{B} \mathcal{L} \, f + n
-```
-
-Note that the noise is defined as un-debeamed and also unmasked (so it needs to
-be filled in outside the mask if using real data). The mask, $\mathcal{M}$, can
-be any composition of real and/or fourier space diagonal operators.
+    argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
+    argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
+    argmaxf_lnP(Lϕ::LenseOp,      ds::DataSet; kwargs...)
     
-The argument `ds::DataSet` stores the mask, $\mathcal{M}$, the beam/instrumental
-transfer functions, $\mathcal{B}$, as well as the various covariances which are
-needed.
+Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
+along the posterior.
 
-The `which` parameter controls which operation to do and can be one of three
-things:
+Keyword arguments: 
 
-* `:wf` - Compute the Wiener filter
-* `:sample` - Compute a sample from the posterior
-* `:fluctuation` - Compute a fluctuation around the mean (i.e. a sample minus the Wiener filter)
+* which : `:wf`, `:sample`, or `fluctuation` to compute 1) the Wiener filter,
+  i.e. the best-fit of $\mathcal{P}(f\,|\,\phi,d)$, 2) a sample from
+  $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
+  fluctuation on top of the mean.
+* guess : starting guess for `f` for the conjugate gradient solver
+* kwargs : all other arguments are passed to `conjugate_gradient`
 
 """
-function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwargs...) where F
+argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
+argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
+
+function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, kwargs...)
     
     check_hat_operators(ds)
-    @unpack d, Cn, Cn̂, Cf, M, B, P, B̂ = ds
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
     
     b = 0
     if (which in (:wf, :sample))
-        b += L'*B'*P'*M'*(Cn\d)
+        b += Lϕ'*B'*P'*M'*(Cn\d)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(Cf) + L'*B'*P'*M'*(Cn\simulate(Cn))
+        b += Cf\simulate(Cf) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn))
     end
     
     conjugate_gradient(
-        pinv(Cf) + B̂'*pinv(Cn̂)*B̂,
-        pinv(Cf) + L'*B'*P'*M'*pinv(Cn)*M*P*B*L,
+        pinv(Cf) + M̂'*B̂'*pinv(Cn̂)*B̂*M̂,
+        pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ,
         b,
         guess==nothing ? 0*b : guess;
         kwargs...
@@ -241,23 +201,21 @@ function lensing_wiener_filter(ds::DataSet{F}, L, which=:wf; guess=nothing, kwar
 end
 
 
-# todo: figure out if this and `lensing_wiener_filter` above are the same and
-# can be combined
 @doc doc"""
     Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
     Σ(L::LenseOp, ds) 
     
-Operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can applied
-and inverted.
+An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
+applied and inverted.
 """
-Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L} = Σ(L(ϕ),ds)
-Σ(L::LenseOp, ds) = begin
+Σ(ϕ, ds) = Σ(ds.L(ϕ),ds)
+Σ(Lϕ::LenseOp, ds) = begin
 
-    @unpack d,P,M,B,Cn,Cf,Cn̂, B̂ = ds
+    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
 
     SymmetricFuncOp(
-        op   = x -> (Cn + P*M*B*L*Cf*L'*B'*M'*P')*x,
-        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ B̂*Cf*B̂'), Σ(L, ds), x, nsteps=100, tol=1e-1)
+        op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
+        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ B̂*Cf*B̂'), Σ(Lϕ, ds), x, nsteps=100, tol=1e-1)
     )
 
 end
@@ -350,14 +308,14 @@ function MAP_joint(
                 
                 # if we're doing a fixed quasi_sample, set the random seed here,
                 # which controls the sample from the posterior we get from inside
-                # `lensing_wiener_filter`
+                # `argmaxf_lnP`
                 if isa(quasi_sample,Int); seed!(quasi_sample); end
                 
             # recache Lϕ for new ϕ
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = lensing_wiener_filter(ds, ((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), 
+            (f, hist) = argmaxf_lnP(ds, ((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), 
                     (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
                     guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))

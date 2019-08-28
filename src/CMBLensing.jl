@@ -68,14 +68,14 @@ export
     Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ,
     get_ρℓ, get_ℓ⁴Cℓ, gradhess, GradientCache, HealpixCap, HealpixS0Cap,
     HealpixS2Cap, HighPass, IdentityOp, InterpolatedCℓs, IsotropicHarmonicCov,
-    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, lensing_wiener_filter,
+    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, argmaxf_lnP,
     LinDiagOp, LinOp, lnP, load_healpix_sim_dataset, load_sim_dataset, LowPass,
-    Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero, noiseCℓs, OuterProdOp,
-    pack, ParamDependentOp, pixwin, plot, PowerLens, quadratic_estimate,
-    QUFourier, QUMap, resimulate, S0, S02, S2, sample_joint, shortname,
-    simulate, sptlike_mask, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴, ∇, ∇²,
-    ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    make_mask, Map, MAP_joint, MAP_marg, map∂, MidPass, nan2zero, noiseCℓs,
+    NoLensing, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
+    quadratic_estimate, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
+    sample_joint, shortname, simulate, symplectic_integrate, Taylens, toCℓ,
+    toDℓ, tuple_adjoint, ud_grade, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴,
+    ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
 # generic stuff
 include("util.jl")

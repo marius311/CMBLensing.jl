@@ -57,6 +57,8 @@ _getindex(L::LenseOp, ::→{t1,t2}) where {t1,t2} = error("Lensing from time $t1
 
 struct NoLensing <: LenseOp end
 NoLensing(ϕ) = NoLensing()
+cache(::NoLensing, ::Field) = NoLensing()
+cache!(::NoLensing, ::Field) = NoLensing()
 *(::NoLensing, f::Field) = f
 \(::NoLensing, f::Field) = f
 adjoint(L::NoLensing) = L

@@ -100,11 +100,12 @@ filters out frequencies above Nyquist prior to down-sampling.
 """
 function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,θ,N,∂mode,P<:Flat{N,θ,∂mode}}
     θnew==θ && return f
-    (isinteger(θnew//θ) || isinteger(θ//θnew)) || throw(ArgumentError("Can only ud_grade in integer steps"))
     (mode in [:map,:fourier]) || throw(ArgumentError("Available modes: [:map,:fourier]"))
 
     fac = θnew > θ ? θnew÷θ : θ÷θnew
-    Nnew = N * θ ÷ θnew
+    (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
+    fac = round(Int, fac)
+    Nnew = round(Int, N * θ ÷ θnew)
     Pnew = Flat{Nnew,θnew,∂mode}
 
     if deconv_pixwin
