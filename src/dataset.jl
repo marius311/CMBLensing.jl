@@ -59,7 +59,16 @@ end
 @doc doc"""
     load_sim_dataset
     
-Create a `DataSet` object with some simulated data. 
+Create a `DataSet` object with some simulated data. E.g.
+
+```julia
+@unpack f,ϕ,ds = load_sim_dataset(;
+    θpix  = 2,
+    Nside = 128,
+    use   = :I,
+    T     = Float32
+);
+```
 
 """
 function load_sim_dataset(;
@@ -107,12 +116,13 @@ function load_sim_dataset(;
         Cℓn = noiseCℓs(μKarcminT=μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax)
     end
     
-    # some things which depend on whether we chose :T, :P, or :TP
+    # some things which depend on whether we chose :I, :P, or :IP
     use = Symbol(use)
     SS,ks,F,F̂,nF = @match Symbol(use) begin
         :I  => ((S0,),   (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => ((S2,),   (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :TP => ((S0,S2), (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
+        :IP => ((S0,S2), (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
+        _   => throw(ArgumentError("`use` should be one of :I, :P, or :IP"))
     end
     
     # pixelization
@@ -137,7 +147,7 @@ function load_sim_dataset(;
     if (M == nothing)
         M̂ = M = Cℓ_to_Cov(Pix_data, T, SS..., ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k=ks)...)
         if (pixel_mask_kwargs != nothing)
-            M = M * Diagonal(F{Pix_data}(repeated(T.(mask_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
+            M = M * Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
     end
     
