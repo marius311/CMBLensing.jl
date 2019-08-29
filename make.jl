@@ -3,6 +3,9 @@ using CMBLensing
 
 ##
 
+# ensure in right directory
+cd(dirname(@__FILE__))
+
 # convert Jupyter notebooks to markdown and do some simple preprocessing before
 # feeding into Documenter.jl
 
@@ -98,6 +101,7 @@ makedocs(
         "02_posterior.md",
         "03_joint_MAP_example.md",
         "04_from_python.md",
+        "05_field_basics.md",
         "api.md"
     ],
     html_disable_git = true

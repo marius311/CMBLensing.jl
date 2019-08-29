@@ -1,5 +1,6 @@
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
 IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
