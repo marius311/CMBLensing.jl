@@ -68,20 +68,21 @@ end
 
 ### conversion
 # Note, we use B<:BasisTuple to capture BasisTuples, and B<:Basis to capture
-# concrete bases like Map or QUFourier.  We have to be a bit careful/wordy with
-# all the cases to make sure things dispatch to right method
+# concrete bases like Map or QUFourier.  We have to do a bit of dancing to get
+# dispatch right and avoid ambiguities.
 # 
 # no conversion needed
 (::Type{B})(f::F)  where {B<:Basis,      F<:FieldTuple{B}} = f
-(::Type{B})(f::F)  where {B<:BasisTuple, F<:FieldTuple{B}} = f
-# FieldTuple is in BasisTuple
-(::Type{B′})(f::F) where {BS′,B′<:BasisTuple{BS′},B<:BasisTuple,F<:FieldTuple{B,<:Tuple}} = 
-    FieldTuple(map((B,f)->B(f), tuple(BS′.parameters...), f.fs))
-(::Type{B′})(f::F) where {BS′,B′<:BasisTuple{BS′},B<:BasisTuple,Names,F<:FieldTuple{B,<:NamedTuple{Names}}} = 
-    FieldTuple(NamedTuple{Names}(map((B,f)->B(f), tuple(BS′.parameters...), values(f.fs))))
+(::Type{B})(f::F)  where {B<:BasisTuple, F<:FieldTuple{B,<:Tuple}} = f
+(::Type{B})(f::F)  where {B<:BasisTuple, Names,F<:FieldTuple{B,<:NamedTuple{Names}}} = f
+# cases where FieldTuple is in BasisTuple
+(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B,<:Tuple}} = 
+    FieldTuple(map((B,f)->B(f), tuple(B′.parameters[1].parameters...), f.fs))
+(::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,Names,F<:FieldTuple{B,<:NamedTuple{Names}}} = 
+    FieldTuple(NamedTuple{Names}(map((B,f)->B(f), tuple(B′.parameters[1].parameters...), values(f.fs))))
 (::Type{B′})(f::F) where {B′<:Basis,     B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 (::Type{B′})(f::F) where {B′<:Basislike, B<:BasisTuple,F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
-# FieldTuple is in a concrete basis
+# cases FieldTuple is in a concrete basis
 (::Type{B′})(f::F) where {B′<:Basis,     B<:Basis,     F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 (::Type{B′})(f::F) where {B′<:Basislike, B<:Basis,     F<:FieldTuple{B}} = B′(F)(f)
 
