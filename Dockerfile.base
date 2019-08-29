@@ -79,7 +79,7 @@ COPY --chown=1000 docs/src          $HOME/CMBLensing/docs/src
 # despite https://github.com/JuliaLang/IJulia.jl/pull/820, we need this for
 # PyJulia which launches a Julia (not IJulia) shell:
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN julia -e "using Pkg; Pkg.REPLMode.pkgstr(\"resolve; dev $HOME/CMBLensing; precompile\")"
+RUN julia -e "using Pkg; Pkg.REPLMode.pkgstr(\"dev $HOME/CMBLensing; precompile\")"
 WORKDIR $HOME/CMBLensing/docs/src
 
 
@@ -87,5 +87,4 @@ WORKDIR $HOME/CMBLensing/docs/src
 # container, but this makes it so Jupyter prints the accurate URL to connect to
 # on startup
 ENV PORT 8888
-# the pipe to sed can be removed once https://github.com/jupyter/notebook/pull/4103 hits a release
-CMD unbuffer jupyter lab --ip=0.0.0.0 --no-browser --port $PORT 2>&1 | sed -ue "s/(localhost or 127.0.0.1)/localhost/g"
+CMD jupyter lab --ip=0.0.0.0 --no-browser --port $PORT
