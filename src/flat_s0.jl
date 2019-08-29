@@ -36,7 +36,8 @@ BroadcastStyle(::ArrayStyle{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} 
 similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
-broadcastable(::Type{<:FlatS0{P}}, f::FlatS0{P}) where {P} = firstfield(f)
+broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
+broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = reshape(f, size_2d(F))
 broadcastable(::Any, x) = x
 
 ### basis conversion

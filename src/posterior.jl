@@ -88,7 +88,7 @@ The return type is a `FieldTuple` corresponding to the $(f_t,\phi)$ derivative.
 δlnP_δfϕₜ(t, fₜ, ϕ,                ds, Lϕ=nothing) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, NamedTuple(), ds, Lϕ)
 δlnP_δfϕₜ(t, fₜ, ϕ, θ::NamedTuple, ds, Lϕ=nothing) = δlnP_δfϕₜ(Val(t), fₜ, ϕ, θ,            ds, Lϕ)
 
-function δlnP_δfϕₜ(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, L) where {t}
+function δlnP_δfϕₜ(::Val{t}, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet, Lϕ) where {t}
     dsθ = ds(;θ...)
     ϕ = (t==:mix) ? dsθ.G\ϕₜ : ϕₜ
     Lϕ = (Lϕ == nothing) ? cache(ds.L(ϕ),fₜ) : cache!(Lϕ,ϕ)

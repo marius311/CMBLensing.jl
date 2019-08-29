@@ -36,6 +36,32 @@ using LinearAlgebra
 end
 ##
 
+@testset "FieldTuples" begin 
+
+    f = FlatMap(rand(4,4))
+
+    # constructors
+    @test FieldTuple(Q=f, U=f) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple((Q=f, U=f)) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple{QUMap}((Q=f, U=f)) isa FieldTuple{<:QUMap, <:NamedTuple{(:Q,:U)}}
+    @test FieldTuple{<:Any, <:NamedTuple{(:Q,:U)}}(f,f) isa FieldTuple
+
+    # basis conversions
+    for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
+        @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
+        @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+    end
+    f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
+    @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
+    @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
+    @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
+
+end
+
+##
+
 @testset "Algebra" begin
     
     fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
@@ -135,45 +161,30 @@ end
 
 ##
 
-@testset "FieldTuples" begin 
-
-    f = FlatMap(rand(4,4))
-
-    # constructors
-    @test FieldTuple(Q=f, U=f) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple((Q=f, U=f)) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple{QUMap}((Q=f, U=f)) isa FieldTuple{<:QUMap, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple{<:Any, <:NamedTuple{(:Q,:U)}}(f,f) isa FieldTuple
-
-    # basis conversions
-    for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
-        @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
-        @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-    end
-    f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
-    @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
-    @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
-    @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
-
-end
-
-##
-
-using Zygote
-
+using Zygote: gradient
 
 # make sure we can take type-stable gradients of scalar functions of our Fields
 # (like the posterior)
 @testset "Autodiff" begin
 
     f = FlatMap(rand(2,2))
+    D = Diagonal(f)
 
-    check_grad(f) = Zygote.gradient(x -> (y=(x .* f); y⋅y), 1)[1]
+    grad1(f) = gradient(function (θ)
+        g = θ * f
+        dot(g,g)
+    end, 1)[1]
+    
+    @test @inferred(grad1(f)) ≈ 2*norm(f,2)^2
 
-    @test (@inferred check_grad(f.Ix)) ≈ 2*norm(f,2)^2
-    @test (@inferred check_grad(f)) ≈ 2*norm(f,2)^2
+    
+    grad2(f,D) = gradient(function (θ)
+        g = (θ * D * f)
+        dot(g,g)
+    end, 1)[1]
+    
+    @test                  grad2(f,D)  ≈ 2*norm(f.^2,2)^2
+    @test_broken @inferred(grad2(f,D)) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred too
     
 end
 
@@ -231,15 +242,15 @@ end
         @testset "use = $use" begin
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(
-                seed = 0,
-                Cℓ = Cℓ,
+                seed  = 0,
+                Cℓ    = Cℓ,
                 θpix  = 3,
                 Nside = 128,
                 T     = T,
                 beamFWHM = 3,
                 use   = use,
                 L     = L,
-                data_pixel_mask_kwargs = (paddeg=2,)
+                pixel_mask_kwargs = (edge_padding_deg=2,)
                 );
             @unpack Cf,Cϕ,D = ds₀
             f° = L(ϕ)*D*f

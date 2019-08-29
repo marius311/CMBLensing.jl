@@ -41,7 +41,6 @@ using Statistics
 using StatsBase
 using Strided
 
-
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv,
@@ -114,5 +113,7 @@ include("quadratic_estimate.jl")
 
 # curved-sky (not yet upgraded to new system)
 # include("healpix.jl")
+
+include("zygoterules.jl")
 
 end

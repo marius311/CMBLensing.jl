@@ -93,4 +93,4 @@ tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum(complex(L.diag.Tx)))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum(unfold(L.diag.El)) + sum(unfold(L.diag.Bl)))
 
 # always do dot product in map basis
-dot(a::FlatField{P}, b::FlatField{P}) where {P} = Ł(a)[:] ⋅ Ł(b)[:] * FFTgrid(a).Δx^2
+dot(a::FlatField{P}, b::FlatField{P}) where {P} = dot(Ł(a)[:], Ł(b)[:]) * FFTgrid(a).Δx^2
