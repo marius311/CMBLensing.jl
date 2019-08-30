@@ -93,65 +93,6 @@ macro namedtuple(exs...)
     Expr(:tuple, (kv(ex) for ex=exs)...)
 end
 
-"""
-Take an expression like
-
-    for a in A, b in B
-        ...
-        @. r += term
-    end
-
-and rewrite it so each term is computed in parallel and the results are added
-together in a threadsafe manner.
-"""
-macro threadsum(ex)
-    
-    if Threads.nthreads()==1; return esc(ex); end
-    
-    @capture(ex, for a_ in A_, b_ in B_
-        begin temps__; @. r_ += inc_; end
-    end) || error("usage: @threadsum for a in A, b in B; begin ...; @. r += ...; end")
-    
-    quote
-        m = SpinLock()
-        @threads for ab in [($(esc(a)),$(esc(b))) for $(esc(a)) in $(esc(A)) for $(esc(b)) in $(esc(B))]
-            $(esc(a)),$(esc(b)) = ab
-            $(esc.(temps)...)
-            inc = @. $(esc(inc))
-            lock(m)
-            $(esc(r)) .+= inc
-            unlock(m)
-        end
-    end
-end
-
-
-"""
-Threaded `map`, like `pmap`, but using `@threads`. 
-
-If Threads.nthreads()==1 then this macro-exapands to just use `map`, so there's
-zero overhead and no impact to type-stability. The threaded case however is not
-type-stable, although this is intentional b/c for some weird reason that actually
-makes my use-case slower.
-"""
-macro tmap(f,args...)
-    if Threads.nthreads()==1
-        :(map($(esc(f)),$(esc.(args)...)))
-    else
-        quote
-            cargs = collect(zip($(esc.(args)...)))
-            n = length(cargs)
-            # TODO: figure out why inferring the result actually makes things *slower* ?
-            # T = Core.Inference.return_type(f, Tuple{typeof.(cargs[1])...})
-            T = Any
-            ans = Vector{T}(n)
-            @threads for i=1:n
-                ans[i] = $(esc(f))(cargs[i]...)
-            end
-            ans
-        end
-    end
-end
 
 
 # these allow inv and sqrt of SMatrices of Diagonals to work correctly, which
