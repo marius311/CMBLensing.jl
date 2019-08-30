@@ -336,14 +336,14 @@ end
     @ondemand(Package.function)(args...; kwargs...)
     @ondemand(Package.Submodule.function)(args...; kwargs...)
 
-Calls Package.function or Package.Submodule.function, but Package will be loaded
-on-demand if it is not already loaded. The call is not inferrable.
+Just like calling Package.function or Package.Submodule.function, but Package
+will be loaded on-demand if it is not already loaded. The call is not
+inferrable.
 """
 macro ondemand(ex)
-    getmod(x) = @capture(x, Mod_.func_) ? getmod(Mod) : x
-    Mod = getmod(ex)
+    get_root_package(x) = @capture(x, a_.b_) ? get_root_package(a) : x
     quote
-        @eval import $Mod
+        @eval import $(get_root_package(ex))
         (args...; kwargs...) -> Base.invokelatest($(esc(ex)), args...; kwargs...)
     end
 end
