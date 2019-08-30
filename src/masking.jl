@@ -38,19 +38,20 @@ end
 
 function bleed(img, w)
     Nside,Nside = size(img)
-    nearest = getfield.(feature_transform(img),:I)
+    nearest = getfield.(@ondemand(Images.feature_transform)(img),:I)
     [norm(nearest[i,j] .- [i,j]) < w for i=1:Nside,j=1:Nside]
 end
 
 function cos_apod(img,w,smooth_distance=false)
     Nside,Nside = size(img)
-    nearest = getfield.(feature_transform(.!img),:I)
+    nearest = getfield.(@ondemand(Images.feature_transform)(.!img),:I)
     distance = [norm(nearest[i,j] .- [i,j]) for i=1:Nside,j=1:Nside]
     if smooth_distance!=false
-        distance = imfilter(distance, Kernel.gaussian(smooth_distance))
+        distance = @ondemand(Images.imfilter)(distance, @ondemand(Images.Kernel.gaussian)(smooth_distance))
     end
     @. (1-cos(min(distance,w)/w*pi))/2
 end
+
 
 function sim_ptsrcs(Nside,nsources)
     m = fill(false,Nside,Nside);

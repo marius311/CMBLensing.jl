@@ -10,27 +10,20 @@ using Combinatorics
 using DataStructures
 using Distributed
 using FFTW
-using Images: feature_transform, imfilter
-using Images.Kernel
 using InteractiveUtils
 using Interpolations
-using JLD2
-using FileIO
 using KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero
-using MacroTools: @capture, combinedef, isexpr, postwalk, splitdef
+using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
 using Match
 using Markdown
 using Memoize
-using Optim: optimize
 using Parameters
 using Printf
 using ProgressMeter
 using PyCall
-using PyPlot
-using QuadGK
 using Random
 using Random: seed!
 using Roots

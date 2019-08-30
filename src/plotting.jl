@@ -89,6 +89,7 @@ Plotting fields.
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
 function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(fs), title=nothing, vlim=nothing, return_all=false, kwargs...) where {F<:Field}
+    @eval using PyPlot
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345

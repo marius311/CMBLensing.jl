@@ -335,7 +335,7 @@ function MAP_joint(
             # ==== ϕ step =====
             if (i!=nsteps)
                 ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,Lϕ))[2]
-                res = optimize(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), T(0), T(αmax), abs_tol=αtol)
+                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew
             end

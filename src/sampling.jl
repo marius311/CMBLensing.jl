@@ -76,14 +76,17 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     ilnP = loess(xs,lnPs,span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
-    A = quadgk(exp∘ilnP, xmin, xmax)[1]
+    A = @ondemand(QuadGK.quadgk)(exp∘ilnP, xmin, xmax)[1]
     lnPs .-= log(A)
     ilnP = loess(xs,lnPs,span=span)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(((@showprogress (progress ? 1 : Inf) [(r=rand(); fzero((x->quadgk(exp∘ilnP,xmin+eps(),x,rtol=rtol)[1]-r),xmin+eps(),xmax,rtol=rtol)) for i=1:nsamples]),))
+    θsamples = NamedTuple{S}(@showprogress (progress ? 1 : Inf) map(1:nsamples) do i
+        r = rand()
+        fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+eps(),x,rtol=rtol)[1]-r),xmin+eps(),xmax,rtol=rtol)
+    end)
     
     if nsamples==1
         ilnP, map(first, θsamples), lnPs
@@ -171,9 +174,9 @@ function sample_joint(
             Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>deepcopy(Random.seed!())]
         end
     elseif chains == :resume
-        chains = load(filename,"chains")
+        chains = @ondemand(FileIO.load)(filename,"chains")
     elseif chains isa String
-        chains = load(chains,"chains")
+        chains = @ondemand(FileIO.load)(chains,"chains")
     end
     
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ/2; end
@@ -266,7 +269,7 @@ function sample_joint(
             end
             
             if filename != nothing
-                save(swap_filename, "chains", chains, "rundat", rundat)
+                @ondemand(FileIO.save)(swap_filename, "chains", chains, "rundat", rundat)
                 mv(swap_filename, filename, force=true)
             end
             

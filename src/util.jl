@@ -303,3 +303,47 @@ macro subst(ex)
     end
 
 end
+
+
+"""
+    @invokelatest expr...
+    
+Rewrites all non-broadcasted function calls anywhere within an expression to use
+Base.invokelatest. This means functions can be called that have a newer world
+age, at the price of making things non-inferrable.
+"""
+macro invokelatest(ex)
+    function walk(x)
+        if isdef(x)
+            x.args[2:end] .= map(walk, x.args[2:end])
+            x
+        elseif @capture(x, f_(args__; kwargs__)) && !startswith(string(f),'.')
+            :(Base.invokelatest($f, $(map(walk,args)...); $(map(walk,kwargs)...)))
+        elseif @capture(x, f_(args__)) && !startswith(string(f),'.')
+            :(Base.invokelatest($f, $(map(walk,args)...)))
+        elseif isexpr(x)
+            x.args .= map(walk, x.args)
+            x
+        else
+            x
+        end
+    end
+    esc(walk(ex))
+end
+
+
+"""
+    @ondemand(Package.function)(args...; kwargs...)
+    @ondemand(Package.Submodule.function)(args...; kwargs...)
+
+Calls Package.function or Package.Submodule.function, but Package will be loaded
+on-demand if it is not already loaded. The call is not inferrable.
+"""
+macro ondemand(ex)
+    getmod(x) = @capture(x, Mod_.func_) ? getmod(Mod) : x
+    Mod = getmod(ex)
+    quote
+        @eval import $Mod
+        (args...; kwargs...) -> Base.invokelatest($(esc(ex)), args...; kwargs...)
+    end
+end
