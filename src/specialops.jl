@@ -10,6 +10,8 @@ simulate(D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(F)
 (\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(D.diag .\ B(f))
 
 # broadcasting
+BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{F}}, ::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}) where {F<:Field} = StructuredMatrixStyle{DiagOp{F}}()
+BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}, ::StructuredMatrixStyle{<:DiagOp{F}}) where {F<:Field} = Base.Broadcast.Unknown()
 function similar(bc::Broadcasted{<:StructuredMatrixStyle{<:DiagOp{F}}}, ::Type{T}) where {F<:Field,T}
     Diagonal(similar(F,T))
 end
@@ -27,6 +29,11 @@ end
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
 
 getindex(D::DiagOp, s::Symbol) = Diagonal(getindex(D.diag,s))
+
+# for printing
+size(::DiagOp{<:ImplicitField}) = ()
+axes(::DiagOp{<:ImplicitField}, I) = OneTo(0)
+
 
 
 ### Derivative ops

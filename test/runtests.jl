@@ -147,7 +147,7 @@ end
 
 ##
 
-@testset "Derivatives" begin
+@testset "Gradients" begin
     
     @test (@inferred ∇[1] * FlatMap(rand(3,3), ∂mode=fourier∂)) isa FlatFourier
     @test (@inferred ∇[1] * FlatQUMap(rand(3,3), rand(3,3), ∂mode=fourier∂)) isa FlatQUFourier
@@ -156,6 +156,17 @@ end
     @test (@inferred ∇[1] * Fourier(FlatMap(rand(3,3), ∂mode=map∂))) isa FlatMap
     @test (@inferred ∇[1] * QUFourier(FlatQUMap(rand(3,3), rand(3,3), ∂mode=map∂))) isa FlatQUMap
     @test (@inferred ∇[1] * BasisTuple{Tuple{Fourier,QUFourier}}(FlatIQUMap(rand(3,3), rand(3,3), rand(3,3), ∂mode=map∂))) isa FlatIQUMap
+    
+end
+
+##
+
+@testset "Misc" begin
+    
+    f = FlatMap(rand(4,4))
+    
+    @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
+    @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
     
 end
 
