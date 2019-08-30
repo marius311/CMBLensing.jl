@@ -84,13 +84,13 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
     
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum(nan2zero∘log, unfold(L.diag.Il)))
-logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum(nan2zero∘log, complex(L.diag.Tx)))
-logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum(nan2zero∘log, unfold(L.diag.El)) + sum(nan2zero∘log, unfold(L.diag.Bl)))
+logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il)))))
+logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix)))))
+logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El)))) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl)))))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum(unfold(L.diag.Il)))
-tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum(complex(L.diag.Tx)))
-tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum(unfold(L.diag.El)) + sum(unfold(L.diag.Bl)))
+tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
+tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Tx)))
+tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
 
 # always do dot product in map basis
-dot(a::FlatField{P}, b::FlatField{P}) where {P} = dot(Ł(a)[:], Ł(b)[:]) * FFTgrid(a).Δx^2
+dot(a::FlatField{P}, b::FlatField{P}) where {P} = sum_kbn(Ł(a)[:] .* Ł(b)[:]) * FFTgrid(a).Δx^2

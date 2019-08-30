@@ -16,6 +16,7 @@ using InteractiveUtils
 using Interpolations
 using JLD2
 using FileIO
+using KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero
