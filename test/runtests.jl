@@ -181,21 +181,31 @@ using Zygote: gradient
     f = FlatMap(rand(2,2))
     D = Diagonal(f)
 
-    grad1(f) = gradient(function (θ)
+    # the very basics
+    grad1() = gradient(function (θ)
         g = θ * f
         dot(g,g)
     end, 1)[1]
-    
-    @test @inferred(grad1(f)) ≈ 2*norm(f,2)^2
+    @test @inferred(grad1()) ≈ 2*norm(f,2)^2
 
-    
-    grad2(f,D) = gradient(function (θ)
+    grad2() = gradient(function (θ)
         g = (θ * D * f)
         dot(g,g)
     end, 1)[1]
+    @test                  grad2()  ≈ 2*norm(f.^2,2)^2
+    @test_broken @inferred(grad2()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
     
-    @test                  grad2(f,D)  ≈ 2*norm(f.^2,2)^2
-    @test_broken @inferred(grad2(f,D)) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred too
+    # derivatives through ParamDependentOps 
+    Dr = ParamDependentOp((;r=1)-> r * D)
+    grad3() = gradient(function (r)
+        g = (Dr(r=r) * f)
+        dot(g,g)
+    end,1)[1]
+    @test                  grad3()  ≈ 2*norm(f.^2,2)^2
+    @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
+    
+    @test @inferred(gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
+    
     
 end
 
