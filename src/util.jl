@@ -31,26 +31,6 @@ macro !(ex)
 end
 
 
-"""
-@commutative f(a::T1,b::T2) = body
-
-is equivalent to
-
-f(a::T1,b::T2) = body
-f(b::T2,a::T1) = body
-
-TODO: phase out use of this entirely, it tends to lead to ambiguities....
-"""
-macro commutative(ex)
-    if @capture ex ((f_(a_::T1_,b_::T2_) = body_) | (function f_(a_::T1_,b_::T2_) body_ end))
-        esc(:($f($a::$T1,$b::$T2)=$body; $f($b::$T2,$a::$T1)=$body))
-    elseif @capture ex ((f_(::T1_,::T2_) = body_) | (function f_(::T1_,::T2_) body_ end))
-        esc(:($f(::$T1,::$T2)=$body; $f(::$T2,::$T1)=$body))
-    else
-        error("@commutative couldn't understand function definition.")
-    end
-end
-
 nan2zero(x::T) where {T} = !isfinite(x) ? zero(T) : x
 nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
 nan2inf(x::T) where {T} = !isfinite(x) ? T(Inf) : x
@@ -129,22 +109,9 @@ map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 basetype(::Type{T}) where {T} = T.name.wrapper
 
 
-
-
 function ensuresame(args...)
     @assert all(args .== Ref(args[1]))
     args[1]
-end
-
-
-"""
-Can be used to safely get method parameters which may not be defined due to e.g.:
-https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
-"""
-macro safe_get(ex)
-    head(x) = x isa Symbol ? x : head(x.args[1])
-    x = head(ex)
-    :($(Expr(:isdefined, esc(x))) ? $(esc(ex)) : $(QuoteNode(x)))
 end
 
 
@@ -278,7 +245,7 @@ end
     @ondemand(Package.Submodule.function)(args...; kwargs...)
 
 Just like calling Package.function or Package.Submodule.function, but Package
-will be loaded on-demand if it is not already loaded. The call is not
+will be loaded on-demand if it is not already loaded. The call is no longer
 inferrable.
 """
 macro ondemand(ex)
