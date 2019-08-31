@@ -5,7 +5,7 @@ abstract type RK4Solver{nsteps} <: ODESolver  end
 
 
 """
-Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = α*F(t,y) and y(t₀) = y₀
+Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
 
 Arguments
 * F! : a function F!(v,t,y) which sets v=F(t,y)

@@ -1,5 +1,5 @@
 
-# Stores variables needed to construct the likelihood
+# Stores variables needed to construct the posterior
 @kwdef struct DataSet{Td,TCn,TCf,TCf̃,TCϕ,TCn̂,TM,TM̂,TB,TB̂,TD,TG,TP,TL}
     d  :: Td                # data
     Cϕ :: TCϕ               # ϕ covariance
