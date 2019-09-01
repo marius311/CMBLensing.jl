@@ -6,6 +6,7 @@ using CMBLensing: basis, BasisTuple, @SVector, RK4Solver
 using Test
 using SparseArrays
 using LinearAlgebra
+using Zygote: gradient
 
 ##
 
@@ -62,7 +63,7 @@ end
 
 ##
 
-@testset "Flat convenience constructors" begin
+@testset "Flat Constructors" begin
     
     N = 2
     θpix = 3
@@ -204,8 +205,6 @@ end
 end
 
 ##
-
-using Zygote: gradient
 
 # make sure we can take type-stable gradients of scalar functions of our Fields
 # (like the posterior)
