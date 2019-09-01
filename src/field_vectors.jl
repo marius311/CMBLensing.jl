@@ -69,8 +69,6 @@ mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) =
 # only thing needed for TupleAdjoints
 mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
-# # until StaticArrays better implements adjoints
-# *(v::FieldRowVector, M::FieldMatrix) = @SVector[v'[1]*M[1,1] + v'[2]*M[2,1], v'[1]*M[1,2] + v'[2]*M[2,2]]'
 function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
     a,b,c,d = src
     det⁻¹ = pinv(@. a*d-b*c)
@@ -85,6 +83,3 @@ end
 
 promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
 arithmetic_closure(::F) where {F<:Field} = F
-# using LinearAlgebra: matprod
-# Base.promote_op(::typeof(adjoint), ::Type{T}) where {T<:∇i} = T
-# Base.promote_op(::typeof(matprod), ::Type{<:∇i}, ::Type{<:F}) where {F<:Field} = Base._return_type(*, Tuple{∇i{0,true},F})
