@@ -1,7 +1,7 @@
 # CMBLensing.jl
 
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://cosmicmar.com/CMBLensing.jl/) [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?urlpath=lab)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://cosmicmar.com/CMBLensing.jl/) [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?urlpath=lab) [![Build Status](https://travis-ci.org/marius311/CMBLensing.jl.svg?branch=master)](https://travis-ci.org/marius311/CMBLensing.jl)
 
 This repository contains tools written in [Julia](https://julialang.org/) (and easily callable from Python) to analyze the gravitationally lensed Cosmic Microwave Background. 
 
