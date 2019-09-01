@@ -12,6 +12,7 @@ promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 abstract type Flat{Nside,θpix,∂mode<:∂modes} <: Pix end
 
 # for convenience
+Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
 Nside(::Type{P}) where {N,P<:Flat{N}} = N
 
 # default angular resolution used by a number of convenience constructors

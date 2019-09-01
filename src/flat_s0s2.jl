@@ -11,7 +11,35 @@ const FlatIQU{P,T,M} = Union{FlatIQUMap{P,T,M},FlatIQUFourier{P,T,M}}
 const FlatIEB{P,T,M} = Union{FlatIEBMap{P,T,M},FlatIEBFourier{P,T,M}}
 
 ### convenience constructors
+for (F,F2,F0,(X,Y,Z),T) in [
+        (:FlatIQUMap,     :FlatQUMap,     :FlatMap,     (:Ix,:Qx,:Ux), :T),
+        (:FlatIQUFourier, :FlatQUFourier, :FlatFourier, (:Il,:Ql,:Ul), :(Complex{T})),
+        (:FlatIEBMap,     :FlatEBMap,     :FlatMap,     (:Ix,:Ex,:Bx), :T),
+        (:FlatIEBFourier, :FlatEBFourier, :FlatFourier, (:Il,:El,:Bl), :(Complex{T}))
+    ]
+    doc = """
+        # main constructor:
+        $F($X::AbstractMatrix, $Y::AbstractMatrix, $Z::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        
+        # more low-level:
+        $F{P}($X::AbstractMatrix, $Y::AbstractMatrix, $Z::AbstractMatrix) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix, $Z::AbstractMatrix) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractMatrix{$T}}($X::M, $Y::M, $Z::M) # specify everything explicilty
+        
+        Construct a $F object. The top form of the constructor is most convenient
+        for interactive work, while the others may be more useful for low-level code.
+    """
+    @eval begin
+        @doc $doc $F
+        $F($X, $Y, $Z; kwargs...) = $F($F0($X; kwargs...), $F2($Y,$Z; kwargs...))
+        $F{P}($X, $Y, $Z) where {P} = $F{P}($F0{P}($X), $F2{P}($Y,$Z))
+        $F{P,T}($X, $Y, $Z) where {P,T} = $F{P,T}($F0{P,T}($X), $F2{P,T}($Y,$Z))
+    end
+end
+
 FlatIQUMap(Ix, Qx, Ux; kwargs...) = FlatIQUMap(FlatMap(Ix; kwargs...), FlatQUMap(Qx,Ux; kwargs...))
+
+
 
 ### properties
 propertynames(f::FlatS02) = (sort([:I, :P, propertynames(f.I)..., propertynames(f.P)...])...,)

@@ -8,8 +8,6 @@ for F in (:FlatMap, :FlatFourier,
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
-    
-    
 
 
 ### promotion & conversion

@@ -13,8 +13,32 @@ const FlatS2Map{P,T,M}=Union{FlatQUMap{P,T,M},FlatEBMap{P,T,M}}
 const FlatS2Fourier{P,T,M}=Union{FlatQUFourier{P,T,M},FlatEBFourier{P,T,M}}
 
 ### convenience constructors
-FlatQUMap(Qx, Ux; θpix=θpix₀, ∂mode=fourier∂) = FlatQUMap{Flat{size(Qx,2),θpix,∂mode}}(Qx, Ux)
-FlatQUMap{P}(Qx::M, Ux::M) where {P,T,M<:AbstractMatrix{T}} = FlatQUMap{P,T,M}((Q=FlatMap{P,T,M}(Qx), U=FlatMap{P,T,M}(Ux)))
+for (F,F0,(X,Y),T) in [
+        (:FlatQUMap,     :FlatMap,     (:Qx,:Ux), :T),
+        (:FlatQUFourier, :FlatFourier, (:Ql,:Ul), :(Complex{T})),
+        (:FlatEBMap,     :FlatMap,     (:Ex,:Bx), :T),
+        (:FlatEBFourier, :FlatFourier, (:El,:Bl), :(Complex{T}))
+    ]
+    doc = """
+        # main constructor:
+        $F($X::AbstractMatrix, $Y::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        
+        # more low-level:
+        $F{P}($X::AbstractMatrix, $Y::AbstractMatrix) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractMatrix{$T}}($X::M, $Y::M) # specify everything explicilty
+        
+        Construct a $F object. The top form of the constructor is most convenient
+        for interactive work, while the others may be more useful for low-level code.
+    """
+    @eval begin
+        @doc $doc $F
+        $F($X, $Y; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X, $Y)
+        $F{P}($X::M, $Y::M) where {P,T,M<:AbstractMatrix{$T}} = 
+            $F{P,T,M}(($(Symbol(string(X)[1]))=($F0{P,T,M}($X)), $(Symbol(string(Y)[1]))=$F0{P,T,M}($Y)))
+        $F{P,T}($X, $Y) where {P,T} = $F{P}($T.($X), $T.($Y))
+    end
+end
 
 ### properties
 function propertynames(f::FlatS2)

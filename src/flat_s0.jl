@@ -9,12 +9,31 @@ end
 const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
 ### convenience constructors
-Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
-FlatMap(Ix; kwargs...) = FlatMap{Flat(Nside=size(Ix,2);kwargs...)}(Ix)
-FlatMap{P}(Ix::M) where {P,T,M<:AbstractMatrix{T}} = FlatMap{P,T,M}(Ix)
-FlatFourier(Il; kwargs...) = FlatFourier{Flat(Nside=size(Il,2);kwargs...)}(Il)
-FlatFourier{P}(Il::M) where {P,T,M<:AbstractMatrix{Complex{T}}} = FlatFourier{P,T,M}(Il)
+for (F, X, T) in [
+        (:FlatMap,     :Ix, :T),
+        (:FlatFourier, :Il, :(Complex{T})),
+    ]
+    doc = """
+        # main constructor:
+        $F($X::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        
+        # more low-level:
+        $F{P}($X::AbstractMatrix) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractMatrix) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractMatrix{$T}}($X::M) # specify everything explicilty
+        
+        Construct a $F object. The top form of the constructor is most convenient
+        for interactive work, while the others may be more useful for low-level code.
+    """
+    @eval begin
+        @doc $doc $F
+        $F($X; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X)
+        $F{P}($X::M) where {P,T,M<:AbstractMatrix{$T}} = $F{P,T,M}($X)
+        $F{P,T}($X) where {P,T} = $F{P}(T.($X))
+    end
+end
 FlatFourier{P}(Il::AbstractMatrix{<:Real}) where {P} = FlatFourier{P}(complex(Il))
+
 
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)

@@ -62,6 +62,39 @@ end
 
 ##
 
+@testset "Flat convenience constructors" begin
+    
+    N = 2
+    θpix = 3
+    kwargs = (Nside=N, θpix=θpix)
+    P = Flat(;kwargs...)
+    Ix = rand(N,N)
+    Il = complex(rand(N÷2+1,N))
+    
+    for (F,args) in [
+            (FlatMap,        (Ix,)),
+            (FlatFourier,    (Il,)),
+            (FlatQUMap,      (Ix,Ix)),
+            (FlatQUFourier,  (Il,Il)),
+            (FlatEBMap,      (Ix,Ix)),
+            (FlatEBFourier,  (Il,Il)),
+            (FlatIQUMap,     (Ix,Ix,Ix)),
+            (FlatIQUFourier, (Il,Il,Il)),
+            (FlatIEBMap,     (Ix,Ix,Ix)),
+            (FlatIEBFourier, (Il,Il,Il))
+        ]
+        @testset "f::$F" begin
+            @test F(args...; kwargs...) isa F{P}
+            @test (@inferred F{P}(args...)) isa F{P}
+            @test real(eltype(@inferred F{P,Float32}(args...))) == Float32
+        end
+    end
+
+end
+
+
+##
+
 @testset "Algebra" begin
     
     fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
