@@ -37,7 +37,7 @@ using Strided
 
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
-    copy, copyto!, eltype, fill!, getindex, getproperty, hcat, hvcat, inv,
+    copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, materialize!, materialize,
     one, print_array, promote, promote_rule, promote_rule, promote_type,
     propertynames, real, setindex!, show, show_datatype, show_vector, similar,
@@ -51,23 +51,25 @@ import PyPlot: loglog, plot, semilogx, semilogy
 
 export
     @namedtuple, @repeated, @unpack, animate, argmaxf_lnP, azeqproj, BandPassOp,
-    cache, CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet,
-    DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid, Field, FieldArray,
-    FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
-    FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector, Flat,
-    FlatEB, FlatEBFourier, FlatEBMap, FlatFourier, FlatIEBFourier, FlatIEBMap,
-    FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0,
-    FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ,
-    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, GradientCache,
-    HealpixCap, HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp, InterpolatedCℓs,
-    IsotropicHarmonicCov, LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, LinDiagOp,
-    LinOp, lnP, load_healpix_sim_dataset, load_sim_dataset, LowPass, make_mask, Map,
-    MAP_joint, MAP_marg, map∂, MidPass, nan2zero, noiseCℓs, NoLensing, OuterProdOp,
-    pack, ParamDependentOp, pixwin, plot, PowerLens, quadratic_estimate, QUFourier,
-    QUMap, resimulate, RK4Solver, S0, S02, S2, sample_joint, shortname, simulate,
-    symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, Ð, Ł,
-    δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
-    
+    cache, CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov,
+    DataSet, DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid,
+    Field, FieldArray, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
+    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
+    FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
+    FlatFourier, FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap,
+    FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS2, FlatS2Fourier,
+    FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ,
+    get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, GradientCache, HealpixCap,
+    HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp, InterpolatedCℓs,
+    IsotropicHarmonicCov, LazyBinaryOp, LenseBasis, LenseFlow, LenseOp,
+    LinDiagOp, LinOp, lnP, load_healpix_sim_dataset, load_sim_dataset, LowPass,
+    make_mask, Map, MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs,
+    NoLensing, OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
+    quadratic_estimate, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
+    sample_joint, shortname, simulate, symplectic_integrate, Taylens, toCℓ,
+    toDℓ, tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, δlnP_δfϕₜ,
+    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+        
 # generic stuff
 include("util.jl")
 include("util_fft.jl")
@@ -106,6 +108,6 @@ include("quadratic_estimate.jl")
 # curved-sky (not yet upgraded to new system)
 # include("healpix.jl")
 
-include("zygoterules.jl")
+include("autodiff.jl")
 
 end

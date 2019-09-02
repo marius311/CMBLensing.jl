@@ -1,4 +1,26 @@
 
+"""
+    mix(f, ϕ, θ, ds)
+    
+Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potential `ϕ`. 
+"""
+function mix(f, ϕ, θ, ds)
+    @unpack D,G,L = ds(;θ...)
+    L(ϕ)*D*f, G*ϕ
+end
+
+
+"""
+unmix(f°, ϕ°, θ, ds)
+
+Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed lensing potential `ϕ°`. 
+"""
+function unmix(f°, ϕ°, θ, ds)
+    @unpack D,G,L = ds(;θ...)
+    ϕ = G\ϕ°
+    D\(L(ϕ)\f°), ϕ
+end
+
 
 @doc doc"""
     lnP(t, fₜ, ϕₜ,                ds::DataSet, Lϕ=nothing)
@@ -149,6 +171,7 @@ function δlnP_δϕ(L::LenseOp, ds; Nmc_det=100, progress=false, return_sims=fal
     return_sims ? (g, det_sims) : g 
 
 end
+
 
 
 
@@ -306,18 +329,18 @@ function MAP_joint(
 
             # ==== f step ====
                 
-                # if we're doing a fixed quasi_sample, set the random seed here,
-                # which controls the sample from the posterior we get from inside
-                # `argmaxf_lnP`
-                if isa(quasi_sample,Int); seed!(quasi_sample); end
+            # if we're doing a fixed quasi_sample, set the random seed here,
+            # which controls the sample from the posterior we get from inside
+            # `argmaxf_lnP`
+            if isa(quasi_sample,Int); seed!(quasi_sample); end
                 
             # recache Lϕ for new ϕ
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(ds, ((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), 
-                    (quasi_sample==false) ? :wf : :sample,   # if doing a quasi-sample, we get a sample instead of the WF
-                    guess=(i==1 ? nothing : f),              # after first iteration, use the previous f as starting point
+            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? NoLensing() : Lϕ), ds, 
+                    which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                    guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
                     
             f° = Lϕ * D * f

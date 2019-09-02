@@ -111,7 +111,7 @@ end
 
 ≈(a::FieldTuple, b::FieldTuple) = all(map(≈, a.fs, b.fs))
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))
-
+hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
 
 ### adjoint tuples
 
