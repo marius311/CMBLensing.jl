@@ -32,12 +32,23 @@ struct FFTgrid{T,F}
     cos2ϕ :: Matrix{T}
     FFT :: F
 end
+
+@doc """
+The number of FFTW threads to use. This must be set via e.g.:
+
+    CMBLensing.FFTW_NUM_THREADS[] = 4
+
+*before* creating any `FlatField` objects; subsequent changes to this variable
+will be ignored. The default value is `Sys.CPU_THREADS`.
+"""
+const FFTW_NUM_THREADS = Ref{Int}()
+@init FFTW_NUM_THREADS[] = Sys.CPU_THREADS
  
 # use @generated function to memoize FFTgrid for given (T,θ,Nside) combinations
 FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
 @generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
     Δx  = deg2rad(θpix/60)
-    FFTW.set_num_threads(Sys.CPU_THREADS)
+    FFTW.set_num_threads(FFTW_NUM_THREADS[])
     FFT = T(Δx^2/(2π)) * plan_rfft(Matrix{T}(undef,Nside,Nside); flags=FFTW.ESTIMATE, timelimit=5)
     Δℓ  = 2π/(Nside*Δx)
     nyq = 2π/(2Δx)

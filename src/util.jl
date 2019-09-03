@@ -13,7 +13,9 @@ firstfield(x) = first(fieldvalues(x))
 
 
 """
-@! x = f(args...) is equivalent to x = f!(x,args...)
+Rewrites `@! x = f(args...)` to `x = f!(x,args...)`
+
+Special cases for `*` and `\\` forward to `mul!` and `ldiv!`, respectively.
 """
 macro !(ex)
     if @capture(ex, x_ = f_(args__; kwargs_...))
@@ -44,7 +46,7 @@ end
 """ 
 Pack some variables in a dictionary 
 
-```
+```julia
 > x = 3
 > y = 4
 > @dictpack x y z=>5
@@ -222,7 +224,7 @@ end
     @invokelatest expr...
     
 Rewrites all non-broadcasted function calls anywhere within an expression to use
-Base.invokelatest. This means functions can be called that have a newer world
+`Base.invokelatest`. This means functions can be called that have a newer world
 age, at the price of making things non-inferrable.
 """
 macro invokelatest(ex)
@@ -249,9 +251,9 @@ end
     @ondemand(Package.function)(args...; kwargs...)
     @ondemand(Package.Submodule.function)(args...; kwargs...)
 
-Just like calling Package.function or Package.Submodule.function, but Package
-will be loaded on-demand if it is not already loaded. The call is no longer
-inferrable.
+Just like calling `Package.function` or `Package.Submodule.function`, but
+`Package` will be loaded on-demand if it is not already loaded. The call is no
+longer inferrable.
 """
 macro ondemand(ex)
     get_root_package(x) = @capture(x, a_.b_) ? get_root_package(a) : x
