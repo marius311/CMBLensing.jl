@@ -22,7 +22,7 @@ for (F, X, T) in [
         $F{P,T}($X::AbstractMatrix) # additionally, convert elements to type $T
         $F{P,T,M<:AbstractMatrix{$T}}($X::M) # specify everything explicilty
         
-    Construct a $F object. The top form of the constructor is most convenient
+    Construct a `$F` object. The top form of the constructor is most convenient
     for interactive work, while the others may be more useful for low-level code.
     """
     @eval begin

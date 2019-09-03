@@ -161,16 +161,36 @@ holding this memory, which should then be assigned in-place.
 
 Example:
 
-``julia
-    Cϕ₀ = Diagonal(...) # some fixed Diagonal operator
-    Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
-    
-    Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
-    Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
-    
-    # a version which preallocates the memory:
-    Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), similar(Cϕ₀))
+```julia
+Cϕ₀ = Diagonal(...) # some fixed Diagonal operator
+Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
+
+Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
+Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
+
+# a version which preallocates the memory:
+Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), similar(Cϕ₀))
 ```
+
+Note: if you are doing parallel work, global variables referred to in the
+`recompute_function` need to be distributed to all workers. A more robust
+solution is to avoid globals entirely and instead ensure all variables are
+"closed" over (and hence will automatically get distributed). This will happen
+by default if defining the `ParamDependentOp` inside any function, or can be
+forced at the global scope by wrapping everything in a `let`-block, e.g.:
+
+```julia
+Cϕ = let Cϕ₀=Cϕ₀
+    ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀)
+end
+```
+
+After executing the code above, `Cϕ` is now ready to be shipped to any workers
+and will work regardless of what global variables are defined on these workers. 
+
+Also note: if you want to use these ops in a DataSet which may be evaluated at
+other parameters, you can use a definition like e.g. `(;Aϕ=1, _...)->` to
+capture only the parameter you care about while allowing others to exist. 
 """
 struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function, M<:Union{L,Nothing}} <: ImplicitOp{B,S,P}
     op::L
