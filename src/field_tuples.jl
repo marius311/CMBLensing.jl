@@ -117,7 +117,7 @@ end
 # promote before recursing for these 
 ≈(a::FieldTuple, b::FieldTuple) = all(map(≈, getfield.(promote(a,b),:fs)...))
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
-
+hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
 
 ### adjoint tuples
 
