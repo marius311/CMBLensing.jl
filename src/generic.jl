@@ -173,5 +173,5 @@ end
 # make it work anyway if the two fields are exactly the same type, in which case
 # its clear we wanted broadcasted multiplication/division. 
 for op in (:*, :/)
-    @eval ($op)(A::F, B::F) where {F<:Field} = broadcast($op, A, B)
+    @eval ($op)(a::Field{B,S,P}, b::Field{B,S,P}) where {B,S,P} = broadcast($op, a, b)
 end

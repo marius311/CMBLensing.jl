@@ -107,6 +107,11 @@ map_tupleargs(f,::Type{<:Tuple{}},::Tuple) = ()
 
 # returns the base parametric type with all type parameters stripped out
 basetype(::Type{T}) where {T} = T.name.wrapper
+@generated function basetype(t::UnionAll)
+    unwrap_expr(s::UnionAll, t=:t) = unwrap_expr(s.body, :($t.body))
+    unwrap_expr(::DataType, t) = t
+    :($(unwrap_expr(t.parameters[1])).name.wrapper)
+end
 
 
 function ensuresame(args...)

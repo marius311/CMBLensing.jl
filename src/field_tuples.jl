@@ -1,17 +1,19 @@
 
 
 abstract type BasisTuple{T} <: Basis end
+promote_type(::Type{BasisTuple{BT1}}, ::Type{BasisTuple{BT2}}) where {BT1,BT2} = BasisTuple{Tuple{map_tupleargs(promote_type,BT1,BT2)...}}
 
-## FieldTuple type 
+
+### FieldTuple type 
 # a thin wrapper around a Tuple or NamedTuple which additionally forwards all
 # broadcasts one level deeper
 struct FieldTuple{B<:Basis,FS<:Union{Tuple,NamedTuple},T} <: Field{B,Spin,Pix,T}
     fs::FS
 end
+FieldTuple{B}(fs::FS) where {B, FS} = FieldTuple{B,FS,promote_type(map(eltype,values(fs))...)}(fs)
 # constructors for FieldTuples with names
 FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
 FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
-FieldTuple{B}(fs::FS) where {B, FS<:NamedTuple} = FieldTuple{B,FS,promote_type(map(eltype,values(fs))...)}(fs)
 (::Type{<:FT})(f1,f2,fs...) where {Names,FT<:FieldTuple{<:Any,<:NamedTuple{Names}}} = FieldTuple(NamedTuple{Names}((f1,f2,fs...)))
 (::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
 (::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
@@ -20,7 +22,7 @@ FieldTuple(f1,f2,fs...) = FieldTuple((f1,f2,fs...))
 FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},typeof(fs),promote_type(map(eltype,values(fs))...)}(fs)
 
 
-## printing
+### printing
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,Names,T,FS,FT<:FieldTuple{B,NamedTuple{Names,FS},T}} =
@@ -28,31 +30,28 @@ getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diag
 @show_datatype show_datatype(io::IO, t::Type{FT}) where {B,T,FS<:Tuple,FT<:FieldTuple{B,FS,T}} =
     print(io, "Field$(tuple_type_len(FS))Tuple{$(B), $(T)}")
 
-## array interface
+### array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
 copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
 similar(f::FT) where {FT<:FieldTuple} = FT(map(similar,f.fs))
-similar(f::FT, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
-similar(::Type{FT},::Type{T}) where {T,B,Names,FS,FT<:FieldTuple{B,<:NamedTuple{Names,FS}}} = 
-    FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
-similar(::Type{FT},::Type{T}) where {T,B,FS<:Tuple,FT<:FieldTuple{B,FS}} = 
-    FieldTuple(map_tupleargs(F->similar(F,T), FS))
+similar(f::FT, ::Type{T}) where {T, B, FT<:FieldTuple{B}} = FieldTuple{B}(map(f->similar(f,T),f.fs))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 
 
-## broadcasting
-broadcastable(f::FieldTuple) = f
-BroadcastStyle(::Type{FT}) where {FT<:FieldTuple} = ArrayStyle{FT}()
-BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
-BroadcastStyle(::ArrayStyle{FT}, ::DefaultArrayStyle{1}) where {FT<:FieldTuple} = ArrayStyle{FT}()
-BroadcastStyle(::ArrayStyle{FT}, ::Style{Tuple}) where {FT<:FieldTuple} = ArrayStyle{FT}()
-instantiate(bc::Broadcasted{<:ArrayStyle{<:FieldTuple}}) = bc
+### broadcasting
+struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end
+(::Type{FTS})(::Val{1}) where {FTS<:FieldTupleStyle} = FTS()
+BroadcastStyle(::Type{FT}) where {B,FS<:Tuple,FT<:FieldTuple{B,FS}} = FieldTupleStyle{B,Nothing,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
+BroadcastStyle(::Type{FT}) where {B,Names,FS,NT<:NamedTuple{Names,FS},FT<:FieldTuple{B,NT}} = FieldTupleStyle{B,Names,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
+similar(::Broadcasted{FTS}, ::Type{T}) where {T, FTS<:FieldTupleStyle} = similar(FTS,T)
+similar(::Type{FieldTupleStyle{B,Nothing,FS}}, ::Type{T}) where {B,FS,T} = FieldTuple{B}(map_tupleargs(F->similar(F,T), FS))
+similar(::Type{FieldTupleStyle{B,Names,FS}}, ::Type{T}) where {B,Names,FS,T} = FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
+instantiate(bc::Broadcasted{<:FieldTupleStyle}) = bc
 fieldtuple_data(f::FieldTuple) = values(f.fs)
 fieldtuple_data(f::Field) = (f,)
 fieldtuple_data(x) = x
-similar(bc::Broadcasted{ArrayStyle{FT}}, ::Type{T}) where {T, FT<:FieldTuple} = similar(FT,T)
 function copyto!(dest::FieldTuple, bc::Broadcasted{Nothing})
     bc′ = flatten(bc)
     bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (fieldtuple_data(dest), map(fieldtuple_data,bc′.args)...))
@@ -67,14 +66,20 @@ function promote(ft1::FieldTuple, ft2::FieldTuple)
 end
 
 ### conversion
-# Note, we use B<:BasisTuple to capture BasisTuples, and B<:Basis to capture
-# concrete bases like Map or QUFourier.  We have to do a bit of dancing to get
-# dispatch right and avoid ambiguities.
+# The basis we're converting to is always B′. The FieldTuple's basis is B (if
+# its different). Each of these might be a concrete basis or a BasisTuple, and
+# the FieldTuple might be named or not. And we have Basis(f) which should be a
+# no-op. This giant matrix of possibilities presents some ambiguity problems,
+# hence why the rules below are so lengthy. Perhaps there's a more succinct
+# way to do it, but for now this works.
 # 
-# no conversion needed
-(::Type{B})(f::F)  where {B<:Basis,      F<:FieldTuple{B}} = f
-(::Type{B})(f::F)  where {B<:BasisTuple, F<:FieldTuple{B,<:Tuple}} = f
-(::Type{B})(f::F)  where {B<:BasisTuple, Names,F<:FieldTuple{B,<:NamedTuple{Names}}} = f
+# 
+# cases where no conversion is needed
+Basis(::FieldTuple{<:Basis}) = f
+Basis(::FieldTuple{<:BasisTuple}) = f
+(::Type{B′})(f::F)  where {B′<:Basis,      F<:FieldTuple{B′}} = f
+(::Type{B′})(f::F)  where {B′<:BasisTuple, F<:FieldTuple{B′,<:Tuple}} = f
+(::Type{B′})(f::F)  where {B′<:BasisTuple, Names,F<:FieldTuple{B′,<:NamedTuple{Names}}} = f
 # cases where FieldTuple is in BasisTuple
 (::Type{B′})(f::F) where {B′<:BasisTuple,B<:BasisTuple,F<:FieldTuple{B,<:Tuple}} = 
     FieldTuple(map((B,f)->B(f), tuple(B′.parameters[1].parameters...), f.fs))
@@ -109,8 +114,9 @@ for func in [:inv, :pinv]
         Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
 end
 
-≈(a::FieldTuple, b::FieldTuple) = all(map(≈, a.fs, b.fs))
-dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, a.fs, b.fs))
+# promote before recursing for these 
+≈(a::FieldTuple, b::FieldTuple) = all(map(≈, getfield.(promote(a,b),:fs)...))
+dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
 
 
 ### adjoint tuples
@@ -125,8 +131,9 @@ struct TupleAdjoint{T<:Field}
 end
 tuple_adjoint(f::Field) = TupleAdjoint(f)
 
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple} = 
-    dst .= sum(map(*, a.f.fs, b.fs))
-mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {B<:Basis,FT<:FieldTuple{B, <:NamedTuple{<:Any,NTuple{2}}}} = 
-    (@. dst = a.f[1]*b[1] + a.f[2]*b[2])
 mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:Field{<:Any,S0}} = dst .= a.f .* b
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple{<:Any,<:NamedTuple{<:Any,NTuple{2}}}} = 
+    (@. dst = a.f[1]*b[1] + a.f[2]*b[2])
+# todo: make this generic case efficient:    
+mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple} = 
+    dst .= sum(map((a,b)->mul!(copy(dst),tuple_adjoint(a),b), a.f.fs, b.fs))

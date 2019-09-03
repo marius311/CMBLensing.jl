@@ -100,8 +100,10 @@ end
     
     fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
         (Fourier,   FlatMap(rand(4,4))), 
-        (QUFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
-        (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))) # unnamed FieldTuple
+        (EBFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
+        (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))), # unnamed FieldTuple
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple,
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))) # unnamed nested FieldTuple
     ]
     
     for (B,f) in fs
@@ -116,15 +118,12 @@ end
             @test eltype(similar(f,Float32)) == Float32
                         
             # broadcasting
-            @test (@inferred f + f) isa typeof(f)
+            @test (@inferred f .+ f) isa typeof(f)
+            @test (@inferred f .+ Float32.(f)) isa typeof(f)
             
             # promotion
             @test (@inferred f + B(f)) isa typeof(f)
-            if f isa FlatS0
-                @test (@inferred f + B(Float32.(f))) isa typeof(f)
-            else
-                @test_broken (@inferred f + B(Float32.(f))) isa typeof(f)
-            end
+            @test (@inferred f + B(Float32.(f))) isa typeof(f)
             
             # gradients
             @test (Ðf = @inferred ∇[1]*f) isa Field
@@ -145,6 +144,7 @@ end
             # Field dot products
             D = Diagonal(f)
             @test (@inferred f' * f) isa Real
+            @test (@inferred f' * B(f)) isa Real
             @test (@inferred f' * D * f) isa Real
             
             if f isa FlatS0
@@ -163,19 +163,22 @@ end
             @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{basis(Ð(f))}}
             @test (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
             @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
+        
+            # tuple adjoints
+            v = similar.(@SVector[f0,f0])
+            @test (@inferred mul!(f0, tuple_adjoint(f), f)) isa Field{<:Any,S0}
+            @test (@inferred mul!(v, tuple_adjoint(f), @SVector[f,f])) isa FieldVector{<:Field{<:Any,S0}}
+
         end
         
-        # eltype promotion
-        @test (@inferred broadcast(+, FlatMap(rand(Float32,2,2)), FlatMap(rand(Float64,2,2)))) isa FlatMap{<:Any,Float64}
-        # matrix type promotion
-        @test (@inferred FlatMap(rand(Float32,2,2)) + FlatMap(spzeros(Float64,2,2))) isa FlatMap{<:Any,Float64,<:Matrix}
-
-        # tuple adjoints
-        v = similar.(@SVector[f0,f0])
-        @test (@inferred mul!(f0, tuple_adjoint(f), f)) isa Field{<:Any,S0}
-        @test (@inferred mul!(v, tuple_adjoint(f), @SVector[f,f])) isa FieldVector{<:Field{<:Any,S0}}
-
     end
+    
+    # mixed-spin
+    @test (@inferred f0 .* f2) isa typeof(f2)
+    @test (@inferred f0 .* ft) isa typeof(ft)
+    
+    # matrix type promotion
+    @test_broken (@inferred FlatMap(rand(Float32,2,2)) + FlatMap(spzeros(Float64,2,2))) isa FlatMap{<:Any,Float64,<:Matrix}
     
 end
 
@@ -252,32 +255,37 @@ end
     
     for T in (Float32, Float64)
         
-        ϵ = sqrt(eps(T))
-        Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
-        @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
-        Lϕ = LenseFlow(ϕ)
-        
-        ## S0
-        Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.TT)
-        @test (f = @inferred simulate(Cf)) isa FlatS0
-        @test (@inferred Lϕ*f) isa FlatS0
-        # adjoints
-        f,g = simulate(Cf),simulate(Cf)
-        @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-        # gradients
-        δf, δϕ = simulate(Cf), simulate(Cϕ)
-        @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+        @testset "T :: $T" begin
+                
+            ϵ = sqrt(eps(T))
+            Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
+            @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
+            Lϕ = LenseFlow(ϕ)
+            
+            ## S0
+            Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.TT)
+            @test (f = @inferred simulate(Cf)) isa FlatS0
+            @test (@inferred Lϕ*f) isa FlatS0
+            # adjoints
+            f,g = simulate(Cf),simulate(Cf)
+            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+            # gradients
+            δf, δϕ = simulate(Cf), simulate(Cϕ)
+            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
 
-        # S2 lensing
-        Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
-        @test (f = @inferred simulate(Cf)) isa FlatS2
-        @test (@inferred Lϕ*f) isa FlatS2
-        # adjoints
-        f,g = simulate(Cf),simulate(Cf)
-        @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-        # gradients
-        δf, δϕ = simulate(Cf), simulate(Cϕ)
-        @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+            # S2 lensing
+            Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
+            @test (f = @inferred simulate(Cf)) isa FlatS2
+            @test (@inferred Lϕ*f) isa FlatS2
+            # adjoints
+            f,g = simulate(Cf),simulate(Cf)
+            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+            # gradients
+            δf, δϕ = simulate(Cf), simulate(Cϕ)
+            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+        
+        end
+        
     end
     
 end

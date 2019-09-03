@@ -24,8 +24,7 @@ struct FieldOrOpArrayStyle{N} <: AbstractArrayStyle{N} end
 (::Type{<:FieldOrOpArrayStyle})(::Val{N}) where {N} = FieldOrOpArrayStyle{N}()
 BroadcastStyle(::Type{<:FieldOrOpVector}) = FieldOrOpArrayStyle{1}()
 BroadcastStyle(::Type{<:FieldOrOpMatrix}) = FieldOrOpArrayStyle{2}()
-BroadcastStyle(::FieldOrOpArrayStyle{N}, ::ArrayStyle{F}) where {N,F<:Field} = FieldOrOpArrayStyle{N}()
-BroadcastStyle(::FieldOrOpArrayStyle{N}, ::Style{FT}) where {N,FT<:FieldTuple} = FieldOrOpArrayStyle{N}()
+BroadcastStyle(S::FieldOrOpArrayStyle, ::FieldTupleStyle) = S
 instantiate(bc::Broadcasted{<:FieldOrOpArrayStyle}) = bc
 function copy(bc::Broadcasted{FieldOrOpArrayStyle{N}}) where {N}
     bc′ = flatten(bc)

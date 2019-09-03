@@ -89,6 +89,3 @@ logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unf
 tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
 tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Tx)))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
-
-# always do dot product in map basis
-dot(a::FlatField{P}, b::FlatField{P}) where {P} = sum_kbn(Ł(a)[:] .* Ł(b)[:]) * FFTgrid(a).Δx^2

@@ -13,7 +13,7 @@ simulate(D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(F)
 BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{F}}, ::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}) where {F<:Field} = StructuredMatrixStyle{DiagOp{F}}()
 BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}, ::StructuredMatrixStyle{<:DiagOp{F}}) where {F<:Field} = Base.Broadcast.Unknown()
 function similar(bc::Broadcasted{<:StructuredMatrixStyle{<:DiagOp{F}}}, ::Type{T}) where {F<:Field,T}
-    Diagonal(similar(F,T))
+    Diagonal(similar(typeof(BroadcastStyle(F)),T))
 end
 diag_data(D::Diagonal) = D.diag
 diag_data(x) = x

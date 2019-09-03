@@ -42,17 +42,19 @@ size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
 size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
-similar(f::F) where {F<:FlatS0} = similar(F,eltype(f))
-similar(::Type{F}) where {T,F<:FlatS0{<:Any,T}} = similar(F,T)
-similar(f::F,::Type{T}) where {T,F<:FlatS0} = similar(F,T)
-similar(::Type{F},::Type{T}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,<:Any,M}} = basetype(F){P}(basetype(M){T}(undef,size_2d(F)...))
+similar(f::F) where {F<:FlatS0} = F(similar(firstfield(f)))
+similar(f::F,::Type{T}) where {P,F<:FlatS0{P},T} = basetype(F){P}(similar(firstfield(f),T))
 
 ### broadcasting
-BroadcastStyle(::Type{F}) where {F<:FlatS0} = ArrayStyle{F}()
-BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatMap{P},F2<:FlatMap{P}} = ArrayStyle{FlatMap{P,Real,Matrix{Real}}}()
-BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,F1<:FlatFourier{P},F2<:FlatFourier{P}} = ArrayStyle{FlatFourier{P,Real,Matrix{Complex{Real}}}}()
-BroadcastStyle(::ArrayStyle{FT}, ::ArrayStyle{<:FlatS0}) where {FT<:FieldTuple} = ArrayStyle{FT}()
-similar(bc::Broadcasted{ArrayStyle{F}}, ::Type{T}) where {T, F<:FlatS0} = similar(F,T)
+struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
+(::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
+@generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
+# for now, if two different matrix-types, default to Array (could add more complex rules here):
+# BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,M1,F1<:FlatS0{P,<:Any,M1},M2,F2<:FlatS0{P,<:Any,M2}} = ArrayStyle{basetype(F1){P,<:Any,Array}}()
+BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
+BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
+similar(::Broadcasted{FS}, ::Type{T}) where {T, FS<:FlatS0Style} = similar(FS,T)
+similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T} = F(basetype(M){T}(undef,size_2d(F)...))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
@@ -71,8 +73,12 @@ Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, F
 getproperty(f::FlatS0, ::Val{s}) where {s} = getproperty(f,s)
 function getindex(f::FlatS0, k::Symbol)
     k in [:Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
-    getproperty([Map,Fourier][k .== [:Ix,:Il]][1](f),k)
+    getproperty((k == :Ix ? Map : Fourier)(f),k)
 end
+
+### dot products
+# do in Map space for simplicity, and use sum_kbn to reduce roundoff error
+dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * FFTgrid(a).Δx^2
 
 ### simulation and power spectra
 function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
