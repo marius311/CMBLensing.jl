@@ -1,8 +1,8 @@
-using Documenter
 using CMBLensing
 
 ##
 
+using Documenter
 # ensure in right directory
 cd(dirname(@__FILE__))
 
@@ -35,7 +35,6 @@ for file in readdir("src")
 end
 symlink("../../README.md","src-staging/index.md")
 
-##
 
 # highlight output cells (i.e. anything withouout a language specified) white
 
@@ -44,8 +43,6 @@ symlink("../../README.md","src-staging/index.md")
     language = isempty(c.language) ? "none" : c.language
     pre[".language-$(language)"](code[".language-$(language)"](c.code))
 end
-
-##
 
 # adds the MyBinder button on each page that is a notebook
 
@@ -88,8 +85,6 @@ end
     article["#docs"](art_header, pagenodes, art_footer)
 end
 
-
-##
 makedocs(
     sitename="CMBLensing.jl", 
     source = "src-staging",

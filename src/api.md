@@ -2,5 +2,5 @@
 
 ```@autodocs
 Modules = [CMBLensing]
-Order   = [:function, :type]
+Order   = [:function, :type, :macro, :constant]
 ```
