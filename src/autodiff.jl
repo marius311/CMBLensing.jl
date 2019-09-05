@@ -78,7 +78,7 @@ end
 
 @init @require Zygote="e88e6eb3-aa80-5325-afca-941959d7151f" @eval begin
 
-    using .Zygote: gradient, unbroadcast
+    using .Zygote: unbroadcast
 
     # this one arguably could be in Zygote itself
     # see: https://github.com/FluxML/Zygote.jl/issues/316

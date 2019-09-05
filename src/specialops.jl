@@ -206,11 +206,18 @@ function ParamDependentOp(recompute_function!::Function, mem)
     op = recompute_function!(similar(mem))
     ParamDependentOp(op, (mem=mem;kwargs...)->(isempty(kwargs) ? op : (recompute_function!(mem; kwargs...);mem)), parameters, mem)
 end
-# the type annotations here could be useful if we were lazy and allowed some
-# Core.Box'ed variables in our recompute_function, or if we're on Julia 1.1
-# where that always happened:
-(L::ParamDependentOp)(θ::NamedTuple,args...) = (depends_on(L,θ) ? L.recompute_function(args...;θ...) : L.op) :: typeof(L.op) 
-(L::ParamDependentOp)(args...;θ...) = (depends_on(L,θ) ? L.recompute_function(args...;θ...) : L.op) :: typeof(L.op)
+function (L::ParamDependentOp)(args...; θ...)
+     if depends_on(L,θ)
+         # the type annotation here could be useful if we were lazy and allowed some
+         # Core.Box'ed variables in our recompute_function, or if we're on Julia 1.1
+         # where that always happened:
+         dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+         L.recompute_function(args...; dependent_θ...) :: typeof(L.op)
+     else
+         L.op
+     end 
+end
+(L::ParamDependentOp)(θ::NamedTuple,args...) = L(args...; θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
