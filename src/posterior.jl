@@ -193,12 +193,12 @@ along the posterior.
 
 Keyword arguments: 
 
-* which : `:wf`, `:sample`, or `fluctuation` to compute 1) the Wiener filter,
+* `which` — `:wf`, `:sample`, or `fluctuation` to compute 1) the Wiener filter,
   i.e. the best-fit of $\mathcal{P}(f\,|\,\phi,d)$, 2) a sample from
   $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
   fluctuation on top of the mean.
-* guess : starting guess for `f` for the conjugate gradient solver
-* kwargs : all other arguments are passed to `conjugate_gradient`
+* `guess` — starting guess for `f` for the conjugate gradient solver
+* `kwargs...` — all other arguments are passed to `conjugate_gradient`
 
 """
 argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
@@ -252,37 +252,24 @@ end
 @doc doc"""
 
     MAP_joint(ds::DataSet; kwargs...)
+    
+Compute the maximum a posteriori (i.e. "MAP") estimate of the joint posterior,
+$\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample. 
 
-Compute the maximum a posteri estimate (MAP) from the joint posterior (can also
-do a quasi-sample). 
 
-The `ds` argument stores the data and other relevant objects for the dataset
-being considered.
+Keyword arguments:
 
-`ϕstart` can be used to specify the starting point of the minimizer, but this is
-not necessary and otherwise it will start at ϕ=0. 
-
-`Nϕ` can optionally specify an estimate of the ϕ effective noise, and if
-provided is used to estimate a Hessian which is used in the ϕ
-quasi-Newton-Rhapson step. `Nϕ=:qe` automatically uses the quadratic estimator
-noise. 
-
-This function can also be used to draw quasi-samples, wherein for the f step, we
-draw a sample from  P(f|ϕ) instead of maximizing it (ie instead of computing
-Wiener filter). `quasi_sample` can be set to an integer seed, in which case each
-time in the `f` step we draw a same-seeded sample. If `quasi_sample` is instead
-just `true`, then each iteration in the algorithm draws a different sample so
-the solution bounces around rather than asymptoting to a maximum. 
-
-The following arguments control the maximiation procedure, and can generally be
-left at their defaults:
-
-* `nsteps` - The number of iteration steps to do (each iteration updates f then updates ϕ)
-* `Ncg` - Maximum number of conjugate gradient steps during the f update
-* `cgtol` - Conjugrate gradient tolerance (will stop at cgtol or Ncg, whichever is first)
-* `αtol` - Tolerance for the linesearch in the ϕ quasi-Newton-Rhapson step, `x′ = x - α*H⁻¹*g`
-* `αmax` - Maximum value for α in the linesearch
-* `progress` - Whether to print out conjugate gradient progress.
+* `ϕstart` — Starting point of the minimizer *(default:* $\phi=0$*)*
+* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give `Nϕ=:qe` 
+         to use the EB quadratic estimate noise *(default:* `:qe`*)*
+* `quasi_sample` — `true` to iterate quasi-samples, or an integer to compute
+                   a specific quasi-sample.
+* `nsteps` — The number of iterations for the maximizer
+* `Ncg` — Maximum number of conjugate gradient steps during the $f$ update
+* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`, whichever is first)
+* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$ quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
+* `αmax` — Maximum value for $\alpha$ in the linesearch
+* `progress` — `false`, `:summary`, or `:verbose`, to control progress output
 
 Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
 `ϕ` is the lensing potential, and `tr` contains info about the run. 
@@ -383,9 +370,9 @@ end
 
 @doc doc"""
 
-    MAP_marg( ds; kwargs...)
+    MAP_marg(ds; kwargs...)
 
-Compute the maximum a posteri estimate (MAP) of the marginl posterior.
+Compute the maximum a posteri estimate (MAP) of the marginal posterior.
 """
 function MAP_marg(
     ds;

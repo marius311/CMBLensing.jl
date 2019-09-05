@@ -35,11 +35,11 @@ odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t
 
 
 
-"""
-    conjugate_gradient(M, A, b, x=M\\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+@doc doc"""
+    conjugate_gradient(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
 
-Compute x = A\\b (where A is positive definite) by conjugate gradient. M is the
-preconditioner and should approximate A, and M \\ x should be fast.
+Compute `x=A\b` (where `A` is positive definite) by conjugate gradient. `M` is the
+preconditioner and should be `M≈A`, and `M\x` should be fast.
 
 The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol`
 (where `r=A*x-b` is the residual  at that step), whichever occurs first.
@@ -47,11 +47,11 @@ The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol`
 Info from the iterations of the solver can be returned if `hist` is specified.
 `hist` can be one or a tuple of:
 
-* `:i` - current iteration number
-* `:x` - current solution
-* `:r` - current residual r=A*x-b
-* `:res` - the norm of r
-* `:t` - the time elapsed (in seconds) since the start of the algorithm
+* `:i` — current iteration number
+* `:x` — current solution
+* `:r` — current residual `r=A*x-b`
+* `:res` — the norm of `r`
+* `:t` — the time elapsed (in seconds) since the start of the algorithm
 
 `histmod` can be used to include every N-th iteration only in `hist`. 
 """

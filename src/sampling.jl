@@ -43,7 +43,7 @@ end
 
 
 
-doc"""
+@doc doc"""
     grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
 
 Interpolate the log pdf `lnP` with support on `range`, and return  the
@@ -99,38 +99,48 @@ grid_and_sample(lnP::Function, range, progress=false) = error("Can only currentl
 # allow more conveniently evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
-"""
+@doc doc"""
     sample_joint(ds::DataSet; kwargs...)
     
-Sample from the joint PDF of P(f,ϕ,θ). Runs `nworkers()` chains in parallel
-using `pmap`. 
-    
-Possible keyword arguments: 
+Sample the joint posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$. 
 
-* `nsamps_per_chain` - the number of samples per chain
-* `nchunk` - do `nchunk` steps in-between parallel chain communication
-* `nsavemaps` - save maps into chain every `nsavemaps` steps
-* `nburnin_always_accept` - the first `nburnin_always_accept` steps, always accept HMC steps independent of integration error
-* `nburnin_fixθ` - the first `nburnin_fixθ` steps, fix θ at its starting point
-* `chains` - resume an existing chain (starts a new one if nothing)
-* `θrange` - range and density to grid sample parameters as a NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
-* `θstart` - starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
-* `ϕstart` - starting ϕ as a Field, or `:quasi_sample` or `:best_fit`
-* `metadata` - does nothing, but is saved into the chain file
-* `nhmc` - the number of HMC passes per ϕ Gibbs step (default: 1)
 
+Keyword arguments: 
+
+* `nsamps_per_chain` — *(required)* The number of samples per chain
+* `nchains` — Run `nchains` chains in parallel *(default: 1)*
+* `nchunk` — Do `nchunk` steps between parallel chain communication *(default: 1)*
+* `nsavemaps` — Save maps into chain every `nsavemaps` steps *(default: 1)*
+* `nburnin_always_accept` — The first `nburnin_always_accept` steps, always accept
+                            HMC steps independent of integration error *(default: 0)*
+* `nburnin_fixθ` — For the first `nburnin_fixθ` steps, fix θ at its starting point *(default: 0)*
+* `Nϕ` — Noise to use in the HMC mass matrix. can also give `Nϕ=:qe` to use the 
+         EB quadratic estimate noise *(default: `:qe`)*
+* `chains` — `nothing` to start a new chain; the return value from a previous call to
+             `sample_joint` to resume those chains; `:resume` to resume chains
+             from a file given by `filename`
+* `θrange` — Range and density to grid sample parameters as a NamedTuple, 
+             e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
+* `θstart` — Starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, 
+             or nothing to randomly sample from θrange
+* `ϕstart` — Starting ϕ, either a `Field` object, `:quasi_sample`, or `:best_fit`
+* `metadata` — Does nothing, but is saved into the chain file
+* `nhmc` — The number of HMC passes per ϕ Gibbs step *(default: 1)*
+* `symp_kwargs` — an array of NamedTupe kwargs to pass to [`symplectic_integrate`](@ref). 
+                  E.g. `[(N=50,ϵ=0.1),(N=25,ϵ=0.01)]` would do 50 large steps then 25 
+                  smaller steps per each Gibbs pass. If specified, `nhmc` is ignored.
+* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_lnP`](@ref) in the Wiener Filter Gibbs step.
+* `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when computing the starting point.
 """
 function sample_joint(
     ds :: DataSet{<:FlatField{T,P}};
-    L = LenseFlow,
-    Cℓ,
     nsamps_per_chain,
-    Nϕ = :qe,
     nchains = nworkers(),
     nchunk = 1,
     nsavemaps = 1,
     nburnin_always_accept = 0,
     nburnin_fixθ = 0,
+    Nϕ = :qe,
     chains = nothing,
     ϕstart = 0,
     θrange = (),
@@ -151,7 +161,7 @@ function sample_joint(
     @assert length(θrange) in [0,1] "Can only currently sample one parameter at a time."
     @assert progress in [false,:summary,:verbose]
 
-    @unpack d, Cϕ, Cn, M, B = ds
+    @unpack d, Cϕ, Cn, M, B, L = ds
 
     if (chains == nothing)
         if (θstart == nothing)

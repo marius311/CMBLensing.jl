@@ -51,15 +51,15 @@ end
 
 
 """
-Arguments m and n refer to the sizes of an m×n matrix (call it A) that is the output of a
-real FFT (thus m=n÷2+1)
+Arguments `m` and `n` refer to the sizes of an `m`×`n` matrix (call it `A`) that is the output of a
+real FFT (thus `m=n÷2+1`)
 
 Returns a tuple of (ireal, iimag, negks) where these are
 
-    * ireal - m×n mask corrsponding to unique real entries of A
-    * iimag - m×n mask corrsponding to unique imaginary entries of A
-    * negks - m×n matrix of giving the index into A where the negative k-vector
-              is, s.t. A[i,j] = A[negks[i,j]]'
+* `ireal` — `m`×`n` mask corrsponding to unique real entries of `A`
+* `iimag` — `m`×`n` mask corrsponding to unique imaginary entries of `A`
+* `negks` — `m`×`n` matrix of giving the index into A where the negative k-vector
+            is, s.t. `A[i,j] = A[negks[i,j]]'`
 """
 @generated function fftsyms(::Val{m},::Val{n}) where {m,n}
     k = ifftshift(-n÷2:(n-1)÷2)
