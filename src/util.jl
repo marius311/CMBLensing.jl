@@ -60,9 +60,9 @@ macro dictpack(exs...)
 end
 
 """ 
-Pack some variables into a NamedTuple
+Pack some variables into a NamedTuple. E.g.:
 
-```
+```julia
 > x = 3
 > y = 4
 > @namedtuple(x, y, z=5)
