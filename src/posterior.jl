@@ -1,21 +1,25 @@
 
 """
-    mix(f, ϕ, θ, ds)
+    mix(f, ϕ,                ds::DataSet)
+    mix(f, ϕ, θ::NamedTuple, ds::DataSet)
     
 Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potential `ϕ`. 
 """
-function mix(f, ϕ, θ, ds)
+mix(f, ϕ, ds::DataSet) = mix(f,ϕ,NamedTuple(),ds)
+function mix(f, ϕ, θ::NamedTuple, ds::DataSet)
     @unpack D,G,L = ds(;θ...)
     L(ϕ)*D*f, G*ϕ
 end
 
 
 """
-unmix(f°, ϕ°, θ, ds)
+    unmix(f°, ϕ°,                ds::DataSet)
+    unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
 
 Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed lensing potential `ϕ°`. 
 """
-function unmix(f°, ϕ°, θ, ds)
+unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,NamedTuple(),ds)
+function unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
     @unpack D,G,L = ds(;θ...)
     ϕ = G\ϕ°
     D\(L(ϕ)\f°), ϕ
@@ -247,13 +251,13 @@ end
 
 @doc doc"""
 
-    MAP_joint(ds::DataSet; L=LenseFlow, Nϕ=nothing, quasi_sample=nothing, nsteps=10, Ncg=500, cgtol=1e-1, αtol=1e-5, αmax=0.5, progress=false)
+    MAP_joint(ds::DataSet; kwargs...)
 
 Compute the maximum a posteri estimate (MAP) from the joint posterior (can also
 do a quasi-sample). 
 
 The `ds` argument stores the data and other relevant objects for the dataset
-being considered. `L` gives which type of lensing operator to use. 
+being considered.
 
 `ϕstart` can be used to specify the starting point of the minimizer, but this is
 not necessary and otherwise it will start at ϕ=0. 
@@ -287,7 +291,6 @@ Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
 function MAP_joint(
     ds;
     ϕstart = nothing,
-    L = LenseFlow,
     Nϕ = nothing,
     quasi_sample = false, 
     nsteps = 10, 
@@ -308,7 +311,7 @@ function MAP_joint(
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
     @set! ds.G = IdentityOp
-    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂ = ds
+    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
     ϕ = (ϕstart==nothing) ? zero(Cϕ.diag) : ϕstart
@@ -373,7 +376,7 @@ function MAP_joint(
         end
     end
 
-    return f, ϕ, tr
+    return @namedtuple(f, ϕ, tr)
     
 end
 

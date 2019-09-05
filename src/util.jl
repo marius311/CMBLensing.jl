@@ -70,6 +70,9 @@ Pack some variables into a NamedTuple
 ```
 """
 macro namedtuple(exs...)
+    if length(exs)==1 && isexpr(exs[1],:tuple)
+        exs = exs[1].args
+    end
     kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
     kv(ex) = isexpr(ex,:(=)) ? :($(esc(ex.args[1]))=$(esc(ex.args[2]))) : error()
     Expr(:tuple, (kv(ex) for ex=exs)...)

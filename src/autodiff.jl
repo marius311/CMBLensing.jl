@@ -38,6 +38,38 @@ function gradient(f::Function; relϵ=nothing, absϵ=nothing)
     
 end
 
+function hessian(f::Function; relϵ=nothing, absϵ=nothing) 
+    
+    _hessian(x::Number) = gradient_1vecarg(x->f(x[1]))([x])[1]
+    _hessian(x::Vector) = gradient_1vecarg(f)(x)
+    
+    function gradient_1vecarg(f::Function)
+        function (x::Vector)
+            length(x)==1 || throw(ArgumentError("multi-dimensional hessian not implement yet"))
+            g = similar(x)
+            if relϵ==nothing && absϵ==nothing
+                ϵ = sqrt(sqrt(eps(eltype(x))))
+            elseif absϵ!=nothing
+                @assert relϵ==nothing "Only one of `relϵ` or `absϵ` must be specifed"
+                ϵ = absϵ
+            end
+            for i in eachindex(x)
+                if relϵ!=nothing
+                    ϵ = relϵ*x[i]
+                end
+                x₊,x₋ = copy(x), copy(x)
+                x₊[i] += ϵ
+                x₋[i] -= ϵ
+                g[i] = (f(x₊) - 2f(x) + f(x₋))/(ϵ^2)
+            end
+            return g
+        end
+    end
+    
+    (args...) -> _hessian(args...)
+
+    
+end
 
 
 
