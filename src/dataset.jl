@@ -178,7 +178,7 @@ function load_sim_dataset(;
     # with the DataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds,(use in (:P,:IP) ? :EB : :T)).Nϕ/2
+        Nϕ = quadratic_estimate(ds,(use in (:P,:IP) ? :EB : :TT)).Nϕ/2
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
         G = ParamDependentOp((;Aϕ=1)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
     end
