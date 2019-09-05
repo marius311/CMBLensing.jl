@@ -29,10 +29,9 @@ for (F, X, T) in [
         @doc $doc $F
         $F($X; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractMatrix{$T}} = $F{P,T,M}($X)
-        $F{P,T}($X) where {P,T} = $F{P}(T.($X))
+        $F{P,T}($X::AbstractMatrix) where {P,T} = $F{P}($T.($X))
     end
 end
-FlatFourier{P}(Il::AbstractMatrix{<:Real}) where {P} = FlatFourier{P}(complex(Il))
 
 
 ### array interface 

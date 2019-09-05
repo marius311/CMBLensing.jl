@@ -70,7 +70,7 @@ end
     kwargs = (Nside=N, θpix=θpix)
     P = Flat(;kwargs...)
     Ix = rand(N,N)
-    Il = complex(rand(N÷2+1,N))
+    Il = rand(N÷2+1,N) + im*rand(N÷2+1,N)
     
     for (F,args) in [
             (FlatMap,        (Ix,)),
