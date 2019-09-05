@@ -198,7 +198,7 @@ Keyword arguments:
   $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
   fluctuation on top of the mean.
 * `guess` — starting guess for `f` for the conjugate gradient solver
-* `kwargs...` — all other arguments are passed to `conjugate_gradient`
+* `kwargs...` — all other arguments are passed to [`conjugate_gradient`](@ref)
 
 """
 argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
@@ -259,7 +259,7 @@ $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample.
 
 Keyword arguments:
 
-* `ϕstart` — Starting point of the minimizer *(default:* $\phi=0$*)*
+* `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*
 * `Nϕ` — Noise to use in the approximate hessian matrix. Can also give `Nϕ=:qe` 
          to use the EB quadratic estimate noise *(default:* `:qe`*)*
 * `quasi_sample` — `true` to iterate quasi-samples, or an integer to compute
@@ -372,7 +372,9 @@ end
 
     MAP_marg(ds; kwargs...)
 
-Compute the maximum a posteri estimate (MAP) of the marginal posterior.
+Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior,
+$\mathcal{P}(\phi,\theta\,|\,d)$.
+
 """
 function MAP_marg(
     ds;

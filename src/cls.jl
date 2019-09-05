@@ -187,7 +187,7 @@ end
 	beamCℓs(;beamFWHM, ℓmax=8000)
 	
 Compute the beam power spectrum, often called $W_\ell$. A map should be
-multiplied by $\sqrt$ of this.
+multiplied by the square root of this.
 """
 function beamCℓs(;beamFWHM, ℓmax=8000)
 	InterpolatedCℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))

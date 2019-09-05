@@ -82,10 +82,11 @@ const ∇ᵢ = ∇Op{:covariant,1}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
 const ∇² = Diagonal(∇²diag())
 
-"""
+
+@doc doc"""
     gradhess(f)
     
-Compute the gradient gⁱ = ∇ⁱf, and the hessian, Hⁱⱼ = ∇ⱼ∇ⁱf
+Compute the gradient $g^i = \nabla^i f$, and the hessian, $H_j^{\,i} = \nabla_j \nabla^i f$.
 """
 function gradhess(f)
     g = ∇ⁱ*f
@@ -149,15 +150,17 @@ MidPass(ℓmin,ℓmax;Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-
     ParamDependentOp(recompute_function::Function)
     ParamDependentOp(recompute_function!::Function, mem)
     
-Creates an ImplicitOp which depends on some parameters $\theta$ and can be
-evaluated at various values of these parameters. There are two forms to
-construct this operator. In the first form, `recompute_function` should be a
-function which accepts keyword arguments for $\theta$ and returns the operator.
-Each keyword must have a default value; the operator will act as if evaluated at
-these defaults unless it is explicitly evaluated at other parameters. In the
-second form, we can preallocate some memory for the results `mem`, in which case
-`recompute_function!` should additionally accept a single positional argument
-holding this memory, which should then be assigned in-place. 
+Creates an operator which depends on some parameters $\theta$ and can be
+evaluated at various values of these parameters. 
+
+There are two forms to construct this operator. In the first form,
+`recompute_function` should be a function which accepts keyword arguments for
+$\theta$ and returns the operator. Each keyword must have a default value; the
+operator will act as if evaluated at these defaults unless it is explicitly
+evaluated at other parameters. In the second form, we can preallocate some
+memory for the results `mem`, in which case `recompute_function!` should
+additionally accept a single positional argument holding this memory, which
+should then be assigned in-place. 
 
 Example:
 
@@ -187,10 +190,6 @@ end
 
 After executing the code above, `Cϕ` is now ready to be shipped to any workers
 and will work regardless of what global variables are defined on these workers. 
-
-Also note: if you want to use these ops in a DataSet which may be evaluated at
-other parameters, you can use a definition like e.g. `(;Aϕ=1, _...)->` to
-capture only the parameter you care about while allowing others to exist. 
 """
 struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function, M<:Union{L,Nothing}} <: ImplicitOp{B,S,P}
     op::L

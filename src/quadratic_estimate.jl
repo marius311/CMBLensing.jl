@@ -37,7 +37,7 @@ function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wi
     #     ds1 = subblock(ds1, (which==:TT) ? :T : :P)
     #     ds2 = subblock(ds2, (which==:TT) ? :T : :P)
     # end
-    @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds1
+    @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds1()
     quadratic_estimate_func = @match which begin
         :TT => quadratic_estimate_TT
         :EE => quadratic_estimate_EE

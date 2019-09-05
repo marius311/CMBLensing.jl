@@ -58,14 +58,14 @@ grid_and_sample(nt->-(nt.x^2+nt.y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,l
 ```
 
 The return value is `(lnP, samples, Px)` where `lnP` is an interpolated/smoothed
-log PDF which can be evaluated anywhere, `Px` are sampled points of the original
-PDF, and `samples` is a NamedTuple giving the Monte-Carlo samples of each of the
-parameters.
+log PDF which can be evaluated anywhere within the original range, `Px` are
+sampled points of the original PDF, and `samples` is a NamedTuple giving the
+Monte-Carlo samples of each of the parameters.
 
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1, span=0.75, rtol=1e-5) where {S}
+function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1, span=0.25, rtol=1e-5) where {S}
     
     xs = first(range)
     xmin,xmax = first(xs),last(xs)
@@ -214,7 +214,7 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        f° = Lϕ * dsθ.D * argmaxf_lnP(dsθ, Lϕ, :sample; guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f° = Lϕ * dsθ.D * argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
@@ -293,6 +293,6 @@ function sample_joint(
         end
     end
     
-    chains
+    @namedtuple(rundat, chains)
     
 end

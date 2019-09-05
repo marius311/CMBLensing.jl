@@ -177,6 +177,8 @@ for op in (:*, :/)
 end
 
 
-
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)
+
+
+one(f::Field) = fill!(similar(f), one(eltype(f)))

@@ -156,13 +156,12 @@ function load_sim_dataset(;
         B = Cℓ_to_Cov(Pix, T, SS..., ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
-    # mixing matrices
+    # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
         Cf′ = Diagonal(Cf().diag .+ σ²len)
         D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf′))
     end
-    if (G == nothing); G = IdentityOp; end
     
     # simulate data
     if (seed != nothing); seed!(seed); end
@@ -174,7 +173,16 @@ function load_sim_dataset(;
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, D, G, P, L)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, D, P, L)...)
+    
+    # with the DataSet created, we can now more conveniently call the quadratic
+    # estimate to compute Nϕ if needed for the G mixing matrix
+    if (G == nothing)
+        Nϕ = quadratic_estimate(ds,(use in (:P,:IP) ? :EB : :T)).Nϕ/2
+        G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
+        G = ParamDependentOp((;Aϕ=1)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
+    end
+    @set! ds.G = G
    
     return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L)
     
