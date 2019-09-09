@@ -1,25 +1,40 @@
 
+### FieldTuple types 
 
+# the basis type for a FieldTuple can be a BasisTuple which just holds the bases
+# of the sub-fields
 abstract type BasisTuple{T} <: Basis end
 promote_type(::Type{BasisTuple{BT1}}, ::Type{BasisTuple{BT2}}) where {BT1,BT2} = BasisTuple{Tuple{map_tupleargs(promote_type,BT1,BT2)...}}
 
-
-### FieldTuple type 
-# a thin wrapper around a Tuple or NamedTuple which additionally forwards all
-# broadcasts one level deeper
+# FieldTuple is a thin wrapper around a Tuple or NamedTuple holding some Fields
+# and behaving like a Field itself
 struct FieldTuple{B<:Basis,FS<:Union{Tuple,NamedTuple},T} <: Field{B,Spin,Pix,T}
     fs::FS
+    # the constructor for FieldTuples is a bit complex because there's alot of
+    # different ways we want to allow constructing them. see the
+    # FieldTuples/Constructors section of runtests.jl for a list. the use of
+    # @generated is an easier way to deal with all the different cases and avoid
+    # ambiguities vs. trying to do this via dispatch.
+    @generated function (::Type{FT})(fs::Union{Tuple,NamedTuple}) where {FT<:FieldTuple}
+        T =  (eltype(FT)==Any) ? :(promote_type(map(eltype,values(fs))...))     : eltype(FT)
+        B = (basis(FT)==Basis) ? :(BasisTuple{Tuple{map(basis,values(fs))...}}) : basis(FT)
+        getnames(::Type{FT}) where {Names, FT<:FieldTuple{<:Any, <:NamedTuple{Names}}} = Names
+        getnames(::Any)  = nothing
+        Names = getnames(FT)
+        fs′ = (Names==nothing) ? :fs : :(NamedTuple{$Names}(fs))
+        quote
+            fs′ = $fs′
+            $(Expr(:new, :(FieldTuple{$B,typeof(fs′),$T}), fs′))
+        end
+    end
 end
-FieldTuple{B}(fs::FS) where {B, FS} = FieldTuple{B,FS,promote_type(map(eltype,values(fs))...)}(fs)
-# constructors for FieldTuples with names
-FieldTuple(;kwargs...) = FieldTuple((;kwargs...))
-FieldTuple(fs::NamedTuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}}}(fs)
-(::Type{<:FT})(f1,f2,fs...) where {Names,FT<:FieldTuple{<:Any,<:NamedTuple{Names}}} = FieldTuple(NamedTuple{Names}((f1,f2,fs...)))
-(::Type{FT})(;kwargs...) where {B,FT<:FieldTuple{B}} = FieldTuple{B}((;kwargs...))::FT
-(::Type{FT})(ft::FieldTuple) where {B,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs)::FT
-# constructors for FieldTuples without names
-FieldTuple(f1,f2,fs...) = FieldTuple((f1,f2,fs...))
-FieldTuple(fs::Tuple) = FieldTuple{BasisTuple{Tuple{map(basis,values(fs))...}},typeof(fs),promote_type(map(eltype,values(fs))...)}(fs)
+# FieldTuple(args...) or FieldTuple(;kwargs...) calls the inner constructor
+# which takes a single Tuple/NamedTuple:
+(::Type{FT})(;kwargs...) where {FT<:FieldTuple} = FT((;kwargs...))
+(::Type{FT})(f1::Field,f2::Field,fs::Field...) where {FT<:FieldTuple} = FT((f1,f2,fs...))
+# converting a FieldTuple to a different kind of FieldTuple just changes the
+# basis then asserts we end up with the right type:
+(::Type{FT})(ft::FieldTuple) where {B<:Basis,FT<:FieldTuple{B}} = FieldTuple{B}(ft.fs) :: FT
 
 
 ### printing

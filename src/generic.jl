@@ -142,11 +142,15 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 
 
 # convenience "getter" functions for the Basis/Spin/Pix
-basis(::Type{<:Field{B,S,P}}) where {B,S,P} = B
+# basis of UnionAlls like basis(Field) will return Basis (which means any Basis)
+basis(::Type{<:Field}) = Basis
+basis(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = B
 basis(::F) where {F<:Field} = basis(F)
-spin(::Type{<:Field{B,S,P}}) where {B,S,P} = S
+spin(::Type{<:Field}) = Spin
+spin(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = S
 spin(::F) where {F<:Field} = spin(F)
-pix(::Type{<:Field{B,S,P}}) where {B,S,P} = P
+pix(::Type{<:Field}) = Pix
+pix(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = P
 pix(::F) where {F<:Field} = pix(F)
 
 

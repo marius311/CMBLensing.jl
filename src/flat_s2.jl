@@ -33,10 +33,9 @@ for (F,F0,(X,Y),T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X, $Y; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X, $Y)
-        $F{P}($X::M, $Y::M) where {P,T,M<:AbstractMatrix{$T}} = 
-            $F{P,T,M}(($(Symbol(string(X)[1]))=($F0{P,T,M}($X)), $(Symbol(string(Y)[1]))=$F0{P,T,M}($Y)))
-        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T} = $F{P}($T.($X), $T.($Y))
+        $F($X::AbstractMatrix, $Y::AbstractMatrix; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X, $Y)
+        $F{P}($X::AbstractMatrix, $Y::AbstractMatrix) where {P} = $F{P}($F0{P}($X), $F0{P}($Y))
+        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T} = $F{P,T}($F0{P,T}($X), $F0{P,T}($Y))
     end
 end
 

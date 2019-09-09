@@ -4,11 +4,14 @@ abstract type RK4Solver{nsteps} <: ODESolver  end
 
 
 
-"""
-Solve for y(t₁) with 4th order Runge-Kutta assuming dy/dt = F(t,y) and y(t₀) = y₀
+@doc doc"""
+    
+    RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
+        
+Solve for $y(t_1)$ with 4th order Runge-Kutta assuming $dy/dt = F(t,y)$ and $y(t_0)$ = $y_0$.
 
-Arguments
-* F! : a function F!(v,t,y) which sets v=F(t,y)
+Arguments:
+* `F!` — a function `F!(v,t,y)`` which sets `v=F(t,y)`
 """
 function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
     h = (t₁-t₀)/nsteps

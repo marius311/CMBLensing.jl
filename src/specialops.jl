@@ -191,42 +191,40 @@ end
 After executing the code above, `Cϕ` is now ready to be shipped to any workers
 and will work regardless of what global variables are defined on these workers. 
 """
-struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function, M<:Union{L,Nothing}} <: ImplicitOp{B,S,P}
+struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S,P}
     op::L
     recompute_function::F
     parameters::Vector{Symbol}
-    mem::M
+    inplace::Bool
 end
 function ParamDependentOp(recompute_function::Function)
     parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function)), typeof(methods(recompute_function).mt.kwsorter)))
-    ParamDependentOp(recompute_function(), recompute_function, parameters, nothing)
+    ParamDependentOp(recompute_function(), recompute_function, parameters, false)
 end
 function ParamDependentOp(recompute_function!::Function, mem)
     parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function!)), typeof(methods(recompute_function!).mt.kwsorter)))
     op = recompute_function!(similar(mem))
-    ParamDependentOp(op, (mem=mem;kwargs...)->(isempty(kwargs) ? op : (recompute_function!(mem; kwargs...);mem)), parameters, mem)
+    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), parameters, true)
 end
-function (L::ParamDependentOp)(args...; θ...)
-     if depends_on(L,θ)
-         # the type annotation here could be useful if we were lazy and allowed some
-         # Core.Box'ed variables in our recompute_function, or if we're on Julia 1.1
-         # where that always happened:
-         dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-         L.recompute_function(args...; dependent_θ...) :: typeof(L.op)
-     else
-         L.op
-     end 
+function (L::ParamDependentOp)(mem=nothing;θ...) 
+    if (mem!=nothing)
+        L.inplace || throw(ArgumentError("Can't pass preallocated memory to non-inplace ParamDependentOp."))
+        mem isa typeof(L.op) || throw(ArgumentError("Preallocated memory passed to ParamDependentOp should be $(typeof(L.op)), not $(typeof(mem))."))
+    end
+    if depends_on(L,θ)
+        dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+        # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
+        L.recompute_function((mem==nothing ? () : (mem,))...; dependent_θ...) :: typeof(L.op)
+    else
+        L.op
+    end 
 end
-(L::ParamDependentOp)(θ::NamedTuple,args...) = L(args...; θ...)
+(L::ParamDependentOp)(θ::NamedTuple) = L(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
-# the following could be changed to calling ::LinOp directly pending
-# https://github.com/JuliaLang/julia/issues/14919
-evaluate(L::Union{LinOp,Real}; θ...) = L
-evaluate(L::ParamDependentOp; θ...) = L(;θ...)
 depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
 depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
