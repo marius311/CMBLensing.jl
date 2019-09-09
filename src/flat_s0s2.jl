@@ -47,9 +47,8 @@ getproperty(f::FlatS02, s::Union{Val{:Ix},Val{:Il}}) = getproperty(getfield(f,:f
 function getindex(f::FlatS02, k::Symbol)
     @match k begin
         (:IP) => f
-        (:P) => f.P
-        (:I) => f.I
-        (:Q || :U || :E || :U) => getindex(f.P,k)
+        (:I || :P) => getfield(f.fs,k)
+        (:Q || :U || :E || :B) => getindex(f.P,k)
         (:Ix || :Il) => getindex(f.I,k)
         (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k)
         _ => throw(ArgumentError("Invalid FlatS02 index: $k"))

@@ -170,7 +170,7 @@ Compute the (:TT,:EE,:BB,:TE) noise power spectra given white noise + 1/f.
 Polarization noise is scaled by $\sqrt{2}$ relative to `μKarcminT`. `beamFWHM` is
 in arcmin.
 """
-function noiseCℓs(;μKarcminT, beamFWHM=sqrt0, ℓmax=8000, ℓknee=100, αknee=3)
+function noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
     ℓ = 2:ℓmax
     Bℓ = beamCℓs(beamFWHM=beamFWHM, ℓmax=ℓmax)[ℓ]
     Nℓ1f = @. 1 + (ℓknee/ℓ)^αknee

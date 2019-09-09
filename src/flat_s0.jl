@@ -153,15 +153,14 @@ function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
             FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
         end
     else
-        error("Upgrading resolution not implemented yet.") # still needs updating from old code
         # upgrade
-        # if mode==:map
-        #     fnew = FlatMap{Pnew}(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)')
-        #     deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
-        # else
-        #     fnew = FlatFourier{P}(zeros(Nnew÷2+1,Nnew))
-        #     broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
-        #     fnew
-        # end
+        if mode==:map
+            fnew = FlatMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
+        else
+            fnew = FlatFourier{P}(zeros(Nnew÷2+1,Nnew))
+            broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
+            fnew
+        end
     end
 end

@@ -89,3 +89,8 @@ logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unf
 tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
 tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Tx)))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
+
+
+### misc
+Cℓ_to_Cov(f::FlatField{P,T}, args...) where {P,T} = Cℓ_to_Cov(P,T,spin(f),args...)
+flatinfo(f::FlatField{P,T,M}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = @namedtuple(Nside,θpix,∂mode,P,T,M,B=basis(f),S=spin(f))
