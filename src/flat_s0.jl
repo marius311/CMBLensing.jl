@@ -28,6 +28,7 @@ for (F, X, T) in [
     @eval begin
         @doc $doc $F
         $F($X; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X)
+        $F{P}($X::M) where {P,T,M<:AbstractMatrix{T}} = $F{P,T}($X)
         $F{P}($X::M) where {P,T,M<:AbstractMatrix{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractMatrix) where {P,T} = $F{P}($T.($X))
     end
@@ -48,12 +49,12 @@ similar(f::F,::Type{T}) where {P,F<:FlatS0{P},T} = basetype(F){P}(similar(firstf
 struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
-# for now, if two different matrix-types, default to Array (could add more complex rules here):
-# BroadcastStyle(::ArrayStyle{F1}, ::ArrayStyle{F2}) where {P,M1,F1<:FlatS0{P,<:Any,M1},M2,F2<:FlatS0{P,<:Any,M2}} = ArrayStyle{basetype(F1){P,<:Any,Array}}()
+# rules for mixing matrix types (e.g. CuArray and Array) would look something like this:
+# BroadcastStyle(::FlatS0Style{F,M1}, ::FlatS0Style{F,M2}) where {F,M1,M2} = ...
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T, FS<:FlatS0Style} = similar(FS,T)
-similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T} = F(basetype(M){T}(undef,size_2d(F)...))
+similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T} = F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)

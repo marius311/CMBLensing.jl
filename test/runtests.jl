@@ -41,23 +41,47 @@ end
 
     f = FlatMap(rand(4,4))
 
-    # constructors
-    @test FieldTuple(Q=f, U=f) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple((Q=f, U=f)) isa FieldTuple{<:BasisTuple, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple{QUMap}((Q=f, U=f)) isa FieldTuple{<:QUMap, <:NamedTuple{(:Q,:U)}}
-    @test FieldTuple{<:Any, <:NamedTuple{(:Q,:U)}}(f,f) isa FieldTuple
+    @testset "Constructors" begin
 
-    # basis conversions
-    for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
-        @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
-        @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        # Enumerate the combinations of
+        # * 1) no basis or names specified, 2) only basis specified, 3) only names specified, 4) basis and names specified
+        # * 1) args/kwargs form 2) single Tuple/NamedTuple argument form
+
+        for F in [
+            FieldTuple,
+            FieldTuple{QUMap},
+            FieldTuple{QUMap,<:NamedTuple{(:Q,:U)}},
+            FieldTuple{<:Basis,<:NamedTuple{(:Q,:U)}}
+            ]
+
+            @testset "F :: $F" begin
+                @test (@inferred F(;Q=f, U=f)) isa F
+                @test (@inferred F((Q=f, U=f))) isa F
+                @test (@inferred F(f,f)) isa F
+                @test (@inferred F((f,f))) isa F
+            end
+            
+        end
+
     end
-    f_concretebasis = FlatQUMap(rand(4,4), rand(4,4))
-    @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
-    @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
-    @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
+
+    @testset "Basis conversions" begin
+
+        # basis conversions
+        for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
+            @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+            @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
+            @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+            @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        end
+
+        f_concretebasis = FieldTuple{QUMap, <:NamedTuple{(:Q,:U)}}(f,f)
+        @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
+        @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
+        @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
+        
+    end
+            
 
 end
 
@@ -87,6 +111,10 @@ end
         @testset "f::$F" begin
             @test F(args...; kwargs...) isa F{P}
             @test (@inferred F{P}(args...)) isa F{P}
+            @test (@inferred broadcast(real, (F{P}(args...)))) isa F{P}
+            if eltype(args[1]) <: Complex
+                @test (@inferred F{P}(map(real,args)...)) isa F{P}
+            end
             @test real(eltype(@inferred F{P,Float32}(args...))) == Float32
         end
     end
