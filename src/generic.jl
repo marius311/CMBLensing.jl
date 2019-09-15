@@ -13,13 +13,23 @@ abstract type S0 <: Spin end
 abstract type S2 <: Spin end
 abstract type S02 <: Spin end
 
+# A BasisTuple is the basis used for FieldTuples if a concrete basis like QUMap
+# isn't specified. It just holds the bases of each field in the tuple. 
+abstract type BasisTuple{T} <: Basis end
+promote_type(::Type{BasisTuple{BT1}}, ::Type{BasisTuple{BT2}}) where {BT1,BT2} = BasisTuple{Tuple{map_tupleargs(promote_type,BT1,BT2)...}}
+
 # Basis types
-abstract type Map <: Basis end
-abstract type Fourier <: Basis end
-abstract type QUMap <: Basis end
-abstract type EBMap <: Basis end
+abstract type Map       <: Basis end
+abstract type Fourier   <: Basis end
+abstract type QUMap     <: Basis end
+abstract type EBMap     <: Basis end
 abstract type QUFourier <: Basis end
 abstract type EBFourier <: Basis end
+const IQUFourier = BasisTuple{Tuple{Fourier,QUFourier}}
+const IEBFourier = BasisTuple{Tuple{Fourier,EBFourier}}
+const IQUMap     = BasisTuple{Tuple{Map,QUMap}}
+const IEBMap     = BasisTuple{Tuple{Map,EBMap}}
+
 
 
 basis_promotion_rules = Dict(

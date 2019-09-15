@@ -126,12 +126,17 @@ function load_sim_dataset(;
     end
     
     # pixelization
-    P = (θpix_data == θpix) ? IdentityOp : FuncOp(
-        op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
-        opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
-    )
-    Pix      = Flat(Nside=Nside,                  θpix=θpix,      ∂mode=∂mode)
-    Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
+    Pix = Flat(Nside=Nside, θpix=θpix, ∂mode=∂mode)
+    if (θpix_data == θpix)
+        Pix_data = Pix
+        P = IdentityOp
+    else
+        Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
+        P = FuncOp(
+            op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
+            opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
+        )
+    end
     
     # covariances
     Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0,    (Cℓ.total.ϕϕ))

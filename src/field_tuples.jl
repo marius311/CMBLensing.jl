@@ -1,11 +1,6 @@
 
 ### FieldTuple types 
 
-# the basis type for a FieldTuple can be a BasisTuple which just holds the bases
-# of the sub-fields
-abstract type BasisTuple{T} <: Basis end
-promote_type(::Type{BasisTuple{BT1}}, ::Type{BasisTuple{BT2}}) where {BT1,BT2} = BasisTuple{Tuple{map_tupleargs(promote_type,BT1,BT2)...}}
-
 # FieldTuple is a thin wrapper around a Tuple or NamedTuple holding some Fields
 # and behaving like a Field itself
 struct FieldTuple{B<:Basis,FS<:Union{Tuple,NamedTuple},T} <: Field{B,Spin,Pix,T}
@@ -133,6 +128,12 @@ end
 ≈(a::FieldTuple, b::FieldTuple) = all(map(≈, getfield.(promote(a,b),:fs)...))
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
 hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
+
+
+function ud_grade(f::FieldTuple, args...; kwargs...) where {P} 
+    FieldTuple(map(f->ud_grade(f, args...; kwargs...), f.fs))
+end
+
 
 ### adjoint tuples
 
