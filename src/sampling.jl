@@ -70,7 +70,7 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     xs = first(range)
     xmin,xmax = first(xs),last(xs)
     
-    # sample the pdf
+    # probe the pdf along the grid and interpolate
     lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->Float64(lnP(NamedTuple{S}(x))), xs)
     lnPs .-= maximum(lnPs)
     ilnP = loess(xs,lnPs,span=span)
@@ -85,7 +85,7 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     # evaluated right at the lower bound)
     θsamples = NamedTuple{S}(@showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
-        fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+eps(),x,rtol=rtol)[1]-r),xmin+eps(),xmax,rtol=rtol)
+        fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+sqrt(eps()),x,rtol=rtol)[1]-r),xmin+sqrt(eps()),xmax,rtol=rtol)
     end)
     
     if nsamples==1

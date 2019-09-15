@@ -115,7 +115,7 @@ end
 """
 animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval=50, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
@@ -132,7 +132,7 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; interval
             first.(getproperty.(axs,:images))[:]
         end, 
         1:maximum(length.(fields)[:]),
-        interval=interval, blit=true
+        interval=1000/fps, blit=true
         )
     close()
     if filename!=nothing

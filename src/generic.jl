@@ -13,8 +13,8 @@ abstract type S0 <: Spin end
 abstract type S2 <: Spin end
 abstract type S02 <: Spin end
 
-# A BasisTuple is the basis used for FieldTuples if a concrete basis like QUMap
-# isn't specified. It just holds the bases of each field in the tuple. 
+# the basis type for a FieldTuple can be a BasisTuple which just holds the bases
+# of the sub-fields
 abstract type BasisTuple{T} <: Basis end
 promote_type(::Type{BasisTuple{BT1}}, ::Type{BasisTuple{BT2}}) where {BT1,BT2} = BasisTuple{Tuple{map_tupleargs(promote_type,BT1,BT2)...}}
 

@@ -129,9 +129,8 @@ end
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
 hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
 
-
-function ud_grade(f::FieldTuple, args...; kwargs...) where {P} 
-    FieldTuple(map(f->ud_grade(f, args...; kwargs...), f.fs))
+function ud_grade(f::FieldTuple, args...; kwargs...)
+    FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))
 end
 
 
