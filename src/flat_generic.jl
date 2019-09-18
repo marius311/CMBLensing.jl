@@ -30,6 +30,12 @@ DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})     =   Map
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})     = QUMap
 
+
+# makes DiagOp{<:S0} * Union{S2,S02} work, not sure this is really how I want to do this but for now:
+(*)(D::DiagOp{<:FlatMap{P}}, f::Union{FlatS2Map{P},FlatS02Map{P}}) where {P} = D.diag .* f
+(*)(D::DiagOp{<:FlatFourier{P}}, f::Union{FlatS2Fourier{P},FlatS02Fourier{P}}) where {P} = D.diag .* f
+
+
 ### derivatives
 
 ## Fourier-space

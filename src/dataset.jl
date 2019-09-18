@@ -35,8 +35,7 @@ end
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all(isa.((B̂,M̂,Cn̂), Diagonal)) 
-            && all(basis.(getproperty.((B̂,M̂,Cn̂),:diag)) .== basis(Cf.diag)),
+    @assert(all([L isa Scalar || (L isa Diagonal && basis(L.diag)==basis(Cf.diag)) for L in [B̂,M̂,Cn̂]]),
             "B̂, M̂, Cn̂ should all be Diagonal in the same basis as Cf")
 end
 
@@ -98,7 +97,7 @@ function load_sim_dataset(;
     
     # theory
     rfid = 0.05,
-    Cℓ = camb(r=rfid),
+    Cℓ = nothing,
     
     seed = nothing,
     D = nothing,
@@ -110,6 +109,11 @@ function load_sim_dataset(;
     
     # the biggest ℓ on the 2D fourier grid
     ℓmax = round(Int,ceil(√2*FFTgrid(Flat(θpix=θpix,Nside=Nside),T).nyq))
+    
+    # CMB Cℓs
+    if Cℓ == nothing
+        Cℓ = camb(r=rfid, ℓmax=ℓmax)
+    end
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
     if (Cℓn == nothing)
@@ -161,6 +165,10 @@ function load_sim_dataset(;
         B = Cℓ_to_Cov(Pix, T, SS..., ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
+    # approximate beam and mask operators
+    M̂ = (M isa Diagonal && basis(M.diag)==basis(Cf().diag)) ? M : 1
+    B̂ = (B isa Diagonal && basis(B.diag)==basis(Cf().diag)) ? B : 1
+    
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
@@ -177,8 +185,9 @@ function load_sim_dataset(;
     if (Bf̃ == nothing); Bf̃ = B*f̃;          end
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
+    
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, D, P, L)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L)...)
     
     # with the DataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
