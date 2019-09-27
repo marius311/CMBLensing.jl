@@ -85,8 +85,8 @@ end
 # 
 # 
 # cases where no conversion is needed
-Basis(::FieldTuple{<:Basis}) = f
-Basis(::FieldTuple{<:BasisTuple}) = f
+Basis(f::FieldTuple{<:Basis}) = f
+Basis(f::FieldTuple{<:BasisTuple}) = f
 (::Type{B′})(f::F)  where {B′<:Basis,      F<:FieldTuple{B′}} = f
 (::Type{B′})(f::F)  where {B′<:BasisTuple, F<:FieldTuple{B′,<:Tuple}} = f
 (::Type{B′})(f::F)  where {B′<:BasisTuple, Names,F<:FieldTuple{B′,<:NamedTuple{Names}}} = f

@@ -54,10 +54,12 @@ getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 function getindex(f::FlatS2, k::Symbol)
     B = @match k begin
-        (:E || :B || :Ex || :Bx) => EBMap
-        (:E || :B || :El || :Bl) => EBFourier
-        (:Q || :U || :Qx || :Ux) => QUMap
-        (:Q || :U || :Ql || :Ul) => QUFourier
+        (:Ex || :Bx) => EBMap
+        (:El || :Bl) => EBFourier
+        (:Qx || :Ux) => QUMap
+        (:Ql || :Ul) => QUFourier
+        (:E  || :B)  => basis(f)==QUMap ? EBMap : basis(f)==QUFourier ? EBFourier : Basis
+        (:Q  || :U)  => basis(f)==EBMap ? QUMap : basis(f)==EBFourier ? QUFourier : Basis
         _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
     end
     getproperty(B(f),k)
@@ -67,7 +69,7 @@ getindex(D::DiagOp{<:FlatS2}, k::Symbol) =
 
 ### basis conversion
 
-QUFourier(f::FlatQUMap) = FlatQUFourier(Fourier(f))
+QUFourier(f::FlatQUMap) = FlatQUFourier(map(Fourier,f.fs))
 QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier
 QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
     @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
@@ -76,11 +78,11 @@ QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
     FlatQUFourier(Q=FlatFourier{P}(Ql), U=FlatFourier{P}(Ul))
 end
 
-QUMap(f::FlatQUFourier)  = FlatQUMap(Map(f))
+QUMap(f::FlatQUFourier)  = FlatQUMap(map(Map,f.fs))
 QUMap(f::FlatEBMap)      = f |> EBFourier |> QUFourier |> QUMap
 QUMap(f::FlatEBFourier)  = f |> QUFourier |> QUMap
 
-EBFourier(f::FlatEBMap) = FlatEBFourier(Fourier(f))
+EBFourier(f::FlatEBMap) = FlatEBFourier(map(Fourier,f.fs))
 EBFourier(f::FlatQUMap) = f |> QUFourier |> EBFourier
 EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
     @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
@@ -89,12 +91,17 @@ EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
     FlatEBFourier(E=FlatFourier{P}(El), B=FlatFourier{P}(Bl))
 end
 
-EBMap(f::FlatEBFourier) = FlatEBMap(Map(f))
+EBMap(f::FlatEBFourier) = FlatEBMap(map(Map,f.fs))
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
 QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
 QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
+
+Map(f::FlatQU) = QUMap(f)
+Map(f::FlatEB) = EBMap(f)
+Fourier(f::FlatQU) = QUFourier(f)
+Fourier(f::FlatEB) = EBFourier(f)
 
 
 ### simulation and power spectra

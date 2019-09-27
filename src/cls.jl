@@ -12,6 +12,7 @@ struct InterpolatedCℓs{I} <: AbstractCℓs
     etp :: I
     concrete :: Bool
 end
+InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
 InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
 getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = first(ic.etp.itp.knots)

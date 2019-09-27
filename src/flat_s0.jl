@@ -72,8 +72,8 @@ Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, F
 ### properties
 getproperty(f::FlatS0, ::Val{s}) where {s} = getproperty(f,s)
 function getindex(f::FlatS0, k::Symbol)
-    k in [:Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
-    getproperty((k == :Ix ? Map : Fourier)(f),k)
+    k in [:I, :Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
+    k == :I ? f : getproperty((k == :Ix ? Map : Fourier)(f),k)
 end
 
 ### dot products
