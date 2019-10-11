@@ -94,7 +94,7 @@ adjoint(L::FlatIEBCov) = L
 sqrt(L::FlatIEBCov) = FlatIEBCov(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::FlatIEBCov) = FlatIEBCov(pinv(L.ΣTE), pinv(L.ΣB))
 simulate(L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) * white_noise(FlatIEBFourier{P,T,M})
-Diagonal(L::FlatIEBCov) = FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag)
+Diagonal(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag))
 
 # FlatIEBCov arithmetic
 *(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])

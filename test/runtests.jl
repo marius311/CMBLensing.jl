@@ -1,5 +1,5 @@
 using CMBLensing
-using CMBLensing: basis, Basis, BasisTuple, @SVector, RK4Solver
+using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver
 
 ##
 
@@ -76,8 +76,8 @@ end
         end
 
         f_concretebasis = FieldTuple{QUMap, <:NamedTuple{(:Q,:U)}}(f,f)
-        @test basis(@inferred    Fourier(f_concretebasis)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        @test basis(@inferred        Map(f_concretebasis)) <: BasisTuple{Tuple{Map,Map}}
+        @test basis(@inferred    Fourier(f_concretebasis)) <: QUFourier
+        @test basis(@inferred        Map(f_concretebasis)) <: QUMap
         @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
         
     end
@@ -220,12 +220,12 @@ end
 
     @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
     @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
-    @test @inferred(L * L) isa FlatIEBCov    
-    @test @inferred(L + L) isa FlatIEBCov    
+    @test @inferred(L * L) isa FlatIEBCov
+    @test @inferred(L + L) isa FlatIEBCov
     @test L * Diagonal(f) isa FlatIEBCov
     @test Diagonal(f) * L isa FlatIEBCov
     @test_broken @inferred L * Diagonal(f)
-    @test @inferred(Diagonal(L)) isa FlatIEBFourier
+    @test @inferred(Diagonal(L)) isa DiagOp{<:FlatIEBFourier}
     @test @inferred(L + I) isa FlatIEBCov
     @test @inferred(2 * L) isa FlatIEBCov
 
