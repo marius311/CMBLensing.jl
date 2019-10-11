@@ -106,7 +106,7 @@ Diagonal(L::FlatIEBCov) = FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.d
 +(U::UniformScaling{<:Scalar}, L::FlatIEBCov) = L + U
 *(λ::Scalar, L::FlatIEBCov) = L * λ
 
-function get_Cℓ(f::FlatS02; which=(:II,:EE,:BB,:IE,:IB,:EB), kwargs...)
-    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
+function get_Cℓ(f1::FlatS02, f2::FlatS02=f1; which=(:II,:EE,:BB,:IE,:IB,:EB), kwargs...)
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end

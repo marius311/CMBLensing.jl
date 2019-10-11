@@ -41,7 +41,7 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     iterate, keys, lastindex, length, literal_pow, materialize!, materialize,
     one, permutedims, print_array, promote, promote_rule, promote_rule,
     promote_type, propertynames, real, setindex!, show, show_datatype,
-    show_vector, similar, size, sqrt, sqrt, string, summary, transpose, zero
+    show_vector, similar, size, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc, tr

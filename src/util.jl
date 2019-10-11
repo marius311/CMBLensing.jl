@@ -84,13 +84,13 @@ end
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
-function sqrt(A::StaticArray{Tuple{2,2},<:Diagonal})
+function sqrt(A::SMatrix{2,2,<:Diagonal})
     a,b,c,d = A
     s = @. sqrt(a*d-b*c)
     t = pinv(@. sqrt(a+d+2s))
     @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
 end
-function pinv(A::StaticArray{Tuple{2,2},<:Diagonal})
+function pinv(A::SMatrix{2,2,<:Diagonal})
     a,b,c,d = A
     idet = pinv(@. a*d-b*c)
     @SMatrix[d*idet -(b*idet); -(c*idet) a*idet]

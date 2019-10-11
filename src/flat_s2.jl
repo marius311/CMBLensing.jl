@@ -68,7 +68,7 @@ end
 
 ### basis conversion
 
-QUFourier(f::FlatQUMap) = FlatQUFourier(Fourier(f))
+QUFourier(f::FlatQUMap) = FlatQUFourier(map(Fourier,f.fs))
 QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier
 QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
     @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
@@ -77,11 +77,11 @@ QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
     FlatQUFourier(Q=FlatFourier{P}(Ql), U=FlatFourier{P}(Ul))
 end
 
-QUMap(f::FlatQUFourier)  = FlatQUMap(Map(f))
+QUMap(f::FlatQUFourier)  = FlatQUMap(map(Map,f.fs))
 QUMap(f::FlatEBMap)      = f |> EBFourier |> QUFourier |> QUMap
 QUMap(f::FlatEBFourier)  = f |> QUFourier |> QUMap
 
-EBFourier(f::FlatEBMap) = FlatEBFourier(Fourier(f))
+EBFourier(f::FlatEBMap) = FlatEBFourier(map(Fourier,f.fs))
 EBFourier(f::FlatQUMap) = f |> QUFourier |> EBFourier
 EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
     @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
@@ -90,12 +90,19 @@ EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
     FlatEBFourier(E=FlatFourier{P}(El), B=FlatFourier{P}(Bl))
 end
 
-EBMap(f::FlatEBFourier) = FlatEBMap(Map(f))
+EBMap(f::FlatEBFourier) = FlatEBMap(map(Map,f.fs))
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
 QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
 QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
+
+Map(f::FlatQUFourier) = QUMap(f)
+Map(f::FlatEBFourier) = EBMap(f)
+Map(f::FlatS2Map) = f
+Fourier(f::FlatQUMap) = QUFourier(f)
+Fourier(f::FlatEBMap) = EBFourier(f)
+Fourier(f::FlatS2Fourier) = f
 
 
 ### simulation and power spectra
@@ -107,8 +114,8 @@ function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs
 end
 
 
-function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
-    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
+function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end
 
