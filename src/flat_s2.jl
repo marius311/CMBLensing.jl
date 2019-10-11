@@ -54,16 +54,17 @@ getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 function getindex(f::FlatS2, k::Symbol)
     B = @match k begin
-        (:E || :B || :Ex || :Bx) => EBMap
-        (:E || :B || :El || :Bl) => EBFourier
-        (:Q || :U || :Qx || :Ux) => QUMap
-        (:Q || :U || :Ql || :Ul) => QUFourier
+        (:E  || :B)  => f isa FlatQUMap ? EBMap : f isa FlatQUFourier ? EBFourier : Basis
+        (:Q  || :U)  => f isa FlatEBMap ? QUMap : f isa FlatEBFourier ? QUFourier : Basis
+        (:Ex || :Bx) => EBMap
+        (:El || :Bl) => EBFourier
+        (:Qx || :Ux) => QUMap
+        (:Ql || :Ul) => QUFourier
         _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
     end
     getproperty(B(f),k)
 end
-getindex(D::DiagOp{<:FlatS2}, k::Symbol) =
-    k in (:E,:B) ? Diagonal(getproperty(D.diag,k)) : throw(ArgumentError("Invalid Diagonal{:<FlatS2} index: $k"))
+
 
 ### basis conversion
 
@@ -107,7 +108,7 @@ end
 
 
 function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
-    Cℓ = [get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end
 

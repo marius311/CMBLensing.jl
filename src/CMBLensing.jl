@@ -39,9 +39,9 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, materialize!, materialize,
-    one, print_array, promote, promote_rule, promote_rule, promote_type,
-    propertynames, real, setindex!, show, show_datatype, show_vector, similar,
-    size, sqrt, sqrt, string, summary, transpose, zero
+    one, permutedims, print_array, promote, promote_rule, promote_rule,
+    promote_type, propertynames, real, setindex!, show, show_datatype,
+    show_vector, similar, size, sqrt, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc, tr

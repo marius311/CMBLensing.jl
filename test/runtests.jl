@@ -212,6 +212,27 @@ end
 
 ##
 
+@testset "FlatS02" begin
+    
+    ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(FlatMap(rand(3,3)))) for i=1:4]
+    L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
+    f = IEBFourier(FlatIEBMap(rand(3,3),rand(3,3),rand(3,3)))
+
+    @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
+    @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
+    @test @inferred(L * L) isa FlatIEBCov    
+    @test @inferred(L + L) isa FlatIEBCov    
+    @test L * Diagonal(f) isa FlatIEBCov
+    @test Diagonal(f) * L isa FlatIEBCov
+    @test_broken @inferred L * Diagonal(f)
+    @test @inferred(Diagonal(L)) isa FlatIEBFourier
+    @test @inferred(L + I) isa FlatIEBCov
+    @test @inferred(2 * L) isa FlatIEBCov
+
+end
+
+##
+
 @testset "Gradients" begin
     
     @test (@inferred ∇[1] * FlatMap(rand(3,3), ∂mode=fourier∂)) isa FlatFourier
@@ -265,7 +286,8 @@ end
         g = θ * f
         dot(g,g)
     end, 1)[1]
-    @test @inferred(grad1()) ≈ 2*norm(f,2)^2
+    @test                 (grad1()) ≈ 2*norm(f,2)^2
+    @test_broken @inferred(grad1()) ≈ 2*norm(f,2)^2
 
     grad2() = Zygote.gradient(function (θ)
         g = (θ * D * f)
@@ -280,7 +302,7 @@ end
         g = (Dr(r=r) * f)
         dot(g,g)
     end,1)[1]
-    @test_broken grad3()  ≈ 2*norm(f.^2,2)^2
+    @test_broken           grad3()  ≈ 2*norm(f.^2,2)^2
     @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
     
     @test_broken @inferred(Zygote.gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
