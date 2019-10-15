@@ -23,12 +23,15 @@ end
 FFTgrid(::FlatField{P,T}) where {P,T} = FFTgrid(P,T)
 
 ### basis-like definitions
-LenseBasis(::Type{<:FlatS0}) = Map
-LenseBasis(::Type{<:FlatS2}) = QUMap
-DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}}) =   Fourier
-DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}}) = QUFourier
-DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})     =   Map
-DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})     = QUMap
+LenseBasis(::Type{<:FlatS0})  =    Map
+LenseBasis(::Type{<:FlatS2})  =  QUMap
+LenseBasis(::Type{<:FlatS02}) = IQUMap
+DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}})  =    Fourier
+DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}})  =  QUFourier
+DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,fourier∂}}}) = IQUFourier
+DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})      =    Map
+DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})      =  QUMap
+DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 
 ### derivatives
 
