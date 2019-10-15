@@ -64,6 +64,10 @@ end
 function get_Cℓ end
 get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
 get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
+function get_ρℓ(f; which, kwargs...)
+	a,b = Symbol.(split(string(which),""))
+	get_ρℓ(f[a], f[b]; kwargs...)
+end
 function get_ρℓ(f1,f2; kwargs...)
     Cℓ1 = get_Cℓ(f1; kwargs...)
     Cℓ2 = get_Cℓ(f2; kwargs...)

@@ -93,4 +93,13 @@ tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + s
 
 ### misc
 Cℓ_to_Cov(f::FlatField{P,T}, args...) where {P,T} = Cℓ_to_Cov(P,T,spin(f),args...)
-flatinfo(f::FlatField{P,T,M}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = @namedtuple(Nside,θpix,∂mode,P,T,M,B=basis(f),S=spin(f))
+function flatinfo(f::FlatField{P,T,M}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} 
+    @unpack Δx, nyq = FFTgrid(f)
+    B,S = basis(f), spin(f)
+    @namedtuple(Nside,θpix,∂mode,P,T,M,B,S,Δx,nyq)
+end
+function pixwin(f::FlatField) 
+    @unpack θpix,P,T,nyq = flatinfo(f)
+    ℓ = 1:ceil(√2*nyq)
+    Diagonal(Cℓ_to_Cov(P,T,S0,InterpolatedCℓs(ℓ,pixwin(θpix,ℓ))))
+end
