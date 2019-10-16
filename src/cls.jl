@@ -21,8 +21,16 @@ propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(I
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 for plot in (:plot, :loglog, :semilogx, :semilogy)
-    @eval ($plot)(ic::InterpolatedCℓs, args...; kwargs...) = ($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
+    @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
+		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
+	end
+	@eval function ($plot)(ic::InterpolatedCℓs{<:AbstractExtrapolation{<:Measurement}}, args...; kwargs...)
+		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
+		($plot) in [:loglog,:semilogx] && xscale("log")
+		($plot) in [:loglog,:semilogy] && yscale("log")
+	end
 end
+
 getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
 (ic::InterpolatedCℓs)(idx) = ic.etp(idx)
 
