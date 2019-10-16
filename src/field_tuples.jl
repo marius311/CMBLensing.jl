@@ -101,6 +101,10 @@ Basis(f::FieldTuple{<:BasisTuple}) = f
 (::Type{B′})(f::F) where {B′<:Basis,     B<:Basis,     F<:FieldTuple{B}} = FieldTuple(map(B′,f.fs))
 (::Type{B′})(f::F) where {B′<:Basislike, B<:Basis,     F<:FieldTuple{B}} = B′(F)(f)
 
+# in-place conversions
+(::Type{B′})(f′::FieldTuple, f::FieldTuple) where {B′<:BasisTuple} = 
+    (map((B,f′,f)->B(f′,f), tuple(B′.parameters[1].parameters...), f′.fs, f.fs); f′)
+
 
 
 

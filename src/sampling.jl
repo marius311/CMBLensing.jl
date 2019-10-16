@@ -202,7 +202,7 @@ function sample_joint(
                 
                 local f°, f̃, ΔH, accept
                 @unpack i,ϕ°,θ,seed = state
-                copy!(Random.GLOBAL_RNG, seed)
+                # copy!(Random.GLOBAL_RNG, seed)
                 f = nothing
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°

@@ -47,7 +47,7 @@ function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true,
 end
 
 # plotting a map
-function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cmap="RdBu_r", cbar=true, kwargs...)
+function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cmap="RdBu_r", vscale=:linear, cbar=true, kwargs...)
     
     # some logic to automatically get upper/lower limits
     if vlim==:sym

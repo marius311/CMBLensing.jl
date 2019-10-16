@@ -80,14 +80,21 @@ end
 
 
 
-# these allow inv and sqrt of SMatrices of Diagonals to work correctly, which
+# these allow pinv and sqrt of SMatrices of Diagonals to work correctly, which
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
-import StaticArrays: arithmetic_closure
-import Base: sqrt, inv, /, permutedims
-arithmetic_closure(::Type{Diagonal{T}}) where {T} = Diagonal{arithmetic_closure(T)}
-/(a::Number, b::Diagonal) = Diagonal(a ./ diag(b))
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
+function sqrt(A::SMatrix{2,2,<:Diagonal})
+    a,b,c,d = A
+    s = @. sqrt(a*d-b*c)
+    t = pinv(@. sqrt(a+d+2s))
+    @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
+end
+function pinv(A::SMatrix{2,2,<:Diagonal})
+    a,b,c,d = A
+    idet = pinv(@. a*d-b*c)
+    @SMatrix[d*idet -(b*idet); -(c*idet) a*idet]
+end
 
 
 # some usefule tuple manipulation functions:

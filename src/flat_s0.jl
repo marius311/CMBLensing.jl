@@ -94,19 +94,27 @@ function cov_to_Cℓ(L::DiagOp{<:FlatS0})
     InterpolatedCℓs(FFTgrid(L.diag).r[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
 end
 
-function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1) where {P}
+function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
     g = FFTgrid(f)
     α = g.Δx^2/(4π^2)*g.Nside^2
 
     L = g.r[:]
-    CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:]
+    CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:] ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
+    
+    sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
 
-    power       = fit(Histogram, L, Weights(w .* CLobs), ℓedges).weights
-    bandcenters = fit(Histogram, L, Weights(w .* L),     ℓedges).weights
-    counts      = fit(Histogram, L, Weights(w),          ℓedges).weights
+    A  = sum_in_ℓbins(w)
+    Cℓ = sum_in_ℓbins(w .* CLobs) ./ A
+    ℓ  = sum_in_ℓbins(w .* L)     ./ A
 
-    InterpolatedCℓs(bandcenters ./ counts,  power ./ counts ./ α)
+    if err_estimate
+        N   = sum_in_ℓbins(one.(w)) / 2
+        σℓ  = sqrt.((sum_in_ℓbins(w .* CLobs.^2) ./ A .- Cℓ.^2) ./ N)
+        InterpolatedCℓs(ℓ,  Cℓ .± σℓ)
+    else
+        InterpolatedCℓs(ℓ,  Cℓ)
+    end
 end
 
 """

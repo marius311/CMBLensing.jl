@@ -54,18 +54,16 @@ getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 function getindex(f::FlatS2, k::Symbol)
     B = @match k begin
+        (:E  || :B)  => f isa FlatQUMap ? EBMap : f isa FlatQUFourier ? EBFourier : Basis
+        (:Q  || :U)  => f isa FlatEBMap ? QUMap : f isa FlatEBFourier ? QUFourier : Basis
         (:Ex || :Bx) => EBMap
         (:El || :Bl) => EBFourier
         (:Qx || :Ux) => QUMap
         (:Ql || :Ul) => QUFourier
-        (:E  || :B)  => basis(f)==QUMap ? EBMap : basis(f)==QUFourier ? EBFourier : Basis
-        (:Q  || :U)  => basis(f)==EBMap ? QUMap : basis(f)==EBFourier ? QUFourier : Basis
         _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
     end
     getproperty(B(f),k)
 end
-getindex(D::DiagOp{<:FlatS2}, k::Symbol) =
-    k in (:E,:B) ? Diagonal(getproperty(D.diag,k)) : throw(ArgumentError("Invalid Diagonal{:<FlatS2} index: $k"))
 
 ### basis conversion
 
@@ -98,10 +96,12 @@ EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
 QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
 
-Map(f::FlatQU) = QUMap(f)
-Map(f::FlatEB) = EBMap(f)
-Fourier(f::FlatQU) = QUFourier(f)
-Fourier(f::FlatEB) = EBFourier(f)
+Map(f::FlatQUFourier) = QUMap(f)
+Map(f::FlatEBFourier) = EBMap(f)
+Map(f::FlatS2Map) = f
+Fourier(f::FlatQUMap) = QUFourier(f)
+Fourier(f::FlatEBMap) = EBFourier(f)
+Fourier(f::FlatS2Fourier) = f
 
 
 ### simulation and power spectra
@@ -113,8 +113,8 @@ function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs
 end
 
 
-function get_Cℓ(f::FlatS2; which=(:EE,:BB), kwargs...)
-    Cℓ = [get_Cℓ(getproperty(f,Symbol(x1)),getproperty(f,Symbol(x2))) for (x1,x2) in split.(string.(ensure1d(which)),"")]
+function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end
 

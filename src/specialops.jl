@@ -28,7 +28,8 @@ end
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
 
-getindex(D::DiagOp, s::Symbol) = Diagonal(getindex(D.diag,s))
+# use getproperty here to ensure no basis conversion is done
+getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(D.diag,s))
 
 # for printing
 size(::DiagOp{<:ImplicitField}) = ()
