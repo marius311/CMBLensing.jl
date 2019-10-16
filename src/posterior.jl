@@ -340,7 +340,7 @@ function MAP_joint(
             if (progress==:verbose)
                 @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
-            push!(tr,@dictpack(i,lnPcur,hist,ϕ,f))
+            push!(tr,@namedtuple(i,lnPcur,hist,ϕ,f,α))
             if callback != nothing
                 callback(f, ϕ, tr)
             end

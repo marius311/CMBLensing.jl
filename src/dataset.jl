@@ -48,7 +48,8 @@ are resimulated if not provided)
 """
 function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=ds.L(ϕ)*f)
     @unpack M,P,B = ds
-    @set ds.d = M*P*B*f̃ + n
+    @set! ds.d = M*P*B*f̃ + n
+    @namedtuple(ds,f,ϕ,n,f̃)
 end
 
 
