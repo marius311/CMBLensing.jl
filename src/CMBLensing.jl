@@ -44,7 +44,7 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     promote_type, propertynames, real, setindex!, show, show_datatype,
     show_vector, similar, size, sqrt, string, summary, transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
+import LinearAlgebra: diag, dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc, tr
 import PyPlot: loglog, plot, semilogx, semilogy
 import Measurements: ±

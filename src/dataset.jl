@@ -123,7 +123,7 @@ function load_sim_dataset(;
     
     # some things which depend on whether we chose :I, :P, or :IP
     use = Symbol(use)
-    S,ks,F,F̂,nF = @match Symbol(use) begin
+    S,ks,F,F̂,nF = @match use begin
         :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
         :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
@@ -145,17 +145,17 @@ function load_sim_dataset(;
     
     # covariances
     Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ))
-    Cfs = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k=ks)...)
-    Cft = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k=ks)...)
-    Cf̃  = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k=ks)...)
-    Cn̂  = Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k=ks)...)
+    Cfs = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k in ks)...)
+    Cft = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k in ks)...)
+    Cf̃  = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...)
+    Cn̂  = Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=rfid)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=1  )->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((mem; r=rfid)->(mem .= Cfs + T(r/rfid)*Cft), similar(Cfs))
+    Cϕ = ParamDependentOp((mem; Aϕ=1  )->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing)
-        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k=ks)...)
+        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...)
         if (pixel_mask_kwargs != nothing)
             M = M * Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
@@ -166,15 +166,11 @@ function load_sim_dataset(;
         B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
-    # approximate beam and mask operators
-    M̂ = (M isa Diagonal && basis(M.diag)==basis(Cf().diag)) ? M : 1
-    B̂ = (B isa Diagonal && basis(B.diag)==basis(Cf().diag)) ? B : 1
-    
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
-        Cf′ = Diagonal(Cf().diag .+ σ²len)
-        D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf′))
+        Cf′ = Diagonal(diag(Cf()) .+ σ²len)
+        D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf()))
     end
     
     # simulate data
@@ -185,7 +181,6 @@ function load_sim_dataset(;
     if (f̃  == nothing); f̃  = L(ϕ)*f;       end
     if (Bf̃ == nothing); Bf̃ = B*f̃;          end
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
-    
     
     # put everything in DataSet
     ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L)...)

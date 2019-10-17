@@ -95,7 +95,9 @@ adjoint(L::FlatIEBCov) = L
 sqrt(L::FlatIEBCov) = FlatIEBCov(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::FlatIEBCov) = FlatIEBCov(pinv(L.ΣTE), pinv(L.ΣB))
 simulate(L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) * white_noise(FlatIEBFourier{P,T,M})
-Diagonal(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag))
+diag(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag))
+similar(L::FlatIEBCov) = (similar(L.ΣB); similar.(L.ΣTE); L)
+
 
 # FlatIEBCov arithmetic
 *(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
@@ -106,6 +108,7 @@ Diagonal(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag
 *(D::DiagOp{<:FlatIEBFourier}, L::FlatIEBCov) = L * D
 +(U::UniformScaling{<:Scalar}, L::FlatIEBCov) = L + U
 *(λ::Scalar, L::FlatIEBCov) = L * λ
+copyto!(dst::Σ, src::Σ) where {Σ<:FlatIEBCov} = (copyto!(dst.ΣB, src.ΣB); copyto!.(dst.ΣTE, src.ΣTE); dst)
 
 function get_Cℓ(f1::FlatS02, f2::FlatS02=f1; which=(:II,:EE,:BB,:IE,:IB,:EB), kwargs...)
     Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
