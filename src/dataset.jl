@@ -123,10 +123,10 @@ function load_sim_dataset(;
     
     # some things which depend on whether we chose :I, :P, or :IP
     use = Symbol(use)
-    SS,ks,F,F̂,nF = @match Symbol(use) begin
-        :I  => ((S0,),   (:TT,),            FlatMap,    FlatFourier,    1)
-        :P  => ((S2,),   (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :IP => ((S0,S2), (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
+    S,ks,F,F̂,nF = @match Symbol(use) begin
+        :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
+        :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
+        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
         _   => throw(ArgumentError("`use` should be one of :I, :P, or :IP"))
     end
     
@@ -144,18 +144,18 @@ function load_sim_dataset(;
     end
     
     # covariances
-    Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0,    (Cℓ.total.ϕϕ))
-    Cfs = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.unlensed_scalar[k] for k=ks)...)
-    Cft = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.tensor[k]          for k=ks)...)
-    Cf̃  = Cℓ_to_Cov(Pix,      T, SS..., (Cℓ.total[k]           for k=ks)...)
-    Cn̂  = Cℓ_to_Cov(Pix_data, T, SS..., (Cℓn[k]                for k=ks)...)
+    Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ))
+    Cfs = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k=ks)...)
+    Cft = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k=ks)...)
+    Cf̃  = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k=ks)...)
+    Cn̂  = Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k=ks)...)
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((mem; r=rfid)->(@. mem .= Cfs + $T(r/rfid)*Cft), similar(Cfs))
     Cϕ = ParamDependentOp((mem; Aϕ=1  )->(@. mem .= $T(Aϕ)*Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing)
-        M̂ = M = Cℓ_to_Cov(Pix_data, T, SS..., ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k=ks)...)
+        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k=ks)...)
         if (pixel_mask_kwargs != nothing)
             M = M * Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
@@ -163,7 +163,7 @@ function load_sim_dataset(;
     
     # beam
     if (B == nothing)
-        B = Cℓ_to_Cov(Pix, T, SS..., ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
+        B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
     # approximate beam and mask operators

@@ -45,7 +45,8 @@ end
 
 
 ### properties
-propertynames(f::FlatS02) = (sort([:I, :P, propertynames(f.I)..., propertynames(f.P)...])...,)
+propertynames(f::FlatS02) = (sort([:I, :P, :IP, propertynames(f.I)..., propertynames(f.P)...])...,)
+getproperty(f::FlatIQU, s::Val{:IP}) = f
 getproperty(f::FlatIQU, s::Union{Val{:Q},Val{:U}}) = getproperty(getfield(f,:fs).P,s)
 getproperty(f::FlatIEB, s::Union{Val{:E},Val{:B}}) = getproperty(getfield(f,:fs).P,s)
 getproperty(f::FlatS02, s::Union{Val{:Qx},Val{:Ux},Val{:Ex},Val{:Bx},Val{:Ql},Val{:Ul},Val{:El},Val{:Bl}}) = getproperty(getfield(f,:fs).P,s)
