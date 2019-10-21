@@ -47,7 +47,7 @@ import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc, tr
 import PyPlot: loglog, plot, semilogx, semilogy
-
+import Measurements: ±
 
 
 export
