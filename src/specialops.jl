@@ -23,10 +23,11 @@ function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
     dest
 end
 
-# the generic version of these kind of suck so we need these specializized
-# version:
+# the generic versions of these kind of suck so we need these specializized
+# versions:
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
+diag(L::DiagOp) = L.diag
 
 # use getproperty here to ensure no basis conversion is done
 getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(D.diag,s))

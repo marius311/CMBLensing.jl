@@ -163,7 +163,7 @@ function load_sim_dataset(;
     
     # beam
     if (B == nothing)
-        B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
+        B̂ = B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
     # D mixing matrix
