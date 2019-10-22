@@ -36,6 +36,8 @@ getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(D.diag,s))
 size(::DiagOp{<:ImplicitField}) = ()
 axes(::DiagOp{<:ImplicitField}, I) = OneTo(0)
 
+# the generic version of this is prohibitively slow so we need this
+hash(D::DiagOp, h::UInt64) = hash(D.diag, h)
 
 
 ### Derivative ops
