@@ -297,7 +297,6 @@ end
         dot(g,g)
     end, 1)[1]
     @test                  grad2()  ≈ 2*norm(f.^2,2)^2
-    @test_broken @inferred(grad2()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
     
     # derivatives through ParamDependentOps 
     Dr = ParamDependentOp((;r=1)-> r * D)
