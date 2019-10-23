@@ -175,6 +175,74 @@ function camb(;
 end
 
 
+@doc """
+	load_camb_Cℓs(;path_prefix, custom_tensor_params=nothing, 
+		unlensed_scalar_postfix, unlensed_tensor_postfix, lensed_scalar_postfix, lenspotential_postfix)
+	
+Load some Cℓs from CAMB files. 
+
+`path_prefix` specifies the prefix for the files, which are then expected to
+have the normal CAMB postfixes: "scalCls.dat", "tensCls.dat", "lensedCls.dat",
+"lenspotentialCls.dat", unless otherwise specified via the other keyword
+arguments. `custom_tensor_params` can be used to call CAMB directly for the
+unlensed_tensors, rather than reading them from a file (since alot of times this file
+doesn't get saved). The value should be a Dict/NamedTuple which will be passed
+to a call to [`camb`](@ref), e.g. `custom_tensor_params=(r=0,)` for zero
+tensors. 
+
+"""
+function load_camb_Cℓs(;
+    path_prefix,
+	custom_tensor_params = nothing,
+    unlensed_scalar_postfix = "scalCls.dat",
+    unlensed_tensor_postfix = "tensCls.dat",
+    lensed_scalar_postfix   = "lensedCls.dat",
+    lenspotential_postfix   = "lenspotentialCls.dat")
+    
+    unlensed_scalar_filename = path_prefix*unlensed_scalar_postfix
+    unlensed_tensor_filename = path_prefix*unlensed_tensor_postfix
+    lensed_scalar_filename = path_prefix*lensed_scalar_postfix
+    lenspotential_filename = path_prefix*lenspotential_postfix
+    
+    ℓ,Cℓϕϕ = collect.(eachcol(readdlm(lenspotential_filename,skipstart=1)[1:end,[1,6]]))
+    @. Cℓϕϕ /= (ℓ*(ℓ+1))^2/2π
+    Cℓϕϕ = InterpolatedCℓs(ℓ, Cℓϕϕ)
+    
+    unlensed_scalar = Dict([:ℓ,:TT,:EE,:TE,:ϕϕ] .=> collect.(eachcol(readdlm(unlensed_scalar_filename,skipstart=1)[1:end,1:5])))
+    ℓ = unlensed_scalar[:ℓ]
+    for x in [:TT,:EE,:TE]
+        @. unlensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
+    end
+    unlensed_scalar[:BB] = 0ℓ
+    unlensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in unlensed_scalar)...)
+
+
+    lensed_scalar = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(lensed_scalar_filename,skipstart=1)[1:end,1:5])))
+    ℓ = lensed_scalar[:ℓ]
+    for x in [:TT,:EE,:BB,:TE]
+        @. lensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
+    end
+    lensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
+
+    if custom_tensor_params != nothing
+		tensor = camb(;custom_tensor_params...).tensor
+    else
+        tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(tensor_filename,skipstart=1)[2:end,1:5])))
+        ℓ = tensor[:ℓ]
+        for x in [:TT,:EE,:BB,:TE]
+            @. tensor[x] *= (r/0.01)/(ℓ*(ℓ+1)/(2π))
+        end
+        tensor = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
+    end
+	
+	unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
+	total          = (;(k=>lensed_scalar[k]+tensor[k]   for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
+    
+    @namedtuple(unlensed_scalar,tensor,lensed_scalar,unlensed_total,total)
+    
+end
+
+
 ### noise
 
 @doc doc"""

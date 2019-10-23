@@ -8,6 +8,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
 using Combinatorics
 using DataStructures
+using DelimitedFiles
 using Distributed
 using FFTW
 using InteractiveUtils
@@ -65,7 +66,7 @@ export
     get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, GradientCache, HealpixCap,
     HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp, IEBFourier, IEBMap,
     InterpolatedCℓs, IQUFourier, IQUMap, IsotropicHarmonicCov, LazyBinaryOp,
-    LenseBasis, LenseFlow, LenseOp, LinDiagOp, LinOp, lnP,
+    LenseBasis, LenseFlow, LenseOp, LinDiagOp, LinOp, lnP, load_camb_Cℓs,
     load_healpix_sim_dataset, load_sim_dataset, LowPass, make_mask, Map,
     MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs, NoLensing,
     OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
