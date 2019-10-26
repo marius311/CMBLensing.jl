@@ -95,10 +95,10 @@ function cov_to_Cℓ(L::DiagOp{<:FlatS0})
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
-    g = FFTgrid(f)
-    α = g.Δx^2/(4π^2)*g.Nside^2
+    @unpack Nside,Δx,r = FFTgrid(f)
+    α = (Nside/Δx)^2
 
-    L = g.r[:]
+    L = r[:]
     CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:] ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     

@@ -49,7 +49,7 @@ FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgri
 @generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
     Δx  = deg2rad(θpix/60)
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
-    FFT = T(Δx^2/(2π)) * plan_rfft(Matrix{T}(undef,Nside,Nside); flags=FFTW.ESTIMATE, timelimit=5)
+    FFT = plan_rfft(Matrix{T}(undef,Nside,Nside); flags=FFTW.ESTIMATE, timelimit=5)
     Δℓ  = 2π/(Nside*Δx)
     nyq = 2π/(2Δx)
     x,k = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* [Δx,Δℓ]'
