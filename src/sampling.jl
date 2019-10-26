@@ -202,7 +202,7 @@ function sample_joint(
                 
                 local f°, f̃, ΔH, accept
                 @unpack i,ϕ°,θ,seed = state
-                # copy!(Random.GLOBAL_RNG, seed)
+                copy!(Random.GLOBAL_RNG, seed)
                 f = nothing
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
@@ -257,7 +257,7 @@ function sample_joint(
                     
                     # save quantities to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.GLOBAL_RNG) timing)
+                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing)
                     if (progress==:verbose)
                         @show i, accept, ΔH, θ
                     end
