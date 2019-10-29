@@ -206,7 +206,7 @@ function ParamDependentOp(recompute_function::Function)
 end
 function ParamDependentOp(recompute_function!::Function, mem)
     op = recompute_function!(similar(mem))
-    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), get_kwarg_names(recompute_function), true)
+    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), get_kwarg_names(recompute_function!), true)
 end
 function (L::ParamDependentOp)(mem=nothing;θ...) 
     if (mem!=nothing)
