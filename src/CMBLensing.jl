@@ -3,7 +3,7 @@ module CMBLensing
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated, product
-using Base.Threads: @spawn, nthreads
+using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
 using Combinatorics

@@ -202,13 +202,11 @@ struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S
     inplace::Bool
 end
 function ParamDependentOp(recompute_function::Function)
-    parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function)), typeof(methods(recompute_function).mt.kwsorter)))
-    ParamDependentOp(recompute_function(), recompute_function, parameters, false)
+    ParamDependentOp(recompute_function(), recompute_function, get_kwarg_names(recompute_function), false)
 end
 function ParamDependentOp(recompute_function!::Function, mem)
-    parameters = Vector{Symbol}(Base.kwarg_decl(first(methods(recompute_function!)), typeof(methods(recompute_function!).mt.kwsorter)))
     op = recompute_function!(similar(mem))
-    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), parameters, true)
+    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), get_kwarg_names(recompute_function), true)
 end
 function (L::ParamDependentOp)(mem=nothing;θ...) 
     if (mem!=nothing)

@@ -274,9 +274,13 @@ macro ondemand(ex)
 end
 
 function tmap(f, args...)
-    if nthreads()==1
+    @static if nthreads()==1 || VERSION<v"1.3"
         map(f, args...)
     else
-        map(fetch,map((args...)->@spawn(f(args...)),args...))
+        map(fetch,map((args...)->Threads.@spawn(f(args...)),args...))
     end
 end
+
+
+get_kwarg_names(func::Function) = Vector{Symbol}(kwarg_decl(first(methods(func)), typeof(methods(func).mt.kwsorter)))
+kwarg_decl(m::Method,kw::DataType) = VERSION<=v"1.3.999" ? Base.kwarg_decl(m,kw) : Base.kwarg_decl(m)
