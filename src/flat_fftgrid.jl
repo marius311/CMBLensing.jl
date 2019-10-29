@@ -39,11 +39,12 @@ The number of FFTW threads to use. This must be set via e.g.:
     CMBLensing.FFTW_NUM_THREADS[] = 4
 
 *before* creating any `FlatField` objects; subsequent changes to this variable
-will be ignored. The default value is `Sys.CPU_THREADS ÷ nthreads()`.
+will be ignored. The default value is the environment variable `FFTW_NUM_THREADS`,
+or if that is not specified its `Sys.CPU_THREADS÷2`.
 """
 const FFTW_NUM_THREADS = Ref{Int}()
-@init FFTW_NUM_THREADS[] = Sys.CPU_THREADS ÷ nthreads()
- 
+@init FFTW_NUM_THREADS[] = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
+
 # use @generated function to memoize FFTgrid for given (T,θ,Nside) combinations
 FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
 @generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
