@@ -3,13 +3,13 @@ module CMBLensing
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated, product
-using Base.Threads
+using Base.Threads: @spawn, nthreads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed
+using Distributed: pmap, nworkers, myid
 using FFTW
 using InteractiveUtils
 using Interpolations
@@ -35,7 +35,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
-using Strided
+using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided
 
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,

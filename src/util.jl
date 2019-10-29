@@ -272,3 +272,11 @@ macro ondemand(ex)
         (args...; kwargs...) -> Base.invokelatest($(esc(ex)), args...; kwargs...)
     end
 end
+
+function tmap(f, args...)
+    if nthreads()==1
+        map(f, args...)
+    else
+        map(fetch,map((args...)->@spawn(f(args...)),args...))
+    end
+end

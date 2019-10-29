@@ -103,7 +103,7 @@ Basis(f::FieldTuple{<:BasisTuple}) = f
 
 # in-place conversions
 (::Type{B′})(f′::FieldTuple, f::FieldTuple) where {B′<:BasisTuple} = 
-    (map((B,f′,f)->B(f′,f), tuple(B′.parameters[1].parameters...), f′.fs, f.fs); f′)
+    (tmap((B,f′,f)->B(f′,f), tuple(B′.parameters[1].parameters...), f′.fs, f.fs); f′)
 
 
 
