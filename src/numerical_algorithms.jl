@@ -14,14 +14,14 @@ Arguments:
 * `F!` — a function `F!(v,t,y)`` which sets `v=F(t,y)`
 """
 function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
-    h = (t₁-t₀)/nsteps
+    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
     for t in range(t₀,t₁,length=nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
-        @! k₂ = F(t + (h/2), (@. y′ = y + (h/2)*k₁))
-        @! k₃ = F(t + (h/2), (@. y′ = y + (h/2)*k₂))
-        @! k₄ = F(t +   (h), (@. y′ = y +   (h)*k₃))
+        @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
+        @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
+        @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
         
         # due to https://github.com/JuliaLang/julia/issues/27988, if this were
         # written the natural way as:
@@ -29,7 +29,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
         # it has god-awful performance for FieldTuples (although is fine for
         # FlatS0s). until a solution for that issue comes around, a workaround
         # is to write out the broadcasting kernel by hand:
-        broadcast!((y,h,k₁,k₂,k₃,k₄)->(y+h*(k₁+2k₂+2k₃+k₄)/6), y, (y,h,k₁,k₂,k₃,k₄)...)
+        broadcast!((y,h,k₁,k₂,k₃,k₄)->(y+h⅙*(k₁+2*(k₂+k₃)+k₄)), y, (y,h,k₁,k₂,k₃,k₄)...)
     end
     return y
 end
