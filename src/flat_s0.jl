@@ -55,11 +55,19 @@ BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T, FS<:FlatS0Style} = similar(FS,T)
 similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T} = F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...))
-@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
-preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
+preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+preprocess(dest::F, arg) where {F<:FlatS0} = maybestrided(broadcastable(F, arg))
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
 broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = reshape(f, size_2d(F))
 broadcastable(::Any, x) = x
+function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:FlatS0}
+    bc′ = preprocess(dest, bc)
+    stridedargs = promoteshape(size_2d(F), capturestridedargs(bc′)...)
+    c = make_capture(bc′)
+    _mapreduce_fuse!(c, nothing, nothing, size_2d(F), (StridedView(firstfield(dest)), stridedargs...))
+    return dest
+end
+
 
 ### basis conversion
 Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(P,T).FFT * f.Ix)
