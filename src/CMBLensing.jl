@@ -9,7 +9,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid
+using Distributed: pmap, nworkers, myid, workers
 using FFTW
 using InteractiveUtils
 using Interpolations
