@@ -52,8 +52,10 @@ getproperty(f::FlatEBMap,     ::Val{:Ex}) = getfield(f,:fs).E.Ix
 getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
 getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
+getproperty(f::FlatS2,        ::Val{:P})  = f
 function getindex(f::FlatS2, k::Symbol)
     B = @match k begin
+        (:P)         => Basis
         (:E  || :B)  => f isa FlatQUMap ? EBMap : f isa FlatQUFourier ? EBFourier : Basis
         (:Q  || :U)  => f isa FlatEBMap ? QUMap : f isa FlatEBFourier ? QUFourier : Basis
         (:Ex || :Bx) => EBMap
