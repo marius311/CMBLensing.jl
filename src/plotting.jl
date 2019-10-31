@@ -1,7 +1,24 @@
 
-# figure out if we're in Juno in which case we do plotting slightly differently
-isjuno = false
-@init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
+using PyCall
+using .PyPlot
+import .PyPlot: loglog, plot, semilogx, semilogy
+
+
+### plotting Cℓs
+
+for plot in (:plot, :loglog, :semilogx, :semilogy)
+    @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
+		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
+	end
+	@eval function ($plot)(ic::InterpolatedCℓs{<:AbstractExtrapolation{<:Measurement}}, args...; kwargs...)
+		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
+		($plot) in [:loglog,:semilogx] && xscale("log")
+		($plot) in [:loglog,:semilogy] && yscale("log")
+	end
+end
+
+
+### plotting FlatFields
 
 plotsize₀ = 4
 
@@ -89,7 +106,6 @@ Plotting fields.
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
 function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(fs), title=nothing, vlim=nothing, return_all=false, kwargs...) where {F<:Field}
-    @eval using PyPlot
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345

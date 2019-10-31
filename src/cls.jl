@@ -21,16 +21,6 @@ getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
 propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
-for plot in (:plot, :loglog, :semilogx, :semilogy)
-    @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
-		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
-	end
-	@eval function ($plot)(ic::InterpolatedCℓs{<:AbstractExtrapolation{<:Measurement}}, args...; kwargs...)
-		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
-		($plot) in [:loglog,:semilogx] && xscale("log")
-		($plot) in [:loglog,:semilogy] && yscale("log")
-	end
-end
 
 getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
 (ic::InterpolatedCℓs)(idx) = ic.etp(idx)
@@ -127,53 +117,57 @@ function camb(;
 	
 	params = Base.@locals
     
-    camb = pyimport(:camb)
-    ℓmax′ = min(5000,ℓmax)
-    cp = camb.set_params(
-        ombh2 = ωb,
-        omch2 = ωc,
-        tau = τ,
-        mnu = Σmν,
-        cosmomc_theta = Θs,
-        H0 = nothing,
-        ns = nₛ,
-        nt = nₜ,
-        As = exp(logA)*1e-10,
-        pivot_scalar = k_pivot,
-        pivot_tensor = k_pivot,
-        lmax = ℓmax′,
-        r = r
-    )
-    cp.max_l_tensor = ℓmax′
-    cp.max_eta_k_tensor = 2ℓmax′
-    cp.WantScalars = true
-    cp.WantTensors = true
-    cp.DoLensing = true
-    
-    res = camb.get_results(cp)
-    
-    
-    ℓ  = collect(2:ℓmax -1)
-    ℓ′ = collect(2:ℓmax′-1)
-    α = (10^6*cp.TCMB)^2
-    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
+    camb = @ondemand(PyCall.pyimport)(:camb)
 	
-    Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,Aϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
+	Base.invokelatest(function ()
 	
-    return (;
-		map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
-			Symbol(k) => (;
-				map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
-					Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
-				end..., 
-				ϕϕ = Cℓϕϕ
-			)
-		end...,
-		params = (;params...)
-	)
+	    ℓmax′ = min(5000,ℓmax)
+	    cp = camb.set_params(
+	        ombh2 = ωb,
+	        omch2 = ωc,
+	        tau = τ,
+	        mnu = Σmν,
+	        cosmomc_theta = Θs,
+	        H0 = nothing,
+	        ns = nₛ,
+	        nt = nₜ,
+	        As = exp(logA)*1e-10,
+	        pivot_scalar = k_pivot,
+	        pivot_tensor = k_pivot,
+	        lmax = ℓmax′,
+	        r = r
+	    )
+	    cp.max_l_tensor = ℓmax′
+	    cp.max_eta_k_tensor = 2ℓmax′
+	    cp.WantScalars = true
+	    cp.WantTensors = true
+	    cp.DoLensing = true
+	    
+	    res = camb.get_results(cp)
+	    
+	    
+	    ℓ  = collect(2:ℓmax -1)
+	    ℓ′ = collect(2:ℓmax′-1)
+	    α = (10^6*cp.TCMB)^2
+	    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
+		
+	    Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,Aϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
+		
+	    return (;
+			map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
+				Symbol(k) => (;
+					map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
+						Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
+					end..., 
+					ϕϕ = Cℓϕϕ
+				)
+			end...,
+			params = (;params...)
+		)
+		
+	end)
 
 end
-
 
 @doc """
 	load_camb_Cℓs(;path_prefix, custom_tensor_params=nothing, 

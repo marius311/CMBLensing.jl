@@ -25,7 +25,6 @@ using Memoize
 using Parameters
 using Printf
 using ProgressMeter
-using PyCall
 using Random
 using Random: seed!
 using Roots
@@ -47,7 +46,6 @@ import Base: +, -, *, \, /, ^, ~, ≈,
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: diag, dot, isnan, ldiv!, logdet, mul!, pinv,
     StructuredMatrixStyle, structured_broadcast_alloc, tr
-import PyPlot: loglog, plot, semilogx, semilogy
 import Measurements: ±
 import Statistics: std
 
@@ -100,7 +98,9 @@ include("masking.jl")
 include("taylens.jl")
 
 # plotting
-include("plotting.jl")
+isjuno = false
+@init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
+@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
 # sampling and maximizing the posteriors
 include("dataset.jl")
