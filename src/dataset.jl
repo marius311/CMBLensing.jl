@@ -20,7 +20,7 @@ end
 function subblock(ds::DataSet, block)
     DataSet(map(collect(pairs(fields(ds)))) do (k,v)
         @match (k,v) begin
-            ((:Cϕ || :G), v)                    => v
+            ((:Cϕ || :G || :L), v)              => v
             (_, L::Union{Nothing,FuncOp,Real})  => L
             (_, L)                              => getindex(L,block)
         end
@@ -35,8 +35,8 @@ end
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all([L isa Scalar || (L isa Diagonal && basis(L.diag)==basis(Cf.diag)) for L in [B̂,M̂,Cn̂]]),
-            "B̂, M̂, Cn̂ should all be Diagonal in the same basis as Cf")
+    @assert(all([(L isa Scalar) || (L isa typeof(Cf)) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
+            "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 
     
@@ -46,10 +46,10 @@ end
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulated if not provided)
 """
-function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=ds.L(ϕ)*f)
+function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=ds.L(ϕ)*f, return_truths=false)
     @unpack M,P,B = ds
     @set! ds.d = M*P*B*f̃ + n
-    @namedtuple(ds,f,ϕ,n,f̃)
+    return_truths ? @namedtuple(ds,f,ϕ,n,f̃) : ds
 end
 
 

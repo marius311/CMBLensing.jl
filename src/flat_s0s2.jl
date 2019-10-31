@@ -98,6 +98,18 @@ simulate(L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) *
 diag(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag))
 similar(L::FlatIEBCov) = (similar(L.ΣB); similar.(L.ΣTE); L)
 
+# getindex
+function getindex(L::FlatIEBCov, k::Symbol)
+    @match k begin
+        :IP => L
+        :I => L.ΣTE[1,1]
+        :E => L.ΣTE[2,2]
+        :B => L.ΣB
+        :P => Diagonal(FlatEBFourier(L[:E].diag, L[:B].diag))
+        _ => throw(ArgumentError("Invalid FlatIEBCov index: $k"))
+    end
+end
+
 
 # FlatIEBCov arithmetic
 *(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])

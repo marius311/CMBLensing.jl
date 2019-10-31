@@ -102,7 +102,8 @@ Cℓ_to_Cov(f::FlatField{P,T}, args...) where {P,T} = Cℓ_to_Cov(P,T,spin(f),ar
 function flatinfo(f::FlatField{P,T,M}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} 
     @unpack Δx, nyq, k = FFTgrid(f)
     B,S = basis(f), spin(f)
-    @namedtuple(Nside,θpix,∂mode,P,T,M,B,S,Δx,nyq,k)
+    Ωpix = Δx^2
+    @namedtuple(Nside,θpix,∂mode,P,T,M,B,S,Δx,Ωpix,nyq,k)
 end
 function pixwin(f::FlatField) 
     @unpack θpix,P,T,k = flatinfo(f)
