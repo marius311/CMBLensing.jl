@@ -78,7 +78,7 @@ end
 
 # contructing from Cℓs
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S02}, CℓTT, CℓEE, CℓBB, CℓTE) where {T,P}
-    ΣTT, ΣTE, ΣEE, ΣBB = [Cℓ_to_Cov(P,T,S0,Cℓ) for Cℓ in (CℓTT,CℓTE,CℓEE,CℓBB)]
+    ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(P,T,S0,Cℓ) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
 end
 
