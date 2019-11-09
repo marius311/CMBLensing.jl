@@ -153,12 +153,13 @@ function sample_joint(
     metadata = nothing,
     progress = false,
     interruptable = false,
+    gibbs_pass_θ::Union{Function,Nothing} = nothing,
     filename = nothing) where {T,P}
     
     # save input configuration to chain
     rundat = Base.@locals
     
-    @assert length(θrange) in [0,1] "Can only currently sample one parameter at a time."
+    @assert (length(θrange) in [0,1]) || (gibbs_pass_θ!=nothing) "Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`"
     @assert progress in [false,:summary,:verbose]
 
     @unpack d, Cϕ, Cn, M, B, L = ds
@@ -181,7 +182,7 @@ function sample_joint(
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            Any[@dictpack i=>1 ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>deepcopy(Random.seed!())]
+            Any[@dictpack i=>1 f=>nothing ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>deepcopy(Random.seed!())]
         end
     elseif chains == :resume
         chains = @ondemand(FileIO.load)(filename,"chains")
@@ -189,8 +190,7 @@ function sample_joint(
         chains = @ondemand(FileIO.load)(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ/2; end
-    Λm = (Nϕ == nothing) ? pinv(Cϕ) : (pinv(Cϕ) + pinv(Nϕ))
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ; end
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
 
@@ -201,9 +201,8 @@ function sample_joint(
             append!.(chains, pmap(last.(chains)) do state
                 
                 local f°, f̃, ΔH, accept
-                @unpack i,ϕ°,θ,seed = state
+                @unpack i,ϕ°,f,θ,seed = state
                 copy!(Random.GLOBAL_RNG, seed)
-                f = nothing
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
                 Lϕ = cache(L(ϕ), ds.d)
@@ -217,16 +216,11 @@ function sample_joint(
                         f° = Lϕ * dsθ.D * argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
-                    # ==== gibbs P(θ|f°,ϕ°) ====
-                    t_θ = @elapsed begin
-                        if (i > nburnin_fixθ)
-                            lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds,Lϕ), θrange, progress=(progress==:verbose))
-                            dsθ = ds(;θ...)
-                        end
-                    end
                     
                     # ==== gibbs P(ϕ°|f°,θ) ==== 
                     t_ϕ = @elapsed begin
+                        
+                        Λm = (Nϕ == nothing) ? pinv(dsθ.Cϕ) : (pinv(dsθ.Cϕ) + pinv(Nϕ))
                         
                         for kwargs in symp_kwargs
                         
@@ -247,13 +241,28 @@ function sample_joint(
                             
                         end
                         
-                        # compute un-mixed maps
-                        ϕ = dsθ.G\ϕ°
-                        cache!(Lϕ,ϕ)
-                        f = dsθ.D\(Lϕ\f°)
-                        f̃ = Lϕ*f
-                        
                     end
+                    
+                    
+                    # ==== gibbs P(θ|f°,ϕ°) ====
+                    t_θ = @elapsed begin
+                        if (i > nburnin_fixθ)
+                            if gibbs_pass_θ == nothing
+                                lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds,Lϕ), θrange, progress=(progress==:verbose))
+                            else
+                                lnPθ, θ = gibbs_pass_θ(;(Base.@locals)...)
+                            end
+                            dsθ = ds(;θ...)
+                        end
+                    end
+
+                    
+                    # compute un-mixed maps
+                    ϕ = dsθ.G\ϕ°
+                    cache!(Lϕ,ϕ)
+                    f = dsθ.D\(Lϕ\f°)
+                    f̃ = Lϕ*f
+
                     
                     # save quantities to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
