@@ -109,7 +109,7 @@ function load_sim_dataset(;
     )
     
     # the biggest ℓ on the 2D fourier grid
-    ℓmax = round(Int,ceil(√2*FFTgrid(Flat(θpix=θpix,Nside=Nside),T).nyq))
+    ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside),T,Array).nyq))
     
     # CMB Cℓs
     if Cℓ == nothing

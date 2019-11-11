@@ -19,7 +19,7 @@ end
 
 function Taylens(ϕ::FlatS0{P,T}, N) where {P,T}
 
-    g = FFTgrid(P,T)
+    g = fieldinfo(ϕ)
     Nside = g.Nside
     
     # total displacement
@@ -57,7 +57,7 @@ function *(L::Taylens{N}, f::FlatS0{P,T}) where {N,P,T}
 
     # add in Taylor series correction
     for n in 1:N, α₁ in 0:n
-        Lfx .+= L.xα[n,α₁] .* intlense(FFTgrid(P,T).FFT \ (L.kα[n,α₁] .* fl))
+        Lfx .+= L.xα[n,α₁] .* intlense(fieldinfo(f).FFT \ (L.kα[n,α₁] .* fl))
     end
 
     FlatMap{P}(Lfx)

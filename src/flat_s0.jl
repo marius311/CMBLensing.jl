@@ -68,12 +68,12 @@ end
 
 
 ### basis conversion
-Fourier(f::FlatMap{P,T}) where {P,T} = FlatFourier{P}(FFTgrid(P,T).FFT * f.Ix)
-Map(f::FlatFourier{P,T}) where {P,T} = FlatMap{P}(FFTgrid(P,T).FFT \ f.Il)
+Fourier(f::FlatMap{P}) where {P} = FlatFourier{P}(fieldinfo(f).FFT * f.Ix)
+Map(f::FlatFourier{P}) where {P} = FlatMap{P}(fieldinfo(f).FFT \ f.Il)
 
 ### inplace conversion
-Fourier(f′::FlatFourier{P,T}, f::FlatMap{P,T}) where {P,T} =  (mul!(f′.Il, FFTgrid(P,T).FFT, f.Ix); f′)
-Map(f′::FlatMap{P,T}, f::FlatFourier{P,T}) where {P,T}     = (ldiv!(f′.Ix, FFTgrid(P,T).FFT, f.Il); f′)
+Fourier(f′::FlatFourier, f::FlatMap) =  (mul!(f′.Il, fieldinfo(f).FFT, f.Ix); f′)
+Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, f.Il); f′)
 
 ### properties
 getproperty(f::FlatS0, ::Val{s}) where {s} = getproperty(f,s)
@@ -84,11 +84,11 @@ end
 
 ### dot products
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
-dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * FFTgrid(a).Δx^2
+dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * fieldinfo(a).Δx^2
 
 ### simulation and power spectra
 function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
-    FlatMap{P}(randn(T,N,N) / FFTgrid(P,T).Δx)
+    FlatMap{P}(randn(T,N,N) / fieldinfo(F).Δx)
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)))
@@ -96,12 +96,12 @@ end
 
 
 function cov_to_Cℓ(L::DiagOp{<:FlatS0})
-    ii = sortperm(FFTgrid(L.diag).r[:])
-    InterpolatedCℓs(FFTgrid(L.diag).r[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
+    ii = sortperm(fieldinfo(L.diag).r[:])
+    InterpolatedCℓs(fieldinfo(L.diag).r[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
-    @unpack Nside,Δx,r = FFTgrid(f)
+    @unpack Nside,Δx,r = fieldinfo(f)
     α = (Nside/Δx)^2
 
     L = r[:]
@@ -138,7 +138,7 @@ spectrum of the new and old maps are the same. If `anti_aliasing` is true,
 filters out frequencies above Nyquist prior to down-sampling. 
 
 """
-function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,θ,N,∂mode,P<:Flat{N,θ,∂mode}}
+function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map), anti_aliasing=(mode==:map)) where {T,M,θ,N,∂mode,P<:Flat{N,θ,∂mode}}
     θnew==θ && return f
     (mode in [:map,:fourier]) || throw(ArgumentError("Available modes: [:map,:fourier]"))
 
@@ -149,14 +149,14 @@ function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
     Pnew = Flat{Nnew,θnew,∂mode}
 
     if deconv_pixwin
-        @unpack Δx,k = FFTgrid(Pnew,T)
+        @unpack Δx,k = fieldinfo(Pnew,T,M)
         Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
     end
 
     if θnew>θ
         # downgrade
         if anti_aliasing
-            kmask = ifelse.(abs.(FFTgrid(P,T).k) .> FFTgrid(Pnew,T).nyq, 0, 1)
+            kmask = ifelse.(abs.(fieldinfo(P,T,M).k) .> fieldinfo(Pnew,T,M).nyq, 0, 1)
             AA = Diagonal(FlatFourier{P}(kmask[1:N÷2+1] .* kmask'))
         else
             AA = 1
@@ -174,7 +174,7 @@ function ud_grade(f::FlatS0{P,T}, θnew; mode=:map, deconv_pixwin=(mode==:map), 
             deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
         else
             fnew = FlatFourier{P}(zeros(Nnew÷2+1,Nnew))
-            broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(FFTgrid(fnew).k .≈ FFTgrid(f).k[i]) for i=1:N]');
+            broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]');
             fnew
         end
     end

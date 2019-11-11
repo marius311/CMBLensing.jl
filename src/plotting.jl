@@ -33,7 +33,7 @@ function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true,
     if string(k)[2] == 'x'
         x = θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     elseif string(k)[2] == 'l'
-        x = FFTgrid(f).nyq
+        x = fieldinfo(f).nyq
     else
         throw(ArgumentError("Invalid `which`: $k"))
     end
