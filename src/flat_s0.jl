@@ -44,13 +44,13 @@ size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 similar(f::F) where {F<:FlatS0} = F(similar(firstfield(f)))
 similar(f::F,::Type{T}) where {P,F<:FlatS0{P},T} = basetype(F){P}(similar(firstfield(f),T))
+adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
+
 
 ### broadcasting
 struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
-# rules for mixing matrix types (e.g. CuArray and Array) would look something like this:
-# BroadcastStyle(::FlatS0Style{F,M1}, ::FlatS0Style{F,M2}) where {F,M1,M2} = ...
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T, FS<:FlatS0Style} = similar(FS,T)
@@ -87,8 +87,8 @@ end
 dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * fieldinfo(a).Δx^2
 
 ### simulation and power spectra
-function white_noise(::Type{F}) where {N,T,P<:Flat{N},F<:FlatS0{P,T}}
-    FlatMap{P}(randn(T,N,N) / fieldinfo(F).Δx)
+function white_noise(::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
+    FlatMap{P}(randn!(basetype(M){T}(undef,N,N)) / fieldinfo(F).Δx)
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)))
@@ -101,10 +101,10 @@ function cov_to_Cℓ(L::DiagOp{<:FlatS0})
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
-    @unpack Nside,Δx,r = fieldinfo(f)
+    @unpack Nside,Δx,kmag = fieldinfo(f)
     α = (Nside/Δx)^2
 
-    L = r[:]
+    L = kmag[:]
     CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:] ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     

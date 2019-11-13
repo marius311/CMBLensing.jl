@@ -40,7 +40,7 @@ function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true,
     extent = [-x,x,-x,x]
     (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(θ)')")
     (vlim == nothing) && (vlim=:sym)
-    _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
+    _plot(Array(f[k]); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
         if string(k)[2] == 'x'
             @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter

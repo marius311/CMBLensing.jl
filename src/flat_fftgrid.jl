@@ -36,11 +36,11 @@ const FFTW_NUM_THREADS = Ref{Int}()
 
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
 
-    Δx   = deg2rad(θpix/60)
+    Δx   = T(deg2rad(θpix/60))
     FFT  = plan_rfft(Arr{T}(undef,Nside,Nside))
-    Δℓ   = 2π/(Nside*Δx)
-    nyq  = 2π/(2Δx)
-    Ωpix = Δx^2
+    Δℓ   = T(2π/(Nside*Δx))
+    nyq  = T(2π/(2Δx))
+    Ωpix = T(Δx^2)
     x,k  = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* (Δx,Δℓ)
     kmag = @. sqrt(k'^2 + k^2)
     ϕ    = @. angle(k' + im*k)[1:Nside÷2+1,:]
@@ -49,14 +49,12 @@ const FFTW_NUM_THREADS = Ref{Int}()
         sin2ϕ[end, end:-1:(Nside÷2+2)] .= sin2ϕ[end, 2:Nside÷2]
     end
     
-    return @namedtuple(
-        T, θpix, Nside, Δx, Δℓ, nyq, Ωpix, x=(x), k=(k), kmag=(kmag), sin2ϕ=(sin2ϕ), cos2ϕ=(cos2ϕ), FFT
-    )
+    @namedtuple(T, θpix, Nside, Δx, Δℓ, nyq, Ωpix, x, k, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
 
 end
 
 function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
-    Complex{T}.(nan2zero.(Cℓ.(FFTgrid(P,T).kmag[1:N÷2+1,:])))
+    Complex{T}.(nan2zero.(Cℓ.(fieldinfo(P,T).kmag[1:N÷2+1,:])))
 end
 
 

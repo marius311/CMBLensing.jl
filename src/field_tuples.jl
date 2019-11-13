@@ -48,6 +48,7 @@ similar(f::FT, ::Type{T}) where {T, B, FT<:FieldTuple{B}} = FieldTuple{B}(map(f-
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
+adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
 
 
 ### broadcasting

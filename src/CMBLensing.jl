@@ -1,5 +1,6 @@
 module CMBLensing
 
+using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, flatten, preprocess_args, Style
 using Base.Iterators: repeated, product
@@ -36,6 +37,7 @@ using Statistics
 using StatsBase
 using Strided: maybestrided, StridedView, StridedArrayStyle
 
+import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,

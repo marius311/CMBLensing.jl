@@ -107,10 +107,11 @@ Fourier(f::FlatS2Fourier) = f
 
 
 ### simulation and power spectra
-function white_noise(::Type{<:FlatS2{P,T}}) where {P,T}
-    FlatEBMap(E=white_noise(FlatMap{P,T}), B=white_noise(FlatMap{P,T}))
+function white_noise(::Type{F2}) where {F2<:FlatS2}
+    F = (((::Type{<:FieldTuple{B,NamedTuple{Names,NTuple{2,F}}}}) where {B,Names,F}) -> F)(F2)
+    FlatEBMap(E=white_noise(F), B=white_noise(F))
 end
-function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T}
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T,M}
     Diagonal(FlatEBFourier(E=Cℓ_to_Cov(P,T,S0,CℓEE).diag, B=Cℓ_to_Cov(P,T,S0,CℓBB).diag))
 end
 

@@ -13,11 +13,11 @@ for F in (:FlatMap, :FlatFourier,
 end
 
 ### field info
-@generated function fieldinfo(::Type{F}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M,F<:FlatField{P,T,M}}
-    merge(FlatInfo(T,basetype(M),Val(θpix),Val(Nside)), @namedtuple(∂mode,P,B=basis(F),S=spin(F)))
-end
-fieldinfo(::F) where {F<:FlatField} = fieldinfo(F) 
-
+@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = 
+    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside))..., ∂mode=∂mode)
+@generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
+    (;fieldinfo(P,T,M)..., @namedtuple(P,B=basis(F),S=spin(F))...)
+fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
