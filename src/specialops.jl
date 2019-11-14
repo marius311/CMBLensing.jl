@@ -18,8 +18,7 @@ end
 diag_data(D::Diagonal) = D.diag
 diag_data(x) = x
 function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
-    bc′ = flatten(bc)
-    copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(diag_data, bc′.args)))
+    copyto!(dest.diag, map_bc_args(diag_data, bc))
     dest
 end
 

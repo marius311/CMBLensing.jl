@@ -5,8 +5,8 @@ const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
     Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
-preprocess(dest::F, arg) where {F<:CuFlatS0} = 
-    cu(broadcastable(F, arg))
+preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
+    adapt(M,broadcastable(F, arg))
 function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
     bc′ = preprocess(dest, bc)
     copyto!(firstfield(dest), bc′)

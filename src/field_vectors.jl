@@ -27,9 +27,8 @@ BroadcastStyle(::Type{<:FieldOrOpMatrix}) = FieldOrOpArrayStyle{2}()
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FieldTupleStyle) = S
 instantiate(bc::Broadcasted{<:FieldOrOpArrayStyle}) = bc
 function copy(bc::Broadcasted{FieldOrOpArrayStyle{N}}) where {N}
-    bc′ = flatten(bc)
-    bc″ = Broadcasted{StaticArrayStyle{N}}(bc′.f, map(fieldvector_data,bc′.args))
-    materialize(bc″)
+    bc′ = convert(Broadcasted{StaticArrayStyle{N}}, map_bc_args(fieldvector_data,bc))
+    materialize(bc′)
 end
 fieldvector_data(f::FieldOrOp) = Ref(f)
 fieldvector_data(x) = x

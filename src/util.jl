@@ -284,3 +284,9 @@ end
 
 get_kwarg_names(func::Function) = Vector{Symbol}(kwarg_decl(first(methods(func)), typeof(methods(func).mt.kwsorter)))
 kwarg_decl(m::Method,kw::DataType) = VERSION<=v"1.3.999" ? Base.kwarg_decl(m,kw) : Base.kwarg_decl(m)
+
+# maps a function recursively across all arguments of Broadcasted expression,
+# using the function `broadcasted` to reconstruct the `Broadcasted` object at
+# each point.
+map_bc_args(f, bc::Broadcasted) = broadcasted(bc.f, map(arg->map_bc_args(f, arg), bc.args)...)
+map_bc_args(f, arg) = f(arg)
