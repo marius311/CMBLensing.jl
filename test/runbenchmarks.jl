@@ -46,6 +46,8 @@ gt = FlatQUMap(rand(N,N),rand(N,N))
 
 end
 
+end
+
 ##
 
 Cℓ = camb().unlensed_total
@@ -55,18 +57,18 @@ f = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.TT))
 ϕ = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.ϕϕ))
 Lϕ = cache(LenseFlow(ϕ),f)
 
-tL0  = @belapsed($Lϕ *$f))
-tLt0 = @belapsed($Lϕ'*$f))
-tgL0 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ))))
+tL0  = @belapsed($Lϕ *$f)
+tLt0 = @belapsed($Lϕ'*$f)
+tgL0 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ)))
 
 # spin 2
 f = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S2, Cℓ.EE, Cℓ.BB))
 ϕ = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.ϕϕ))
 Lϕ = cache(LenseFlow(ϕ),f)
 
-tL2  = @belapsed($Lϕ *$f))
-tLt2 = @belapsed($Lϕ'*$f))
-tgL2 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ))))
+tL2  = @belapsed($Lϕ *$f)
+tLt2 = @belapsed($Lϕ'*$f)
+tgL2 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ)))
 
 ##
 
@@ -78,7 +80,7 @@ meta = OrderedDict(
 )
 
 timing = [
-    "Spin-0 LenseFlow"           tL0   0.012;
+    "Spin-0 LenseFlow"           tL0   0.013;
     "Spin-0 Adjoint LenseFlow"   tLt0  0.013;
     "Spin-0 Gradient LenseFlow"  tgL0  0.080;
     "Spin-2 LenseFlow"           tL2   0.030;
