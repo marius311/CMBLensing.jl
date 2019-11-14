@@ -76,7 +76,9 @@ Fourier(f′::FlatFourier, f::FlatMap) =  (mul!(f′.Il, fieldinfo(f).FFT, f.Ix)
 Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, f.Il); f′)
 
 ### properties
-getproperty(f::FlatS0, ::Val{s}) where {s} = getproperty(f,s)
+getproperty(f::FlatS0, s::Symbol) = getproperty(f,Val(s))
+getproperty(f::FlatS0, ::Val{s}) where {s} = getfield(f,s)
+getproperty(f::FlatS0, ::Val{:I}) = f
 function getindex(f::FlatS0, k::Symbol)
     k in [:I, :Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
     k == :I ? f : getproperty((k == :Ix ? Map : Fourier)(f),k)
