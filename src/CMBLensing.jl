@@ -35,7 +35,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
-using Strided: maybestrided, StridedView, StridedArrayStyle
+using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
 
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈,
