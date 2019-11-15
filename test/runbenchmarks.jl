@@ -13,10 +13,10 @@ s = ArgParseSettings()
     "--benchmark_accuracy"
         default = 0.01
         arg_type = Float64
-    "--N"
+    "-N"
         default = 256
         arg_type = Int
-    "--T"
+    "-T"
         default = Float32
         range_tester = s -> s in (Float32,Float64)
         eval_arg = true
@@ -101,7 +101,7 @@ timing = []
 
 for (s,use) in [(0,:I),(2,:P)]
     
-    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=Float32, use=use, storage=storage, Cℓ=Cℓ);
+    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=T, use=use, storage=storage, Cℓ=Cℓ);
     f°,ϕ° = mix(f,ϕ,ds₀)
     Lϕ = cache(LenseFlow(ϕ),f)
     
