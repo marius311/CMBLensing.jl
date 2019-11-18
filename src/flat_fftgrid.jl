@@ -18,20 +18,6 @@ Nside(::Type{P}) where {N,P<:Flat{N}} = N
 # default angular resolution used by a number of convenience constructors
 θpix₀ = 1
 
-# stores FFT plan and other info needed for manipulating a Flat map
-struct FFTgrid{T,F}
-    θpix :: T
-    Nside :: Int64
-    Δx :: T
-    Δℓ :: T
-    nyq :: T
-    x :: Vector{T}
-    k :: Vector{T}
-    r :: Matrix{T}
-    sin2ϕ :: Matrix{T}
-    cos2ϕ :: Matrix{T}
-    FFT :: F
-end
 
 @doc """
 The number of FFTW threads to use. This must be set via e.g.:
@@ -45,26 +31,30 @@ or if that is not specified its `Sys.CPU_THREADS÷2`.
 const FFTW_NUM_THREADS = Ref{Int}()
 @init FFTW_NUM_THREADS[] = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
 
-# use @generated function to memoize FFTgrid for given (T,θ,Nside) combinations
-FFTgrid(::Type{<:Flat{Nside,θpix}}, ::Type{T}) where {T, θpix, Nside} = FFTgrid(T, Val(θpix), Val(Nside))
-@generated function FFTgrid(::Type{T}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, θpix, Nside}
-    Δx  = deg2rad(θpix/60)
+
+@generated function FlatInfo(::Type{T}, ::Type{Arr}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, Arr<:AbstractArray, θpix, Nside}
+
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
-    FFT = plan_rfft(Matrix{T}(undef,Nside,Nside); flags=FFTW.ESTIMATE, timelimit=5)
-    Δℓ  = 2π/(Nside*Δx)
-    nyq = 2π/(2Δx)
-    x,k = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* [Δx,Δℓ]'
-    r   = @. sqrt(k'^2 + k^2)
-    ϕ   = @. angle(k' + im*k)[1:Nside÷2+1,:]
+
+    Δx   = T(deg2rad(θpix/60))
+    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside))
+    Δℓ   = T(2π/(Nside*Δx))
+    nyq  = T(2π/(2Δx))
+    Ωpix = T(Δx^2)
+    x,k  = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* (Δx,Δℓ)
+    kmag = @. sqrt(k'^2 + k^2)
+    ϕ    = @. angle(k' + im*k)[1:Nside÷2+1,:]
     sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
     if iseven(Nside)
         sin2ϕ[end, end:-1:(Nside÷2+2)] .= sin2ϕ[end, 2:Nside÷2]
     end
-    FFTgrid{T,typeof(FFT)}(θpix, Nside, Δx, Δℓ, nyq, x, k, r, sin2ϕ, cos2ϕ, FFT)
+    
+    @namedtuple(T, θpix, Nside, Δx, Δℓ, nyq, Ωpix, x, k, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
+
 end
 
 function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
-    Complex{T}.(nan2zero.(Cℓ.(FFTgrid(P,T).r[1:N÷2+1,:])))
+    Complex{T}.(nan2zero.(Cℓ.(fieldinfo(P,T).kmag[1:N÷2+1,:])))
 end
 
 

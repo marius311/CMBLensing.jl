@@ -1,106 +1,151 @@
-using CMBLensing
+using ArgParse
+s = ArgParseSettings()
+@add_arg_table s begin
+    "--tests"
+        default = false
+        arg_type = Bool
+    "--benchmarks"
+        default = true
+        arg_type = Bool
+    "--storage"
+        range_tester = s -> s in ("Array","CuArray")
+        default = "Array"
+    "--benchmark_accuracy"
+        default = 0.01
+        arg_type = Float64
+    "-N"
+        default = 256
+        arg_type = Int
+    "-T"
+        default = Float32
+        range_tester = s -> s in (Float32,Float64)
+        eval_arg = true
+end
+args = parse_args(ARGS, s)
+
+if args["storage"]=="CuArray"
+    using CuArrays
+end
+storage = eval(Symbol(args["storage"]))
+macro belapsed(ex)
+    if args["storage"] == "CuArray" 
+        esc(:(BenchmarkTools.@belapsed CuArrays.@sync $ex))
+    else
+        esc(:(BenchmarkTools.@belapsed $ex))
+    end
+end
+N = args["N"]
+T = args["T"]
 
 ##
 
+using CMBLensing
+using CMBLensing: adapt
+
+##
+
+import BenchmarkTools
 using Base.Broadcast: broadcastable
-using BenchmarkTools
-using BenchmarkTools: @belapsed, @btime
 using Crayons
-using FileIO
+using DelimitedFiles
 using LibGit2
 using PrettyTables
 using Printf
 using Test
 
 
+##
+
 # benchmark to 1% and check to 5%, so only a "5σ event" should trigger a failure
-BenchmarkTools.DEFAULT_PARAMETERS.time_tolerance = 0.01
+BenchmarkTools.DEFAULT_PARAMETERS.time_tolerance = args["benchmark_accuracy"]
 rtol = 0.05
-
 ≲(a,b; rtol=rtol) = (a < (1+rtol)*b)
-
-N = 256
 
 ##
 
-@testset "Benchmarks" begin
+if args["tests"]
+try 
+    
+##
 
-# broadcasting with Fields should be exactly as fast working with the arrays
-# directly, no overhead allowed
-
-@testset "Algebra" begin
+@testset "Performance Tests" begin
 
 # spin 0 
-f = FlatMap(rand(N,N))
-g = FlatMap(rand(N,N))
+f = adapt(storage,FlatMap(rand(T,N,N)))
+g = adapt(storage,FlatMap(rand(T,N,N)))
 Ðf = Ð(f)
 @test @belapsed(@.      $f + $f) ≲ @belapsed(@.         $f.Ix + $f.Ix)
 @test @belapsed(@. $g = $f + $f) ≲ @belapsed(@. $g.Ix = $f.Ix + $f.Ix)
 @test @belapsed(∇[1]*$Ðf)        ≲ @belapsed($(broadcastable(typeof(Ðf), ∇[1].diag)) .* $Ðf.Il)
 
 # spin 2
-ft = FlatQUMap(rand(N,N),rand(N,N))
-gt = FlatQUMap(rand(N,N),rand(N,N))
+ft = adapt(storage,FlatQUMap(rand(T,N,N),rand(T,N,N)))
+gt = adapt(storage,FlatQUMap(rand(T,N,N),rand(T,N,N)))
 @test @belapsed(@.       $ft + $ft) ≲ @belapsed(@. (         $ft.Qx + $ft.Qx,          $ft.Ux + $ft.Ux))
 @test @belapsed(@. $gt = $ft + $ft) ≲ @belapsed(@. ($gt.Qx = $ft.Qx + $ft.Qx, $gt.Ux = $ft.Ux + $ft.Ux))
 
 end
 
+##
+
+catch 
+end
 end
 
 ##
 
-Cℓ = camb().unlensed_total
+if args["benchmarks"]
 
-# spin 0
-f = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.TT))
-ϕ = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.ϕϕ))
-Lϕ = cache(LenseFlow(ϕ),f)
+Cℓ = camb()
+timing = []
 
-tL0  = @belapsed($Lϕ *$f)
-tLt0 = @belapsed($Lϕ'*$f)
-tgL0 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ)))
+for (s,use) in [(0,:I),(2,:P)]
+    
+    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=T, use=use, storage=storage, Cℓ=Cℓ);
+    f°,ϕ° = mix(f,ϕ,ds₀)
+    Lϕ = cache(LenseFlow(ϕ),f)
+    
+    append!(timing,[
+        "Spin-$s Cache L" => @belapsed cache(LenseFlow($ϕ), $f);
+        "Spin-$s L"       => @belapsed $Lϕ  * $f;
+        "Spin-$s L†"      => @belapsed $Lϕ' * $f;
+        "Spin-$s (∇L)†"   => @belapsed $(δf̃ϕ_δfϕ(Lϕ,f,f)') * $(FΦTuple(f,ϕ));
+        "Spin-$s lnP"     => @belapsed       lnP(:mix, $f°, $ϕ°, $ds₀, $Lϕ);
+        "Spin-$s ∇lnP"    => @belapsed δlnP_δfϕₜ(:mix, $f°, $ϕ°, $ds₀, $Lϕ);
+    ])
 
-# spin 2
-f = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S2, Cℓ.EE, Cℓ.BB))
-ϕ = simulate(Cℓ_to_Cov(Flat(Nside=N), Float32, S0, Cℓ.ϕϕ))
-Lϕ = cache(LenseFlow(ϕ),f)
+end
 
-tL2  = @belapsed($Lϕ *$f)
-tLt2 = @belapsed($Lϕ'*$f)
-tgL2 = @belapsed($(δf̃ϕ_δfϕ(Lϕ,f,f)')*$(FΦTuple(f,ϕ)))
-
-##
-
-
-meta = OrderedDict(
+meta = [
     "COMMIT" => string(LibGit2.head_oid(GitRepo(joinpath(dirname(@__FILE__),".."))))[1:7],
     "JULIA_NUM_THREADS" => Base.Threads.nthreads(),
     "FFTW_NUM_THREADS" => CMBLensing.FFTW_NUM_THREADS[],
-)
-
-timing = [
-    "Spin-0 LenseFlow"           tL0   0.013;
-    "Spin-0 Adjoint LenseFlow"   tLt0  0.013;
-    "Spin-0 Gradient LenseFlow"  tgL0  0.080;
-    "Spin-2 LenseFlow"           tL2   0.030;
-    "Spin-2 Adjoint LenseFlow"   tLt2  0.030;
-    "Spin-2 Gradient LenseFlow"  tgL2  0.140;
+    (k=>args[k] for k in ["storage","N","T"])...
 ]
 
-# save benchmarks
-filename = "benchmarks/"*join(["$(k)_$(v)" for (k,v) in meta], "__")*".jld2"
-!ispath("benchmarks") && mkdir("benchmarks")
-save(filename,"meta",meta,"timing",timing)
+reference_timing = Dict(
+    "Spin-0 Cache L" => 25,
+    "Spin-0 L"       => 13,
+    "Spin-0 L†"      => 13,
+    "Spin-0 (∇L)†"   => 85,
+    "Spin-0 lnP"     => 65,
+    "Spin-0 ∇lnP"    => 240,
+    "Spin-2 Cache L" => 25,
+    "Spin-2 L"       => 30,
+    "Spin-2 L†"      => 30,
+    "Spin-2 (∇L)†"   => 140,
+    "Spin-2 lnP"     => 110,
+    "Spin-2 ∇lnP"    => 380
+)
 
 
 # print benchmarks
 
-pretty_table(Dict(meta))
+pretty_table(Dict(meta), crop=:none)
 
 pretty_table(
-    timing,
-    ["Operation","Time","Fiducial"],
+    vcat(([k v reference_timing[k]*1e-3] for (k,v) in timing)...),
+    ["Operation","Time","Reference"],
     formatter = Dict(
         1 => (v,_) -> v,
         2 => (v,_) -> @sprintf("%.1f ms",1000v),
@@ -109,5 +154,17 @@ pretty_table(
     highlighters = (
         Highlighter((data, i, j) -> j==2 && data[i,j] > (1+rtol) * data[i,j+1], foreground=:red),
         Highlighter((data, i, j) -> j==2 && data[i,j] < (1-rtol) * data[i,j+1], foreground=:green)
-    )
+    ),
+    crop=:none,
+    alignment=[:l,:r,:r],
+    hlines=[6]
 )
+
+# save benchmarks
+filename = "benchmarks/"*join(["$(k)_$(v)" for (k,v) in meta], "__")*".txt"
+!ispath("benchmarks") && mkdir("benchmarks")
+open(filename,"w") do f
+    writedlm.(Ref(f),(meta,timing))
+end
+
+end

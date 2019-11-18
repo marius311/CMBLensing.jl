@@ -68,7 +68,7 @@ function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀
     ∇ϕ,Hϕ = map(Ł, gradhess(L.ϕ))
     T = eltype(L.ϕ)
     for (t,τ) in zip(ts,τ.(ts))
-        @! cL.M⁻¹[τ] = pinv(Diagonal.(I + t*Hϕ))
+        @! cL.M⁻¹[τ] = pinv(Diagonal.(I + T(t)*Hϕ))
         @! cL.p[τ] = cL.M⁻¹[τ]' * Diagonal.(∇ϕ)
     end
     cL.ϕ[] = L.ϕ

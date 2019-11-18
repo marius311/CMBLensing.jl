@@ -72,7 +72,7 @@ end
 QUFourier(f::FlatQUMap) = FlatQUFourier(map(Fourier,f.fs))
 QUFourier(f::FlatEBMap) = f |> EBFourier |> QUFourier
 QUFourier(f::FlatEBFourier{P,T}) where {P,T} = begin
-    @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
+    @unpack sin2ϕ, cos2ϕ = fieldinfo(f)
     Ql = @. - f.El * cos2ϕ + f.Bl * sin2ϕ
     Ul = @. - f.El * sin2ϕ - f.Bl * cos2ϕ
     FlatQUFourier(Q=FlatFourier{P}(Ql), U=FlatFourier{P}(Ul))
@@ -85,7 +85,7 @@ QUMap(f::FlatEBFourier)  = f |> QUFourier |> QUMap
 EBFourier(f::FlatEBMap) = FlatEBFourier(map(Fourier,f.fs))
 EBFourier(f::FlatQUMap) = f |> QUFourier |> EBFourier
 EBFourier(f::FlatQUFourier{P,T}) where {P,T} = begin
-    @unpack sin2ϕ, cos2ϕ = FFTgrid(P,T)
+    @unpack sin2ϕ, cos2ϕ = fieldinfo(f)
     El = @. - f.Ql * cos2ϕ - f.Ul * sin2ϕ
     Bl = @.   f.Ql * sin2ϕ - f.Ul * cos2ϕ
     FlatEBFourier(E=FlatFourier{P}(El), B=FlatFourier{P}(Bl))
@@ -107,10 +107,11 @@ Fourier(f::FlatS2Fourier) = f
 
 
 ### simulation and power spectra
-function white_noise(::Type{<:FlatS2{P,T}}) where {P,T}
-    FlatEBMap(E=white_noise(FlatMap{P,T}), B=white_noise(FlatMap{P,T}))
+function white_noise(::Type{F2}) where {F2<:FlatS2}
+    F = (((::Type{<:FieldTuple{B,NamedTuple{Names,NTuple{2,F}}}}) where {B,Names,F}) -> F)(F2)
+    FlatEBMap(E=white_noise(F), B=white_noise(F))
 end
-function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T}
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs) where {P,T,M}
     Diagonal(FlatEBFourier(E=Cℓ_to_Cov(P,T,S0,CℓEE).diag, B=Cℓ_to_Cov(P,T,S0,CℓBB).diag))
 end
 

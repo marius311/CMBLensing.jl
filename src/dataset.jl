@@ -39,6 +39,8 @@ function check_hat_operators(ds::DataSet)
             "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 
+adapt_structure(to, ds::DataSet) = DataSet(adapt(to, fieldvalues(ds))...)
+
     
 @doc doc"""
     resimulate(ds::DataSet; f=..., ϕ=...)
@@ -79,6 +81,7 @@ function load_sim_dataset(;
     Nside,
     use,
     T = Float32,
+    storage = Array,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -109,7 +112,7 @@ function load_sim_dataset(;
     )
     
     # the biggest ℓ on the 2D fourier grid
-    ℓmax = round(Int,ceil(√2*FFTgrid(Flat(θpix=θpix,Nside=Nside),T).nyq))
+    ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
     # CMB Cℓs
     if Cℓ == nothing
@@ -194,7 +197,7 @@ function load_sim_dataset(;
     end
     @set! ds.G = G
    
-    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L)
+    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
 end
 

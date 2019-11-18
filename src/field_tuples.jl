@@ -48,6 +48,7 @@ similar(f::FT, ::Type{T}) where {T, B, FT<:FieldTuple{B}} = FieldTuple{B}(map(f-
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
+adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
 
 
 ### broadcasting
@@ -59,13 +60,13 @@ similar(::Broadcasted{FTS}, ::Type{T}) where {T, FTS<:FieldTupleStyle} = similar
 similar(::Type{FieldTupleStyle{B,Nothing,FS}}, ::Type{T}) where {B,FS,T} = FieldTuple{B}(map_tupleargs(F->similar(F,T), FS))
 similar(::Type{FieldTupleStyle{B,Names,FS}}, ::Type{T}) where {B,Names,FS,T} = FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))
 instantiate(bc::Broadcasted{<:FieldTupleStyle}) = bc
-fieldtuple_data(f::FieldTuple) = values(f.fs)
-fieldtuple_data(f::Field) = (f,)
-fieldtuple_data(x) = x
+fieldtuple_data(f::FieldTuple, i) = f.fs[i]
+fieldtuple_data(f::Field, i) = f
+fieldtuple_data(x, i) = x
 function copyto!(dest::FieldTuple, bc::Broadcasted{Nothing})
-    bc′ = flatten(bc)
-    bc″ = Broadcasted{Style{Tuple}}((dest,args...)->broadcast!(bc′.f,dest,args...), (fieldtuple_data(dest), map(fieldtuple_data,bc′.args)...))
-    copy(bc″)
+    for (i,d) in enumerate(dest.fs)
+        copyto!(d, map_bc_args(arg->fieldtuple_data(arg,i), bc))
+    end
     dest
 end
 

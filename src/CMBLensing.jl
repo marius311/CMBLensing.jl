@@ -1,7 +1,8 @@
 module CMBLensing
 
+using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
-    DefaultArrayStyle, flatten, preprocess_args, Style
+    DefaultArrayStyle, preprocess_args, Style
 using Base.Iterators: repeated, product
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
@@ -34,8 +35,9 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector
 using Statistics
 using StatsBase
-using Strided: maybestrided, StridedView, StridedArrayStyle
+using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
 
+import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈,
     adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
@@ -54,14 +56,14 @@ export
     @namedtuple, @repeated, @unpack, animate, argmaxf_lnP, azeqproj, BandPassOp,
     cache, CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov,
     DataSet, DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid,
-    Field, FieldArray, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
+    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
     FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
     FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
     FlatFieldMap, FlatFieldFourier, FlatField, FlatFourier, FlatIEBCov,
-    FlatIEBFourier, FlatIEBMap, flatinfo, FlatIQUFourier, FlatIQUMap, FlatMap,
-    FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier,
-    FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ,
-    get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, GradientCache, HealpixCap,
+    FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU,
+    FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map,
+    Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ,
+    get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, GradientCache, HealpixCap,
     HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp, IEBFourier, IEBMap,
     InterpolatedCℓs, IQUFourier, IQUMap, IsotropicHarmonicCov, LazyBinaryOp,
     LenseBasis, LenseFlow, LenseOp, LinDiagOp, LinOp, lnP, load_camb_Cℓs,
@@ -114,5 +116,8 @@ include("quadratic_estimate.jl")
 # include("healpix.jl")
 
 include("autodiff.jl")
+
+# gpu
+@init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")
 
 end

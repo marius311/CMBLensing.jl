@@ -99,7 +99,7 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
     term = get_term_memoizer(d1)
     ΣTtot = TF^2 * Cf̃ + Cn
     CT = (weights==:unlensed) ? Cf : Cf̃
-    @unpack Ωpix = flatinfo(d1)
+    @unpack Ωpix = fieldinfo(d1)
     
     # unnormalized estimate
     ϕqe_unnormalized = @subst -sum(∇[i] * Fourier(term($(ΣTtot\(TF*d1))) * term($(CT*(ΣTtot\(TF*d2))), [i])) for i=1:2)
@@ -128,7 +128,7 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     TF² = TF[:E]^2
     ΣEtot = TF² * Cf̃[:E] + Cn[:E]
     CE = ((weights==:unlensed) ? Cf : Cf̃)[:E]
-    @unpack Ωpix = flatinfo(d1)
+    @unpack Ωpix = fieldinfo(d1)
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
@@ -169,7 +169,7 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     TF²E, TF²B = TF[:E]^2, TF[:B]^2
     ΣEtot = TF²E * Cf̃[:E] + Cn[:E]
     ΣBtot = TF²B * Cf̃[:B] + Cn[:B]
-    @unpack Ωpix = flatinfo(d1)
+    @unpack Ωpix = fieldinfo(d1)
     
 
     # unnormalized estimate

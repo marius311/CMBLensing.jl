@@ -97,6 +97,8 @@ abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} e
 size(::Union{ImplicitOp,ImplicitField}) = ()
 length(::Union{ImplicitOp,ImplicitField}) = 0
 
+adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
+
 # printing
 show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
 show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)

@@ -12,6 +12,12 @@ for F in (:FlatMap, :FlatFourier,
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
 
+### field info
+@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = 
+    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside))..., ∂mode=∂mode)
+@generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
+    (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
+fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
@@ -23,7 +29,6 @@ function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{Flat{N1
 end
 (::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,F<:FlatS0{<:Flat{N,θ}}} = basetype(F){Flat{N,θ,∂mode}}(fieldvalues(f)...)
 (::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
-FFTgrid(::FlatField{P,T}) where {P,T} = FFTgrid(P,T)
 
 ### basis-like definitions
 LenseBasis(::Type{<:FlatS0})  =    Map
@@ -44,18 +49,18 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 # these are only 1-d arrays, that's a completely unnecessary optimization, but
 # without the @generated it triggers an order-dependenant compilation bug which
 # e.g. slows down LenseFlow by a factor of ~4 so we gotta keep it for now ¯\_(ツ)_/¯
-@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{1,<:Any,prefactor}) where {P,T,prefactor} = 
-    @. prefactor * im * $FFTgrid(P,T).k'
-@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,prefactor} = 
-    @. prefactor * im * $FFTgrid(P,T).k[1:N÷2+1]
-@generated broadcastable(::Type{<:FlatFourier{P,T}}, ::∇²diag) where {N,P<:Flat{N},T} =
-    @. $FFTgrid(P,T).k'^2 + $FFTgrid(P,T).k[1:N÷2+1]^2
+@generated broadcastable(::Type{F}, ::∇diag{1,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}} = 
+    basetype(M)(@. prefactor * im * $fieldinfo(F).k')
+@generated broadcastable(::Type{F}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,M,prefactor,F<:FlatFourier{P,T,M}} = 
+    basetype(M)(@. prefactor * im * $fieldinfo(F).k[1:N÷2+1])
+@generated broadcastable(::Type{F}, ::∇²diag) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,T,M}} =
+    basetype(M)(@. $fieldinfo(F).k'^2 + $fieldinfo(F).k[1:N÷2+1]^2)
 
 ## Map-space
 function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,F<:FlatMap{Flat{N,θ,map∂},T}}
     f = bc.args[2]
     n,m = size(f.Ix)
-    α = 2 * prefactor * FFTgrid(f).Δx
+    α = 2 * prefactor * fieldinfo(f).Δx
     if coord==1
         @inbounds for j=2:m-1
             @simd for i=1:n
@@ -99,13 +104,8 @@ tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + s
 
 ### misc
 Cℓ_to_Cov(f::FlatField{P,T}, args...) where {P,T} = Cℓ_to_Cov(P,T,spin(f),args...)
-function flatinfo(f::FlatField{P,T,M}) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} 
-    @unpack Δx, nyq, k = FFTgrid(f)
-    B,S = basis(f), spin(f)
-    Ωpix = Δx^2
-    @namedtuple(Nside,θpix,∂mode,P,T,M,B,S,Δx,Ωpix,nyq,k)
-end
+
 function pixwin(f::FlatField) 
-    @unpack θpix,P,T,k = flatinfo(f)
+    @unpack θpix,P,T,k = fieldinfo(f)
     Diagonal(FlatFourier{P,T}((pixwin.(θpix,k) .* pixwin.(θpix,k'))[1:end÷2+1,:]))
 end

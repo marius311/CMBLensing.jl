@@ -33,14 +33,14 @@ function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true,
     if string(k)[2] == 'x'
         x = θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
     elseif string(k)[2] == 'l'
-        x = FFTgrid(f).nyq
+        x = fieldinfo(f).nyq
     else
         throw(ArgumentError("Invalid `which`: $k"))
     end
     extent = [-x,x,-x,x]
     (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(θ)')")
     (vlim == nothing) && (vlim=:sym)
-    _plot(f[k]; ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
+    _plot(Array(f[k]); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
     if ticklabels
         if string(k)[2] == 'x'
             @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter

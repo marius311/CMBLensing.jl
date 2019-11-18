@@ -18,8 +18,7 @@ end
 diag_data(D::Diagonal) = D.diag
 diag_data(x) = x
 function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
-    bc′ = flatten(bc)
-    copyto!(dest.diag, Broadcasted{Nothing}(bc′.f, map(diag_data, bc′.args)))
+    copyto!(dest.diag, map_bc_args(diag_data, bc))
     dest
 end
 
@@ -114,13 +113,13 @@ const ∂y = ∇[2]
     op⁻ᴴ = nothing
 end
 SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
-*(op::FuncOp, f::Field) = op.op   != nothing ? op.op(f)   : error("op*f not implemented")
-*(f::Field, op::FuncOp) = op.opᴴ  != nothing ? op.opᴴ(f)  : error("f*op not implemented")
-\(op::FuncOp, f::Field) = op.op⁻¹ != nothing ? op.op⁻¹(f) : error("op\\f not implemented")
-adjoint(op::FuncOp) = FuncOp(op.opᴴ,op.op,op.op⁻ᴴ,op.op⁻¹)
-const IdentityOp = FuncOp(@repeated(identity,4)...)
-inv(op::FuncOp) = FuncOp(op.op⁻¹,op.op⁻ᴴ,op.op,op.opᴴ)
-
+*(L::FuncOp, f::Field) = L.op   != nothing ? L.op(f)   : error("op*f not implemented")
+*(f::Field, L::FuncOp) = L.opᴴ  != nothing ? L.opᴴ(f)  : error("f*op not implemented")
+\(L::FuncOp, f::Field) = L.op⁻¹ != nothing ? L.op⁻¹(f) : error("op\\f not implemented")
+adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
+const IdentityOp = FuncOp(identity,identity,identity,identity)
+inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
+adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
 
 
 ### BandPassOp
@@ -231,6 +230,9 @@ depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
 depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
 
+adapt_structure(to, L::ParamDependentOp) = 
+    ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters, L.inplace)
+
 
 ### LazyBinaryOp
 
@@ -267,6 +269,7 @@ end
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
+adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))
 
 
 ### OuterProdOp
@@ -283,3 +286,4 @@ pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = OuterProdOp(pinv(L.M.a)' * pinv(L.M.b)
 *(L::OuterProdOp, f::Field) = L.M * (L.M' * f)
 \(L::OuterProdOp, f::Field) = L.M' \ (L.M \ f)
 adjoint(L::OuterProdOp) = L
+adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to, L.M))
