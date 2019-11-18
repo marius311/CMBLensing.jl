@@ -16,7 +16,7 @@ end
 @generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = 
     (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside))..., ∂mode=∂mode)
 @generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
-    (;fieldinfo(P,T,M)..., @namedtuple(P,B=basis(F),S=spin(F))...)
+    (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
 fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion

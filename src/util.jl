@@ -290,3 +290,17 @@ kwarg_decl(m::Method,kw::DataType) = VERSION<=v"1.3.999" ? Base.kwarg_decl(m,kw)
 # each point.
 map_bc_args(f, bc::Broadcasted) = broadcasted(bc.f, map(arg->map_bc_args(f, arg), bc.args)...)
 map_bc_args(f, arg) = f(arg)
+
+
+# adapting a closure adapts the captured variables
+# this could probably be a PR into Adapt.jl
+@generated function adapt_structure(storage, f::F) where {F<:Function}
+    if fieldcount(F) == 0 
+        :f
+    else
+        quote
+            captured_vars = $(Expr(:tuple, (:(adapt(storage, f.$x)) for x=fieldnames(F))...))
+            $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
+        end
+    end
+end

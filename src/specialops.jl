@@ -230,6 +230,10 @@ depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
 depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
 
+function adapt_structure(storage, L::ParamDependentOp)
+    ParamDependentOp(adapt(storage, L.op), adapt(storage, L.recompute_function), L.parameters, L.inplace)
+end
+
 
 ### LazyBinaryOp
 

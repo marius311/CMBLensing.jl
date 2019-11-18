@@ -133,7 +133,7 @@ Keyword arguments:
 * `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when computing the starting point.
 """
 function sample_joint(
-    ds :: DataSet{<:FlatField{T,P}};
+    ds :: DataSet{<:FlatField{P,T,M}};
     nsamps_per_chain,
     nchains = nworkers(),
     nchunk = 1,
@@ -143,7 +143,7 @@ function sample_joint(
     Nϕ = :qe,
     chains = nothing,
     ϕstart = 0,
-    θrange = (),
+    θrange = NamedTuple(),
     θstart = nothing,
     pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
@@ -154,7 +154,9 @@ function sample_joint(
     progress = false,
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
-    filename = nothing) where {T,P}
+    filename = nothing,
+    storage = basetype(M)
+    ) where {P,T,M}
     
     # save input configuration to chain
     rundat = Base.@locals
@@ -162,7 +164,7 @@ function sample_joint(
     @assert (length(θrange) in [0,1]) || (gibbs_pass_θ!=nothing) "Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`"
     @assert progress in [false,:summary,:verbose]
 
-    @unpack d, Cϕ, Cn, M, B, L = ds
+    @unpack L, Cϕ = ds
 
     if (chains == nothing)
         if (θstart == nothing)
@@ -193,6 +195,8 @@ function sample_joint(
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ; end
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
+    
+    dsₐ,Nϕₐ = ds,Nϕ
 
     # start chains
     try
@@ -202,6 +206,7 @@ function sample_joint(
                 
                 local f°, f̃, ΔH, accept
                 @unpack i,ϕ°,f,θ,seed = state
+                f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 copy!(Random.GLOBAL_RNG, seed)
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
@@ -246,7 +251,7 @@ function sample_joint(
                     
                     # ==== gibbs P(θ|f°,ϕ°) ====
                     t_θ = @elapsed begin
-                        if (i > nburnin_fixθ)
+                        if (i > nburnin_fixθ && length(θrange)>0)
                             if gibbs_pass_θ == nothing
                                 lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds,Lϕ), θrange, progress=(progress==:verbose))
                             else
@@ -264,9 +269,10 @@ function sample_joint(
                     f̃ = Lϕ*f
 
                     
-                    # save quantities to chain and print progress
+                    # save state to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    push!(chain, @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing)
+                    state = @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing
+                    push!(chain, Dict(k=>adapt(Array,v) for (k,v) in state))
                     if (progress==:verbose)
                         @show i, accept, ΔH, θ
                     end

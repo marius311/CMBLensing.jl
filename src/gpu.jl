@@ -1,4 +1,6 @@
 using .CuArrays
+using Serialization
+import Serialization: serialize
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
@@ -14,6 +16,11 @@ function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
 end
 BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
     FlatS0Style{basetype(F){P},CuArray}()
+
+
+# always adapt to Array storage when serializing since we may deserialize in an
+# environment that does not have CuArrays loaded 
+serialize(s::AbstractSerializer, f::CuFlatS0) = serialize(s, adapt(Array,f))
 
 
 ### misc

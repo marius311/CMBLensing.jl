@@ -17,3 +17,4 @@ paper/
 scripts/
 *.jld*
 docs/
+test/benchmarks
