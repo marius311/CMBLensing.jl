@@ -39,7 +39,7 @@ function check_hat_operators(ds::DataSet)
             "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 
-adapt_structure(to, ds::DataSet) = DataSet(map(v->adapt(to,v), fieldvalues(ds))...)
+adapt_structure(to, ds::DataSet) = DataSet(adapt(to, fieldvalues(ds))...)
 
     
 @doc doc"""
@@ -111,8 +111,6 @@ function load_sim_dataset(;
     ∂mode = fourier∂
     )
     
-    adapt(x) = Adapt.adapt(storage, x)
-    
     # the biggest ℓ on the 2D fourier grid
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
@@ -149,32 +147,32 @@ function load_sim_dataset(;
     end
     
     # covariances
-    Cϕ₀ = adapt(Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ)))
-    Cfs = adapt(Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k in ks)...))
-    Cft = adapt(Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k in ks)...))
-    Cf̃  = adapt(Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
-    Cn̂  = adapt(Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
+    Cϕ₀ = Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ))
+    Cfs = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k in ks)...)
+    Cft = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k in ks)...)
+    Cf̃  = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...)
+    Cn̂  = Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((mem; r=rfid)->(mem .= Cfs + T(r/rfid)*Cft), similar(Cfs))
     Cϕ = ParamDependentOp((mem; Aϕ=1  )->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing)
-        M̂ = M = adapt(Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...))
+        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...)
         if (pixel_mask_kwargs != nothing)
-            M = M * adapt(Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            M = M * Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
     end
     
     # beam
     if (B == nothing)
-        B̂ = B = adapt(Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...))
+        B̂ = B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
     end
     
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
-        Cf′ = adapt(Diagonal(diag(Cf()) .+ σ²len))
+        Cf′ = Diagonal(diag(Cf()) .+ σ²len)
         D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf()))
     end
     

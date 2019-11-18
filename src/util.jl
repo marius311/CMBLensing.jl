@@ -294,13 +294,15 @@ map_bc_args(f, arg) = f(arg)
 
 # adapting a closure adapts the captured variables
 # this could probably be a PR into Adapt.jl
-@generated function adapt_structure(storage, f::F) where {F<:Function}
-    if fieldcount(F) == 0 
+@generated function adapt_structure(to, f::F) where {F<:Function}
+    if fieldcount(F) == 0
         :f
     else
         quote
-            captured_vars = $(Expr(:tuple, (:(adapt(storage, f.$x)) for x=fieldnames(F))...))
+            captured_vars = $(Expr(:tuple, (:(adapt(to, f.$x)) for x=fieldnames(F))...))
             $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
         end
     end
 end
+
+adapt_structure(to, d::Dict) = Dict(k => adapt(to, v) for (k,v) in d)

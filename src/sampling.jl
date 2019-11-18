@@ -159,7 +159,7 @@ function sample_joint(
     ) where {P,T,M}
     
     # save input configuration to chain
-    rundat = Base.@locals
+    rundat = adapt(Array, Base.@locals)
     
     @assert (length(θrange) in [0,1]) || (gibbs_pass_θ!=nothing) "Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`"
     @assert progress in [false,:summary,:verbose]
@@ -184,7 +184,7 @@ function sample_joint(
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            Any[@dictpack i=>1 f=>nothing ϕ°=>ds(;θstart...).G*ϕstart θ=>θstart seed=>deepcopy(Random.seed!())]
+            Any[@dictpack i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart seed=>deepcopy(Random.seed!())]
         end
     elseif chains == :resume
         chains = @ondemand(FileIO.load)(filename,"chains")
@@ -272,7 +272,7 @@ function sample_joint(
                     # save state to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
                     state = @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing
-                    push!(chain, Dict(k=>adapt(Array,v) for (k,v) in state))
+                    push!(chain, adapt(Array, state))
                     if (progress==:verbose)
                         @show i, accept, ΔH, θ
                     end
