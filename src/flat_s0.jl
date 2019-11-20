@@ -92,8 +92,8 @@ end
 
 
 function cov_to_Cℓ(L::DiagOp{<:FlatS0})
-    ii = sortperm(fieldinfo(L.diag).r[:])
-    InterpolatedCℓs(fieldinfo(L.diag).r[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
+    ii = sortperm(fieldinfo(L.diag).kmag[:])
+    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
