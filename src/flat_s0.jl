@@ -28,10 +28,10 @@ for (F, X, T) in [
     @eval begin
         @doc $doc $F
         $F($X; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X)
-        $F{P}($X::M) where {P,T,M<:AbstractMatrix{T}} = $F{P,T}($X)
         $F{P}($X::M) where {P,T,M<:AbstractMatrix{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractMatrix) where {P,T} = $F{P}($T.($X))
     end
+    T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractMatrix{T}} = $F{P,T}($X)
 end
 
 
