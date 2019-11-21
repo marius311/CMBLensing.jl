@@ -22,7 +22,7 @@ using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
 using Match
 using Markdown
 using Measurements
-using Memoize
+using Memoization
 using Parameters
 using Printf
 using ProgressMeter
