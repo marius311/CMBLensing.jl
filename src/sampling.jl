@@ -204,7 +204,7 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃, ΔH, accept
+                local f°, f̃, pϕ°, ΔH, accept
                 @unpack i,ϕ°,f,θ,seed = state
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 copy!(Random.GLOBAL_RNG, seed)
@@ -229,8 +229,9 @@ function sample_joint(
                         
                         for kwargs in symp_kwargs
                         
+                            pϕ° = simulate(Λm)
                             (ΔH, ϕtest°) = symplectic_integrate(
-                                ϕ°, simulate(Λm), Λm, 
+                                ϕ°, pϕ°, Λm, 
                                 ϕ°->      lnP(:mix, f°, ϕ°, θ, dsθ, Lϕ), 
                                 ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, θ, dsθ, Lϕ)[2];
                                 progress=(progress==:verbose),
@@ -271,7 +272,7 @@ function sample_joint(
                     
                     # save state to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    state = @dictpack i f f° f̃ ϕ ϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing
+                    state = @dictpack i f f° f̃ ϕ ϕ° pϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing
                     push!(chain, adapt(Array, state))
                     if (progress==:verbose)
                         @show i, accept, ΔH, θ
