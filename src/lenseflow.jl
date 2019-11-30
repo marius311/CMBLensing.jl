@@ -42,6 +42,10 @@ show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:LenseFlow{I,t₀,t₁,Φ}} = print(io
 show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(RK4Solver{N})}(ϕ::$Φ, Łf::$ŁF)")
 string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
 
+# convenience for getting the actual ϕ map
+getϕ(L::LenseFlow) = L.ϕ
+getϕ(L::CachedLenseFlow) = L.ϕ[]
+
 # todo, remove this `→` crap, maybe
 _getindex(L::LenseFlow{I,<:Any,<:Any,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 

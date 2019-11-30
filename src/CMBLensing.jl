@@ -116,7 +116,7 @@ include("quadratic_estimate.jl")
 # curved-sky (not yet upgraded to new system)
 # include("healpix.jl")
 
-include("autodiff.jl")
+@init @require Zygote="e88e6eb3-aa80-5325-afca-941959d7151f" include("autodiff.jl")
 
 # gpu
 @init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")
