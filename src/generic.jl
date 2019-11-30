@@ -122,6 +122,15 @@ const FieldOrOp = Union{Field,LinOp}
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
 
+"""
+    logdet(L::LinOp, θ)
+    
+If L depends on θ, evaluates `logdet(L(θ))` offset by its fiducial value at
+`L()`. Otherwise, returns 0.
+"""
+logdet(L::LinOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
+
+
 # 
 # ### Matrix conversion
 # 

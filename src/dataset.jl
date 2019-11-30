@@ -14,7 +14,7 @@
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
     G  :: TG  = IdentityOp  # reparametrization for ϕ
     P  :: TP  = 1           # pixelization operator (if estimating field on higher res than data)
-    L  :: TL  = LenseFlow   # the type of lensing operator to use
+    L  :: TL  = alloc_cache(LenseFlow(zero(Cϕ.diag)),d) # a CachedLenseFlow which will be reused for meomry
 end
 
 function subblock(ds::DataSet, block)
@@ -181,12 +181,13 @@ function load_sim_dataset(;
     if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
     if (f  == nothing); f  = simulate(Cf); end
     if (n  == nothing); n  = simulate(Cn); end
-    if (f̃  == nothing); f̃  = L(ϕ)*f;       end
+    Lϕ = cache(L(ϕ),f)
+    if (f̃  == nothing); f̃  = Lϕ*f;         end
     if (Bf̃ == nothing); Bf̃ = B*f̃;          end
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L)...)
+    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
     
     # with the DataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
@@ -197,7 +198,8 @@ function load_sim_dataset(;
     end
     @set! ds.G = G
    
-    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
+    
+    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ))
     
 end
 

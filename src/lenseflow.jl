@@ -67,6 +67,7 @@ end
 cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
 cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
+(cL::CachedLenseFlow)(ϕ) = cache!(cL,ϕ)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = range(t₀,t₁,length=2N+1)
     ∇ϕ,Hϕ = map(Ł, gradhess(L.ϕ))
@@ -158,6 +159,10 @@ end
 # can swap integration points without recaching, although not arbitrarily change them
 _getindex(L::CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = L
 _getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}(fieldvalues(L)...)
+
+# adapting storage
+adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))
+adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁} = cache(LenseFlow{RK4Solver{N},t₀,t₁}(adapt(storage,Lϕ.ϕ[])), adapt(storage,Lϕ.memŁf))
 
 # # ud_grading lenseflow ud_grades the ϕ map
 # ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))

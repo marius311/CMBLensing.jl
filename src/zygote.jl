@@ -33,7 +33,6 @@ end
 @adjoint (*)(L::LinOp, f::Field{B}) where {B} = L*f, Δ -> (nothing, B(L'*Δ))
 @adjoint (\)(L::LinOp, f::Field{B}) where {B} = L\f, Δ -> (nothing, B(L'\Δ))
 @adjoint (*)(a::Adjoint{<:Any,<:Field{B1}}, b::Field{B2}) where {B1,B2} = a*b, Δ -> (B1(Δ*b)',  B2(Δ*a'))
-@adjoint pinv(D::DiagOp) = pinv(D), Δ->(nothing,)
 @adjoint function (*)(x::Adjoint{<:Any,<:Field{B1}}, D::Diagonal, y::Field{B2}) where {B1,B2}
     z = x*D*y
     back = if parent(x)===y
@@ -49,6 +48,9 @@ end
     z, back
 end
 
+# eventually we need to implement these to allow gradients w.r.t. θ:
+@adjoint pinv(D::DiagOp) = pinv(D), Δ->nothing
+@adjoint logdet(L::LinOp, θ) = logdet(L,θ), Δ->nothing
 @adjoint (ds::DataSet)(args...; kwargs...) = ds(args...; kwargs...), Δ -> nothing
 
 # some stuff which arguably belongs in Zygote or ChainRules
