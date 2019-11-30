@@ -73,16 +73,67 @@ end
 
 
 
-
-# Some adjoint rules for the work-in-progress Zygote-based derivatives
+## Some adjoint rules for the work-in-progress Zygote-based derivatives
 
 @init @require Zygote="e88e6eb3-aa80-5325-afca-941959d7151f" @eval begin
 
-    using .Zygote: unbroadcast
+using .Zygote: unbroadcast, Numeric, @adjoint
 
-    # this one arguably could be in Zygote itself
-    # see: https://github.com/FluxML/Zygote.jl/issues/316
-    Zygote.@adjoint *(D::Diagonal, v::AbstractVector) = D.diag .* v,
-        Δ -> (Diagonal(unbroadcast(D.diag, Δ .* conj.(v))), unbroadcast(v, Δ .* conj.(D.diag)))
+
+@adjoint function *(Lϕ::LenseFlowOp, f::Field{B}) where {B}
+    f̃ = Lϕ * f
+    function pullback(Δ)
+        δf, δϕ = δf̃ϕ_δfϕ(Lϕ,f̃,f)' * FΦTuple(Δ,zero(ϕ))
+        LenseFlow(δϕ), B(δf)
+    end
+    f̃, pullback
+end
+
+@adjoint function \(Lϕ::LenseFlowOp, f̃::Field{B}) where {B}
+    f = Lϕ \ f̃
+    function pullback(Δ)
+        δf, δϕ = δfϕ_δf̃ϕ(Lϕ,f,f̃)' * FΦTuple(Δ,zero(ϕ))
+        LenseFlow(δϕ), B(δf)
+    end
+    f, pullback
+end
+
+@adjoint (::Type{L})(ϕ) where {L<:LenseFlowOp} = L(ϕ), Δ -> (Δ.ϕ,)
+
+@adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
+
+@adjoint (*)(L::LinOp, f::Field{B}) where {B} = L*f, Δ -> (nothing, B(L'*Δ))
+
+@adjoint (\)(L::LinOp, f::Field{B}) where {B} = L*f, Δ -> (nothing, B(L'\Δ))
+
+@adjoint function (*)(x::Adjoint{<:Any,<:Field{B1}}, D::Diagonal, y::Field{B2}) where {B1,B2}
+    z = x*D*y
+    pullback = if parent(x)===y
+        function (Δ)
+            g = B1(Δ*(D*y))
+            (g', Δ*z, g)
+        end
+    else
+        function (Δ)
+            (B1(Δ*(D*y))', Δ*z, B2(Δ*(D*x')))
+        end
+    end
+    z, pullback
+end
+
+@adjoint (*)(a::Adjoint{<:Any,<:Field{B1}}, b::Field{B2}) where {B1,B2} = a*b, Δ -> (B1(Δ*b)',  B2(Δ*a'))
+
+
+# some stuff which arguably belong in Zygote or ChainRules
+# see also: https://github.com/FluxML/Zygote.jl/issues/316
+@adjoint *(D::Diagonal, v::AbstractVector) = D.diag .* v,
+    Δ -> (Diagonal(unbroadcast(D.diag, Δ .* conj.(v))), unbroadcast(v, Δ .* conj.(D.diag)))
+
+@adjoint broadcasted(::typeof(-), x ::Numeric, y::Numeric) =
+    broadcast(-, x, y), Δ -> (nothing, unbroadcast(x, Δ), unbroadcast(y, -Δ))
+
+@adjoint broadcasted(::typeof(\), x ::Numeric, y::Numeric) =
+    broadcast(\, x, y), Δ -> (nothing, unbroadcast(x, @. -Δ*y/x^2), unbroadcast(y, @. Δ/x))
+
 
 end

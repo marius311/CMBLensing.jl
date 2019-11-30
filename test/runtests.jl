@@ -174,6 +174,7 @@ end
             @test (@inferred f' * f) isa Real
             @test (@inferred f' * B(f)) isa Real
             @test (@inferred f' * D * f) isa Real
+            @test (@inferred sum(f)) isa Number
             
             if f isa FlatS0
                 # FieldVector dot product

@@ -42,19 +42,22 @@ size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
 size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
-similar(f::F) where {F<:FlatS0} = F(similar(firstfield(f)))
-similar(f::F,::Type{T}) where {P,F<:FlatS0{P},T} = basetype(F){P}(similar(firstfield(f),T))
 adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
+function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
+    @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
+    basetype(F){P}(similar(firstfield(f),T))
+end
 
 
 ### broadcasting
 struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
+BroadcastStyle(::FlatS0Style{<:Field{B1}}, ::FlatS0Style{<:Field{B2}}) where {B1,B2} = invalid_broadcast_error(B1,B2)
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
-similar(::Broadcasted{FS}, ::Type{T}) where {T, FS<:FlatS0Style} = similar(FS,T)
-similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T} = F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...))
+similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
+similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)

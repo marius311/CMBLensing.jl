@@ -198,3 +198,8 @@ end
 
 
 one(f::Field) = fill!(similar(f), one(eltype(f)))
+
+
+invalid_broadcast_error(B1,B2) = 
+    error("""Can't broadcast fields in different bases. ($B1, $B2)
+    Try the same operation without broadcasting (which will do an automatic basis conversion).""")

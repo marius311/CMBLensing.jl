@@ -43,17 +43,21 @@ getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diag
 ### array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
 copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
-similar(f::FT) where {FT<:FieldTuple} = FT(map(similar,f.fs))
-similar(f::FT, ::Type{T}) where {T, B, FT<:FieldTuple{B}} = FieldTuple{B}(map(f->similar(f,T),f.fs))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
-
+similar(ft::FT) where {FT<:FieldTuple} = FT(map(f->similar(f),ft.fs))
+function similar(ft::FT, ::Type{T}, dims::Dims) where {T<:Number, B, FT<:FieldTuple{B}}
+    @assert size(ft)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
+    FieldTuple{B}(map(f->similar(f,T),ft.fs))
+end
+mapreduce(func, op, ft::FieldTuple; kw...) = mapreduce(f->mapreduce(func, op, f; kw...), op, ft.fs; kw...)
 
 ### broadcasting
 struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end
 (::Type{FTS})(::Val{1}) where {FTS<:FieldTupleStyle} = FTS()
+BroadcastStyle(::FieldTupleStyle{B1}, ::FieldTupleStyle{B2}) where {B1,B2} = invalid_broadcast_error(B1,B2)
 BroadcastStyle(::Type{FT}) where {B,FS<:Tuple,FT<:FieldTuple{B,FS}} = FieldTupleStyle{B,Nothing,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 BroadcastStyle(::Type{FT}) where {B,Names,FS,NT<:NamedTuple{Names,FS},FT<:FieldTuple{B,NT}} = FieldTupleStyle{B,Names,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 similar(::Broadcasted{FTS}, ::Type{T}) where {T, FTS<:FieldTupleStyle} = similar(FTS,T)
