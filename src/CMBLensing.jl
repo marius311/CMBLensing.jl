@@ -74,7 +74,7 @@ export
     quadratic_estimate, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
     sample_joint, shiftℓ, shortname, simulate, symplectic_integrate, Taylens,
     toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ,
-    δlnP_δfϕₜ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳   
+    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳   
     
 # generic stuff
 include("util.jl")

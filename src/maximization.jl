@@ -152,7 +152,7 @@ function MAP_joint(
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
                     
             f° = Lϕ * D * f
-            lnPcur = lnP(:mix,f°,ϕ,ds,Lϕ)
+            lnPcur = lnP(:mix,f°,ϕ,ds)
             
             # ==== show progress ====
             if (progress==:verbose)
@@ -165,8 +165,8 @@ function MAP_joint(
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕnew = Hϕ⁻¹*(δlnP_δfϕₜ(:mix,f°,ϕ,ds,Lϕ))[2]
-                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds,Lϕ)), T(0), T(αmax), abs_tol=αtol)
+                ϕnew = Hϕ⁻¹*(@ondemand(Zygote.gradient)(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
+                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew
             end

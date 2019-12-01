@@ -10,7 +10,9 @@ and momenta. If `hist` is specified a trace of requested variables throughout
 each step is also returned. 
 
 """
-function symplectic_integrate(x₀::AbstractVector{T}, p₀, Λ, U, δUδx; N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
+function symplectic_integrate(
+    x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->@ondemand(Zygote.gradient)(U,x)[1]; 
+    N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
     
     xᵢ, pᵢ = x₀, p₀
     δUδxᵢ = δUδx(xᵢ)
@@ -173,7 +175,7 @@ function sample_joint(
             @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
             θstarts = fill(θstart, nchains)
         end
-        if (ϕstart == 0); ϕstart = zero(Cϕ().diag); end
+        if (ϕstart == 0); ϕstart = zero(ds().Cϕ.diag); end
         @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
         if ϕstart isa Field
             ϕstarts = fill(ϕstart, nchains)
@@ -210,7 +212,7 @@ function sample_joint(
                 copy!(Random.GLOBAL_RNG, seed)
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
-                Lϕ = cache(L(ϕ), ds.d)
+                L = ds.L
                 lnPθ = nothing
                 chain = []
                 
@@ -218,6 +220,7 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
+                        Lϕ = cache(L(ϕ), ds.d)
                         f° = Lϕ * dsθ.D * argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
                     end
                     
@@ -232,8 +235,7 @@ function sample_joint(
                             pϕ° = simulate(Λm)
                             (ΔH, ϕtest°) = symplectic_integrate(
                                 ϕ°, pϕ°, Λm, 
-                                ϕ°->      lnP(:mix, f°, ϕ°, θ, dsθ, Lϕ), 
-                                ϕ°->δlnP_δfϕₜ(:mix, f°, ϕ°, θ, dsθ, Lϕ)[2];
+                                ϕ°->lnP(:mix, f°, ϕ°, θ, dsθ);
                                 progress=(progress==:verbose),
                                 kwargs...
                             )
@@ -254,7 +256,7 @@ function sample_joint(
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ && length(θrange)>0)
                             if gibbs_pass_θ == nothing
-                                lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds,Lϕ), θrange, progress=(progress==:verbose))
+                                lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
                             else
                                 lnPθ, θ = gibbs_pass_θ(;(Base.@locals)...)
                             end
@@ -264,10 +266,8 @@ function sample_joint(
 
                     
                     # compute un-mixed maps
-                    ϕ = dsθ.G\ϕ°
-                    cache!(Lϕ,ϕ)
-                    f = dsθ.D\(Lϕ\f°)
-                    f̃ = Lϕ*f
+                    f,ϕ = unmix(f°,ϕ°,θ,ds)
+                    f̃ = L(ϕ)*f
 
                     
                     # save state to chain and print progress
