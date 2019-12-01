@@ -46,4 +46,4 @@ Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-julia = "1.1"
+julia = "1.3"
