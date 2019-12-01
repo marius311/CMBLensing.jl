@@ -223,7 +223,7 @@ end
 (L::ParamDependentOp)(θ::NamedTuple) = L(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :simulate, :zero, :one, :logdet)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
