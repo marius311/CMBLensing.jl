@@ -6,7 +6,7 @@ using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver
 using Test
 using SparseArrays
 using LinearAlgebra
-import Zygote
+using Zygote
 
 ##
 
@@ -297,7 +297,7 @@ end
         g = (θ * D * f)
         dot(g,g)
     end, 1)[1]
-    @test                  grad2()  ≈ 2*norm(f.^2,2)^2
+    @test_broken                  grad2()  ≈ 2*norm(f.^2,2)^2
     
     # derivatives through ParamDependentOps 
     Dr = ParamDependentOp((;r=1)-> r * D)
@@ -391,10 +391,10 @@ end
             ε = sqrt(eps(T))
             δf,δϕ = simulate(Cf),simulate(Cϕ)
 
-            @test δlnP_δfϕₜ(0,f,ϕ,ds)'*FΦTuple(δf,δϕ)     ≈ (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)          rtol=1e-2
-            @test δlnP_δfϕₜ(1,f̃,ϕ,ds)'*FΦTuple(δf,δϕ)     ≈ (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)          rtol=1e-1
-            @test δlnP_δfϕₜ(:mix,f°,ϕ,ds)'*FΦTuple(δf,δϕ) ≈ (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=5e-2
-
+            @test FΦTuple(gradient((f, ϕ)->lnP(0,   f, ϕ,ds),f, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(0,   f +ε*δf,ϕ+ε*δϕ,ds)-lnP(0,   f -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
+            @test FΦTuple(gradient((f̃ ,ϕ)->lnP(1,   f̃, ϕ,ds),f̃, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(1,   f̃ +ε*δf,ϕ+ε*δϕ,ds)-lnP(1,   f̃ -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-1
+            @test FΦTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=5e-2
+            
         end
         
     end
