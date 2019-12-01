@@ -1,3 +1,6 @@
+using Pkg
+Pkg.activate(@__DIR__)
+
 using ArgParse
 s = ArgParseSettings()
 @add_arg_table s begin
@@ -52,6 +55,7 @@ using LibGit2
 using PrettyTables
 using Printf
 using Test
+using Zygote
 
 
 ##
@@ -110,8 +114,8 @@ for (s,use) in [(0,:I),(2,:P)]
         "Spin-$s L"       => @belapsed $Lϕ  * $f;
         "Spin-$s L†"      => @belapsed $Lϕ' * $f;
         "Spin-$s (∇L)†"   => @belapsed $(δf̃ϕ_δfϕ(Lϕ,f,f)') * $(FΦTuple(f,ϕ));
-        "Spin-$s lnP"     => @belapsed       lnP(:mix, $f°, $ϕ°, $ds₀, $Lϕ);
-        "Spin-$s ∇lnP"    => @belapsed δlnP_δfϕₜ(:mix, $f°, $ϕ°, $ds₀, $Lϕ);
+        "Spin-$s lnP"     => @belapsed                 lnP(:mix, $f°, $ϕ°, $ds₀);
+        "Spin-$s ∇lnP"    => @belapsed gradient((f,ϕ)->lnP(:mix,  f,   ϕ,  $ds₀), $f°, $ϕ°);
     ])
 
 end
