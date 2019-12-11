@@ -67,7 +67,7 @@ Create a `DataSet` object with some simulated data. E.g.
 @unpack f,ϕ,ds = load_sim_dataset(;
     θpix  = 2,
     Nside = 128,
-    use   = :I,
+    pol   = :I,
     T     = Float32
 );
 ```
@@ -79,7 +79,7 @@ function load_sim_dataset(;
     θpix,
     θpix_data = θpix,
     Nside,
-    use,
+    pol,
     T = Float32,
     storage = Array,
     
@@ -125,12 +125,12 @@ function load_sim_dataset(;
     end
     
     # some things which depend on whether we chose :I, :P, or :IP
-    use = Symbol(use)
-    S,ks,F,F̂,nF = @match use begin
+    pol = Symbol(pol)
+    S,ks,F,F̂,nF = @match pol begin
         :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
         :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
-        _   => throw(ArgumentError("`use` should be one of :I, :P, or :IP"))
+        _   => throw(ArgumentError("`pol` should be one of :I, :P, or :IP"))
     end
     
     # pixelization
@@ -192,14 +192,14 @@ function load_sim_dataset(;
     # with the DataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds,(use in (:P,:IP) ? :EB : :TT)).Nϕ/2
+        Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ/2
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
         G = ParamDependentOp((;Aϕ=1)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
     end
     @set! ds.G = G
    
     
-    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ))
+    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
 end
 
@@ -209,7 +209,7 @@ end
 
 function load_healpix_sim_dataset(;
     Nside,
-    use,
+    pol,
     gradient_cache,
     T = Float32,
     μKarcminT = 3,
@@ -232,7 +232,7 @@ function load_healpix_sim_dataset(;
     mask_kwargs = nothing,
     L = LenseFlow)
     
-    @assert use==:T 
+    @assert pol==:T 
     
     # Cℓs
     if (Cℓn == nothing)
