@@ -3,21 +3,25 @@
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://cosmicmar.com/CMBLensing.jl/) [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?urlpath=lab) [![Build Status](https://travis-ci.org/marius311/CMBLensing.jl.svg?branch=master)](https://travis-ci.org/marius311/CMBLensing.jl)
 
-This repository contains tools written in [Julia](https://julialang.org/) (and easily callable from Python) to analyze the gravitationally lensed Cosmic Microwave Background. 
+CMBLensing.jl is a next-generation tool for analysis of the lensed Cosmic Microwave Background. It is written in [Julia](https://julialang.org/) and transparently callable from Python.
 
-Some things this code can do:
 
-* Lense flat-sky temperature and polarization maps using the following algorithms:
+At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the CMB lensing problem. It also contains tools to quickly manipulate and process CMB maps, set up modified posteriors, and take gradients using automatic differentation.
+
+### Highlights
+* Fully Nvidia GPU compatible (speedups over CPU are currently 3x-10x, depending on the problem size and hardware).
+* Automatic differentation (via [Zygote.jl](https://fluxml.ai/Zygote.jl/)) provides for-free gradients of your custom posteriors.
+* Includes the following algorithms to lense a map:
+    * `LenseFlow` ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
+    * `Taylens` ([Næss & Louis 2013](https://arxiv.org/abs/1307.0719))
     * Taylor series expansion to any order
-    * The `Taylens` algorithm ([Næss & Louis 2013](https://arxiv.org/abs/1307.0719))
-    * The `LenseFlow` algorithm ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
-* Compute the quadratic estimate of $\phi$ given some data ([Hu & Okamoto 2003](https://arxiv.org/abs/astro-ph/0111606))
-* Compute best-fit of $\mathcal{P}(f,\phi\,|\,d)$, i.e. the joint maximum a posteriori estimate of the lensing potential and CMB fields, and draw Monte-Carlo samples from this poterior, with the option to sample over cosmological parameters as well ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
-* Compute best-fit of $\mathcal{P}(\phi\,|\,d)$, i.e. the marginal maximum a posteriori estimate of the lensing potential ([Carron & Lewis 2017](https://arxiv.org/abs/1704.08230))
+* Maximize and sample $\mathcal{P}(f,\phi,\theta\,|\,d)$, the joint maximum a posteriori estimate of the lensing potential, $\phi$, the  temperature and/or polarization fields, $f$, and cosmological parameters, $\theta$ ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
+* Maximize $\mathcal{P}(\phi\,|\,d,\theta)$, i.e. the marginal maximum a posteriori estimate of the lensing potential, $\phi$, at fixed cosmological parameters, $\theta$ ([Carron & Lewis 2017](https://arxiv.org/abs/1704.08230))
+* Do quadratic estimation of $\phi$ ([Hu & Okamoto 2003](https://arxiv.org/abs/astro-ph/0111606))
 
 ## Documentation
 
-The best place to get started is to read the [documentation](https://cosmicmar.com/CMBLensing.jl/) (which is very much a work-in-progress, many things this package can do are not documented yet, but are planned to be added soon). 
+The best place to get started is to read the [documentation](https://cosmicmar.com/CMBLensing.jl/) (which is a work-in-progress, but contains many useful examples). 
 
 Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). You can also find the notebooks in [this folder](https://github.com/marius311/CMBLensing.jl/tree/gh-pages/src) if you want to run them locally (which will usually lead to higher performance).
 
@@ -25,10 +29,11 @@ Most of the pages in the documentation are Jupyter notebooks, and you can click 
 
 ### Requirements
 
-* Julia 1.0 or higher
+* Julia 1.3 or higher
 * Python 3 + matplotlib (used for plotting)
-* (recommended) [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
-* (optional) [healpy](https://github.com/healpy/healpy) for experimental curved sky support
+* _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
+* _(optional)_ An Nvidia GPU and [CuArrays](https://github.com/JuliaGPU/CuArrays.jl) for GPU support
+* _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
 ### Native installation
 

@@ -117,7 +117,7 @@ Basis(f::FieldTuple{<:BasisTuple}) = f
 getproperty(f::FieldTuple, s::Symbol) = getproperty(f, Val(s))
 getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs)
 getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
-
+propertynames(f::FieldTuple) = (:fs, propertynames(f.fs)...)
 
 ### simulation
 white_noise(::Type{<:FieldTuple{B,FS}}) where {B,FS<:Tuple} = 

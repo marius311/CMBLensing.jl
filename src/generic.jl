@@ -212,3 +212,9 @@ one(f::Field) = fill!(similar(f), one(eltype(f)))
 invalid_broadcast_error(B1,B2) = 
     error("""Can't broadcast fields in different bases. ($B1, $B2)
     Try the same operation without broadcasting (which will do an automatic basis conversion).""")
+
+
+@init @require PyCall="438e738f-606a-5dbb-bf0a-cddfbfd45ab0" begin
+    # never try to auto-convert Fields or LinOps to Python arrays
+    PyCall.PyObject(x::Union{LinOp,Field}) = PyCall.pyjlwrap_new(x)
+end

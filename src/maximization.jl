@@ -119,7 +119,7 @@ function MAP_joint(
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart==nothing) ? zero(Cϕ.diag) : ϕstart
+    ϕ = (ϕstart==nothing) ? zero(diag(Cϕ)) : ϕstart
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
     α = 0
@@ -213,7 +213,7 @@ function MAP_marg(
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
-    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(Cϕ.diag) # fix needing to get zero(ɸ) this way
+    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ)) # fix needing to get zero(ɸ) this way
     tr = []
 
     for i=1:nsteps

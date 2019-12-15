@@ -54,27 +54,24 @@ import Statistics: std
 
 
 export
-    @namedtuple, @repeated, @unpack, animate, argmaxf_lnP, azeqproj, BandPassOp,
-    cache, CachedLenseFlow, camb, cg, class, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov,
-    DataSet, DerivBasis, Diagonal, DiagOp, dot, EBFourier, EBMap, FFTgrid,
-    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
-    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
-    FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
-    FlatFieldMap, FlatFieldFourier, FlatField, FlatFourier, FlatIEBCov,
-    FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU,
-    FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map,
-    Fourier, fourier∂, FuncOp, FΦTuple, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ,
-    get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, GradientCache, HealpixCap,
-    HealpixS0Cap, HealpixS2Cap, HighPass, IdentityOp, IEBFourier, IEBMap,
-    InterpolatedCℓs, IQUFourier, IQUMap, IsotropicHarmonicCov, LazyBinaryOp,
-    LenseBasis, LenseFlow, LenseOp, LinDiagOp, LinOp, lnP, load_camb_Cℓs,
-    load_healpix_sim_dataset, load_sim_dataset, LowPass, make_mask, Map,
-    MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs, NoLensing,
-    OuterProdOp, pack, ParamDependentOp, pixwin, plot, PowerLens,
-    quadratic_estimate, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
-    sample_joint, shiftℓ, shortname, simulate, symplectic_integrate, Taylens,
-    toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ,
-    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳   
+    @namedtuple, @repeated, @unpack, animate, argmaxf_lnP, BandPassOp, cache,
+    CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
+    diag, Diagonal, DiagOp, dot, EBFourier, EBMap, Field, FieldArray, fieldinfo,
+    FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
+    FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector, Flat,
+    FlatEB, FlatEBFourier, FlatEBMap, FlatFieldMap, FlatFieldFourier, FlatField,
+    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap, FlatIQUFourier,
+    FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02,
+    FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple,
+    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
+    IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
+    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, LinOp, lnP, load_camb_Cℓs,
+    load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂,
+    MidPass, mix, nan2zero, noiseCℓs, NoLensing, OuterProdOp, ParamDependentOp,
+    pixwin, PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
+    sample_joint, shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ,
+    tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹,
+    ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")
@@ -102,6 +99,7 @@ include("taylens.jl")
 
 # plotting
 isjuno = false
+function animate end
 @init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
