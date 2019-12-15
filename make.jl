@@ -134,7 +134,6 @@ end
 end
 
 
-##
 
 makedocs(
     sitename="CMBLensing.jl", 
