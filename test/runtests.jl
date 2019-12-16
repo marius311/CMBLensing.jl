@@ -367,9 +367,9 @@ end
     L = LenseFlow{RK4Solver{7}}
     T = Float64
     
-    for use in (:I,:P)
+    for pol in (:I,:P)
         
-        @testset "use = $use" begin
+        @testset "pol = $pol" begin
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(
                 seed  = 0,
@@ -378,7 +378,7 @@ end
                 Nside = 128,
                 T     = T,
                 beamFWHM = 3,
-                use   = use,
+                pol   = pol,
                 L     = L,
                 pixel_mask_kwargs = (edge_padding_deg=2,)
                 );
