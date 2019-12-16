@@ -70,16 +70,17 @@ RUN mkdir -p $HOME/src/camb \
 # install CMBLensing
 COPY --chown=1000 Project.toml $HOME/CMBLensing/
 COPY --chown=1000 src          $HOME/CMBLensing/src
+ENV JULIA_FFTW_PROVIDER=MKL
 RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; precompile"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
-    
+
 # install docs and dependencies
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
-COPY --chown=1000 docs/src          $HOME/CMBLensing/docs/src
 # despite https://github.com/JuliaLang/IJulia.jl/pull/820, we need this for
 # PyJulia which launches a Julia (not IJulia) shell:
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
 RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; precompile"'
+COPY --chown=1000 docs/src $HOME/CMBLensing/docs/src
 WORKDIR $HOME/CMBLensing/docs/src
 
 

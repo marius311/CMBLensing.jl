@@ -56,7 +56,7 @@ docker-compose pull
 docker-compose up
 ```
 
-The first time you run this, it will automatically download the (~500Mb) container from the Docker hub. The command will prompt you with the URL which you should open in a browser to access the notebook.
+The first time you run this, it will automatically download the (~1Gb) container from the Docker hub. The command will prompt you with the URL which you should open in a browser to access the notebook.
 
 To run the notebook on a different port than the default `8888`, do `PORT=1234 docker-compose up` where `1234` is whatever port number you want.
 
