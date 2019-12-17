@@ -14,7 +14,10 @@
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
     G  :: TG  = IdentityOp  # reparametrization for ϕ
     P  :: TP  = 1           # pixelization operator (if estimating field on higher res than data)
-    L  :: TL  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for meomry
+    MŁ        = 1
+    MÐ        = 1
+    L  :: TL  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for memory
+    QL        = QuasiLenseFlow
 end
 
 function subblock(ds::DataSet, block)

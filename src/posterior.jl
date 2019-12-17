@@ -9,8 +9,8 @@ Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potentia
 """
 mix(f, ϕ, ds::DataSet) = mix(f,ϕ,NamedTuple(),ds)
 function mix(f, ϕ, θ::NamedTuple, ds::DataSet)
-    @unpack D,G,L = ds(;θ...)
-    L(ϕ)*D*f, G*ϕ
+    @unpack D,G,QL,MÐ,MŁ = ds(;θ...)
+    QL(ϕ,MÐ,MŁ)*D*f, G*ϕ
 end
 
 
@@ -24,9 +24,9 @@ evaluated at parameters `θ` (or at fiducial values if no `θ` provided).
 """
 unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,NamedTuple(),ds)
 function unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
-    @unpack D,G,L = ds(;θ...)
+    @unpack D,G,QL,MÐ,MŁ = ds(;θ...)
     ϕ = G\ϕ°
-    D\(L(ϕ)\f°), ϕ
+    D\(QL(ϕ,MÐ,MŁ)\f°), ϕ
 end
 
 

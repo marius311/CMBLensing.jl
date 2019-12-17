@@ -86,6 +86,7 @@ include("specialops.jl")
 # lensing
 include("lensing.jl")
 include("lenseflow.jl")
+include("quasilenseflow.jl")
 include("powerlens.jl")
 
 # flat-sky maps

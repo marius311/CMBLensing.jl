@@ -58,12 +58,16 @@ dot(D::DiagOp, f::Field) = conj(D.diag) .* f
 # eventually replace having to do this by hand with Cassette-based solution
 mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) = 
     ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)
+mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, x::Diagonal, w::FieldVector) = 
+    ((@. f = x.diag * (v[1].diag * w[1] + v[2].diag * w[2])); f)
 mul!(v::FieldOrOpVector{<:Diagonal}, M::FieldOrOpMatrix{<:Diagonal}, w::FieldOrOpVector{<:Diagonal}) = 
     ((@. v[1].diag = M[1,1].diag*w[1].diag + M[1,2].diag*w[2].diag); (@. v[2].diag = M[2,1].diag*w[1].diag + M[2,2].diag*w[2].diag); v)
 mul!(v::FieldVector, M::FieldOrOpMatrix{<:Diagonal}, w::FieldVector) = 
     ((@. v[1] = M[1,1].diag*w[1] + M[1,2].diag*w[2]); (@. v[2] = M[2,1].diag*w[1] + M[2,2].diag*w[2]); v)
 mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
     ((@. v[1] = w[1].diag * f); (@. v[2] = w[2].diag * f); v)
+mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
+    ((@. v[1] = x.diag * w[1].diag * f); (@. v[2] = x.diag * w[2].diag * f); v)
 # only thing needed for TupleAdjoints
 mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 

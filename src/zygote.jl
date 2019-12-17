@@ -4,7 +4,7 @@
     
 # lenseflow
 
-@adjoint function *(Lϕ::LenseFlowOp, f::Field{B}) where {B}
+@adjoint function *(Lϕ::LenseFlow, f::Field{B}) where {B}
     f̃ = Lϕ * f
     function back(Δ)
         δf, δϕ = δf̃ϕ_δfϕ(Lϕ,f̃,f)' * FΦTuple(Δ,zero(getϕ(Lϕ)))
@@ -13,7 +13,7 @@
     f̃, back
 end
 
-@adjoint function \(Lϕ::LenseFlowOp, f̃::Field{B}) where {B}
+@adjoint function \(Lϕ::LenseFlow, f̃::Field{B}) where {B}
     f = Lϕ \ f̃
     function back(Δ)
         δf, δϕ = δfϕ_δf̃ϕ(Lϕ,f,f̃)' * FΦTuple(Δ,zero(getϕ(Lϕ)))
@@ -22,9 +22,34 @@ end
     f, back
 end
 
-@adjoint (::Type{L})(ϕ) where {L<:LenseFlowOp} = L(ϕ), Δ -> (Δ.ϕ,)
-@adjoint cache(Lϕ::LenseFlowOp, f) = cache(Lϕ,f), Δ->(Δ,nothing)
-@adjoint cache!(cL::CachedLenseFlow, ϕ) where {L<:LenseFlowOp} = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
+@adjoint (::Type{L})(ϕ) where {L<:LenseFlow} = L(ϕ), Δ -> (Δ.ϕ,)
+@adjoint cache(Lϕ::LenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
+@adjoint cache!(cL::CachedLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
+
+
+# quasilenseflow
+
+@adjoint function *(Lϕ::QuasiLenseFlow, f::Field{B}) where {B}
+    f̃ = Lϕ * f
+    function back(Δ)
+        δf, δϕ = δf̃ϕ_δfϕ(Lϕ,f̃,f)' * FΦTuple(Δ,zero(getϕ(Lϕ)))
+        QuasiLenseFlow(δϕ,Lϕ.MÐ,Lϕ.MŁ), B(δf)
+    end
+    f̃, back
+end
+
+@adjoint function \(Lϕ::QuasiLenseFlow, f̃::Field{B}) where {B}
+    f = Lϕ \ f̃
+    function back(Δ)
+        δf, δϕ = δfϕ_δf̃ϕ(Lϕ,f,f̃)' * FΦTuple(Δ,zero(getϕ(Lϕ)))
+        QuasiLenseFlow(δϕ,Lϕ.MÐ,Lϕ.MŁ), B(δf)
+    end
+    f, back
+end
+
+@adjoint (::Type{L})(ϕ,MÐ,MŁ) where {L<:QuasiLenseFlow} = L(ϕ,MÐ,MŁ), Δ -> (Δ.ϕ,nothing,nothing)
+@adjoint cache(Lϕ::QuasiLenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
+@adjoint cache!(cL::CachedQuasiLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
 
 
 # algebra
