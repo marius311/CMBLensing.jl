@@ -23,8 +23,8 @@ end
 end
 
 @adjoint (::Type{L})(ϕ) where {L<:LenseFlow} = L(ϕ), Δ -> (Δ.ϕ,)
-@adjoint cache(Lϕ::LenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
-@adjoint cache!(cL::CachedLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
+# @adjoint cache(Lϕ::LenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
+# @adjoint cache!(cL::CachedLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
 
 
 # quasilenseflow
@@ -48,8 +48,8 @@ end
 end
 
 @adjoint (::Type{L})(ϕ,MÐ,MŁ) where {L<:QuasiLenseFlow} = L(ϕ,MÐ,MŁ), Δ -> (Δ.ϕ,nothing,nothing)
-@adjoint cache(Lϕ::QuasiLenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
-@adjoint cache!(cL::CachedQuasiLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
+# @adjoint cache(Lϕ::QuasiLenseFlow, f) = cache(Lϕ,f), Δ->(Δ,nothing)
+# @adjoint cache!(cL::CachedQuasiLenseFlow, ϕ) = cache!(cL,ϕ), Δ -> (nothing,Δ.ϕ)
 
 
 # algebra

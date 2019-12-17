@@ -38,7 +38,6 @@ QuasiLenseFlow{I,t₀,t₁}(ϕ,MÐ,MŁ) where {I,t₀,t₁} = QuasiLenseFlow{I,f
 ### printing
 show(io::IO, ::L) where {I,t₀,t₁,Φ,L<:QuasiLenseFlow{I,t₀,t₁,Φ}} = print(io, "$(L.name.name){$t₀→$t₁, $I}(ϕ::$Φ)")
 show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedQuasiLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(RK4Solver{N})}(ϕ::$Φ, Łf::$ŁF)")
-string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
 
 # convenience for getting the actual ϕ map
 getϕ(L::QuasiLenseFlow) = L.ϕ
@@ -48,7 +47,6 @@ getϕ(L::CachedQuasiLenseFlow) = L.ϕ[]
 _getindex(L::QuasiLenseFlow{I,<:Any,<:Any,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = QuasiLenseFlow{I,t₀,t₁,F}(L.ϕ,L.MÐ,L.MŁ)
 
 
-τ(t) = Float16(t)
 cache(L::QuasiLenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedQuasiLenseFlow, f) = cL
 cache!(cL::CachedQuasiLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,QuasiLenseFlow{RK4Solver{N},t₀,t₁}(ϕ,cL.MÐ,cL.MŁ),cL.memŁf)
