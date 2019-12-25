@@ -30,7 +30,6 @@ using Zygote
         # forwarded to the default behavior)
         @test occursin("where",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
         @test occursin("where",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
-        @test occursin("where",sprint(show, m..., FΦTuple))
         @test occursin("where",sprint(show, m..., FlatQUMap))
     end
 
@@ -277,38 +276,50 @@ end
 end
 ##
 
-# make sure we can take type-stable gradients of scalar functions of our Fields
-# (like the posterior)
-@testset "Autodiff" begin
-
-    f = FlatMap(rand(2,2))
-    D = Diagonal(f)
-
-    # the very basics
-    grad1() = Zygote.gradient(function (θ)
-        g = θ * f
-        dot(g,g)
-    end, 1)[1]
-    # this one *is* inferred sometimes, can't figure out what combination of
-    # versions though, so leaving it without @inferred for now
-    @test (grad1()) ≈ 2*norm(f,2)^2 
-
-    grad2() = Zygote.gradient(function (θ)
-        g = (θ * D * f)
-        dot(g,g)
-    end, 1)[1]
-    @test_broken                  grad2()  ≈ 2*norm(f.^2,2)^2
+@testset "Zygote" begin
     
-    # derivatives through ParamDependentOps 
-    Dr = ParamDependentOp((;r=1)-> r * D)
-    grad3() = Zygote.gradient(function (r)
-        g = (Dr(r=r) * f)
-        dot(g,g)
-    end,1)[1]
-    @test_broken           grad3()  ≈ 2*norm(f.^2,2)^2
-    @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
+    for f in [FlatMap(rand(2,2)), FlatQUMap(rand(2,2),rand(2,2))]
     
-    @test_broken @inferred(Zygote.gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
+        @testset "f::$typeof(f)" begin
+            
+            D = Diagonal(f)
+
+            # basic ℝⁿ → ℝ¹ operations
+            @test gradient(f -> sum(f), f)[1] ≈ one(f)
+            @test_broken gradient(f -> norm(f), f)[1] ≈ one(f)
+            @test gradient(f -> dot(f,f), f)[1] ≈ 2f
+            @test gradient(f -> dot(f,Fourier(f)), f)[1] ≈ 2f
+            @test gradient(f -> f'f, f)[1] ≈ 2f
+            @test gradient(f -> f'Fourier(f), f)[1] ≈ 2f
+            
+            # Diagonal ops
+            @test gradient(f -> f'*(D*f), f)[1] ≈ 2*D*f
+            @test_broken gradient(f -> f'*(D\f), f)[1] ≈ D*f + D\f
+            @test gradient(f -> (f'*D)*f, f)[1] ≈ 2*D*f
+            @test gradient(f -> f'*D*f,   f)[1] ≈ 2*D*f
+            @test gradient(f -> f'*(D*f), Fourier(f))[1] ≈ 2*D*f
+            @test gradient(f -> f'*Diagonal(f)*f, f)[1] ≈ @. 3*f^2
+            
+            # broadcasting
+            @test        gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
+            @test_broken gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
+
+            # FieldVectors
+            @test gradient(f -> sum(sum(@SVector[f,f])), f)[1] ≈ 2*one(f)
+    
+        end
+    end
+    
+    # # derivatives through ParamDependentOps 
+    # Dr = ParamDependentOp((;r=1)-> r * D)
+    # grad3() = Zygote.gradient(function (r)
+    #     g = (Dr(r=r) * f)
+    #     dot(g,g)
+    # end,1)[1]
+    # @test_broken           grad3()  ≈ 2*norm(f.^2,2)^2
+    # @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
+    # 
+    # @test_broken @inferred(Zygote.gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
     
     
 end

@@ -49,7 +49,7 @@ fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
 similar(ft::FT) where {FT<:FieldTuple} = FT(map(f->similar(f),ft.fs))
 function similar(ft::FT, ::Type{T}, dims::Dims) where {T<:Number, B, FT<:FieldTuple{B}}
-    @assert size(ft)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
+    @assert size(ft)==dims "Tried to make a field similar to $FT but dims should have been $(size(f)), not $dims."
     FieldTuple{B}(map(f->similar(f,T),ft.fs))
 end
 mapreduce(func, op, ft::FieldTuple; kw...) = mapreduce(f->mapreduce(func, op, f; kw...), op, ft.fs; kw...)

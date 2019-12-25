@@ -206,8 +206,9 @@ end
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)
 
-
+# misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
+norm(f::Field) = sqrt(dot(f,f)) # dot is implemented to add the factor of Δx
 
 
 invalid_broadcast_error(B1,B2) = 

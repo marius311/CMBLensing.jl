@@ -221,7 +221,8 @@ function sample_joint(
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
                         Lϕ = cache(L(ϕ), ds.d)
-                        f° = Lϕ * dsθ.D * argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f = argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f°, = mix(f,ϕ,dsθ)
                     end
                     
                     

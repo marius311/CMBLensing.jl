@@ -4,7 +4,7 @@
 @doc doc"""
     argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
     argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
-    argmaxf_lnP(Lϕ::LenseOp,      ds::DataSet; kwargs...)
+    argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
     
 Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
 along the posterior.
@@ -22,7 +22,7 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
 
-function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, kwargs...)
+function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, kwargs...)
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
@@ -47,14 +47,14 @@ end
 
 
 @doc doc"""
-    Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
-    Σ(L::LenseOp, ds) 
+    Σ(ϕ,  ds, ::Type{L}=LenseFlow) where {L}
+    Σ(Lϕ, ds)
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
 applied and inverted.
 """
-Σ(ϕ, ds) = Σ(ds.L(ϕ),ds)
-Σ(Lϕ::LenseOp, ds) = begin
+Σ(ϕ::Field, ds) = Σ(ds.L(ϕ),ds)
+Σ(Lϕ,       ds) = begin
 
     @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
 

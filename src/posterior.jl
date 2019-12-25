@@ -76,7 +76,7 @@ end
 
 δlnP_δϕ(ϕ, ds, ::Type{L}=LenseFlow; kwargs...) where {L} = δlnP_δϕ(L(ϕ), ds; kwargs...)
 
-function δlnP_δϕ(L::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
+function δlnP_δϕ(L, ds; Nmc_det=100, progress=false, return_sims=false)
     
     @unpack d,P,M,B,Cn,Cf,Cn̂,G = ds
     

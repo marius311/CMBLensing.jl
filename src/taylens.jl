@@ -1,6 +1,6 @@
 
 
-struct Taylens{N,T<:Real} <: LenseOp
+struct Taylens{N,T<:Real} <: ImplicitOp{Basis,Spin,Pix}
     # pixel remapping
     i::Matrix{Int}
     j::Matrix{Int}

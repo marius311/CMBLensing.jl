@@ -45,15 +45,12 @@ for f in (:/, :\, :*)
 end
 
 
-
-
-
-# this makes Vector{Diagonal}' * Vector{Field} work right
-dot(D::DiagOp, f::Field) = conj(D.diag) .* f
-
-# needed since v .* f is not type stable
+# a few definitions which either dont work, aren't type-stable, or aren't
+# differentiable unless we define them by hand here:
+*(D::DiagOp, v::FieldVector) = Ref(D) .* v
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]
+*(v::FieldOrOpRowVector, w::FieldOrOpVector) = v[1]*w[1] + v[2]*w[2]
 
 # eventually replace having to do this by hand with Cassette-based solution
 mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) = 
