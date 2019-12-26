@@ -337,7 +337,7 @@ end
         
         @testset "T :: $T" begin
                 
-            ϵ = sqrt(eps(T))
+            ε = sqrt(eps(T))
             Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
             @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
             Lϕ = LenseFlow(ϕ)
@@ -351,7 +351,8 @@ end
             @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
             # gradients
             δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
 
             # S2 lensing
             Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
@@ -362,7 +363,8 @@ end
             @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
             # gradients
             δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
         
         end
         
@@ -402,9 +404,12 @@ end
             ε = sqrt(eps(T))
             δf,δϕ = simulate(Cf),simulate(Cϕ)
 
-            @test FΦTuple(gradient((f, ϕ)->lnP(0,   f, ϕ,ds),f, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(0,   f +ε*δf,ϕ+ε*δϕ,ds)-lnP(0,   f -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
-            @test FΦTuple(gradient((f̃ ,ϕ)->lnP(1,   f̃, ϕ,ds),f̃, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(1,   f̃ +ε*δf,ϕ+ε*δϕ,ds)-lnP(1,   f̃ -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-1
-            @test FΦTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=5e-2
+            @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-3
+            @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
+            @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
             
         end
         

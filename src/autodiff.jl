@@ -1,6 +1,9 @@
     
 ### algebra
 
+# lazy outer products of Fields, which comes up alot in automatic differentiation
+*(x::Field, y::Adjoint{<:Any, <:Field}) = FuncOp(op=z->x*(y*z), opᴴ=z->y'*(x'*z))
+
 @adjoint sum(f::Field) = sum(f), Δ -> (Δ*one(f),)
 
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)

@@ -26,18 +26,18 @@ cache(L::Adjoint{<:Any,<:FlowOp}, f) = cache(L',f)'
     cLϕ = cache(Lϕ,f)
     f̃ = cLϕ * f
     function back(Δ)
-        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₀, t₁)
+        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
         δϕ, B(δf)
     end
     f̃, back
 end
 
 @adjoint function \(Lϕ::FlowOpWithAdjoint{I,t₀,t₁}, f̃::Field{B}) where {I,t₀,t₁,B}
-    cLϕ = cache(L,f)
+    cLϕ = cache(Lϕ,f̃)
     f = cLϕ \ f̃
     function back(Δ)
-        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ), FieldTuple(f,Δ), t₁, t₀)
+        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
         δϕ, B(δf)
     end
-    f̃, back
+    f, back
 end
