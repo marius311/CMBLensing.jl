@@ -1,6 +1,8 @@
 abstract type ODESolver end
-# only one single ODE solver implemented for now, a simple custom RK4:
+
+
 abstract type RK4Solver{nsteps} <: ODESolver  end
+abstract type OutOfPlaceRK4Solver{nsteps} <: ODESolver  end
 
 
 
@@ -33,8 +35,24 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
     end
     return y
 end
-odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t₀,t₁,N)
 
+function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
+    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
+    y = copy(y₀)
+    k₁, k₂, k₃, k₄ = @repeated(similar(y₀),4)
+    for i in 0:nsteps-1
+        t = i*h
+        k₁ = F(t, y)
+        k₂ = F(t + h½, @. y + h½*k₁)
+        k₃ = F(t + h½, @. y + h½*k₂)
+        k₄ = F(t + h,  @. y + h*k₃)
+        y += @. h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+    end
+    return y
+end
+
+odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t₀,t₁,N)
+odesolve(::Type{OutOfPlaceRK4Solver{N}},F,y₀,t₀,t₁) where {N} = OutOfPlaceRK4Solver(F,y₀,t₀,t₁,N)
 
 
 

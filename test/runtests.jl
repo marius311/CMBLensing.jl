@@ -1,5 +1,5 @@
 using CMBLensing
-using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver
+using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver, seed!
 
 ##
 
@@ -274,11 +274,72 @@ end
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
     @test ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(D) ≈ D # inplace 
 end
+
 ##
 
 @testset "Zygote" begin
+
+    f,g,h = @repeated(FlatMap(rand(2,2)),3)
+    v = @SVector[g,g]
+    D = Diagonal(f)
+
+    @testset "Field inner products" begin
+        
+        @test ((δ = gradient(f -> sum(Map(f)),     Map(f))[1]); basis(δ)==Map     && δ ≈ one(Map(f)))
+        @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==Fourier && δ ≈ Fourier(one(Map(f))))
+        
+        @test gradient(f -> Map(f)' *     Map(g), f)[1] ≈ g
+        @test gradient(f -> Map(f)' * Fourier(g), f)[1] ≈ g
+
+        @test gradient(f -> sum(Diagonal(Map(f)) *     Map(g)), f)[1] ≈ g
+        @test gradient(f -> sum(Diagonal(Map(f)) * Fourier(g)), f)[1] ≈ g
+
+        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) *     Map(g)), f)[1] ≈ ∇[1]'*g
+        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * Fourier(g)), f)[1] ≈ ∇[1]'*g
+        
+        @test gradient(f -> f'*(D\f), Fourier(f))[1] ≈ D\f + D'\f
+        @test gradient(f -> (f'/D)*f, Fourier(f))[1] ≈ D\f + D'\f
+        @test gradient(f -> f'*(D\f), Map(f))[1] ≈ D\f + D'\f
+        @test gradient(f -> (f'/D)*f, Map(f))[1] ≈ D\f + D'\f
+        
+        @test gradient(f -> f'*(D*f), Fourier(f))[1] ≈ D*f + D'*f
+        @test gradient(f -> (f'*D)*f, Fourier(f))[1] ≈ D*f + D'*f
+        @test gradient(f -> f'*(D*f), Map(f))[1] ≈ D*f + D'*f
+        @test gradient(f -> (f'*D)*f, Map(f))[1] ≈ D*f + D'*f
+        
+    end
+
+    @testset "FieldVector inner products" begin
+
+        @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
+        @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
+        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * v[1] + Diagonal(Map(∇[2]*f)) * v[2]), f)[1] ≈ ∇' * v
+
+    end
+
+    @testset "FieldOpVector inner products" begin
+        
+        @test gradient(f -> @SVector[f,f]' * Map.(@SVector[g,g]), f)[1] ≈ 2g
+        @test gradient(f -> @SVector[f,f]' * Fourier.(@SVector[g,g]), f)[1] ≈ 2g
+        
+        @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
+        @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
+
+    end
+    ##
+
+    @testset "OuterProdOp" begin
+        
+        @test OuterProdOp(f,g) * h ≈ f*(g'*h)
+        @test OuterProdOp(f,g)' * h ≈ g*(f'*h)
+        @test diag(OuterProdOp(f,g)) ≈ f .* conj.(g)
+        @test diag(OuterProdOp(f,g)') ≈ conj.(f) .* g
+        @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
+        
+    end
+
     
-    for f in [FlatMap(rand(2,2)), FlatQUMap(rand(2,2),rand(2,2))]
+    for (f,g) in [@repeated(FlatMap(rand(2,2)),2), @repeated(FlatQUMap(rand(2,2),rand(2,2)),2)]
     
         @testset "f::$typeof(f)" begin
             
@@ -286,8 +347,8 @@ end
 
             # basic ℝⁿ → ℝ¹ operations
             @test gradient(f -> sum(f), f)[1] ≈ one(f)
-            @test_broken gradient(f -> norm(f), f)[1] ≈ one(f)
             @test gradient(f -> dot(f,f), f)[1] ≈ 2f
+            @test gradient(f -> norm(f), f)[1] ≈ f/norm(f)
             @test gradient(f -> dot(f,Fourier(f)), f)[1] ≈ 2f
             @test gradient(f -> f'f, f)[1] ≈ 2f
             @test gradient(f -> f'Fourier(f), f)[1] ≈ 2f
@@ -305,7 +366,11 @@ end
             @test_broken gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
 
             # FieldVectors
-            @test gradient(f -> sum(sum(@SVector[f,f])), f)[1] ≈ 2*one(f)
+            # @test gradient(f -> sum(sum(@SVector[f,f])), f)[1] ≈ 2*one(f)
+            # @test gradient(f -> sum(sum(@SMatrix[f f; f f] * @SVector[f,f])), f)[1] ≈ 8*f
+            @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
+            @test_broken gradient(f -> sum(sum(@SMatrix[f f] * @SMatrix[f f; f f])), f)[1] ≈ 8*f
+            
     
         end
     end
@@ -402,7 +467,10 @@ end
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
 
             ε = sqrt(eps(T))
+            seed!(0)
             δf,δϕ = simulate(Cf),simulate(Cϕ)
+            
+            @show ϕ[3], δϕ[3]
 
             @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
                 (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-3

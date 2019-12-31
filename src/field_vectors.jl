@@ -50,6 +50,7 @@ end
 *(D::DiagOp, v::FieldVector) = Ref(D) .* v
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]
+*(f::Field, v::FieldOrOpRowVector) = @SVector[(f*v[1])', (f*v[2])']'
 *(v::FieldOrOpRowVector, w::FieldOrOpVector) = v[1]*w[1] + v[2]*w[2]
 
 # eventually replace having to do this by hand with Cassette-based solution

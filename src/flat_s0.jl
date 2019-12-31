@@ -86,6 +86,9 @@ end
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
 dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * fieldinfo(a).Δx^2
 
+### isapprox
+≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))
+
 ### simulation and power spectra
 function white_noise(::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
     FlatMap{P}(randn!(basetype(M){T}(undef,N,N)) / fieldinfo(F).Δx)

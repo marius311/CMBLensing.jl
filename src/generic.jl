@@ -195,6 +195,8 @@ for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field)
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
 
+≈(a::Field, b::Field) = ≈(promote(a,b)...)
+
 # multiplication/division is not strictly defined for abstract vectors, but
 # make it work anyway if the two fields are exactly the same type, in which case
 # its clear we wanted broadcasted multiplication/division. 

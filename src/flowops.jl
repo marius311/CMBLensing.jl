@@ -22,6 +22,17 @@ cache(L::Adjoint{<:Any,<:FlowOp}, f) = cache(L',f)'
 @adjoint (::Type{L})(ϕ) where {L<:FlowOp} = L(ϕ), Δ -> (Δ,)
 @adjoint (Lϕ::FlowOp)(ϕ′) = Lϕ(ϕ′), Δ -> (nothing, Δ)
 
+# for FlowOps (without adjoint), use Zygote to take a gradient through the ODE solver
+
+@adjoint *(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
+    Zygote.pullback((Lϕ,f)->odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁), Lϕ, f)
+    
+@adjoint \(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
+    Zygote.pullback((Lϕ,f)->odesolve(I,  velocity(cache(Lϕ, f),f)..., t₁, t₀), Lϕ, f)
+
+
+# FlowOpWithAdjoint provide their own velocity for computing the gradient
+
 @adjoint function *(Lϕ::FlowOpWithAdjoint{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B}
     cLϕ = cache(Lϕ,f)
     f̃ = cLϕ * f

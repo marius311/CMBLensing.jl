@@ -1,32 +1,49 @@
     
-### algebra
-
 # lazy outer products of Fields, which comes up alot in automatic differentiation
-*(x::Field, y::Adjoint{<:Any, <:Field}) = FuncOp(op=z->x*(y*z), opᴴ=z->y'*(x'*z))
+*(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x,y.parent)
 
-@adjoint sum(f::Field) = sum(f), Δ -> (Δ*one(f),)
+@adjoint sum(f::Field{B}) where {B} = sum(f), Δ -> (Δ*one(B(f)),)
+@adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
 
-#---
-# todo: try and figure out a way to forward adjoints like these that doesn't
-# involve duplicating code in Base?  see also:
-# https://discourse.julialang.org/t/how-to-deal-with-zygote-sometimes-pirating-its-own-adjoints-with-worse-ones
-
 # this makes it so we only have to define adjoints for L*f, and the f'*L adjoint just uses that
 @adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal)   = Zygote.pullback((f,D)->(D'*f')', f, D)
-# this adjoint through StaticArray's complicated machinery doesn't work
-@adjoint *(a::FieldOrOpRowVector, b::FieldVector) = Zygote.pullback((a,b)->(a[1]*b[1] + a[2]*b[2]), a.parent, b)
-#---
+
+@adjoint function *(x::FieldOrOpRowVector, y::FieldVector)
+    z = x * y
+    
+    # when x is a vector of Fields
+    back(Δ) = (Δ * y'), (x' * Δ)
+    
+    # when x is a vector of Diagonals. in this case, Δ * basis(Δ)(y)' create an
+    # OuterProdOp in the same basis as the Diagonals in x
+    back(Δ::Field{B}) where {B} = (Δ * basis(Δ)(y)'), (x' * Δ)
+    
+    z, back
+end
+
+# see Zygote/lib/array.jl:311
+@adjoint function pinv(M::FieldOrOpMatrix) 
+    M⁻¹ = pinv(M)
+    M⁻¹, Δ->(-M⁻¹*Δ*M⁻¹,)
+    # M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
+end
+
+# without this we get a segfault for I + Hessian(ϕ) like in the LenseFlow velocity
+@adjoint +(I::UniformScaling, M::FieldOrOpMatrix) = I+M, Δ->(nothing, Δ)
 
 
+### apparently we don't need either of these anymore?: 
 # this is a specialized version of the suggestion here:
 #   https://github.com/FluxML/Zygote.jl/issues/316
-# which does necessary basis conversions
-@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D.diag .* B(v),
-    Δ -> (Diagonal(unbroadcast(D.diag, B(B′(Δ) .* conj.(v)))), unbroadcast(v, B′(B(Δ) .* conj.(D.diag))))
+# which also does necessary basis conversions
+# @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D.diag .* B(v),
+#     Δ -> (Diagonal(unbroadcast(D.diag, B(B′(Δ) .* conj.(v)))), unbroadcast(v, B′(B(Δ) .* conj.(D.diag))))
+# @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = Zygote.pullback((D,v) -> diag(D) .* B(v), D, v)
+### 
 
-@adjoint *(∇::∇Op, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
+@adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
@@ -46,4 +63,5 @@ Zygote.accum(a::Field, b::Field) = a+b
 @adjoint broadcasted(::typeof(\), x ::Numeric, y::Numeric) =
     broadcast(\, x, y), Δ -> (nothing, unbroadcast(x, @. -Δ*y/x^2), unbroadcast(y, @. Δ/x))
 
-@adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
+# @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
+@adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(Δ.data,)

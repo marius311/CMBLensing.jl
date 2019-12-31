@@ -80,6 +80,7 @@ conj(::∇diag{coord,covariance,prefactor}) where {coord,covariance,prefactor} =
 # Gradient vector which can be used with FieldVector algebra. 
 struct ∇Op{covariance,prefactor} <: StaticVector{2,Diagonal{Float32,∇diag{<:Any,covariance,prefactor}}} end 
 getindex(::∇Op{covariance,prefactor}, i::Int) where {covariance,prefactor} = Diagonal(∇diag{i,covariance,prefactor}())
+-(::∇Op{covariance,prefactor}) where {covariance,prefactor} = ∇Op{covariance,-prefactor}()
 const ∇ⁱ = ∇Op{:contravariant,1}()
 const ∇ᵢ = ∇Op{:covariant,1}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
@@ -93,7 +94,8 @@ Compute the gradient $g^i = \nabla^i f$, and the hessian, $H_j^{\,i} = \nabla_j 
 """
 function gradhess(f)
     g = ∇ⁱ*f
-    (g=g, H=SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])]))
+    H = @SMatrix[∇ᵢ[1]*g[1] ∇ᵢ[2]*g[1]; ∇ᵢ[1]*g[2] ∇ᵢ[2]*g[2]]
+    @namedtuple(g,H)
 end
 
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
@@ -274,16 +276,24 @@ adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to
 
 ### OuterProdOp
 
-# an operator L which represents L = M*M'
+# an operator L which represents L = V*W'
 # this could also be represented by a LazyBinaryOp, but this allows us to 
-# do simulate(L) = M * whitenoise
-struct OuterProdOp{TM<:LinOp} <: ImplicitOp{Basis,Spin,Pix}
-    M::TM
+# define a few extra functions like simulate or diag, which get used in various places 
+struct OuterProdOp{TV,TW} <: ImplicitOp{Basis,Spin,Pix}
+    V::TV
+    W::TW
 end
-simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = L.M * white_noise(F)
-simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = L.M.a * sqrt(L.M.b) * simulate(L.M.b)
-pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = OuterProdOp(pinv(L.M.a)' * pinv(L.M.b)')
-*(L::OuterProdOp, f::Field) = L.M * (L.M' * f)
-\(L::OuterProdOp, f::Field) = L.M' \ (L.M \ f)
-adjoint(L::OuterProdOp) = L
-adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to, L.M))
+OuterProdOp(V) = OuterProdOp(V,V)
+_check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
+simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = (_check_sym(L); L.V * white_noise(F))
+simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); L.V.a * sqrt(L.V.b) * simulate(L.V.b))
+pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
+*(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
+\(L::OuterProdOp{<:LinOp,<:LinOp}, f::Field) = L.W' \ (L.V \ f)
+adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
+adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to,L.V), adapt(to,L.W))
+diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
+
+diag(lz::LazyBinaryOp{+}) = diag(lz.a) + diag(lz.b)
+# diag(lz::LazyBinaryOp{*,<:DiagOp{<:Field{B}},<:LinOp}) where {B} = diag(lz.a) .* B(diag(lz.b))
+# diag(lz::LazyBinaryOp{*,<:LinOp,<:DiagOp{<:Field{B}}}) where {B} = B(diag(lz.a)) .* diag(lz.b)
