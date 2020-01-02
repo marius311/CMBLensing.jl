@@ -279,113 +279,79 @@ end
 
 @testset "Zygote" begin
 
-    f,g,h = @repeated(FlatMap(rand(2,2)),3)
-    v = @SVector[g,g]
-    D = Diagonal(f)
-
-    @testset "Field inner products" begin
-        
-        @test ((δ = gradient(f -> sum(Map(f)),     Map(f))[1]); basis(δ)==Map     && δ ≈ one(Map(f)))
-        @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==Fourier && δ ≈ Fourier(one(Map(f))))
-        
-        @test gradient(f -> Map(f)' *     Map(g), f)[1] ≈ g
-        @test gradient(f -> Map(f)' * Fourier(g), f)[1] ≈ g
-
-        @test gradient(f -> sum(Diagonal(Map(f)) *     Map(g)), f)[1] ≈ g
-        @test gradient(f -> sum(Diagonal(Map(f)) * Fourier(g)), f)[1] ≈ g
-
-        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) *     Map(g)), f)[1] ≈ ∇[1]'*g
-        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * Fourier(g)), f)[1] ≈ ∇[1]'*g
-        
-        @test gradient(f -> f'*(D\f), Fourier(f))[1] ≈ D\f + D'\f
-        @test gradient(f -> (f'/D)*f, Fourier(f))[1] ≈ D\f + D'\f
-        @test gradient(f -> f'*(D\f), Map(f))[1] ≈ D\f + D'\f
-        @test gradient(f -> (f'/D)*f, Map(f))[1] ≈ D\f + D'\f
-        
-        @test gradient(f -> f'*(D*f), Fourier(f))[1] ≈ D*f + D'*f
-        @test gradient(f -> (f'*D)*f, Fourier(f))[1] ≈ D*f + D'*f
-        @test gradient(f -> f'*(D*f), Map(f))[1] ≈ D*f + D'*f
-        @test gradient(f -> (f'*D)*f, Map(f))[1] ≈ D*f + D'*f
-        
-    end
-
-    @testset "FieldVector inner products" begin
-
-        @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
-        @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
-        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * v[1] + Diagonal(Map(∇[2]*f)) * v[2]), f)[1] ≈ ∇' * v
-
-    end
-
-    @testset "FieldOpVector inner products" begin
-        
-        @test gradient(f -> @SVector[f,f]' * Map.(@SVector[g,g]), f)[1] ≈ 2g
-        @test gradient(f -> @SVector[f,f]' * Fourier.(@SVector[g,g]), f)[1] ≈ 2g
-        
-        @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
-        @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
-
-    end
-    ##
-
-    @testset "OuterProdOp" begin
-        
-        @test OuterProdOp(f,g) * h ≈ f*(g'*h)
-        @test OuterProdOp(f,g)' * h ≈ g*(f'*h)
-        @test diag(OuterProdOp(f,g)) ≈ f .* conj.(g)
-        @test diag(OuterProdOp(f,g)') ≈ conj.(f) .* g
-        @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
-        
-    end
-
+    for (f,g,h) in [
+        @repeated(FlatMap(rand(2,2)),3), 
+        @repeated(FlatQUMap(rand(2,2),rand(2,2)),3)
+    ]
     
-    for (f,g) in [@repeated(FlatMap(rand(2,2)),2), @repeated(FlatQUMap(rand(2,2),rand(2,2)),2)]
-    
-        @testset "f::$typeof(f)" begin
-            
+        @testset "$(typeof(f))" begin
+        
+            v = @SVector[f,f]
             D = Diagonal(f)
 
-            # basic ℝⁿ → ℝ¹ operations
-            @test gradient(f -> sum(f), f)[1] ≈ one(f)
-            @test gradient(f -> dot(f,f), f)[1] ≈ 2f
-            @test gradient(f -> norm(f), f)[1] ≈ f/norm(f)
-            @test gradient(f -> dot(f,Fourier(f)), f)[1] ≈ 2f
-            @test gradient(f -> f'f, f)[1] ≈ 2f
-            @test gradient(f -> f'Fourier(f), f)[1] ≈ 2f
-            
-            # Diagonal ops
-            @test gradient(f -> f'*(D*f), f)[1] ≈ 2*D*f
-            @test_broken gradient(f -> f'*(D\f), f)[1] ≈ D*f + D\f
-            @test gradient(f -> (f'*D)*f, f)[1] ≈ 2*D*f
-            @test gradient(f -> f'*D*f,   f)[1] ≈ 2*D*f
-            @test gradient(f -> f'*(D*f), Fourier(f))[1] ≈ 2*D*f
-            @test gradient(f -> f'*Diagonal(f)*f, f)[1] ≈ @. 3*f^2
-            
-            # broadcasting
-            @test        gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
-            @test_broken gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
+            @testset "Fields" begin
+                
+                @testset "sum" begin
+                    @test ((δ = gradient(f -> sum(Map(f)),     Map(f))[1]); basis(δ)==basis(Map(f))     && δ ≈ one(Map(f)))
+                    @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==basis(Fourier(f)) && δ ≈ Fourier(one(Map(f))))
+                end
+                
+                for B1=[Map,Fourier], B2=[Map,Fourier], B3=[Map,Fourier]
+                    @testset "B1=$B1, B2=$B2, B3=$B3" begin
+                        @test gradient(f -> dot(B1(f),B2(f)), B3(f))[1] ≈ 2f
+                        @test gradient(f -> norm(B1(f)), B3(f))[1] ≈ f/norm(f)
+                        @test gradient(f -> B1(f)' * B2(g), B3(f))[1] ≈ g
+                        @test gradient(f -> sum(Diagonal(Map(f)) * B2(g)), B3(f))[1] ≈ g
+                        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * B2(g)), B3(f))[1] ≈ ∇[1]'*g
+                        @test gradient(f -> B1(f)'*(D\B2(f)), B3(f))[1] ≈ D\f + D'\f
+                        @test gradient(f -> (B1(f)'/D)*B2(f), B3(f))[1] ≈ D\f + D'\f
+                        @test gradient(f -> B1(f)'*(D*B2(f)), B3(f))[1] ≈ D*f + D'*f
+                        @test gradient(f -> (B1(f)'*D)*B2(f), B3(f))[1] ≈ D*f + D'*f
+                        @test gradient(f -> B1(f)'*Diagonal(B2(f))*f, B3(f))[1] ≈ @. 3*$B2(f)^2
+                    end
+                end
 
-            # FieldVectors
-            # @test gradient(f -> sum(sum(@SVector[f,f])), f)[1] ≈ 2*one(f)
-            # @test gradient(f -> sum(sum(@SMatrix[f f; f f] * @SVector[f,f])), f)[1] ≈ 8*f
-            @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
-            @test_broken gradient(f -> sum(sum(@SMatrix[f f] * @SMatrix[f f; f f])), f)[1] ≈ 8*f
+                @testset "Broadcasting" begin
+                    @test        gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
+                    @test_broken gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
+                end
+                
+            end
+
+            @testset "FieldVectors" begin
             
-    
+                @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
+                @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
+                @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * v[1] + Diagonal(Map(∇[2]*f)) * v[2]), f)[1] ≈ ∇' * v
+            
+                @test gradient(f -> @SVector[f,f]' * Map.(@SVector[g,g]), f)[1] ≈ 2g
+                @test gradient(f -> @SVector[f,f]' * Fourier.(@SVector[g,g]), f)[1] ≈ 2g
+                
+                @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
+                @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
+                
+                @test gradient(f -> sum(sum(@SVector[f,f])),                            f)[1] ≈ 2*one(f)
+                @test gradient(f -> sum(sum(@SVector[f,f]      .+ @SVector[f,f])),      f)[1] ≈ 4*one(f)
+                @test gradient(f -> sum(sum(@SMatrix[f f; f f] .+ @SMatrix[f f; f f])), f)[1] ≈ 8*one(f)
+                
+                @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
+                @test_broken gradient(f -> sum(sum(@SMatrix[f f] * @SMatrix[f f; f f])), f)[1] ≈ 8*f
+
+            end
+            
+            @testset "OuterProdOp" begin
+                
+                @test OuterProdOp(f,g) * h ≈ f*(g'*h)
+                @test OuterProdOp(f,g)' * h ≈ g*(f'*h)
+                @test diag(OuterProdOp(f,g)) ≈ f .* conj.(g)
+                @test diag(OuterProdOp(f,g)') ≈ conj.(f) .* g
+                @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
+                
+            end
+        
         end
+        
     end
-    
-    # # derivatives through ParamDependentOps 
-    # Dr = ParamDependentOp((;r=1)-> r * D)
-    # grad3() = Zygote.gradient(function (r)
-    #     g = (Dr(r=r) * f)
-    #     dot(g,g)
-    # end,1)[1]
-    # @test_broken           grad3()  ≈ 2*norm(f.^2,2)^2
-    # @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
-    # 
-    # @test_broken @inferred(Zygote.gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
-    
     
 end
 

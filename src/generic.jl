@@ -99,6 +99,8 @@ length(::Union{ImplicitOp,ImplicitField}) = 0
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
 
+diag(L::ImplicitOp) = error("diag(L) not implemented for L::$(typeof(L))")
+
 # printing
 show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
 show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)

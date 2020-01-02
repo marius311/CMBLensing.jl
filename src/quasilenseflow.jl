@@ -51,7 +51,7 @@ end
 
 ###
 @unpack f,f̃,ϕ,ds = load_sim_dataset(
-    seed=0, θpix=3, Nside=128, pol=:I, T=Float64, μKarcminT=5, beamFWHM=1, bandpass_mask=LowPass(3000),
+    seed=0, θpix=3, Nside=4, pol=:I, T=Float64, μKarcminT=5, beamFWHM=1, bandpass_mask=LowPass(3000),
 );
 mÐ = LowPass(3000) * one(f)
 ###
@@ -65,75 +65,33 @@ using Test
 @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier(v)), f)[1] ≈ (∇' * v)
 ##
 
-f,g,h = Ł.(@repeated(simulate(ds.Cf),3))
-v = @SVector[g,g]
-D = Diagonal(f)
-
-
-
-
-@testset "Field inner products" begin
-    
-    @test ((δ = gradient(f -> sum(Map(f)),     Map(f))[1]); basis(δ)==Map     && δ ≈ one(Map(f)))
-    @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==Fourier && δ ≈ Fourier(one(Map(f))))
-    
-    @test gradient(f -> Map(f)' *     Map(g), f)[1] ≈ g
-    @test gradient(f -> Map(f)' * Fourier(g), f)[1] ≈ g
-
-    @test gradient(f -> sum(Diagonal(Map(f)) *     Map(g)), f)[1] ≈ g
-    @test gradient(f -> sum(Diagonal(Map(f)) * Fourier(g)), f)[1] ≈ g
-
-    @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) *     Map(g)), f)[1] ≈ ∇[1]'*g
-    @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * Fourier(g)), f)[1] ≈ ∇[1]'*g
-    
-    @test gradient(f -> f'*(D\f), Fourier(f))[1] ≈ D\f + D'\f
-    @test gradient(f -> (f'/D)*f, Fourier(f))[1] ≈ D\f + D'\f
-    @test gradient(f -> f'*(D\f), Map(f))[1] ≈ D\f + D'\f
-    @test gradient(f -> (f'/D)*f, Map(f))[1] ≈ D\f + D'\f
-    
-    @test gradient(f -> f'*(D*f), Fourier(f))[1] ≈ D*f + D'*f
-    @test gradient(f -> (f'*D)*f, Fourier(f))[1] ≈ D*f + D'*f
-    @test gradient(f -> f'*(D*f), Map(f))[1] ≈ D*f + D'*f
-    @test gradient(f -> (f'*D)*f, Map(f))[1] ≈ D*f + D'*f
-    
-end
-
-@testset "FieldVector inner products" begin
-
-    @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
-    @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
-    @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * v[1] + Diagonal(Map(∇[2]*f)) * v[2]), f)[1] ≈ ∇' * v
-
-end
-
-@testset "FieldOpVector inner products" begin
-    
-    @test gradient(f -> @SVector[f,f]' * Map.(@SVector[g,g]), f)[1] ≈ 2g
-    @test gradient(f -> @SVector[f,f]' * Fourier.(@SVector[g,g]), f)[1] ≈ 2g
-    
-    @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
-    @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
-
-end
-##
-
-@testset "OuterProdOp" begin
-    
-    @test OuterProdOp(f,g) * h ≈ f*(g'*h)
-    @test OuterProdOp(f,g)' * h ≈ g*(f'*h)
-    @test diag(OuterProdOp(f,g)) ≈ f .* conj.(g)
-    @test diag(OuterProdOp(f,g)') ≈ conj.(f) .* g
-    @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
-    
-end
-
-
-
+w = @SVector[f,f]
 gradient(ϕ) do ϕ
     g,H = map(Ł,gradhess(ϕ))
-    v = (Diagonal.(H))' * Diagonal.(g)
-    sum(v' * (∇*f))
+    v = Diagonal.(I + 2*H) * Diagonal.(g)
+    sum(v' * w)
 end
+
+f = Map(f)
+
+gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
+gradient(f -> sum(sum(@SVector[f,f]      .+ @SVector[f,f])),      f)[1] ≈ 4*one(f)
+gradient(f -> sum(sum(@SMatrix[f f; f f] .+ @SMatrix[f f; f f])), f)[1] ≈ 8*one(f)
+
+
+
+y,bk = Zygote.pullback(sum, @SVector[f,f])
+bk(one(y))[1] * (@SVector[f,f])'
+
+(@SMatrix[f f; f f]') * bk(one(y))[1]
+
+
+
+y,bk = Zygote.pullback(norm,Map(f))
+(bk(y))
+
+y, bk = Zygote.pullback(gradhess, ϕ)
+bk(y)
 
 # g,H = map(Ł,gradhess(ϕ))
 # a,b = Diagonal.(H), Diagonal.(g)

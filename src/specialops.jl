@@ -294,6 +294,8 @@ adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
 adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to,L.V), adapt(to,L.W))
 diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
 
+# these lazy operators often get created by Zygote's pullbacks and we need their
+# diagonal entries:
 diag(lz::LazyBinaryOp{+}) = diag(lz.a) + diag(lz.b)
-# diag(lz::LazyBinaryOp{*,<:DiagOp{<:Field{B}},<:LinOp}) where {B} = diag(lz.a) .* B(diag(lz.b))
-# diag(lz::LazyBinaryOp{*,<:LinOp,<:DiagOp{<:Field{B}}}) where {B} = B(diag(lz.a)) .* diag(lz.b)
+diag(lz::LazyBinaryOp{*,<:DiagOp{F},OuterProdOp{F,F}}) where {F<:Field} = diag(lz.a) .* diag(lz.b)
+diag(lz::LazyBinaryOp{*,OuterProdOp{F,F},<:DiagOp{F}}) where {F<:Field} = diag(lz.a) .* diag(lz.b)
