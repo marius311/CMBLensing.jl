@@ -39,13 +39,12 @@ end
 function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
     h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
     y = copy(y₀)
-    k₁, k₂, k₃, k₄ = @repeated(similar(y₀),4)
     for i in 0:nsteps-1
         t = i*h
         k₁ = F(t, y)
-        k₂ = F(t + h½, @. y + h½*k₁)
-        k₃ = F(t + h½, @. y + h½*k₂)
-        k₄ = F(t + h,  @. y + h*k₃)
+        k₂ = F(t + h½, y + h½*k₁)
+        k₃ = F(t + h½, y + h½*k₂)
+        k₄ = F(t + h,  y + h*k₃)
         y += @. h*(k₁ + 2k₂ + 2k₃ + k₄)/6
     end
     return y

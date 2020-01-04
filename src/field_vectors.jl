@@ -54,6 +54,9 @@ end
 *(f::Field, v::FieldOrOpRowVector) = @SVector[(f*v[1])', (f*v[2])']'
 *(v::FieldOrOpRowVector, w::FieldOrOpVector) = v[1]*w[1] + v[2]*w[2]
 
+# ffs how is something this simple broken in StaticArrays...
+adjoint(L::FieldOrOpMatrix) = @SMatrix[L[1,1]' L[2,1]'; L[1,2]' L[2,2]']
+
 # eventually replace having to do this by hand with Cassette-based solution
 mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) = 
     ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)

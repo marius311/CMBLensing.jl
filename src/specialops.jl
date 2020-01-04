@@ -264,6 +264,7 @@ inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
 # evaluating LazyBinaryOps
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
+    @eval diag(lz::LazyBinaryOp{$op}) = ($op)(diag(lz.a), diag(lz.b))
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
@@ -272,6 +273,13 @@ end
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))
+function diag(lz::LazyBinaryOp{*}) 
+    da, db = diag(lz.a), diag(lz.b)
+    if basis(da)!=basis(db)
+        error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
+    end
+    da .* db
+end
 
 
 ### OuterProdOp
@@ -293,9 +301,3 @@ pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a
 adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
 adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to,L.V), adapt(to,L.W))
 diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
-
-# these lazy operators often get created by Zygote's pullbacks and we need their
-# diagonal entries:
-diag(lz::LazyBinaryOp{+}) = diag(lz.a) + diag(lz.b)
-diag(lz::LazyBinaryOp{*,<:DiagOp{F},OuterProdOp{F,F}}) where {F<:Field} = diag(lz.a) .* diag(lz.b)
-diag(lz::LazyBinaryOp{*,OuterProdOp{F,F},<:DiagOp{F}}) where {F<:Field} = diag(lz.a) .* diag(lz.b)
