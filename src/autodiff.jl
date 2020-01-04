@@ -25,7 +25,15 @@ Zygote.accum(a::Field, b::Field) = a+b
 @adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
 
 # operators
-@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D*v, Δ->(Δ*B(v)', B′(D'*Δ))
+@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D*v, Δ->(B(Δ)*B(v)', B′(D'*Δ))
+@adjoint \(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
+    z = D \ v
+    function back(Δ)
+        v̄ = D' \ Δ
+        -B(v̄)*B(z)', B′(v̄)
+    end
+    z, back
+end
 @adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
 # this makes it so we only have to define adjoints for L*f, and the f'*L adjoint just uses that
 @adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'*f')', f, D)

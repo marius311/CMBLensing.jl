@@ -173,7 +173,10 @@ end
             @test (@inferred f' * f) isa Real
             @test (@inferred f' * B(f)) isa Real
             @test (@inferred f' * D * f) isa Real
-            @test (@inferred sum(f)) isa Number
+            @test sum(f, dims=:) ≈ sum(f[:])
+            @test_throws Any sum(f, dims=1)
+            @test sum(f, dims=2) == f
+
             
             if f isa FlatS0
                 # FieldVector dot product

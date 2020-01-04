@@ -115,7 +115,7 @@ function MAP_joint(
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    @set! ds.G = IdentityOp
+    @set! ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
@@ -146,12 +146,12 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? NoLensing() : Lϕ), ds, 
+            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
                     
-            f° = Lϕ * D * f
+            f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
             
             # ==== show progress ====
@@ -165,7 +165,7 @@ function MAP_joint(
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕnew = Hϕ⁻¹*(@ondemand(Zygote.gradient)(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
+                ϕnew = Hϕ⁻¹*(gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
                 res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew
