@@ -95,6 +95,7 @@ abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} e
 # the fields they're applied to. it also helps makes the generic printing
 # methods for AbstractMatrix work well.
 size(::Union{ImplicitOp,ImplicitField}) = ()
+size(::Union{ImplicitOp,ImplicitField},i) = nothing
 length(::Union{ImplicitOp,ImplicitField}) = 0
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x

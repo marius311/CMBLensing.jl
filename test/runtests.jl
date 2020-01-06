@@ -356,6 +356,12 @@ end
         
     end
     
+    @testset "LinearInterpolation" begin
+        @test gradient(x->LinearInterpolation([1,2,3],[1,2,3])(x), 2)[1] == 1
+        @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
+        @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
+    end
+    
 end
 
 ##

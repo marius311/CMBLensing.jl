@@ -3,7 +3,6 @@ using Pkg
 pkg"activate ."
 @eval Main include("CMBLensing.jl")
 using PyPlot
-
 ###
 
 struct AnonymousFlowOp{I,t₀,t₁} <: FlowOp{I,t₀,t₁}
@@ -54,7 +53,7 @@ end
 );
 ###
 # mÐ = Diagonal(FlatEBFourier(one(f[:E]), LowPass(1000)*one(f[:B])))
-mÐ = LowPass(3000)*one(f)
+mÐ = one(f)
 plot(QuasiLenseFlow(mÐ)(ϕ)*f - f)
 ###
 function getds(mÐℓ,ℓs=50:1000:5092)
@@ -163,3 +162,63 @@ gradient(ϕ -> sum(ϕ .* f), ϕ)[1].fs |> sum
 gradient(ϕ -> sum(ϕ .* f.Q .+ ϕ .* f.U), ϕ)
  
 @which broadcast(*, ϕ, f)
+
+
+gradient(ϕ -> lnP(:mix, f, ϕ, ds), ϕ)
+gradient(ϕ) do ϕ
+    ds′ = (@set ds.D = 1)
+    lnP(:mix, f, ϕ, ds′)
+end
+
+gradient(one(f)) do x
+    ds′ = (@set ds.D = Diagonal(x))
+    sum(gradient(ϕ -> lnP(:mix, f, ϕ, ds′), ϕ)[1])
+end
+
+gradient(1,ϕ) do x,ϕ
+    ds′ = (@set ds.D = x)
+    lnP(:mix, f, ϕ, ds′)
+end
+
+
+
+gradient(f) do f
+    sum(gradient(ϕ -> lnP(0, f, ϕ, ds), ϕ)[1])
+end
+
+@set! ds.L = QuasiLenseFlow(one(f))
+
+gradient(ϕ) do ϕ
+    sum(gradient(f -> lnP(0, f, ϕ, ds), f)[1])
+end
+
+QL = QuasiLenseFlow(one(f))
+
+gradient(f -> norm(gradient(ϕ -> f'*(QL(ϕ)*f), ϕ)[1]), f)
+
+
+d/dy sum(dP/dx)
+
+dP/dyⱼ [ Σᵢ (dP/dxᵢ - x′ᵢ)² ]
+
+dP/dyⱼ [ Σᵢ (dP/dxᵢ - x′ᵢ)² ]
+
+Σᵢ 2(dP/dxᵢ - x′ᵢ) d²P/dxᵢdyᵢ
+
+
+
+
+function foo(x)
+    ds′ = (@set ds.D = Diagonal(x))
+    f' * (ds′.D * f)
+    # lnP(:mix, f, ϕ, ds′)
+end
+
+gradient(foo, one(f))
+
+f'f
+
+f[:]'f[:]
+
+ε = sqrt(eps())
+(foo(1+ε) - foo(1-ε))/(2ε)

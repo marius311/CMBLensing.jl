@@ -123,3 +123,27 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
     ProgressMeter.finish!(prog)
     hist == nothing ? bestx : (bestx, _hist)
 end
+
+
+
+
+
+@doc doc"""
+
+    itp = LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapolation_bc=NaN)
+    itp(x) # interpolate at x
+    
+A simple 1D linear interpolation code which is fully Zygote differentiable in
+either `xdat`, `ydat`, or the evaluation point `x`.
+"""
+function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapolation_bc=NaN)
+    @assert issorted(xdat)
+    m = diff(ydat) ./ diff(xdat)
+    function (x::Number)
+        if x<xdat[1] || x>=xdat[end]; return extrapolation_bc; end
+        # i such that x is between xdat[i] and xdat[i+1]
+        i = findfirst(>(x), xdat) - 1
+        # do interpolation
+        ydat[i] + m[i]*(x-xdat[i])
+    end
+end

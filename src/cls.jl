@@ -13,17 +13,17 @@ struct InterpolatedCℓs{I} <: AbstractCℓs
     concrete :: Bool
 end
 InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
-InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
+InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], Cℓ[(!isnan).(Cℓ)], extrapolation_bc=NaN), concrete)
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
-getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = first(ic.etp.itp.knots)
-getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.itp.coefs
+getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = ic.etp.xdat
+getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.ydat
 getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
 propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 
-getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
-(ic::InterpolatedCℓs)(idx) = ic.etp(idx)
+getindex(ic::InterpolatedCℓs, idx) = ic.etp.(idx)
+(ic::InterpolatedCℓs)(idx) = ic.etp.(idx)
 
 
 struct FuncCℓs{F<:Function} <: AbstractCℓs
@@ -80,12 +80,12 @@ end
 # don't have deal with zeros / infinities there
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
 	InterpolatedCℓs(ℓout, 
-	    if all(Cℓ .> 0)
-	        itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
-	        @. (exp(itp(log(ℓout))))
-	    else
-	        LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
-	    end,
+	    # if all(Cℓ .> 0)
+	    #     itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
+	    #     @. (exp(itp(log(ℓout))))
+	    # else
+	        LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout),
+	    # end,
 		concrete=false
 	)
 end
