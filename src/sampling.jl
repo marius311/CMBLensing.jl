@@ -147,6 +147,7 @@ function sample_joint(
     ϕstart = 0,
     θrange = NamedTuple(),
     θstart = nothing,
+    Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
     nhmc = 1,
@@ -194,7 +195,7 @@ function sample_joint(
         chains = @ondemand(FileIO.load)(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac; end
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
     
