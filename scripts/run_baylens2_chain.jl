@@ -42,6 +42,7 @@ merge!(args, @match args["configuration"] begin
         "pixel_mask_kwargs" => (edge_padding_deg=0.4, apodization_deg=0.6, edge_rounding_deg=0.1, num_ptsrcs=0),
         "sampled_params"    => [:Aϕ,:r],
         "rfid"              => 0.04,
+        "symp_kwargs"       => [(N=25, ϵ=0.0075)]
     )
     _::Nothing => Dict()
     c => error("Unrecognized configuration: $c")
@@ -148,7 +149,7 @@ end
     symp_kwargs = args["symp_kwargs"],
     MAP_kwargs  = (αmax=0.3, nsteps=5),
     
-    progress = :verbose,
+    progress = :summary,
     interruptable = true,
     
     filename = args["filename"]
