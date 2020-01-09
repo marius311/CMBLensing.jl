@@ -207,12 +207,12 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃, pϕ°, ΔH, accept
                 @unpack i,ϕ°,f,θ,seed = state
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 copy!(Random.GLOBAL_RNG, seed)
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
+                pϕ°, ΔH, accept = nothing, nothing, nothing
                 L = ds.L
                 lnPθ = nothing
                 chain = []
