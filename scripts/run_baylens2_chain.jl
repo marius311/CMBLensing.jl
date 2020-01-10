@@ -17,7 +17,7 @@ s = ArgParseSettings()
     "--resume";                action=:store_true
     "--symp_kwargs";           default=[(N=25, ϵ=0.01)]; eval_arg=true
     "--nsamps_per_chain";      default=2000;             arg_type=Int
-    "--nlenseflow_ode";        default=7;                arg_type=Int
+    "--nlenseflow_ode";        default=10;               arg_type=Int
     "--seed";                  arg_type=Int;
     "--nchunk";                default=30;               arg_type=Int
     "--nsavemaps";             default=5;                arg_type=Int
@@ -43,7 +43,7 @@ merge!(args, @match args["configuration"] begin
             "pixel_mask_kwargs" => (edge_padding_deg=0.4, apodization_deg=0.6, edge_rounding_deg=0.1, num_ptsrcs=0),
             "sampled_params"    => [:Aϕ,:r],
             "rfid"              => 0.04,
-            "symp_kwargs"       => [(N=25, ϵ=0.0075)]
+            "symp_kwargs"       => [(N=25, ϵ=0.02)]
         )
     end
     "B" => begin
@@ -56,10 +56,26 @@ merge!(args, @match args["configuration"] begin
             "θpix"              => 3,
             "μKarcminT"         => 1/√2,
             "beamFWHM"          => 3,
-            "bandpass_mask"     => "LowPass(5000)",
+            "bandpass_mask"     => "LowPass(3500)",
             "pixel_mask_kwargs" => (edge_padding_deg=0.6, apodization_deg=0.9, edge_rounding_deg=0.1, num_ptsrcs=0),
             "sampled_params"    => [:r],
-            "symp_kwargs"       => [(N=25, ϵ=0.0075)]
+            "symp_kwargs"       => [(N=25, ϵ=0.02)]
+        )
+    end
+    "C" => begin
+        if !(args["rfid"] in [0,0.01,0.02])
+            @warn "rfid=$(args["rfid"]) inconsistent with configuration B"
+        end
+        Dict(
+            "pol"               => :P,
+            "Nside"             => 512,
+            "θpix"              => 3,
+            "μKarcminT"         => 1/√2,
+            "beamFWHM"          => 3,
+            "bandpass_mask"     => "LowPass(3500)",
+            "pixel_mask_kwargs" => (edge_padding_deg=1.2, apodization_deg=1.8, edge_rounding_deg=0.2, num_ptsrcs=0),
+            "sampled_params"    => [:r],
+            "symp_kwargs"       => [(N=25, ϵ=0.02)]
         )
     end
     _::Nothing => Dict()
