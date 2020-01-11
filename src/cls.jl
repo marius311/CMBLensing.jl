@@ -203,7 +203,7 @@ function load_camb_Cℓs(;
     Cℓϕϕ = InterpolatedCℓs(ℓ, Cℓϕϕ)
     
     unlensed_scalar = Dict([:ℓ,:TT,:EE,:TE,:ϕϕ] .=> collect.(eachcol(readdlm(unlensed_scalar_filename,skipstart=1)[1:end,1:5])))
-    ℓ = unlensed_scalar[:ℓ]
+    ℓ = pop!(unlensed_scalar,:ℓ)
     for x in [:TT,:EE,:TE]
         @. unlensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
@@ -212,7 +212,7 @@ function load_camb_Cℓs(;
 
 
     lensed_scalar = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(lensed_scalar_filename,skipstart=1)[1:end,1:5])))
-    ℓ = lensed_scalar[:ℓ]
+    ℓ = pop!(lensed_scalar,:ℓ)
     for x in [:TT,:EE,:BB,:TE]
         @. lensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
@@ -221,10 +221,10 @@ function load_camb_Cℓs(;
     if custom_tensor_params != nothing
 		tensor = camb(;custom_tensor_params...).tensor
     else
-        tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(tensor_filename,skipstart=1)[2:end,1:5])))
-        ℓ = tensor[:ℓ]
+        tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(unlensed_tensor_filename,skipstart=1)[2:end,1:5])))
+        ℓ = pop!(tensor,:ℓ)
         for x in [:TT,:EE,:BB,:TE]
-            @. tensor[x] *= (r/0.01)/(ℓ*(ℓ+1)/(2π))
+            @. tensor[x] /= ℓ*(ℓ+1)/(2π)
         end
         tensor = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
     end
