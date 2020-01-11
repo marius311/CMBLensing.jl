@@ -44,18 +44,18 @@ promote(fc::FuncCℓs, ic::InterpolatedCℓs) = reverse(promote(ic,fc))
 # todo: may make sense to hook into the broadcasting API and make much of
 # the below more succinct:
 for op in (:*, :/, :+, :-, :±)
-	@eval ($op)(ac1::AbstractCℓs, ac2::AbstractCℓs) = ($op)(promote(ac1,ac2)...)
+    @eval ($op)(ac1::AbstractCℓs, ac2::AbstractCℓs) = ($op)(promote(ac1,ac2)...)
     @eval ($op)(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = (ℓ = new_ℓs(ic1,ic2); InterpolatedCℓs(ℓ, broadcast($op,ic1[ℓ],ic2[ℓ]), concrete=(ic1.concrete||ic2.concrete)))
     @eval ($op)(x::Real, ic::InterpolatedCℓs) = InterpolatedCℓs(ic.ℓ, broadcast($op,x,ic.Cℓ), concrete=ic.concrete)
     @eval ($op)(ic::InterpolatedCℓs, x::Real) = InterpolatedCℓs(ic.ℓ, broadcast($op,ic.Cℓ,x), concrete=ic.concrete)
-	@eval ($op)(x::Real, fc::FuncCℓs) = FuncCℓs(ℓ -> ($op)(x,fc.f(ℓ)))
-	@eval ($op)(fc::FuncCℓs, x::Real) = FuncCℓs(ℓ -> ($op)(fc.f(ℓ),x))
-	@eval ($op)(fc1::FuncCℓs, fc2::FuncCℓs) = FuncCℓs(ℓ -> ($op)(fc1.f(ℓ),fc2.f(ℓ)))
-	@eval ($op)(fc::FuncCℓs, v::AbstractArray) = broadcast($op, fc, v)
-	@eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
+    @eval ($op)(x::Real, fc::FuncCℓs) = FuncCℓs(ℓ -> ($op)(x,fc.f(ℓ)))
+    @eval ($op)(fc::FuncCℓs, x::Real) = FuncCℓs(ℓ -> ($op)(fc.f(ℓ),x))
+    @eval ($op)(fc1::FuncCℓs, fc2::FuncCℓs) = FuncCℓs(ℓ -> ($op)(fc1.f(ℓ),fc2.f(ℓ)))
+    @eval ($op)(fc::FuncCℓs, v::AbstractArray) = broadcast($op, fc, v)
+    @eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
 end
 for op in (:^, :sqrt)
-	@eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
+    @eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
 end
 std(x::Vector{<:InterpolatedCℓs}) = sqrt(mean(x.^2) - mean(x)^2)
 shiftℓ(Δℓ, Cℓ; factor=false) = InterpolatedCℓs(factor ? Cℓ.ℓ .* Δℓ : Cℓ.ℓ .+ Δℓ, Cℓ.Cℓ)
@@ -65,8 +65,8 @@ function get_Cℓ end
 get_Dℓ(args...; kwargs...) = ℓ² * get_Cℓ(args...; kwargs...) / 2π
 get_ℓ⁴Cℓ(args...; kwargs...) = ℓ⁴ * get_Cℓ(args...; kwargs...)
 function get_ρℓ(f; which, kwargs...)
-	a,b = Symbol.(split(string(which),""))
-	get_ρℓ(f[a], f[b]; kwargs...)
+    a,b = Symbol.(split(string(which),""))
+    get_ρℓ(f[a], f[b]; kwargs...)
 end
 function get_ρℓ(f1,f2; kwargs...)
     Cℓ1 = get_Cℓ(f1; kwargs...)
@@ -79,15 +79,15 @@ end
 # used to powerlaw extrapolate Cℓs at very high-ℓ (usually ℓ>6000) just so we
 # don't have deal with zeros / infinities there
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
-	InterpolatedCℓs(ℓout, 
-	    if all(Cℓ .> 0)
-	        itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
-	        @. (exp(itp(log(ℓout))))
-	    else
-	        LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
-	    end,
-		concrete=false
-	)
+    InterpolatedCℓs(ℓout, 
+        if all(Cℓ .> 0)
+            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
+            @. (exp(itp(log(ℓout))))
+        else
+            LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
+        end,
+        concrete=false
+    )
 end
 
 function smooth(Cℓ::InterpolatedCℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.ℓ), xscale=:linear, yscale=:linear, smoothing=0.75)
@@ -114,65 +114,65 @@ function camb(;
     Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
     Aϕ = 1,
     k_pivot = 0.002)
-	
-	params = Base.@locals
+    
+    params = Base.@locals
     
     camb = @ondemand(PyCall.pyimport)(:camb)
-	
-	Base.invokelatest(function ()
-	
-	    ℓmax′ = min(5000,ℓmax)
-	    cp = camb.set_params(
-	        ombh2 = ωb,
-	        omch2 = ωc,
-	        tau = τ,
-	        mnu = Σmν,
-	        cosmomc_theta = Θs,
-	        H0 = nothing,
-	        ns = nₛ,
-	        nt = nₜ,
-	        As = exp(logA)*1e-10,
-	        pivot_scalar = k_pivot,
-	        pivot_tensor = k_pivot,
-	        lmax = ℓmax′,
-	        r = r
-	    )
-	    cp.max_l_tensor = ℓmax′
-	    cp.max_eta_k_tensor = 2ℓmax′
-	    cp.WantScalars = true
-	    cp.WantTensors = true
-	    cp.DoLensing = true
-	    
-	    res = camb.get_results(cp)
-	    
-	    
-	    ℓ  = collect(2:ℓmax -1)
-	    ℓ′ = collect(2:ℓmax′-1)
-	    α = (10^6*cp.TCMB)^2
-	    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
-		
-	    Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,Aϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
-		
-	    return (;
-			map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
-				Symbol(k) => (;
-					map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
-						Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
-					end..., 
-					ϕϕ = Cℓϕϕ
-				)
-			end...,
-			params = (;params...)
-		)
-		
-	end)
+    
+    Base.invokelatest(function ()
+    
+        ℓmax′ = min(5000,ℓmax)
+        cp = camb.set_params(
+            ombh2 = ωb,
+            omch2 = ωc,
+            tau = τ,
+            mnu = Σmν,
+            cosmomc_theta = Θs,
+            H0 = nothing,
+            ns = nₛ,
+            nt = nₜ,
+            As = exp(logA)*1e-10,
+            pivot_scalar = k_pivot,
+            pivot_tensor = k_pivot,
+            lmax = ℓmax′,
+            r = r
+        )
+        cp.max_l_tensor = ℓmax′
+        cp.max_eta_k_tensor = 2ℓmax′
+        cp.WantScalars = true
+        cp.WantTensors = true
+        cp.DoLensing = true
+        
+        res = camb.get_results(cp)
+        
+        
+        ℓ  = collect(2:ℓmax -1)
+        ℓ′ = collect(2:ℓmax′-1)
+        α = (10^6*cp.TCMB)^2
+        toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
+    
+        Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,Aϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
+    
+        return (;
+            map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
+                Symbol(k) => (;
+                    map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
+                        Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
+                    end..., 
+                    ϕϕ = Cℓϕϕ
+                )
+            end...,
+            params = (;params...)
+        )
+    
+    end)
 
 end
 
 @doc """
-	load_camb_Cℓs(;path_prefix, custom_tensor_params=nothing, 
-		unlensed_scalar_postfix, unlensed_tensor_postfix, lensed_scalar_postfix, lenspotential_postfix)
-	
+    load_camb_Cℓs(;path_prefix, custom_tensor_params=nothing, 
+        unlensed_scalar_postfix, unlensed_tensor_postfix, lensed_scalar_postfix, lenspotential_postfix)
+    
 Load some Cℓs from CAMB files. 
 
 `path_prefix` specifies the prefix for the files, which are then expected to
@@ -187,7 +187,7 @@ tensors.
 """
 function load_camb_Cℓs(;
     path_prefix,
-	custom_tensor_params = nothing,
+    custom_tensor_params = nothing,
     unlensed_scalar_postfix = "scalCls.dat",
     unlensed_tensor_postfix = "tensCls.dat",
     lensed_scalar_postfix   = "lensedCls.dat",
@@ -219,7 +219,7 @@ function load_camb_Cℓs(;
     lensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
 
     if custom_tensor_params != nothing
-		tensor = camb(;custom_tensor_params...).tensor
+        tensor = camb(;custom_tensor_params...).tensor
     else
         tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(unlensed_tensor_filename,skipstart=1)[2:end,1:5])))
         ℓ = pop!(tensor,:ℓ)
@@ -228,9 +228,9 @@ function load_camb_Cℓs(;
         end
         tensor = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
     end
-	
-	unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
-	total          = (;(k=>lensed_scalar[k]+tensor[k]   for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
+    
+    unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
+    total          = (;(k=>lensed_scalar[k]+tensor[k]   for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
     
     @namedtuple(unlensed_scalar,tensor,lensed_scalar,unlensed_total,total)
     
@@ -240,8 +240,8 @@ end
 ### noise
 
 @doc doc"""
-	noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
-	
+    noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
+    
 Compute the (:TT,:EE,:BB,:TE) noise power spectra given white noise + 1/f.
 Polarization noise is scaled by $\sqrt{2}$ relative to `μKarcminT`. `beamFWHM` is
 in arcmin.
@@ -251,20 +251,20 @@ function noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
     Bℓ = beamCℓs(beamFWHM=beamFWHM, ℓmax=ℓmax)[ℓ]
     Nℓ1f = @. 1 + (ℓknee/ℓ)^αknee
 
-	return (;
-		map([:TT,:EE,:BB]) do x
-			x => InterpolatedCℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) ./ Bℓ .* Nℓ1f)
-		end...,
-		TE = InterpolatedCℓs(ℓ, zeros(ℓmax-1))
-	)
+    return (;
+        map([:TT,:EE,:BB]) do x
+            x => InterpolatedCℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) ./ Bℓ .* Nℓ1f)
+        end...,
+        TE = InterpolatedCℓs(ℓ, zeros(ℓmax-1))
+    )
 end
 
 @doc doc"""
-	beamCℓs(;beamFWHM, ℓmax=8000)
-	
+    beamCℓs(;beamFWHM, ℓmax=8000)
+    
 Compute the beam power spectrum, often called $W_\ell$. A map should be
 multiplied by the square root of this.
 """
 function beamCℓs(;beamFWHM, ℓmax=8000)
-	InterpolatedCℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))
+    InterpolatedCℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))
 end
