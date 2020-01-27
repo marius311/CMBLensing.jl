@@ -113,6 +113,7 @@ end
 
 # FlatIEBCov arithmetic
 *(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
++(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
 *(La::F, Lb::F) where {F<:FlatIEBCov} = F(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
 +(La::F, Lb::F) where {F<:FlatIEBCov} = F(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
 +(L::FlatIEBCov, U::UniformScaling{<:Scalar}) = FlatIEBCov(@SMatrix[(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
