@@ -108,7 +108,7 @@ end
 
 ### camb interface (via Python/pycamb)
 
-function camb(;
+@memoize function camb(;
     ℓmax = 6000, 
     r = 0.2, ωb = 0.0224567, ωc = 0.118489, τ = 0.055, Σmν = 0.06,
     Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
