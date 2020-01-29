@@ -42,8 +42,8 @@ end
 # (this just involves picking out one block of δf̃ϕ_δfϕ)
 δLf_δϕ(f, ϕ, ::Type{L}=LenseFlow) where {L} = δLf_δϕ(f, L(ϕ))
 δLf_δϕ(f, L::LenseOp) = FuncOp(
-    op  = g -> (δf̃ϕ_δfϕ(L,f,f)  * FieldTuple(g,zero(L)))[2],
-    opᴴ = g -> (δf̃ϕ_δfϕ(L,f,f)' * FieldTuple(g,zero(L)))[2]
+    op  = g -> (δf̃ϕ_δfϕ(L,f,f)  * FΦTuple(g,zero(getϕ(L))))[2],
+    opᴴ = g -> (δf̃ϕ_δfϕ(L,f,f)' * FΦTuple(g,zero(getϕ(L))))[2]
 )
 
 

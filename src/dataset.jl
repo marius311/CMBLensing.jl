@@ -173,10 +173,15 @@ function load_sim_dataset(;
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
-        Cf′ = Diagonal(diag(Cf()) .+ σ²len)
-        D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf()))
+        D = ParamDependentOp(
+            function (mem;r=rfid)
+                Cfr = Cf(mem,r=r)
+                mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
+            end,
+            similar(Cf())
+        )
     end
-    
+      
     # simulate data
     if (seed != nothing); seed!(seed); end
     if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
