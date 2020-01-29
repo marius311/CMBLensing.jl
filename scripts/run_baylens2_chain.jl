@@ -64,7 +64,7 @@ merge!(args, @match args["configuration"] begin
     end
     "C" => begin
         if !(args["rfid"] in [0,0.01,0.02])
-            @warn "rfid=$(args["rfid"]) inconsistent with configuration B"
+            @warn "rfid=$(args["rfid"]) inconsistent with configuration C"
         end
         Dict(
             "pol"               => :P,
@@ -97,7 +97,7 @@ end
 
 
 @info "Loading dataset..."
-@unpack ds = @time load_sim_dataset(
+@unpack f, f̃, ϕ, ds = @time load_sim_dataset(
     Nside             = args["Nside"],
     T                 = args["T"],
     θpix              = args["θpix"], 
@@ -181,7 +181,7 @@ if !isinteractive()
         ϕstart = args["ϕstart"],
         Nϕ_fac = args["Nϕ_fac"],
 
-        wf_kwargs   = (tol=1e-1, nsteps=500),
+        wf_kwargs   = (tol=1e-1, nsteps=200),
         symp_kwargs = args["symp_kwargs"],
         MAP_kwargs  = (αmax=0.3, nsteps=5),
         
