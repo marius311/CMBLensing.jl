@@ -107,6 +107,7 @@ function load_sim_dataset(;
     seed = nothing,
     D = nothing,
     G = nothing,
+    Nϕ_fac = 2,
     ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # can override any of these simulated fields
     L = LenseFlow,
     ∂mode = fourier∂
@@ -173,10 +174,15 @@ function load_sim_dataset(;
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
-        Cf′ = Diagonal(diag(Cf()) .+ σ²len)
-        D = ParamDependentOp((mem;r=rfid)->(mem .= sqrt(Cf′ * pinv(Cf(mem,r=r)))), similar(Cf()))
+        D = ParamDependentOp(
+            function (mem;r=rfid)
+                Cfr = Cf(mem,r=r)
+                mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
+            end,
+            similar(Cf())
+        )
     end
-    
+      
     # simulate data
     if (seed != nothing); seed!(seed); end
     if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
@@ -193,7 +199,7 @@ function load_sim_dataset(;
     # with the DataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ/2
+        Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
         G = ParamDependentOp((;Aϕ=1)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
     end

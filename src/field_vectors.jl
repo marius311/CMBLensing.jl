@@ -45,9 +45,13 @@ for f in (:/, :\, :*)
 end
 
 
-# a few definitions which either dont work, aren't type-stable, or aren't
-# differentiable unless we define them by hand here:
-*(D::DiagOp, v::FieldVector) = Ref(D) .* v
+
+
+
+# this makes Vector{Diagonal}' * Vector{Field} work right
+dot(D::DiagOp{<:Field{B}}, f::Field) where {B} = conj(D.diag) .* B(f)
+
+# needed since v .* f is not type stable
 *(v::FieldOrOpVector, f::Field) = @SVector[v[1]*f, v[2]*f]
 *(v::FieldOrOpVector, w::FieldOrOpRowVector) = @SMatrix[v[1]*w[1] v[1]*w[2]; v[2]*w[1] v[2]*w[2]]
 *(f::Field, v::FieldOrOpVector) = @SVector[f*v[1], f*v[2]]

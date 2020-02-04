@@ -213,7 +213,7 @@ function MAP_marg(
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
-    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ)) # fix needing to get zero(ɸ) this way
+    ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     tr = []
 
     for i=1:nsteps

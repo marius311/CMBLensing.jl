@@ -147,6 +147,7 @@ function sample_joint(
     ϕstart = 0,
     θrange = NamedTuple(),
     θstart = nothing,
+    Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
     wf_kwargs = (tol=1e-1, nsteps=500),
     nhmc = 1,
@@ -194,7 +195,7 @@ function sample_joint(
         chains = @ondemand(FileIO.load)(chains,"chains")
     end
     
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac; end
     
     swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
     
@@ -206,12 +207,12 @@ function sample_joint(
             
             append!.(chains, pmap(last.(chains)) do state
                 
-                local f°, f̃, pϕ°, ΔH, accept
                 @unpack i,ϕ°,f,θ,seed = state
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 copy!(Random.GLOBAL_RNG, seed)
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
+                pϕ°, ΔH, accept = nothing, nothing, nothing
                 L = ds.L
                 lnPθ = nothing
                 chain = []
