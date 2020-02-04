@@ -137,13 +137,32 @@ A simple 1D linear interpolation code which is fully Zygote differentiable in
 either `xdat`, `ydat`, or the evaluation point `x`.
 """
 function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapolation_bc=NaN)
+    
     @assert issorted(xdat)
+    @assert extrapolation_bc isa Number || extrapolation_bc == :line
+    
     m = diff(ydat) ./ diff(xdat)
+    
     function (x::Number)
-        if x<xdat[1] || x>=xdat[end]; return extrapolation_bc; end
-        # i such that x is between xdat[i] and xdat[i+1]
-        i = findfirst(>(x), xdat) - 1
+        
+        if x<xdat[1] || x>=xdat[end]
+            if extrapolation_bc isa Number
+                return extrapolation_bc
+            elseif extrapolation_bc == :line
+                if x<xdat[1]
+                    i = 1 
+                elseif x>=xdat[end]
+                    i =length(m)
+                end
+            end
+        else
+            # sets i such that x is between xdat[i] and xdat[i+1]
+            i = findfirst(>(x), xdat) - 1
+        end
+        
         # do interpolation
         ydat[i] + m[i]*(x-xdat[i])
+        
     end
+    
 end

@@ -81,7 +81,7 @@ end
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
     InterpolatedCℓs(ℓout, 
         if all(Cℓ .> 0)
-            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
+            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = :line)
             @. (exp(itp(log(ℓout))))
         else
             LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
