@@ -32,7 +32,7 @@ args = parse_args(ARGS, s)
 
 # configurations from the paper
 merge!(args, @match args["configuration"] begin
-    "A" => begin
+    "2PARAM" => begin
         Dict(
             "pol"               => :P,
             "Nside"             => 256,
@@ -46,9 +46,9 @@ merge!(args, @match args["configuration"] begin
             "symp_kwargs"       => [(N=25, ϵ=0.02)]
         )
     end
-    "B" => begin
+    "MANY" => begin
         if !(args["rfid"] in [0,0.02,0.04])
-            @warn "rfid=$(args["rfid"]) inconsistent with configuration B"
+            @warn "rfid=$(args["rfid"]) inconsistent with configuration $(args["configuration"])"
         end
         Dict(
             "pol"               => :P,
@@ -62,9 +62,9 @@ merge!(args, @match args["configuration"] begin
             "symp_kwargs"       => [(N=25, ϵ=0.02)]
         )
     end
-    "C" => begin
+    "BIG" => begin
         if !(args["rfid"] in [0,0.01,0.02])
-            @warn "rfid=$(args["rfid"]) inconsistent with configuration C"
+            @warn "rfid=$(args["rfid"]) inconsistent with configuration $(args["configuration"])"
         end
         Dict(
             "pol"               => :P,
