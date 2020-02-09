@@ -39,7 +39,7 @@ using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape,
 
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈,
-    adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
+    abs, adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
