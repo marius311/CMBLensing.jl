@@ -25,7 +25,6 @@ The best place to get started is to read the [documentation](https://cosmicmar.c
 
 Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). You can also find the notebooks in [this folder](https://github.com/marius311/CMBLensing.jl/tree/gh-pages/src) if you want to run them locally (which will usually lead to higher performance).
 
-> Note: Running the notebooks online with Binder is currently not working due to new memory restrictions. See [this issue](https://github.com/marius311/CMBLensing.jl/issues/2) for progress fixing this. 
 
 ## Installation
 
