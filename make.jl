@@ -2,6 +2,8 @@
 cd(dirname(@__FILE__))
 using Pkg
 pkg"activate ."
+pkg"dev .."
+pkg"instantiate"
 
 ##
 
