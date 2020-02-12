@@ -100,7 +100,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         # logarithmically reaching the toleranace limit or doing the maximum
         # number of steps
         progress_nsteps = round(Int,100*(i-1)/(nsteps-1))
-        progress_tol = round(Int,100^((log10(res/res₀)) / log10(tol/res₀)))
+        progress_tol = round(Int,100^min(1, (log10(res/res₀)) / log10(tol/res₀)))
         ProgressMeter.update!(prog, max(progress_nsteps,progress_tol))
     end
     ProgressMeter.finish!(prog)
