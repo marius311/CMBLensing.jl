@@ -215,9 +215,14 @@ function (L::ParamDependentOp)(mem=nothing;θ...)
         mem isa typeof(L.op) || throw(ArgumentError("Preallocated memory passed to ParamDependentOp should be $(typeof(L.op)), not $(typeof(mem))."))
     end
     if depends_on(L,θ)
-        dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+        
+        # filtering out non-dependent parameters disabled until I can find a fix to:
+        # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
+        # 
+        # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+        
         # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
-        L.recompute_function((mem==nothing ? () : (mem,))...; dependent_θ...) :: typeof(L.op)
+        L.recompute_function((mem==nothing ? () : (mem,))...; θ...) :: typeof(L.op)
     else
         L.op
     end 
