@@ -88,7 +88,6 @@ include("flowops.jl")
 
 # lensing
 include("lenseflow.jl")
-# include("quasilenseflow.jl")
 include("powerlens.jl")
 
 # flat-sky maps
