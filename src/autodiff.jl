@@ -71,16 +71,21 @@ end
     M⁻¹ = pinv(M)
     M⁻¹, Δ->(-M⁻¹*Δ*M⁻¹,) 
     # todo, switch to using the correct adjoint, given by:
+    # actually, is this right??
     # M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
 end
 
 # without this we get a segfault for I + Hessian(ϕ) like in the LenseFlow velocity
 @adjoint +(I::UniformScaling, M::FieldOrOpMatrix) = I+M, Δ->(nothing, Δ)
 
+# Zygote/lib/array.jl:311 would suggest this should be:
+#    M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
+# I haven't derived their version, but numerically the one gives the right answer where as their doesn't...
+@adjoint function pinv(L::Union{LinOp, FieldOrOpMatrix})
+    L⁻¹ = pinv(L)
+    L⁻¹, Δ->(-L⁻¹' * Δ * L⁻¹',)
+end
 
-# eventually we need to implement these to allow gradients w.r.t. θ:
-# @adjoint pinv(D::LinOp) = pinv(D), Δ->nothing
-# @adjoint (ds::DataSet)(args...; kwargs...) = ds(args...; kwargs...), Δ->nothing
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
 @adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
 
