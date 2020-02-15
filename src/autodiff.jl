@@ -12,11 +12,16 @@ Zygote.accum(a::Field, b::Field) = a+b
 # explicilty is because of:
 # https://discourse.julialang.org/t/how-to-deal-with-zygote-sometimes-pirating-its-own-adjoints-with-worse-ones
 
-# the main ℝᴺ -> ℝ¹ operations
+
+# ℝᴺ -> ℝ¹ 
 @adjoint sum(f::Field{B}) where {B} = sum(f), Δ -> (Δ*one(f),)
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
+# ℝᴺˣᴺ -> ℝ¹ 
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
+@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
+
 
 # basis conversion
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
@@ -25,7 +30,6 @@ Zygote.accum(a::Field, b::Field) = a+b
 @adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
 @adjoint *(a::Real, f::Field{B}) where {B} = a*f, Δ -> (f'*Δ, B(Δ*a))
 @adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ), a*Δ) # need to use trace here since it unfolds the diagonal
-
 
 
 # operators
@@ -66,16 +70,7 @@ end
     z, back
 end
 
-# see Zygote/lib/array.jl:311
-@adjoint function pinv(M::FieldOrOpMatrix) 
-    M⁻¹ = pinv(M)
-    M⁻¹, Δ->(-M⁻¹*Δ*M⁻¹,) 
-    # todo, switch to using the correct adjoint, given by:
-    # actually, is this right??
-    # M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
-end
-
-# without this we get a segfault for I + Hessian(ϕ) like in the LenseFlow velocity
+# without this we get a segfault for I + Hessian(ϕ), which appears in the LenseFlow velocity
 @adjoint +(I::UniformScaling, M::FieldOrOpMatrix) = I+M, Δ->(nothing, Δ)
 
 # Zygote/lib/array.jl:311 would suggest this should be:
@@ -86,8 +81,6 @@ end
     L⁻¹, Δ->(-L⁻¹' * Δ * L⁻¹',)
 end
 
-@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
 
 
 # some stuff which arguably belongs in Zygote or ChainRules
@@ -100,3 +93,14 @@ end
     broadcast(\, x, y), Δ -> (nothing, unbroadcast(x, @. -Δ*y/x^2), unbroadcast(y, @. Δ/x))
 
 @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
+
+
+
+# finite difference Hessian using Zygote gradients
+function hessian(f, xs::Vector; ε=1f-3)
+    hcat(map(1:length(xs)) do i
+        xs₊ = copy(xs); xs₊[i] += ε
+        xs₋ = copy(xs); xs₋[i] -= ε
+        (gradient(f, xs₊)[1] .- gradient(f, xs₋)[1]) ./ (2ε)
+    end...)
+end

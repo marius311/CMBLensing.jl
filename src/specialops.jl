@@ -328,16 +328,17 @@ Create a ParamDependentOp which has a keyword argument with name specified by
     
 where you can now do `Cfb(A=[1,2])` to compute a new operator which scales the
 original `Cf` by `1` in the bin `[500,1000]`, by `2` in the bin `[1000,1500]`,
-and is zero elsewhere.
+and leaves it unmodified elsewhere.
 
 The resulting operator is differentiable in the bandpower arguments.
 """
 macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
     quote
-        let Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+        let T = eltype($(esc(C₀))), Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
                 MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* $(esc(C₀))
             end
-            ParamDependentOp((;$(esc(A.value))=ones(length(Cbins)),_...) -> sum($(esc(A.value)) .* Cbins))
+            ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> $(esc(C₀)) + sum(T.($(esc(A.value)) .- 1) .* Cbins))
+            # ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> sum(T.($(esc(A.value))) .* Cbins))
         end
     end
 end
