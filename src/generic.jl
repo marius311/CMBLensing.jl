@@ -97,11 +97,12 @@ abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} e
 size(::Union{ImplicitOp,ImplicitField}) = ()
 size(::Union{ImplicitOp,ImplicitField},i) = nothing
 length(::Union{ImplicitOp,ImplicitField}) = 0
+checksquare(::ImplicitOp) = nothing
+
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
 
 diag(L::ImplicitOp) = error("diag(L) not implemented for L::$(typeof(L))")
-tr(L::ImplicitOp) = error("tr(L) not implemented for L::$(typeof(L))")
 
 
 
@@ -112,11 +113,13 @@ show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,pa
 # this is the main function ImplicitOps should specialize if this default behavior isn't enough:
 show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
-# all CMBLensing operators are then either Diagonals or ImplicitOps
-# ImplicitOrAdjOp are things for which algebra is done lazily, including Diagonal{<:ImplicitField}
+# All CMBLensing operators are then either Diagonals or ImplicitOps.
+# ImplicitOrAdjOp are things for which algebra is done lazily. This used to
+# include Diagonal{<:ImplicitField}, but that was leading so some really
+# annoying ambiguities, so its removed for now.
 const DiagOp{F<:Field,T} = Diagonal{T,F}
 const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
-const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}, DiagOp{<:ImplicitField{B,S,P}}}
+const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}}
 const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
 ### Scalars

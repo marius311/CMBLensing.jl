@@ -49,8 +49,8 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: diag, dot, isnan, ldiv!, logdet, mul!, norm, pinv,
-    StructuredMatrixStyle, structured_broadcast_alloc, tr
+import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
+    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
 import Statistics: std
 

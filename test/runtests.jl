@@ -353,12 +353,25 @@ end
             end
             
             if f isa FlatS0
+                
                 @testset "logdet" begin
                     @test gradient(x->logdet(x*Diagonal(Map(f))),     1)[1] ≈ size(Map(f))[1]
                     @test gradient(x->logdet(x*Diagonal(Fourier(f))), 1)[1] ≈ size(Map(f))[1]
                     L = ParamDependentOp((;x=1)->x*Diagonal(Fourier(f)))
                     @test gradient(x->logdet(L(x=x)), 1)[1] ≈ size(Map(f))[1]
                 end
+                
+                @test gradient(x -> norm(x*Fourier(f)), 1)[1] ≈ norm(f)
+                @test gradient(x -> norm(x*Map(f)), 1)[1] ≈ norm(f)
+
+                L₀ = Diagonal(Map(f))
+                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
+                L₀ = Diagonal(Fourier(f))
+                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
+
+                @test gradient(x -> norm((x*Diagonal(Map(f)))*f), 1)[1] ≈ norm(Diagonal(Map(f))*f)
+                @test gradient(x -> norm((x*Diagonal(Fourier(f)))*f), 1)[1] ≈ norm(Diagonal(Fourier(f))*f)
+
             end
         
         end
