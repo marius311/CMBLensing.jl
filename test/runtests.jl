@@ -351,6 +351,15 @@ end
                 @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
                 
             end
+            
+            if f isa FlatS0
+                @testset "logdet" begin
+                    @test gradient(x->logdet(x*Diagonal(Map(f))),     1)[1] ≈ size(Map(f))[1]
+                    @test gradient(x->logdet(x*Diagonal(Fourier(f))), 1)[1] ≈ size(Map(f))[1]
+                    L = ParamDependentOp((;x=1)->x*Diagonal(Fourier(f)))
+                    @test gradient(x->logdet(L(x=x)), 1)[1] ≈ size(Map(f))[1]
+                end
+            end
         
         end
         
@@ -361,6 +370,7 @@ end
         @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
         @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
     end
+    
     
 end
 

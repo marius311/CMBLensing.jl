@@ -306,3 +306,33 @@ pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a
 adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
 adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to,L.V), adapt(to,L.W))
 diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
+
+
+
+
+### BandpowerParamOp
+
+"""
+    macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
+        
+Create a ParamDependentOp which has a keyword argument with name specified by
+`A` which controls the amplitude of bandpowers of `C₀` in bins specified by
+`ℓedges` which have smoothed edges given by `Δℓ_bin_taper`. E.g.
+
+    Cfb = @BandpowerParamOp(Cf, [500,1000,1500], :A)
+    
+where you can now do `Cfb(A=[1,2])` to compute a new operator which scales the
+original `Cf` by `1` in the bin `[500,1000]`, by `2` in the bin `[1000,1500]`,
+and is zero elsewhere.
+
+The resulting operator is differentiable in the bandpower arguments.
+"""
+macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
+    quote
+        let Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+                MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* $(esc(C₀))
+            end
+            ParamDependentOp((;$(esc(A.value))=ones(length(Cbins)),_...) -> sum($(esc(A.value)) .* Cbins))
+        end
+    end
+end

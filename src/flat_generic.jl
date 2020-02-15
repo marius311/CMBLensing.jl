@@ -98,7 +98,7 @@ logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(com
 logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El)))) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl)))))
 ### traces
 tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
-tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Tx)))
+tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Ix)))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
 
 

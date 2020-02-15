@@ -1,6 +1,6 @@
     
 # lazy outer products of Fields, which comes up alot in automatic differentiation
-*(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x,y.parent)
+*(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x, y.parent)
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
@@ -23,6 +23,10 @@ Zygote.accum(a::Field, b::Field) = a+b
 
 # algebra
 @adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
+@adjoint *(a::Real, f::Field{B}) where {B} = a*f, Δ -> (f'*Δ, B(Δ*a))
+@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ), a*Δ) # need to use trace here since it unfolds the diagonal
+
+
 
 # operators
 @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D*v, Δ->(B(Δ)*B(v)', B′(D'*Δ))
@@ -75,9 +79,10 @@ end
 
 
 # eventually we need to implement these to allow gradients w.r.t. θ:
-@adjoint pinv(D::LinOp) = pinv(D), Δ->nothing
-@adjoint logdet(L::LinOp, θ) = logdet(L,θ), Δ->nothing
-@adjoint (ds::DataSet)(args...; kwargs...) = ds(args...; kwargs...), Δ->nothing
+# @adjoint pinv(D::LinOp) = pinv(D), Δ->nothing
+# @adjoint (ds::DataSet)(args...; kwargs...) = ds(args...; kwargs...), Δ->nothing
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
+@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
 
 
 # some stuff which arguably belongs in Zygote or ChainRules
