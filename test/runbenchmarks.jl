@@ -52,6 +52,7 @@ using Base.Broadcast: broadcastable
 using Crayons
 using DelimitedFiles
 using LibGit2
+using LinearAlgebra
 using PrettyTables
 using Printf
 using Test
@@ -103,9 +104,9 @@ if args["benchmarks"]
 Cℓ = camb()
 timing = []
 
-for (s,use) in [(0,:I),(2,:P)]
+for (s,pol) in [(0,:I),(2,:P)]
     
-    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=T, use=use, storage=storage, Cℓ=Cℓ);
+    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=T, pol=pol, storage=storage, Cℓ=Cℓ);
     f°,ϕ° = mix(f,ϕ,ds₀)
     Lϕ = cache(LenseFlow(ϕ),f)
     
@@ -113,7 +114,7 @@ for (s,use) in [(0,:I),(2,:P)]
         "Spin-$s Cache L" => @belapsed cache(LenseFlow($ϕ), $f);
         "Spin-$s L"       => @belapsed $Lϕ  * $f;
         "Spin-$s L†"      => @belapsed $Lϕ' * $f;
-        "Spin-$s (∇L)†"   => @belapsed $(δf̃ϕ_δfϕ(Lϕ,f,f)') * $(FΦTuple(f,ϕ));
+        "Spin-$s (∇L)†"   => @belapsed gradient(ϕ->norm($Lϕ(ϕ)*$f), $ϕ);
         "Spin-$s lnP"     => @belapsed                 lnP(:mix, $f°, $ϕ°, $ds₀);
         "Spin-$s ∇lnP"    => @belapsed gradient((f,ϕ)->lnP(:mix,  f,   ϕ,  $ds₀), $f°, $ϕ°);
     ])
