@@ -334,11 +334,10 @@ The resulting operator is differentiable in the bandpower arguments.
 """
 macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
     quote
-        let T = eltype($(esc(C₀))), Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
-                MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* $(esc(C₀))
+        let C₀ = $(esc(C₀)), T = real(eltype(C₀)), Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+                MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* C₀
             end
             ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> $(esc(C₀)) + sum(T.($(esc(A.value)) .- 1) .* Cbins))
-            # ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> sum(T.($(esc(A.value))) .* Cbins))
         end
     end
 end

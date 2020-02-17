@@ -4,6 +4,8 @@
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
+# this may create a LazyBinaryOp, unlike Zygote's
+Zygote.accum(a::LinOp, b::LinOp) = a+b
 
 ## Fields
 
@@ -70,8 +72,8 @@ end
     z, back
 end
 
-# without this we get a segfault for I + Hessian(ϕ), which appears in the LenseFlow velocity
-@adjoint +(I::UniformScaling, M::FieldOrOpMatrix) = I+M, Δ->(nothing, Δ)
+# don't know why Zygote's default adjoint for this breaks in various ways but this is simple enough
+@adjoint +(I::UniformScaling, L::Union{LinOp, FieldOrOpMatrix}) = I+L, Δ->(nothing, Δ)
 
 # Zygote/lib/array.jl:311 would suggest this should be:
 #    M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
@@ -81,6 +83,7 @@ end
     L⁻¹, Δ->(-L⁻¹' * Δ * L⁻¹',)
 end
 
+@adjoint sqrt(L::DiagOp) = (z=sqrt(L);), Δ -> ((pinv(z)/2)'*Δ,)
 
 
 # some stuff which arguably belongs in Zygote or ChainRules
@@ -98,9 +101,13 @@ end
 
 # finite difference Hessian using Zygote gradients
 function hessian(f, xs::Vector; ε=1f-3)
-    hcat(map(1:length(xs)) do i
+    hcat(finite_difference(xs->gradient(f,xs)[1],xs,ε=ε)...)
+end
+
+function finite_difference(f, xs::Vector; ε=1f-3)
+    map(1:length(xs)) do i
         xs₊ = copy(xs); xs₊[i] += ε
         xs₋ = copy(xs); xs₋[i] -= ε
-        (gradient(f, xs₊)[1] .- gradient(f, xs₋)[1]) ./ (2ε)
-    end...)
+        (f(xs₊) .- f(xs₋)) ./ (2ε)
+    end
 end
