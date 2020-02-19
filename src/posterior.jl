@@ -57,7 +57,7 @@ function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     @unpack Cn,Cf,Cϕ,M,P,B,L,d = ds(;θ...)
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
-    Δ = d - M*P*B*f̃
+    Δ = d - M*B*f̃ # took out P, todo: figure out why it was causing Zygote error
     -1/2f0 * (
         Δ'*pinv(Cn)*Δ + logdet(ds.Cn,θ) +
         f'*pinv(Cf)*f + logdet(ds.Cf,θ) +

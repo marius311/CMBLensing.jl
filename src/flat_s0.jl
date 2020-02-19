@@ -93,14 +93,14 @@ dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix)
 function white_noise(::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
     FlatMap{P}(randn!(basetype(M){T}(undef,N,N)))
 end
-function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
-    Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / fieldinfo(P).Ωpix)
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
+    Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
 end
 
 
-function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}) where {P}
+function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
     ii = sortperm(fieldinfo(L.diag).kmag[:])
-    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii] * fieldinfo(P).Ωpix, concrete=false)
+    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii] * units, concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
