@@ -335,10 +335,13 @@ The resulting operator is differentiable in the bandpower arguments.
 macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
     quote
         # Cbins here is made a tuple instead of an Array so that `adapt` works recursively through it
-        let C₀ = $(esc(C₀)), T = real(eltype(C₀)), Cbins = tuple(map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+        let C₀ = $(esc(C₀)), Cbins = tuple(map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
                 MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* C₀
             end...)
-            ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> $(esc(C₀)) + sum(T.(tuple($(esc(A.value))...) .- 1) .* Cbins))
+            ParamDependentOp(function (;$(esc(A.value))=ones(Int,length(Cbins)),_...)
+                T = real(eltype(C₀))
+                C₀ + sum(T.(tuple($(esc(A.value))...) .- 1) .* Cbins)
+            end)
         end
     end
 end
