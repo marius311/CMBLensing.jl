@@ -306,7 +306,7 @@ pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a
 *(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
 \(L::OuterProdOp{<:LinOp,<:LinOp}, f::Field) = L.W' \ (L.V \ f)
 adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
-adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to,L.V), adapt(to,L.W))
+adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
 diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
 *(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D)*L.V, L.W)
 *(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W*diag(D))
@@ -334,10 +334,11 @@ The resulting operator is differentiable in the bandpower arguments.
 """
 macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
     quote
-        let C₀ = $(esc(C₀)), T = real(eltype(C₀)), Cbins = map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+        # Cbins here is made a tuple instead of an Array so that `adapt` works recursively through it
+        let C₀ = $(esc(C₀)), T = real(eltype(C₀)), Cbins = tuple(map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
                 MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* C₀
-            end
-            ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> $(esc(C₀)) + sum(T.($(esc(A.value)) .- 1) .* Cbins))
+            end...)
+            ParamDependentOp((;$(esc(A.value))=ones(Int,length(Cbins)),_...) -> $(esc(C₀)) + sum(T.(tuple($(esc(A.value))...) .- 1) .* Cbins))
         end
     end
 end

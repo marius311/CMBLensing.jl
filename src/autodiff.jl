@@ -101,7 +101,7 @@ end
 
 # finite difference Hessian using Zygote gradients
 function hessian(f, xs::Vector; ε=1f-3)
-    hcat(finite_difference(xs->gradient(f,xs)[1],xs,ε=ε)...)
+    hcat(finite_difference(xs->vcat(gradient(f,xs)[1]...),xs,ε=ε)...)
 end
 
 function finite_difference(f, xs::Vector; ε=1f-3)
