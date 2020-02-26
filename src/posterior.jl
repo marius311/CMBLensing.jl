@@ -74,23 +74,27 @@ end
 
 ### marginal posterior gradients
 
-δlnP_δϕ(ϕ, ds, ::Type{L}=LenseFlow; kwargs...) where {L} = δlnP_δϕ(L(ϕ), ds; kwargs...)
+δlnP_δϕ(ϕ, ds; kwargs...) where {L} = δlnP_δϕ(ds.L(ϕ), ds; kwargs...)
 
-function δlnP_δϕ(L::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
+function δlnP_δϕ(Lϕ::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
     
     @unpack d,P,M,B,Cn,Cf,Cn̂,G = ds
     
-    if G!=IdentityOp; @warn "δlnP_δϕ does not currently handle the G mixing matrix"; end
-
-    function gQD(L, ds)
-        y = B' * M' * P' * (Σ(L, ds) \ ds.d)
-        y * δLf_δϕ(Cf*(L'*y), L)
+    if !in(G,(1,IdentityOp))
+        @warn "δlnP_δϕ does not currently handle the G mixing matrix"
     end
 
-    det_sims = @showprogress pmap(1:Nmc_det) do i gQD(L, resimulate(ds, f̃=L*simulate(ds.Cf))) end
+    function gQD(Lϕ, ds)
+        y = B' * M' * P' * (Σ(Lϕ, ds) \ ds.d)
+        y * δLf_δϕ(Cf*(Lϕ'*y), Lϕ)
+    end
 
-    g = gQD(L, ds) - mean(det_sims)
+    det_sims = @showprogress pmap(1:Nmc_det) do i 
+        gQD(Lϕ, resimulate(ds, f̃=Lϕ*simulate(ds.Cf))) 
+    end
 
-    return_sims ? (g, det_sims) : g 
+    g = gQD(Lϕ, ds) - mean(det_sims)
+
+    return_sims ? (g, det_sims) : g
 
 end

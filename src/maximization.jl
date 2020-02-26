@@ -51,8 +51,8 @@ end
 
 
 @doc doc"""
-    Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
-    Σ(L::LenseOp, ds) 
+    Σ(ϕ,           ds)
+    Σ(Lϕ::LenseOp, ds) 
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
 applied and inverted.
@@ -201,7 +201,6 @@ $\mathcal{P}(\phi,\theta\,|\,d)$.
 function MAP_marg(
     ds;
     ϕstart = nothing,
-    L = LenseFlow,
     Nϕ = nothing,
     nsteps = 10, 
     Ncg = 500,
@@ -211,6 +210,7 @@ function MAP_marg(
     )
     
     @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
+    T = eltype(Cf)
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
@@ -222,7 +222,7 @@ function MAP_marg(
 
     for i=1:nsteps
         g, det_sims = δlnP_δϕ(ϕ, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
-        ϕ += α * Hϕ⁻¹ * g
+        ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr,@dictpack(i,g,det_sims,ϕ))
     end
     
