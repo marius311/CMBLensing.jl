@@ -78,12 +78,13 @@ function δlnP_δϕ(
     ϕ, ds; 
     previous_state=nothing,
     Nsims=(previous_state==nothing ? 50 : previous_state.Nsims), 
+    weights=:unlensed,
     return_state=false,
     progress=false,
     conjgrad_kwargs=()
     )
     
-    @unpack d,P,M,B,Cn,Cf,Cϕ,Cn̂,G,L = ds
+    @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds
     Lϕ = L(ϕ)
     
     if !in(G,(1,IdentityOp))
@@ -104,6 +105,8 @@ function δlnP_δϕ(
         resimulate(ds, f=f, ϕ=ϕ, n=n)
     end
 
+    W = (weights == :unlensed) ? 1 : (Cf̃ * pinv(Cf))
+
     # gradient of the quadratic piece of the likelihood
     function get_gQD(Lϕ, ds, f_wf_guess)
         f_wf = argmaxf_lnP(
@@ -112,7 +115,7 @@ function δlnP_δϕ(
             guess = (f_wf_guess==nothing ? 0d : f_wf_guess), 
             conjgrad_kwargs = conjgrad_kwargs
         )
-        g = -(Lϕ' \ (Cf \ f_wf)) * δLf_δϕ(f_wf, Lϕ)
+        g = -((Lϕ' \ (Cf \ f_wf))) * δLf_δϕ(W * f_wf, Lϕ)
         @namedtuple(g, f_wf)
     end
 
@@ -121,7 +124,7 @@ function δlnP_δϕ(
 
     # gQD for several simulated datasets, used to compute the gradient of the
     # logdet term via Monte-Carlo
-    gQD_sims = @showprogress pmap(ds_sims, f_wf_sims_guesses) do ds, f_wf_guess
+    gQD_sims = @showprogress (progress ? 1 : Inf) "Hutchinson's method: " pmap(ds_sims, f_wf_sims_guesses) do ds, f_wf_guess
         get_gQD(Lϕ, ds, f_wf_guess)
     end
 

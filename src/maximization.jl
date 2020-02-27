@@ -154,7 +154,7 @@ function MAP_joint(
             (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? NoLensing() : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
+                    conjgrad_kwargs=(tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose)))
                     
             f° = Lϕ * D * f
             lnPcur = lnP(:mix,f°,ϕ,ds)
@@ -206,7 +206,9 @@ function MAP_marg(
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
     α = 0.02,
+    weights = :unlensed, 
     Nsims = 50,
+    progress = :summary,
     )
     
     @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
@@ -222,10 +224,10 @@ function MAP_marg(
     
     state = nothing
     
-    for i=1:nsteps
+    @showprogress (progress==:summary ? 1 : Inf) "MAP_marg: " for i=1:nsteps
         g, state = δlnP_δϕ(
-            ϕ, ds, Nsims=Nsims,
-            progress=true, return_state=true, previous_state=state,
+            ϕ, ds, Nsims=Nsims, weights=weights,
+            progress=(progress==:verbose), return_state=true, previous_state=state,
             conjgrad_kwargs=conjgrad_kwargs
         )
         ϕ -= T(α) * Hϕ⁻¹ * g
