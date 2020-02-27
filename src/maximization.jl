@@ -22,7 +22,7 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
 
-function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, kwargs...)
+function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
@@ -45,26 +45,27 @@ function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, precon
         _      => error("Unrecognized preconditioner='$preconditioner'")
     end
     
-    conjugate_gradient(A_preconditioner, A, b, guess==nothing ? 0*b : guess; kwargs...)
+    conjugate_gradient(A_preconditioner, A, b, (guess==nothing ? 0*b : guess); conjgrad_kwargs...)
     
 end
 
 
 @doc doc"""
-    Σ(ϕ,           ds)
-    Σ(Lϕ::LenseOp, ds) 
+    Σ(ϕ,           ds; conjgrad_kwargs=())
+    Σ(Lϕ::LenseOp, ds; conjgrad_kwargs=())
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
-applied and inverted.
+applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
+`conjugate_gradient`.
 """
-Σ(ϕ, ds) = Σ(ds.L(ϕ),ds)
-Σ(Lϕ::LenseOp, ds) = begin
+Σ(ϕ, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
+Σ(Lϕ::LenseOp, ds; conjgrad_kwargs=()) = begin
 
-    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
+    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
 
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
-        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ B̂*Cf*B̂'), Σ(Lϕ, ds), x, nsteps=100, tol=1e-1)
+        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
 
 end
@@ -203,10 +204,9 @@ function MAP_marg(
     ϕstart = nothing,
     Nϕ = nothing,
     nsteps = 10, 
-    Ncg = 500,
-    cgtol = 1e-1,
+    conjgrad_kwargs = (nsteps=500, tol=1e-1),
     α = 0.02,
-    Nmc_det = 50,
+    Nsims = 50,
     )
     
     @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
@@ -219,11 +219,17 @@ function MAP_marg(
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     tr = []
-
+    
+    state = nothing
+    
     for i=1:nsteps
-        g, det_sims = δlnP_δϕ(ϕ, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
-        ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr,@dictpack(i,g,det_sims,ϕ))
+        g, state = δlnP_δϕ(
+            ϕ, ds, Nsims=Nsims,
+            progress=true, return_state=true, previous_state=state,
+            conjgrad_kwargs=conjgrad_kwargs
+        )
+        ϕ -= T(α) * Hϕ⁻¹ * g
+        push!(tr,@dictpack(i,g,state,ϕ))
     end
     
     return ϕ, tr

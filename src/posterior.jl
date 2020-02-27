@@ -74,27 +74,64 @@ end
 
 ### marginal posterior gradients
 
-δlnP_δϕ(ϕ, ds; kwargs...) where {L} = δlnP_δϕ(ds.L(ϕ), ds; kwargs...)
-
-function δlnP_δϕ(Lϕ::LenseOp, ds; Nmc_det=100, progress=false, return_sims=false)
+function δlnP_δϕ(
+    ϕ, ds; 
+    previous_state=nothing,
+    Nsims=(previous_state==nothing ? 50 : previous_state.Nsims), 
+    return_state=false,
+    progress=false,
+    conjgrad_kwargs=()
+    )
     
-    @unpack d,P,M,B,Cn,Cf,Cn̂,G = ds
+    @unpack d,P,M,B,Cn,Cf,Cϕ,Cn̂,G,L = ds
+    Lϕ = L(ϕ)
     
     if !in(G,(1,IdentityOp))
         @warn "δlnP_δϕ does not currently handle the G mixing matrix"
     end
-
-    function gQD(Lϕ, ds)
-        y = B' * M' * P' * (Σ(Lϕ, ds) \ ds.d)
-        y * δLf_δϕ(Cf*(Lϕ'*y), Lϕ)
+    
+    if (previous_state == nothing)
+        f_sims = [simulate(ds.Cf) for i=1:Nsims]
+        n_sims = [simulate(ds.Cn) for i=1:Nsims]
+        f_wf_sims_guesses = fill(nothing, Nsims)
+        f_wf_guess = nothing
+    else
+        @unpack f_sims, n_sims, f_wf_sims_guesses, f_wf_guess = previous_state
+    end
+        
+    # generate simulated datasets for the current ϕ
+    ds_sims = map(f_sims, n_sims) do f,n
+        resimulate(ds, f=f, ϕ=ϕ, n=n)
     end
 
-    det_sims = @showprogress pmap(1:Nmc_det) do i 
-        gQD(Lϕ, resimulate(ds, f̃=Lϕ*simulate(ds.Cf))) 
+    # gradient of the quadratic piece of the likelihood
+    function get_gQD(Lϕ, ds, f_wf_guess)
+        f_wf = argmaxf_lnP(
+            Lϕ, ds;
+            which = :wf, 
+            guess = (f_wf_guess==nothing ? 0d : f_wf_guess), 
+            conjgrad_kwargs = conjgrad_kwargs
+        )
+        g = -(Lϕ' \ (Cf \ f_wf)) * δLf_δϕ(f_wf, Lϕ)
+        @namedtuple(g, f_wf)
     end
 
-    g = gQD(Lϕ, ds) - mean(det_sims)
+    # gQD for the real data
+    gQD = get_gQD(Lϕ, ds, f_wf_guess)
 
-    return_sims ? (g, det_sims) : g
+    # gQD for several simulated datasets, used to compute the gradient of the
+    # logdet term via Monte-Carlo
+    gQD_sims = @showprogress pmap(ds_sims, f_wf_sims_guesses) do ds, f_wf_guess
+        get_gQD(Lϕ, ds, f_wf_guess)
+    end
+
+    # final total gradient, including prior
+    g = gQD.g - mean(getindex.(gQD_sims,:g)) - Cϕ\ϕ
+
+    if return_state
+        g, @namedtuple(f_sims, n_sims, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
+    else
+        g
+    end
 
 end
