@@ -115,7 +115,7 @@ function MAP_joint(
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    @set! ds.G = 1
+    # @set! ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing

@@ -1,6 +1,6 @@
 using ArgParse, Match
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "--configuration";
     "-T";                      default=Float32;          eval_arg=true
     "--Nside";                 default=128;              arg_type=Int
@@ -16,6 +16,7 @@ s = ArgParseSettings()
     "--filename"
     "--resume";                action=:store_true
     "--symp_kwargs";           default=[(N=25, ϵ=0.01)]; eval_arg=true
+    "--nchains";               default=1;                arg_type=Int
     "--nsamps_per_chain";      default=2000;             arg_type=Int
     "--nlenseflow_ode";        default=10;               arg_type=Int
     "--seed";                  arg_type=Int;
@@ -82,17 +83,47 @@ merge!(args, @match args["configuration"] begin
     c => error("Unrecognized configuration: $c")
 end)
 
+if args["storage"]=="CuArray"
+    using CuArrays
+end
+args["storage"] = eval(Symbol(args["storage"]))
 args["ϕstart"] = args["ϕstart"] == "0" ? 0 : Symbol(args["ϕstart"]);
+
+
+## if running multiple chains & GPUs, set each process to use one GPU
+
+using Distributed
+
+if args["nchains"]>1 && args["storage"]==CuArray
+    
+    using CUDAdrv
+    length(devices()) == args["nchains"] || error("nchains=$(args["nchains"]) but $(length(devices())) GPUs found.")
+    addprocs(length(devices()))
+    @everywhere workers() begin
+        using Pkg
+        # activate the same environment on the workers as the master
+        Pkg.activate($(Pkg.API.Context().env.project_file))
+        using CUDAnative, CuArrays
+        # until the fixes to https://github.com/JuliaGPU/CuArrays.jl/issues/589 hit a release:
+        CuArrays.CURAND.seed!(rand(0:typemax(Int)))
+    end
+
+    # assign devices
+    asyncmap((zip(workers(), devices()))) do (p, d)
+        remotecall_wait(p) do
+            @info "Worker $p uses $d"
+            device!(d)
+        end
+    end
+    
+end
 
 ### load dataset
 
 @info "Loading code..."
-@time begin
-    if args["storage"]=="CuArray"
-        using CuArrays
-    end
-    args["storage"] = eval(Symbol(args["storage"]))
+@time @everywhere begin
     using CMBLensing
+    using CMBLensing: grid_and_sample
 end
 
 
@@ -115,9 +146,8 @@ end
 
 ### baylens2-specific Gibbs θ-pass 
 
-using CMBLensing: grid_and_sample
 
-function baylens2_gibbs_pass_θ(;kwargs...)
+@everywhere function baylens2_gibbs_pass_θ(;kwargs...)
     
     @unpack f°,ϕ°,θ,ds,θrange,progress = kwargs
     
@@ -165,7 +195,7 @@ if !isinteractive()
         
         ds,
         
-        nchains = 1,
+        nchains = args["nchains"],
         
         nsamps_per_chain      = args["nsamps_per_chain"],
         storage               = args["storage"],

@@ -99,7 +99,6 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
     term = get_term_memoizer(d1)
     ΣTtot = TF^2 * Cf̃ + Cn
     CT = (weights==:unlensed) ? Cf : Cf̃
-    @unpack Ωpix = fieldinfo(d1)
     
     # unnormalized estimate
     ϕqe_unnormalized = @subst -sum(∇[i] * Fourier(term($(ΣTtot\(TF*d1))) * term($(CT*(ΣTtot\(TF*d2))), [i])) for i=1:2)
@@ -111,7 +110,7 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
                 term($(@. TF^2 * CT^2 / ΣTtot), [i], [j]) * term($(@. TF^2      / ΣTtot)     )
               + term($(@. TF^2 * CT   / ΣTtot), [i]     ) * term($(@. TF^2 * CT / ΣTtot), [j])
             )
-            Ωpix * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for (i,j) in inds(2))))
+            pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for (i,j) in inds(2))))
         end
     end
     Nϕ = AL # true only for unlensed weights
@@ -128,7 +127,6 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     TF² = TF[:E]^2
     ΣEtot = TF² * Cf̃[:E] + Cn[:E]
     CE = ((weights==:unlensed) ? Cf : Cf̃)[:E]
-    @unpack Ωpix = fieldinfo(d1)
 
     # unnormalized estimate
     ϕqe_unnormalized = @subst begin
@@ -151,7 +149,7 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
                   term($(@. TF² * CE^2 / ΣEtot), [i], [j]) * term($(@. TF²      / ΣEtot)     )
                 + term($(@. TF² * CE   / ΣEtot), [i]     ) * term($(@. TF² * CE / ΣEtot), [j])
             )
-            Ωpix * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
+            pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
         end
     end
     Nϕ = AL # true only for unlensed weights
@@ -169,7 +167,6 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     TF²E, TF²B = TF[:E]^2, TF[:B]^2
     ΣEtot = TF²E * Cf̃[:E] + Cn[:E]
     ΣBtot = TF²B * Cf̃[:B] + Cn[:B]
-    @unpack Ωpix = fieldinfo(d1)
     
 
     # unnormalized estimate
@@ -191,7 +188,7 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
                 + (zeroB ? 0 :   term($(@. TF²E        / ΣEtot),           k, l, m, n) * term($(@. TF²B * CB^2 / ΣBtot), [i], [j], k, l, p, q)))
                 for (k,l,m,n,p,q) in inds(6)
             )
-            Ωpix * pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
+            pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
         end
     end
     Nϕ = AL # true only for unlensed weights
