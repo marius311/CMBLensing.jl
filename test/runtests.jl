@@ -1,5 +1,7 @@
 using CMBLensing
-using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver, seed!
+using CMBLensing: 
+    @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple, Measurement,
+    RK4Solver, seed!, ±
 
 ##
 
@@ -258,6 +260,16 @@ end
     
     @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
     @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
+    
+end
+
+##
+
+@testset "Cℓs" begin
+    
+    @test InterpolatedCℓs(1:100, rand(100))      isa AbstractCℓs{Float64}
+    @test InterpolatedCℓs(1:100, rand(100) .± 1) isa AbstractCℓs{Measurement{Float64}}
+    @test (InterpolatedCℓs(1:100, 1:100) * ℓ²)[50] == 50^3
     
 end
 
