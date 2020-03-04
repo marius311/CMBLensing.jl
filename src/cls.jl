@@ -57,7 +57,7 @@ for op in (:*, :/, :+, :-, :±)
     @eval ($op)(fc::FuncCℓs, v::AbstractArray) = broadcast($op, fc, v)
     @eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
 end
-for op in (:^, :sqrt)
+for op in (:^, :sqrt, :abs)
     @eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
 end
 std(x::Vector{<:InterpolatedCℓs}) = sqrt(mean(x.^2) - mean(x)^2)

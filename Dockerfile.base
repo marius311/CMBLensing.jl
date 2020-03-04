@@ -83,6 +83,14 @@ RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; precompile"'
 COPY --chown=1000 docs/src $HOME/CMBLensing/docs/src
 WORKDIR $HOME/CMBLensing/docs/src
 
+# run PackageCompilerX to compile CMBLensing and a few other packages used by
+# the notebooks. this leads to faster and less-memory intensive startup times
+# (the latter being needed for the notebooks to work on binder.org where we
+# would otherwise hit the 1Gb memory limit)
+RUN julia -e 'using Pkg; pkg"add https://github.com/JuliaComputing/PackageCompilerX.jl.git"'
+RUN julia -e 'using PackageCompilerX; create_sysimage([:CMBLensing,:Zygote]; sysimage_path="/home/cosmo/CMBLensing/CMBLensing.so",cpu_target="generic")'
+RUN sed -i '6i    "-J/home/cosmo/CMBLensing/CMBLensing.so",' /home/cosmo/.local/share/jupyter/kernels/julia-1.3/kernel.json
+
 
 # we don't actually need to specify a port different than 8888 inside the
 # container, but this makes it so Jupyter prints the accurate URL to connect to

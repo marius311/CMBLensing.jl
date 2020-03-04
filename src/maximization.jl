@@ -22,7 +22,7 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
 
-function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, kwargs...)
+function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, kwargs...)
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
@@ -35,13 +35,17 @@ function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, kwargs...)
         b += Cf\simulate(Cf) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn))
     end
     
-    conjugate_gradient(
-        pinv(Cf) + M̂'*B̂'*pinv(Cn̂)*B̂*M̂,
-        pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ,
-        b,
-        guess==nothing ? 0*b : guess;
-        kwargs...
-    )
+    A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
+    A_zeroϕ = pinv(Cf) +     B'*P'*M'*pinv(Cn)*M*P*B
+    A       = pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ
+    
+    A_preconditioner = @match preconditioner begin
+        :diag  => A_diag
+        :zeroϕ => FuncOp(op⁻¹ = (b -> conjugate_gradient(A_diag, A_zeroϕ, b, 0*b, tol=1e-1)))
+        _      => error("Unrecognized preconditioner='$preconditioner'")
+    end
+    
+    conjugate_gradient(A_preconditioner, A, b, guess==nothing ? 0*b : guess; kwargs...)
     
 end
 
@@ -115,7 +119,7 @@ function MAP_joint(
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    # @set! ds.G = 1
+    @set! ds.G = IdentityOp
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing

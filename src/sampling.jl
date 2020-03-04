@@ -183,7 +183,7 @@ function sample_joint(
         else
             ϕstarts = pmap(θstarts) do θstart
                 Random.seed!()
-                MAP_joint(ds(;θstart...), progress=(progress==:verbose ? :summary : false), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
+                MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart

@@ -2,7 +2,7 @@ version: "3"
 
 services:
   cmblensing:
-    image: marius311/cmblensing.jl:mybinder
+    image: marius311/cmblensing.jl:mybinder-${TAG:-latest}
     build: 
       context: .
       dockerfile: Dockerfile.base
