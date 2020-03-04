@@ -4,7 +4,7 @@
 @doc doc"""
     argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
     argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
-    argmaxf_lnP(Lϕ::LenseOp,      ds::DataSet; kwargs...)
+    argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
     
 Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
 along the posterior.
@@ -19,10 +19,10 @@ Keyword arguments:
 * `kwargs...` — all other arguments are passed to [`conjugate_gradient`](@ref)
 
 """
-argmaxf_lnP(ϕ::Field,                ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
-argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
+argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
+argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
 
-function argmaxf_lnP(Lϕ::LenseOp, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, kwargs...)
+function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, kwargs...)
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
@@ -51,14 +51,14 @@ end
 
 
 @doc doc"""
-    Σ(ϕ, ds, ::Type{L}=LenseFlow) where {L}
-    Σ(L::LenseOp, ds) 
+    Σ(ϕ,  ds, ::Type{L}=LenseFlow) where {L}
+    Σ(Lϕ, ds)
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
 applied and inverted.
 """
-Σ(ϕ, ds) = Σ(ds.L(ϕ),ds)
-Σ(Lϕ::LenseOp, ds) = begin
+Σ(ϕ::Field, ds) = Σ(ds.L(ϕ),ds)
+Σ(Lϕ,       ds) = begin
 
     @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
 
@@ -150,12 +150,12 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? NoLensing() : Lϕ), ds, 
+            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
                     tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
                     
-            f° = Lϕ * D * f
+            f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
             
             # ==== show progress ====
@@ -169,7 +169,7 @@ function MAP_joint(
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕnew = Hϕ⁻¹*(@ondemand(Zygote.gradient)(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
+                ϕnew = Hϕ⁻¹*(gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
                 res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
                 ϕ = ϕ+α*ϕnew

@@ -14,7 +14,7 @@
     D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
     G  :: TG  = IdentityOp  # reparametrization for ϕ
     P  :: TP  = 1           # pixelization operator (if estimating field on higher res than data)
-    L  :: TL  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for meomry
+    L  :: TL  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for memory
 end
 
 function subblock(ds::DataSet, block)
@@ -154,12 +154,12 @@ function load_sim_dataset(;
     Cf̃  = Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...)
     Cn̂  = Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=rfid)->(mem .= Cfs + T(r/rfid)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=1  )->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((mem; r=rfid, _...)->(mem .= Cfs + T(r/rfid)*Cft), similar(Cfs))
+    Cϕ = ParamDependentOp((mem; Aϕ=1  , _...)->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing)
-        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...)
+        M̂ = M = Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
             M = M * Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...))
         end
@@ -167,14 +167,14 @@ function load_sim_dataset(;
     
     # beam
     if (B == nothing)
-        B̂ = B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)...)
+        B̂ = B = Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1)
     end
     
     # D mixing matrix
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
         D = ParamDependentOp(
-            function (mem;r=rfid)
+            function (mem;r=rfid,_...)
                 Cfr = Cf(mem,r=r)
                 mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
             end,
@@ -200,7 +200,7 @@ function load_sim_dataset(;
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        G = ParamDependentOp((;Aϕ=1)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
+        G = ParamDependentOp((;Aϕ=1,_...)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
     end
     @set! ds.G = G
    

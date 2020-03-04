@@ -49,10 +49,19 @@ fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
 similar(ft::FT) where {FT<:FieldTuple} = FT(map(f->similar(f),ft.fs))
 function similar(ft::FT, ::Type{T}, dims::Dims) where {T<:Number, B, FT<:FieldTuple{B}}
-    @assert size(ft)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
+    @assert size(ft)==dims "Tried to make a field similar to $FT but dims should have been $(size(f)), not $dims."
     FieldTuple{B}(map(f->similar(f,T),ft.fs))
 end
-mapreduce(func, op, ft::FieldTuple; kw...) = mapreduce(f->mapreduce(func, op, f; kw...), op, ft.fs; kw...)
+# mapreduce(func, op, ft::FieldTuple; kw...) = mapreduce(f->mapreduce(func, op, f; kw...), op, ft.fs; kw...)
+function sum(f::FieldTuple; dims=:)
+    if dims == (:)
+        sum(sum,f.fs)
+    elseif all(dims .> 1)
+        f
+    else
+        error("Invalid dims in sum(::FieldTuple, dims=$(dims)).")
+    end
+end
 
 ### broadcasting
 struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end

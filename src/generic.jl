@@ -95,9 +95,16 @@ abstract type ImplicitField{B<:Basis, S<:Spin, P<:Pix} <: Field{B,S,P,Float32} e
 # the fields they're applied to. it also helps makes the generic printing
 # methods for AbstractMatrix work well.
 size(::Union{ImplicitOp,ImplicitField}) = ()
+size(::Union{ImplicitOp,ImplicitField},i) = nothing
 length(::Union{ImplicitOp,ImplicitField}) = 0
+checksquare(::ImplicitOp) = nothing
+
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
+
+diag(L::ImplicitOp) = error("diag(L) not implemented for L::$(typeof(L))")
+
+
 
 # printing
 show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
@@ -106,11 +113,13 @@ show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,pa
 # this is the main function ImplicitOps should specialize if this default behavior isn't enough:
 show(io::IO, L::ImplicitOp) = showarg(io, L, true)
 
-# all CMBLensing operators are then either Diagonals or ImplicitOps
-# ImplicitOrAdjOp are things for which algebra is done lazily, including Diagonal{<:ImplicitField}
+# All CMBLensing operators are then either Diagonals or ImplicitOps.
+# ImplicitOrAdjOp are things for which algebra is done lazily. This used to
+# include Diagonal{<:ImplicitField}, but that was leading so some really
+# annoying ambiguities, so its removed for now.
 const DiagOp{F<:Field,T} = Diagonal{T,F}
 const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
-const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}, DiagOp{<:ImplicitField{B,S,P}}}
+const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}}
 const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
 ### Scalars
@@ -129,6 +138,7 @@ If L depends on θ, evaluates `logdet(L(θ))` offset by its fiducial value at
 `L()`. Otherwise, returns 0.
 """
 logdet(L::LinOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
+logdet(L, θ) = logdet(L)
 
 
 # 
@@ -194,6 +204,8 @@ for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field)
     @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
 end
 
+≈(a::Field, b::Field) = ≈(promote(a,b)...)
+
 # multiplication/division is not strictly defined for abstract vectors, but
 # make it work anyway if the two fields are exactly the same type, in which case
 # its clear we wanted broadcasted multiplication/division. 
@@ -205,8 +217,9 @@ end
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)
 
-
+# misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
+norm(f::Field) = sqrt(dot(f,f)) # dot is implemented to add the factor of Δx
 
 
 invalid_broadcast_error(B1,B2) = 

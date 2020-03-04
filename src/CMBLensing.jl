@@ -13,7 +13,6 @@ using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers
 using FFTW
 using InteractiveUtils
-using Interpolations
 using KahanSummation
 using Loess
 using LinearAlgebra
@@ -32,10 +31,13 @@ using Roots
 using Requires
 using Setfield
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
-    StaticMatrix, StaticVector, SVector
+    StaticMatrix, StaticVector, SVector, SArray
 using Statistics
 using StatsBase
 using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
+using Zygote
+using Zygote: unbroadcast, Numeric, @adjoint
+
 
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈,
@@ -44,34 +46,34 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
     promote_rule, promote_type, propertynames, real, setindex!, show,
-    show_datatype, show_vector, similar, size, sqrt, string, summary, transpose,
-    zero
+    show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
+    transpose, zero
 import Base.Broadcast: instantiate, preprocess
-import LinearAlgebra: diag, dot, isnan, ldiv!, logdet, mul!, pinv,
-    StructuredMatrixStyle, structured_broadcast_alloc, tr
+import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
+    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
 import Statistics: std
 
 
 export
-    @namedtuple, @repeated, @unpack, animate, argmaxf_lnP, BandPassOp, cache,
-    CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
-    diag, Diagonal, DiagOp, dot, EBFourier, EBMap, Field, FieldArray, fieldinfo,
-    FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
-    FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector, Flat,
-    FlatEB, FlatEBFourier, FlatEBMap, FlatFieldMap, FlatFieldFourier, FlatField,
-    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap, FlatIQUFourier,
-    FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02,
-    FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple,
-    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
-    IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
-    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, LinOp, lnP, load_camb_Cℓs,
-    load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂,
-    MidPass, mix, nan2zero, noiseCℓs, NoLensing, OuterProdOp, ParamDependentOp,
-    pixwin, PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
-    sample_joint, shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹,
-    ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    @BandpowerParamOp, @namedtuple, @repeated, @unpack, animate, argmaxf_lnP,
+    BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D, Cℓ_to_Cov,
+    DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, Field,
+    FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
+    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple,
+    FieldVector, FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap,
+    FlatFieldMap, FlatFieldFourier, FlatField, FlatFourier, FlatIEBCov,
+    FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU,
+    FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map,
+    Fourier, fourier∂, FuncOp, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ,
+    get_ℓ⁴Cℓ, gradhess, HighPass, IdentityOp, IEBFourier, IEBMap,
+    InterpolatedCℓs, IQUFourier, IQUMap, LazyBinaryOp, LenseBasis, LenseFlow,
+    LinOp, lnP, load_camb_Cℓs, load_sim_dataset, LowPass, make_mask, Map,
+    MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs, NoLensing,
+    OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap,
+    resimulate, RK4Solver, S0, S02, S2, sample_joint, shiftℓ, simulate,
+    symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix,
+    Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")
@@ -82,9 +84,9 @@ include("cls.jl")
 include("field_tuples.jl")
 include("field_vectors.jl")
 include("specialops.jl")
+include("flowops.jl")
 
 # lensing
-include("lensing.jl")
 include("lenseflow.jl")
 include("powerlens.jl")
 
@@ -115,7 +117,7 @@ include("quadratic_estimate.jl")
 # curved-sky (not yet upgraded to new system)
 # include("healpix.jl")
 
-@init @require Zygote="e88e6eb3-aa80-5325-afca-941959d7151f" include("zygote.jl")
+include("autodiff.jl")
 
 # gpu
 @init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")

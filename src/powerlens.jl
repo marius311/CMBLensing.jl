@@ -11,7 +11,7 @@
 #
 
 
-struct PowerLens{N,F<:Field{<:Any,<:S0}} <: LenseOp
+struct PowerLens{N,F<:Field{<:Any,<:S0}} <: ImplicitOp{Basis,Spin,Pix}
     ∂xϕⁱ::Dict{Int,Union{Int,F}}
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end

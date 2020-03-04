@@ -6,30 +6,33 @@
 # while not worrying about carrying around the ℓ labels, as well as automatically
 # interpolating to any ℓ.
 
-abstract type AbstractCℓs end
+abstract type AbstractCℓs{T} end
 
-struct InterpolatedCℓs{I} <: AbstractCℓs
+struct InterpolatedCℓs{T,I} <: AbstractCℓs{T}
     etp :: I
     concrete :: Bool
 end
 InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
-InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
+function InterpolatedCℓs(ℓ, Cℓ::AbstractVector{T}; concrete=true) where {T}
+    itp = LinearInterpolation(ℓ[(!isnan).(Cℓ)], Cℓ[(!isnan).(Cℓ)], extrapolation_bc=NaN)
+    InterpolatedCℓs{T,typeof(itp)}(itp, concrete)
+end
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
-getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = first(ic.etp.itp.knots)
-getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.itp.coefs
+getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = ic.etp.xdat
+getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.ydat
 getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
 propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 
-getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
-(ic::InterpolatedCℓs)(idx) = ic.etp(idx)
+getindex(ic::InterpolatedCℓs, idx) = ic.etp.(idx)
+(ic::InterpolatedCℓs)(idx) = ic.etp.(idx)
 
 
-struct FuncCℓs{F<:Function} <: AbstractCℓs
+struct FuncCℓs{T,F<:Function} <: AbstractCℓs{T}
     f :: F
     concrete :: Bool
-    FuncCℓs(f::F) where {F<:Function} = new{F}(f,false)
+    FuncCℓs(f::F) where {F<:Function} = new{Any,F}(f,false)
 end
 getindex(fc::FuncCℓs, idx) = fc.f.(idx)
 broadcastable(fc::FuncCℓs) = Ref(fc)
@@ -81,7 +84,7 @@ end
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
     InterpolatedCℓs(ℓout, 
         if all(Cℓ .> 0)
-            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
+            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = :line)
             @. (exp(itp(log(ℓout))))
         else
             LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
