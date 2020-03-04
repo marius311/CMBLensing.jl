@@ -1,7 +1,7 @@
 using CMBLensing
 using CMBLensing: 
-    @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple, Measurement,
-    RK4Solver, seed!, ±
+    @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
+    LinearInterpolation, Measurement, RK4Solver, seed!, ±
 
 ##
 
@@ -327,8 +327,8 @@ end
                 end
 
                 @testset "Broadcasting" begin
-                    @test        gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
-                    @test_broken gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
+                    @test gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
+                    @test gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
                 end
                 
             end
