@@ -14,8 +14,10 @@ struct InterpolatedCℓs{T,I} <: AbstractCℓs{T}
 end
 InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
 function InterpolatedCℓs(ℓ, Cℓ::AbstractVector{T}; concrete=true) where {T}
-    itp = LinearInterpolation(ℓ[(!isnan).(Cℓ)], Cℓ[(!isnan).(Cℓ)], extrapolation_bc=NaN)
-    InterpolatedCℓs{T,typeof(itp)}(itp, concrete)
+    idx = (!isnan).(Cℓ)
+    Cℓ′ = identity.(Cℓ[idx])
+    itp = LinearInterpolation(ℓ[idx], Cℓ′, extrapolation_bc=NaN)
+    InterpolatedCℓs{eltype(Cℓ′),typeof(itp)}(itp, concrete)
 end
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
 getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = ic.etp.xdat

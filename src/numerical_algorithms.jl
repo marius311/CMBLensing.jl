@@ -145,19 +145,19 @@ function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapo
     
     function (x::Number)
         
-        if x<=xdat[1] || x>=xdat[end]
+        if x<xdat[1] || x>xdat[end]
             if extrapolation_bc isa Number
                 return extrapolation_bc
             elseif extrapolation_bc == :line
-                if x<=xdat[1]
+                if x<xdat[1]
                     i = 1 
-                elseif x>=xdat[end]
+                elseif x>xdat[end]
                     i = length(m)
                 end
             end
         else
             # sets i such that x is between xdat[i] and xdat[i+1]
-            i = searchsortedfirst(xdat,x) - 1
+            i = max(1, searchsortedfirst(xdat,x) - 1)
         end
         
         # do interpolation
