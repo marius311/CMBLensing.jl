@@ -79,6 +79,7 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
         vmin = -vmax
     end
        
+    m = Float64.(m)
     m[isinf.(m)] .= NaN
     
     cax = ax.matshow(clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
