@@ -192,6 +192,7 @@ tensors.
 """
 function load_camb_Cℓs(;
     path_prefix,
+    ℓmax = nothing,
     custom_tensor_params = nothing,
     unlensed_scalar_postfix = "scalCls.dat",
     unlensed_tensor_postfix = "tensCls.dat",
@@ -200,12 +201,14 @@ function load_camb_Cℓs(;
     
     unlensed_scalar_filename = path_prefix*unlensed_scalar_postfix
     unlensed_tensor_filename = path_prefix*unlensed_tensor_postfix
-    lensed_scalar_filename = path_prefix*lensed_scalar_postfix
-    lenspotential_filename = path_prefix*lenspotential_postfix
+    lensed_scalar_filename   = path_prefix*lensed_scalar_postfix
+    lenspotential_filename   = path_prefix*lenspotential_postfix
+    
+    _extrapolateCℓs(ℓ,Cℓ) = ℓmax == nothing ? InterpolatedCℓs(ℓ,Cℓ,concrete=false) : extrapolate_Cℓs(2:ℓmax,ℓ,Cℓ)
     
     ℓ,Cℓϕϕ = collect.(eachcol(readdlm(lenspotential_filename,skipstart=1)[1:end,[1,6]]))
     @. Cℓϕϕ /= (ℓ*(ℓ+1))^2/2π
-    Cℓϕϕ = InterpolatedCℓs(ℓ, Cℓϕϕ)
+    Cℓϕϕ = _extrapolateCℓs(ℓ, Cℓϕϕ)
     
     unlensed_scalar = Dict([:ℓ,:TT,:EE,:TE,:ϕϕ] .=> collect.(eachcol(readdlm(unlensed_scalar_filename,skipstart=1)[1:end,1:5])))
     ℓ = pop!(unlensed_scalar,:ℓ)
@@ -213,7 +216,7 @@ function load_camb_Cℓs(;
         @. unlensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
     unlensed_scalar[:BB] = 0ℓ
-    unlensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in unlensed_scalar)...)
+    unlensed_scalar = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in unlensed_scalar)...)
 
 
     lensed_scalar = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(lensed_scalar_filename,skipstart=1)[1:end,1:5])))
@@ -221,7 +224,7 @@ function load_camb_Cℓs(;
     for x in [:TT,:EE,:BB,:TE]
         @. lensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
-    lensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
+    lensed_scalar = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
 
     if custom_tensor_params != nothing
         tensor = camb(;custom_tensor_params...).tensor
@@ -231,7 +234,7 @@ function load_camb_Cℓs(;
         for x in [:TT,:EE,:BB,:TE]
             @. tensor[x] /= ℓ*(ℓ+1)/(2π)
         end
-        tensor = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
+        tensor = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
     end
     
     unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
