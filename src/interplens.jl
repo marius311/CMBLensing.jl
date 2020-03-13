@@ -65,3 +65,14 @@ for op in (:*, :\)
     end
 
 end
+
+
+@adjoint InterpLens(ϕ) = InterpLens(ϕ), Δ -> (Δ,)
+
+@adjoint function *(Lϕ::InterpLens, f::Field{B}) where {B}
+    f̃ = Lϕ * f
+    function back(Δ)
+        (∇' * (Ref(tuple_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ*Δ)
+    end
+    f̃, back
+end
