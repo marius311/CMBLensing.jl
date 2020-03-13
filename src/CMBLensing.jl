@@ -3,7 +3,7 @@ module CMBLensing
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, preprocess_args, Style
-using Base.Iterators: repeated, product
+using Base.Iterators: flatten, product, repeated
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
@@ -31,6 +31,7 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
+using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector
 using Statistics
@@ -64,14 +65,14 @@ export
     FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02,
     FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, FΦTuple,
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
-    IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
-    LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, LinOp, lnP, load_camb_Cℓs,
-    load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂,
-    MidPass, mix, nan2zero, noiseCℓs, NoLensing, OuterProdOp, ParamDependentOp,
-    pixwin, PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
-    sample_joint, shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹,
-    ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    IdentityOp, IEBFourier, IEBMap, InterpLens, InterpolatedCℓs, IQUFourier,
+    IQUMap, LazyBinaryOp, LenseBasis, LenseFlow, LenseOp, LinOp, lnP,
+    load_camb_Cℓs, load_sim_dataset, LowPass, make_mask, Map, MAP_joint,
+    MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs, NoLensing, OuterProdOp,
+    ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap, resimulate,
+    RK4Solver, S0, S02, S2, sample_joint, shiftℓ, simulate,
+    symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix,
+    Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")
@@ -86,6 +87,7 @@ include("specialops.jl")
 # lensing
 include("lensing.jl")
 include("lenseflow.jl")
+include("interplens.jl")
 include("powerlens.jl")
 
 # flat-sky maps
