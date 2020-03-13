@@ -1,6 +1,8 @@
 abstract type ODESolver end
-# only one single ODE solver implemented for now, a simple custom RK4:
+
+
 abstract type RK4Solver{nsteps} <: ODESolver  end
+abstract type OutOfPlaceRK4Solver{nsteps} <: ODESolver  end
 
 
 
@@ -33,8 +35,23 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
     end
     return y
 end
-odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t₀,t₁,N)
 
+function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
+    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
+    y = copy(y₀)
+    for i in 0:nsteps-1
+        t = i*h
+        k₁ = F(t, y)
+        k₂ = F(t + h½, y + h½*k₁)
+        k₃ = F(t + h½, y + h½*k₂)
+        k₄ = F(t + h,  y + h*k₃)
+        y += @. h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+    end
+    return y
+end
+
+odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t₀,t₁,N)
+odesolve(::Type{OutOfPlaceRK4Solver{N}},F,y₀,t₀,t₁) where {N} = OutOfPlaceRK4Solver(F,y₀,t₀,t₁,N)
 
 
 
@@ -100,9 +117,52 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         # logarithmically reaching the toleranace limit or doing the maximum
         # number of steps
         progress_nsteps = round(Int,100*(i-1)/(nsteps-1))
-        progress_tol = round(Int,100^((log10(res/res₀)) / log10(tol/res₀)))
+        progress_tol = round(Int,100^min(1, (log10(res/res₀)) / log10(tol/res₀)))
         ProgressMeter.update!(prog, max(progress_nsteps,progress_tol))
     end
     ProgressMeter.finish!(prog)
     hist == nothing ? bestx : (bestx, _hist)
+end
+
+
+
+
+
+@doc doc"""
+
+    itp = LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapolation_bc=NaN)
+    itp(x) # interpolate at x
+    
+A simple 1D linear interpolation code which is fully Zygote differentiable in
+either `xdat`, `ydat`, or the evaluation point `x`.
+"""
+function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapolation_bc=NaN)
+    
+    @assert issorted(xdat)
+    @assert extrapolation_bc isa Number || extrapolation_bc == :line
+    
+    m = diff(ydat) ./ diff(xdat)
+    
+    function (x::Number)
+        
+        if x<xdat[1] || x>xdat[end]
+            if extrapolation_bc isa Number
+                return extrapolation_bc
+            elseif extrapolation_bc == :line
+                if x<xdat[1]
+                    i = 1 
+                elseif x>xdat[end]
+                    i = length(m)
+                end
+            end
+        else
+            # sets i such that x is between xdat[i] and xdat[i+1]
+            i = max(1, searchsortedfirst(xdat,x) - 1)
+        end
+        
+        # do interpolation
+        ydat[i] + m[i]*(x-xdat[i])
+        
+    end
+    
 end

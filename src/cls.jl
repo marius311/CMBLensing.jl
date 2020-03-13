@@ -6,30 +6,35 @@
 # while not worrying about carrying around the ℓ labels, as well as automatically
 # interpolating to any ℓ.
 
-abstract type AbstractCℓs end
+abstract type AbstractCℓs{T} end
 
-struct InterpolatedCℓs{I} <: AbstractCℓs
+struct InterpolatedCℓs{T,I} <: AbstractCℓs{T}
     etp :: I
     concrete :: Bool
 end
 InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
-InterpolatedCℓs(ℓ, Cℓ; concrete=true) = InterpolatedCℓs(LinearInterpolation(ℓ[(!isnan).(Cℓ)], filter(!isnan,Cℓ), extrapolation_bc=NaN), concrete)
+function InterpolatedCℓs(ℓ, Cℓ::AbstractVector{T}; concrete=true) where {T}
+    idx = (!isnan).(Cℓ)
+    Cℓ′ = identity.(Cℓ[idx])
+    itp = LinearInterpolation(ℓ[idx], Cℓ′, extrapolation_bc=NaN)
+    InterpolatedCℓs{eltype(Cℓ′),typeof(itp)}(itp, concrete)
+end
 getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
-getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = first(ic.etp.itp.knots)
-getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.itp.coefs
+getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = ic.etp.xdat
+getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.ydat
 getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
 propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
 new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 
-getindex(ic::InterpolatedCℓs, idx) = ic.etp(idx)
-(ic::InterpolatedCℓs)(idx) = ic.etp(idx)
+getindex(ic::InterpolatedCℓs, idx) = ic.etp.(idx)
+(ic::InterpolatedCℓs)(idx) = ic.etp.(idx)
 
 
-struct FuncCℓs{F<:Function} <: AbstractCℓs
+struct FuncCℓs{T,F<:Function} <: AbstractCℓs{T}
     f :: F
     concrete :: Bool
-    FuncCℓs(f::F) where {F<:Function} = new{F}(f,false)
+    FuncCℓs(f::F) where {F<:Function} = new{Any,F}(f,false)
 end
 getindex(fc::FuncCℓs, idx) = fc.f.(idx)
 broadcastable(fc::FuncCℓs) = Ref(fc)
@@ -81,7 +86,7 @@ end
 function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
     InterpolatedCℓs(ℓout, 
         if all(Cℓ .> 0)
-            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = Interpolations.Line())
+            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = :line)
             @. (exp(itp(log(ℓout))))
         else
             LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
@@ -187,6 +192,7 @@ tensors.
 """
 function load_camb_Cℓs(;
     path_prefix,
+    ℓmax = nothing,
     custom_tensor_params = nothing,
     unlensed_scalar_postfix = "scalCls.dat",
     unlensed_tensor_postfix = "tensCls.dat",
@@ -195,12 +201,14 @@ function load_camb_Cℓs(;
     
     unlensed_scalar_filename = path_prefix*unlensed_scalar_postfix
     unlensed_tensor_filename = path_prefix*unlensed_tensor_postfix
-    lensed_scalar_filename = path_prefix*lensed_scalar_postfix
-    lenspotential_filename = path_prefix*lenspotential_postfix
+    lensed_scalar_filename   = path_prefix*lensed_scalar_postfix
+    lenspotential_filename   = path_prefix*lenspotential_postfix
+    
+    _extrapolateCℓs(ℓ,Cℓ) = ℓmax == nothing ? InterpolatedCℓs(ℓ,Cℓ,concrete=false) : extrapolate_Cℓs(2:ℓmax,ℓ,Cℓ)
     
     ℓ,Cℓϕϕ = collect.(eachcol(readdlm(lenspotential_filename,skipstart=1)[1:end,[1,6]]))
     @. Cℓϕϕ /= (ℓ*(ℓ+1))^2/2π
-    Cℓϕϕ = InterpolatedCℓs(ℓ, Cℓϕϕ)
+    Cℓϕϕ = _extrapolateCℓs(ℓ, Cℓϕϕ)
     
     unlensed_scalar = Dict([:ℓ,:TT,:EE,:TE,:ϕϕ] .=> collect.(eachcol(readdlm(unlensed_scalar_filename,skipstart=1)[1:end,1:5])))
     ℓ = pop!(unlensed_scalar,:ℓ)
@@ -208,7 +216,7 @@ function load_camb_Cℓs(;
         @. unlensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
     unlensed_scalar[:BB] = 0ℓ
-    unlensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in unlensed_scalar)...)
+    unlensed_scalar = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in unlensed_scalar)...)
 
 
     lensed_scalar = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(lensed_scalar_filename,skipstart=1)[1:end,1:5])))
@@ -216,7 +224,7 @@ function load_camb_Cℓs(;
     for x in [:TT,:EE,:BB,:TE]
         @. lensed_scalar[x] /= ℓ*(ℓ+1)/(2π)
     end
-    lensed_scalar = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
+    lensed_scalar = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
 
     if custom_tensor_params != nothing
         tensor = camb(;custom_tensor_params...).tensor
@@ -226,7 +234,7 @@ function load_camb_Cℓs(;
         for x in [:TT,:EE,:BB,:TE]
             @. tensor[x] /= ℓ*(ℓ+1)/(2π)
         end
-        tensor = (;(k=>InterpolatedCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
+        tensor = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
     end
     
     unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)

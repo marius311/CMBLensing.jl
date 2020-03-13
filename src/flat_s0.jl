@@ -42,7 +42,8 @@ size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
 size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
-adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
+adapt_structure(to::Type{T}, f::F) where {T<:AbstractArray,         P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
+adapt_structure(  ::Type{T}, f::F) where {T<:Union{Float32,Float64},P,F<:FlatS0{P}} = T(f)
 function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
     @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
     basetype(F){P}(similar(firstfield(f),T))
@@ -52,6 +53,7 @@ end
 ### broadcasting
 struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
+(::Type{FS})(::Val{2}) where {FS<:FlatS0Style} = error("Broadcast expression would create a dense Field operator.")
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
 BroadcastStyle(::FlatS0Style{<:Field{B1}}, ::FlatS0Style{<:Field{B2}}) where {B1,B2} = invalid_broadcast_error(B1,B2)
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
@@ -83,20 +85,23 @@ end
 
 ### dot products
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
-dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix) * fieldinfo(a).Δx^2
+dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix)
+
+### isapprox
+≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))
 
 ### simulation and power spectra
 function white_noise(::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-    FlatMap{P}(randn!(basetype(M){T}(undef,N,N)) / fieldinfo(F).Δx)
+    FlatMap{P}(randn!(basetype(M){T}(undef,N,N)))
 end
-function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs) where {P,T}
-    Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)))
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
+    Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
 end
 
 
-function cov_to_Cℓ(L::DiagOp{<:FlatS0})
+function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
     ii = sortperm(fieldinfo(L.diag).kmag[:])
-    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii], concrete=false)
+    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii] * units, concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}

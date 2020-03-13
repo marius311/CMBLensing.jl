@@ -1,5 +1,5 @@
 
-struct InterpLens{S} <: LenseOp
+struct InterpLens{S} <: ImplicitOp{Basis,Spin,Pix}
     sparse_repr :: S
 end
 
@@ -38,7 +38,9 @@ function InterpLens(ϕ::FlatS0)
                 1 Δx⁻ Δy⁺ Δx⁻*Δy⁺;
                 1 Δx⁺ Δy⁺ Δx⁺*Δy⁺
             ]
-            V[4I-3:4I] = inv(A)[1,:] # todo: theres a faster way if I dont need the whole matrix
+            # todo: I think there's a faster way than inverting the whole matrix
+            # but need to work it out
+            V[4I-3:4I] = inv(A)[1,:]
             
         end
         

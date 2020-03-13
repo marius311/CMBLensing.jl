@@ -183,7 +183,7 @@ function sample_joint(
         else
             ϕstarts = pmap(θstarts) do θstart
                 Random.seed!()
-                MAP_joint(ds(;θstart...), progress=(progress==:verbose ? :summary : false), Nϕ=Nϕ, quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...)[2]
+                MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
             end
         end
         chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
@@ -222,7 +222,8 @@ function sample_joint(
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
                         Lϕ = cache(L(ϕ), ds.d)
-                        f° = Lϕ * dsθ.D * argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f = argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f°, = mix(f,ϕ,dsθ)
                     end
                     
                     

@@ -37,9 +37,9 @@ function boundarymask(Nside, pad)
 end
 
 function bleed(img, w)
-    Nside,Nside = size(img)
+    Nx,Ny = size(img)
     nearest = getfield.(@ondemand(Images.feature_transform)(img),:I)
-    [norm(nearest[i,j] .- [i,j]) < w for i=1:Nside,j=1:Nside]
+    [norm(nearest[i,j] .- [i,j]) < w for i=1:Nx,j=1:Ny]
 end
 
 function cos_apod(img, w, smooth_distance=false)

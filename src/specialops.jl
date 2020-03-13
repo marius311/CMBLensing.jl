@@ -80,6 +80,7 @@ conj(::∇diag{coord,covariance,prefactor}) where {coord,covariance,prefactor} =
 # Gradient vector which can be used with FieldVector algebra. 
 struct ∇Op{covariance,prefactor} <: StaticVector{2,Diagonal{Float32,∇diag{<:Any,covariance,prefactor}}} end 
 getindex(::∇Op{covariance,prefactor}, i::Int) where {covariance,prefactor} = Diagonal(∇diag{i,covariance,prefactor}())
+-(::∇Op{covariance,prefactor}) where {covariance,prefactor} = ∇Op{covariance,-prefactor}()
 const ∇ⁱ = ∇Op{:contravariant,1}()
 const ∇ᵢ = ∇Op{:covariant,1}()
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
@@ -93,7 +94,8 @@ Compute the gradient $g^i = \nabla^i f$, and the hessian, $H_j^{\,i} = \nabla_j 
 """
 function gradhess(f)
     g = ∇ⁱ*f
-    (g=g, H=SMatrix{2,2}([permutedims(∇ᵢ * g[1]); permutedims(∇ᵢ * g[2])]))
+    H = @SMatrix[∇ᵢ[1]*g[1] ∇ᵢ[2]*g[1]; ∇ᵢ[1]*g[2] ∇ᵢ[2]*g[2]]
+    @namedtuple(g,H)
 end
 
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first
@@ -213,9 +215,14 @@ function (L::ParamDependentOp)(mem=nothing;θ...)
         mem isa typeof(L.op) || throw(ArgumentError("Preallocated memory passed to ParamDependentOp should be $(typeof(L.op)), not $(typeof(mem))."))
     end
     if depends_on(L,θ)
-        dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+        
+        # filtering out non-dependent parameters disabled until I can find a fix to:
+        # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
+        # 
+        # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+        
         # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
-        L.recompute_function((mem==nothing ? () : (mem,))...; dependent_θ...) :: typeof(L.op)
+        L.recompute_function((mem==nothing ? () : (mem,))...; θ...) :: typeof(L.op)
     else
         L.op
     end 
@@ -262,6 +269,7 @@ inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
 # evaluating LazyBinaryOps
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
+    @eval diag(lz::LazyBinaryOp{$op}) = ($op)(diag(lz.a), diag(lz.b))
 end
 *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
@@ -270,20 +278,70 @@ end
 adjoint(lz::LazyBinaryOp{F}) where {F} = LazyBinaryOp(F,adjoint(lz.b),adjoint(lz.a))
 ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))
+function diag(lz::LazyBinaryOp{*}) 
+    _diag(x) = diag(x)
+    _diag(x::Int) = x
+    da, db = _diag(lz.a), _diag(lz.b)
+    # if basis(da)!=basis(db)
+    #     error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
+    # end
+    da .* db
+end
 
 
 ### OuterProdOp
 
-# an operator L which represents L = M*M'
+# an operator L which represents L = V*W'
 # this could also be represented by a LazyBinaryOp, but this allows us to 
-# do simulate(L) = M * whitenoise
-struct OuterProdOp{TM<:LinOp} <: ImplicitOp{Basis,Spin,Pix}
-    M::TM
+# define a few extra functions like simulate or diag, which get used in various places 
+struct OuterProdOp{TV,TW} <: ImplicitOp{Basis,Spin,Pix}
+    V::TV
+    W::TW
 end
-simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = L.M * white_noise(F)
-simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = L.M.a * sqrt(L.M.b) * simulate(L.M.b)
-pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = OuterProdOp(pinv(L.M.a)' * pinv(L.M.b)')
-*(L::OuterProdOp, f::Field) = L.M * (L.M' * f)
-\(L::OuterProdOp, f::Field) = L.M' \ (L.M \ f)
-adjoint(L::OuterProdOp) = L
-adapt_structure(to, L::OuterProdOp) = OuterProdOp(adapt(to, L.M))
+OuterProdOp(V) = OuterProdOp(V,V)
+_check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
+simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = (_check_sym(L); L.V * white_noise(F))
+simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); L.V.a * sqrt(L.V.b) * simulate(L.V.b))
+pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
+*(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
+\(L::OuterProdOp{<:LinOp,<:LinOp}, f::Field) = L.W' \ (L.V \ f)
+adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
+adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
+diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
+*(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D)*L.V, L.W)
+*(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W*diag(D))
+tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
+
+
+
+
+### BandpowerParamOp
+
+"""
+    macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
+        
+Create a ParamDependentOp which has a keyword argument with name specified by
+`A` which controls the amplitude of bandpowers of `C₀` in bins specified by
+`ℓedges` which have smoothed edges given by `Δℓ_bin_taper`. E.g.
+
+    Cfb = @BandpowerParamOp(Cf, [500,1000,1500], :A)
+    
+where you can now do `Cfb(A=[1,2])` to compute a new operator which scales the
+original `Cf` by `1` in the bin `[500,1000]`, by `2` in the bin `[1000,1500]`,
+and leaves it unmodified elsewhere.
+
+The resulting operator is differentiable in the bandpower arguments.
+"""
+macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
+    quote
+        # Cbins here is made a tuple instead of an Array so that `adapt` works recursively through it
+        let C₀ = $(esc(C₀)), Cbins = tuple(map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
+                MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* C₀
+            end...)
+            ParamDependentOp(function (;$(esc(A.value))=ones(Int,length(Cbins)),_...)
+                T = real(eltype(C₀))
+                C₀ + sum(T.(tuple($(esc(A.value))...) .- 1) .* Cbins)
+            end)
+        end
+    end
+end

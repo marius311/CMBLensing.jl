@@ -57,7 +57,7 @@ function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     @unpack Cn,Cf,Cϕ,M,P,B,L,d = ds(;θ...)
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
-    Δ = d - M*P*B*f̃
+    Δ = d - M*B*f̃ # took out P, todo: figure out why it was causing Zygote error
     -1/2f0 * (
         Δ'*pinv(Cn)*Δ + logdet(ds.Cn,θ) +
         f'*pinv(Cf)*f + logdet(ds.Cf,θ) +
@@ -83,7 +83,7 @@ function δlnP_δϕ(
     progress=false,
     conjgrad_kwargs=()
     )
-    
+
     @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds
     Lϕ = L(ϕ)
     
@@ -99,7 +99,7 @@ function δlnP_δϕ(
     else
         @unpack f_sims, n_sims, f_wf_sims_guesses, f_wf_guess = previous_state
     end
-        
+
     # generate simulated datasets for the current ϕ
     ds_sims = map(f_sims, n_sims) do f,n
         resimulate(ds, f=f, ϕ=ϕ, n=n)

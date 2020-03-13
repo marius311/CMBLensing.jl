@@ -1,5 +1,7 @@
 using CMBLensing
-using CMBLensing: basis, Basis, BasisTuple, @SVector, @SMatrix, RK4Solver
+using CMBLensing: 
+    @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
+    LinearInterpolation, Measurement, RK4Solver, seed!, ±
 
 ##
 
@@ -30,7 +32,6 @@ using Zygote
         # forwarded to the default behavior)
         @test occursin("where",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
         @test occursin("where",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
-        @test occursin("where",sprint(show, m..., FΦTuple))
         @test occursin("where",sprint(show, m..., FlatQUMap))
     end
 
@@ -174,7 +175,10 @@ end
             @test (@inferred f' * f) isa Real
             @test (@inferred f' * B(f)) isa Real
             @test (@inferred f' * D * f) isa Real
-            @test (@inferred sum(f)) isa Number
+            @test sum(f, dims=:) ≈ sum(f[:])
+            @test_throws Any sum(f, dims=1)
+            @test sum(f, dims=2) == f
+
             
             if f isa FlatS0
                 # FieldVector dot product
@@ -261,6 +265,16 @@ end
 
 ##
 
+@testset "Cℓs" begin
+    
+    @test InterpolatedCℓs(1:100, rand(100))      isa AbstractCℓs{Float64}
+    @test InterpolatedCℓs(1:100, rand(100) .± 1) isa AbstractCℓs{Measurement{Float64}}
+    @test (InterpolatedCℓs(1:100, 1:100) * ℓ²)[50] == 50^3
+    
+end
+
+##
+
 @testset "ParamDependentOp" begin
     
     D = Diagonal(FlatMap(rand(4,4)))
@@ -275,40 +289,112 @@ end
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
     @test ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(D) ≈ D # inplace 
 end
+
 ##
 
-# make sure we can take type-stable gradients of scalar functions of our Fields
-# (like the posterior)
-@testset "Autodiff" begin
+@testset "Zygote" begin
 
-    f = FlatMap(rand(2,2))
-    D = Diagonal(f)
-
-    # the very basics
-    grad1() = Zygote.gradient(function (θ)
-        g = θ * f
-        dot(g,g)
-    end, 1)[1]
-    # this one *is* inferred sometimes, can't figure out what combination of
-    # versions though, so leaving it without @inferred for now
-    @test (grad1()) ≈ 2*norm(f,2)^2 
-
-    grad2() = Zygote.gradient(function (θ)
-        g = (θ * D * f)
-        dot(g,g)
-    end, 1)[1]
-    @test_broken                  grad2()  ≈ 2*norm(f.^2,2)^2
+    for (f,g,h) in [
+        @repeated(FlatMap(rand(2,2)),3), 
+        @repeated(FlatQUMap(rand(2,2),rand(2,2)),3)
+    ]
     
-    # derivatives through ParamDependentOps 
-    Dr = ParamDependentOp((;r=1)-> r * D)
-    grad3() = Zygote.gradient(function (r)
-        g = (Dr(r=r) * f)
-        dot(g,g)
-    end,1)[1]
-    @test_broken           grad3()  ≈ 2*norm(f.^2,2)^2
-    @test_broken @inferred(grad3()) ≈ 2*norm(f.^2,2)^2 # would be nice to get this inferred
+        @testset "$(typeof(f))" begin
+        
+            v = @SVector[f,f]
+            D = Diagonal(f)
+
+            @testset "Fields" begin
+                
+                @testset "sum" begin
+                    @test ((δ = gradient(f -> sum(Map(f)),     Map(f))[1]); basis(δ)==basis(Map(f))     && δ ≈ one(Map(f)))
+                    @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==basis(Fourier(f)) && δ ≈ Fourier(one(Map(f))))
+                end
+                
+                for B1=[Map,Fourier], B2=[Map,Fourier], B3=[Map,Fourier]
+                    @testset "B1=$B1, B2=$B2, B3=$B3" begin
+                        @test gradient(f -> dot(B1(f),B2(f)), B3(f))[1] ≈ 2f
+                        @test gradient(f -> norm(B1(f)), B3(f))[1] ≈ f/norm(f)
+                        @test gradient(f -> B1(f)' * B2(g), B3(f))[1] ≈ g
+                        @test gradient(f -> sum(Diagonal(Map(f)) * B2(g)), B3(f))[1] ≈ g
+                        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * B2(g)), B3(f))[1] ≈ ∇[1]'*g
+                        @test gradient(f -> B1(f)'*(D\B2(f)), B3(f))[1] ≈ D\f + D'\f
+                        @test gradient(f -> (B1(f)'/D)*B2(f), B3(f))[1] ≈ D\f + D'\f
+                        @test gradient(f -> B1(f)'*(D*B2(f)), B3(f))[1] ≈ D*f + D'*f
+                        @test gradient(f -> (B1(f)'*D)*B2(f), B3(f))[1] ≈ D*f + D'*f
+                        @test gradient(f -> B1(f)'*Diagonal(B2(f))*f, B3(f))[1] ≈ @. 3*$B2(f)^2
+                    end
+                end
+
+                @testset "Broadcasting" begin
+                    @test gradient(f -> sum(@. f*f + 2*f + 1), f)[1] ≈ 2*f+2
+                    @test gradient(f -> sum(@. f^2 + 2*f + 1), f)[1] ≈ 2*f+2
+                end
+                
+            end
+
+            @testset "FieldVectors" begin
+            
+                @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
+                @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
+                @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * v[1] + Diagonal(Map(∇[2]*f)) * v[2]), f)[1] ≈ ∇' * v
+            
+                @test gradient(f -> @SVector[f,f]' * Map.(@SVector[g,g]), f)[1] ≈ 2g
+                @test gradient(f -> @SVector[f,f]' * Fourier.(@SVector[g,g]), f)[1] ≈ 2g
+                
+                @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
+                @test gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
+                
+                @test gradient(f -> sum(sum(@SVector[f,f])),                            f)[1] ≈ 2*one(f)
+                @test gradient(f -> sum(sum(@SVector[f,f]      .+ @SVector[f,f])),      f)[1] ≈ 4*one(f)
+                @test gradient(f -> sum(sum(@SMatrix[f f; f f] .+ @SMatrix[f f; f f])), f)[1] ≈ 8*one(f)
+                
+                @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
+                @test_broken gradient(f -> sum(sum(@SMatrix[f f] * @SMatrix[f f; f f])), f)[1] ≈ 8*f
+
+            end
+            
+            @testset "OuterProdOp" begin
+                
+                @test OuterProdOp(f,g) * h ≈ f*(g'*h)
+                @test OuterProdOp(f,g)' * h ≈ g*(f'*h)
+                @test diag(OuterProdOp(f,g)) ≈ f .* conj.(g)
+                @test diag(OuterProdOp(f,g)') ≈ conj.(f) .* g
+                @test diag(OuterProdOp(f,g) + OuterProdOp(f,g)) ≈ 2 .* f .* conj.(g)
+                
+            end
+            
+            if f isa FlatS0
+                
+                @testset "logdet" begin
+                    @test gradient(x->logdet(x*Diagonal(Map(f))),     1)[1] ≈ size(Map(f))[1]
+                    @test gradient(x->logdet(x*Diagonal(Fourier(f))), 1)[1] ≈ size(Map(f))[1]
+                    L = ParamDependentOp((;x=1)->x*Diagonal(Fourier(f)))
+                    @test gradient(x->logdet(L(x=x)), 1)[1] ≈ size(Map(f))[1]
+                end
+                
+                @test gradient(x -> norm(x*Fourier(f)), 1)[1] ≈ norm(f)
+                @test gradient(x -> norm(x*Map(f)), 1)[1] ≈ norm(f)
+
+                L₀ = Diagonal(Map(f))
+                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
+                L₀ = Diagonal(Fourier(f))
+                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
+
+                @test gradient(x -> norm((x*Diagonal(Map(f)))*f), 1)[1] ≈ norm(Diagonal(Map(f))*f)
+                @test gradient(x -> norm((x*Diagonal(Fourier(f)))*f), 1)[1] ≈ norm(Diagonal(Fourier(f))*f)
+
+            end
+        
+        end
+        
+    end
     
-    @test_broken @inferred(Zygote.gradient(r->logdet(Dr(r=r)), 3)[1]) ≈ 4/3
+    @testset "LinearInterpolation" begin
+        @test gradient(x->LinearInterpolation([1,2,3],[1,2,3])(x), 2)[1] == 1
+        @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
+        @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
+    end
     
     
 end
@@ -326,7 +412,7 @@ end
         
         @testset "T :: $T" begin
                 
-            ϵ = sqrt(eps(T))
+            ε = sqrt(eps(T))
             Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
             @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
             Lϕ = LenseFlow(ϕ)
@@ -340,7 +426,8 @@ end
             @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
             # gradients
             δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
 
             # S2 lensing
             Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
@@ -351,7 +438,8 @@ end
             @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
             # gradients
             δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test (FΦTuple(δf,δϕ)'*(δf̃ϕ_δfϕ(Lϕ,Lϕ*f,f)'*FΦTuple(f,ϕ))) ≈ (f'*((LenseFlow(ϕ+ϵ*δϕ)*(f+ϵ*δf))-(LenseFlow(ϕ-ϵ*δϕ)*(f-ϵ*δf)))/(2ϵ)) rtol=1e-2
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
         
         end
         
@@ -389,11 +477,15 @@ end
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
 
             ε = sqrt(eps(T))
+            seed!(0)
             δf,δϕ = simulate(Cf),simulate(Cϕ)
-
-            @test FΦTuple(gradient((f, ϕ)->lnP(0,   f, ϕ,ds),f, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(0,   f +ε*δf,ϕ+ε*δϕ,ds)-lnP(0,   f -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
-            @test FΦTuple(gradient((f̃ ,ϕ)->lnP(1,   f̃, ϕ,ds),f̃, ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(1,   f̃ +ε*δf,ϕ+ε*δϕ,ds)-lnP(1,   f̃ -ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-1
-            @test FΦTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FΦTuple(δf,δϕ) ≈ (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=5e-2
+            
+            @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-3
+            @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
+            @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=1e-2
             
         end
         

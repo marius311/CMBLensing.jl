@@ -1,5 +1,5 @@
 
-abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,Φ} <: LenseOp end
+abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,Φ} <: FlowOpWithAdjoint{I,t₀,t₁} end
 
 # `L = LenseFlow(ϕ)` just creates a wrapper holding ϕ. Then when you do `L*f` or
 # `cache(L,f)` we create a CachedLenseFlow object which holds all the
@@ -46,23 +46,8 @@ string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
 getϕ(L::LenseFlow) = L.ϕ
 getϕ(L::CachedLenseFlow) = L.ϕ[]
 
-# todo, remove this `→` crap, maybe
-_getindex(L::LenseFlow{I,<:Any,<:Any,F}, ::→{t₀,t₁}) where {I,t₀,t₁,F} = LenseFlow{I,t₀,t₁,F}(L.ϕ)
 
-# Define integrations for L*f, L'*f, L\f, and L'\f
-*(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  odesolve(I, (v,t,f)->velocity!( v,cL,f,t), Ł(f), t₀, t₁))
-*(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); odesolve(I, (v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₁, t₀))
-\(L::                LenseFlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = (cL=cache(L,f);  odesolve(I, (v,t,f)->velocity!( v,cL,f,t), Ł(f), t₁, t₀))
-\(L::Adjoint{<:Any,<:LenseFlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = (cL=cache(L',f); odesolve(I, (v,t,f)->velocityᴴ!(v,cL,f,t), Ð(f), t₀, t₁))
-
-# Define integrations for Jacobians
-function *(J::Adjoint{<:Any,<:δfϕₛ_δfϕₜ{s,t,<:LenseFlowOp{I}}}, (δf,δϕ)::FΦTuple) where {s,t,I}
-    cL=cache(J'.L,δf)
-    (_,δf′,δϕ′) = odesolve(I, (v,t,y)->negδvelocityᴴ!(v,cL,y,t),FieldTuple(Ł(J'.fₛ),Ð(δf),Ð(δϕ)),s,t)
-    FΦTuple(δf′,δϕ′)
-end
-
-
+### caching
 τ(t) = Float16(t)
 cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
@@ -102,68 +87,72 @@ end
 # the @! macro, which just rewrites @! x = f(y) to x = f!(x,y) for easier
 # reading. 
 
-function velocity!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
-    p = L.p[τ(t)]
-    
-    @! Ðf  = Ð(f)
-    @! Ð∇f = ∇ᵢ * Ðf
-    @! Ł∇f = Ł(Ð∇f)
-    @! v   = p' * Ł∇f
+function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
+    function v!(v::Field, t::Real, f::Field)
+        Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
+        p = L.p[τ(t)]
+        
+        @! Ðf  = Ð(f)
+        @! Ð∇f = ∇ᵢ * Ðf
+        @! Ł∇f = Ł(Ð∇f)
+        @! v   = p' * Ł∇f
+    end
+    return (v!, Ł(f₀))
 end
 
-function velocityᴴ!(v::Field, L::CachedLenseFlow, f::Field, t::Real)
-    Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁvf, L.memÐvf
-    p = L.p[τ(t)]
-    
-    @! Łf = Ł(f)
-    @! Łf_p = p * Łf
-    @! Ð_Łf_p = Ð(Łf_p)
-    @! v = -∇ᵢ' * Ð_Łf_p
+function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
+    function v!(v::Field, t::Real, f::Field)
+        Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁvf, L.memÐvf
+        p = L.p[τ(t)]
+        
+        @! Łf = Ł(f)
+        @! Łf_p = p * Łf
+        @! Ð_Łf_p = Ð(Łf_p)
+        @! v = -∇ᵢ' * Ð_Łf_p
+    end
+    return (v!, Ð(f₀))
 end
 
-function negδvelocityᴴ!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, L::CachedLenseFlow, (f, δf, δϕ)::FieldTuple, t::Real)
+function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)
     
-    p   = L.p[τ(t)]
-    M⁻¹ = L.M⁻¹[τ(t)]
+    function v!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, t::Real, (f, δf, δϕ)::FieldTuple)
     
-    # dδf/dt
-    Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
-    @! Łδf     = Ł(δf)
-    @! Łδf_p   = p * Łδf
-    @! Ð_Łδf_p = Ð(Łδf_p)
-    @! dδf_dt  = -∇ᵢ' * Ð_Łδf_p
-    
-    # df/dt
-    Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
-    @! Ðf     = Ð(f)
-    @! Ð∇f    = ∇ᵢ * Ðf
-    @! Ł∇f    = Ł(Ð∇f)
-    @! df_dt  = p' * Ł∇f
+        p   = L.p[τ(t)]
+        M⁻¹ = L.M⁻¹[τ(t)]
+        
+        # dδf/dt
+        Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
+        @! Łδf     = Ł(δf)
+        @! Łδf_p   = p * Łδf
+        @! Ð_Łδf_p = Ð(Łδf_p)
+        @! dδf_dt  = -∇ᵢ' * Ð_Łδf_p
+        
+        # df/dt
+        Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
+        @! Ðf     = Ð(f)
+        @! Ð∇f    = ∇ᵢ * Ðf
+        @! Ł∇f    = Ł(Ð∇f)
+        @! df_dt  = p' * Ł∇f
 
-    # dδϕ/dt
-    δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
-    @! δfᵀ_∇f       = tuple_adjoint(Łδf) * Ł∇f
-    @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
-    @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
-    @! dδϕ_dt       = -∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
-    memÐϕ = L.memÐϕ
-    for i=1:2, j=1:2
-        dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j].diag * M⁻¹_δfᵀ_∇f[i]))))
+        # dδϕ/dt
+        δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
+        @! δfᵀ_∇f       = tuple_adjoint(Łδf) * Ł∇f
+        @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
+        @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
+        @! dδϕ_dt       = -∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
+        memÐϕ = L.memÐϕ
+        for i=1:2, j=1:2
+            dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j].diag * M⁻¹_δfᵀ_∇f[i]))))
+        end
+        
+        FieldTuple(df_dt, dδf_dt, dδϕ_dt)
+    
     end
     
-    FieldTuple(df_dt, dδf_dt, dδϕ_dt)
+    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), Ð(zero(getϕ(L)))))
     
 end
-
-# can swap integration points without recaching, although not arbitrarily change them
-_getindex(L::CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = L
-_getindex(L::CachedLenseFlow{N,t₁,t₀,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}, ::→{t₀,t₁}) where {N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T} = CachedLenseFlow{N,t₀,t₁,Φ,ŁΦ,ÐΦ,ŁF,ÐF,T}(fieldvalues(L)...)
 
 # adapting storage
 adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))
 adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁} = cache(LenseFlow{RK4Solver{N},t₀,t₁}(adapt(storage,Lϕ.ϕ[])), adapt(storage,Lϕ.memŁf))
-
-# # ud_grading lenseflow ud_grades the ϕ map
-# ud_grade(L::LenseFlow{I,t₀,t₁}, args...; kwargs...) where {I,t₀,t₁} = LenseFlow{I,t₀,t₁}(ud_grade(L.ϕ,args...;kwargs...))
-# ud_grade(L::CachedLenseFlow, args...; kwargs...)  = cache(ud_grade(L.L,args...;kwargs...))

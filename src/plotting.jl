@@ -10,7 +10,7 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
     @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
 		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 	end
-	@eval function ($plot)(ic::InterpolatedCℓs{<:AbstractExtrapolation{<:Measurement}}, args...; kwargs...)
+	@eval function ($plot)(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
 		($plot) in [:loglog,:semilogx] && xscale("log")
 		($plot) in [:loglog,:semilogy] && yscale("log")
@@ -79,6 +79,7 @@ function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cm
         vmin = -vmax
     end
        
+    m = Float64.(m)
     m[isinf.(m)] .= NaN
     
     cax = ax.matshow(clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
