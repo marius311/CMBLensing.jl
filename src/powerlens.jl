@@ -16,14 +16,14 @@ struct PowerLens{N,F<:Field{<:Any,<:S0}} <: LenseOp
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end
 
-function PowerLens(ϕ,N)
-    ∂xϕ, ∂yϕ = Ł(∂x*ϕ), Ł(∂y*ϕ)
+function PowerLens(d::FieldVector, N)
+    ∂xϕ, ∂yϕ = Ł(d)
     PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
+PowerLens(ϕ::Field, N) = PowerLens(∇*ϕ, N)
+PowerLens{N}(x) where {N} = PowerLens(x,N)
 
-PowerLens{N}(ϕ) where {N} = PowerLens(ϕ,N)
-
-""" Create from an existing PowerLens operator one that lenses by -ϕ instead. """
+""" Create a PowerLens operator that lenses by -ϕ instead. """
 antilensing(L::PowerLens{N,F}) where {N,F} = PowerLens{N,F}(N, (Dict(i=>v*(-1)^i for (i,v)=∂) for ∂=(L.∂xϕⁱ,L.∂xϕⁱ))...)
 
 
