@@ -13,6 +13,7 @@ using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers
 using FFTW
 using InteractiveUtils
+using IterativeSolvers
 using KahanSummation
 using Loess
 using LinearAlgebra

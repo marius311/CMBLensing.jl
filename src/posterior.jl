@@ -115,7 +115,9 @@ function δlnP_δϕ(
             guess = (f_wf_guess==nothing ? 0d : f_wf_guess), 
             conjgrad_kwargs = conjgrad_kwargs
         )
-        g = -((Lϕ' \ (Cf \ f_wf))) * δLf_δϕ(W * f_wf, Lϕ)
+        v = Lϕ' \ (Cf \ f_wf)
+        w = W * f_wf
+        g = gradient(ϕ -> -v' * (L(ϕ) * w), ϕ)[1]
         @namedtuple(g, f_wf)
     end
 
@@ -128,11 +130,11 @@ function δlnP_δϕ(
         get_gQD(Lϕ, ds, f_wf_guess)
     end
 
-    # final total gradient, including prior
+    # final total gradient, including gradient of the prior
     g = gQD.g - mean(getindex.(gQD_sims,:g)) - Cϕ\ϕ
 
     if return_state
-        g, @namedtuple(f_sims, n_sims, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
+        g, @namedtuple(f_sims, n_sims, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
     else
         g
     end
