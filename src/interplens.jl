@@ -106,7 +106,7 @@ end
 function \(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(gmres(
         parent(Lϕ).sparse_repr', view(f[:Ix],:),
-        Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 10
+        Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
     ), N, N))
 end
 

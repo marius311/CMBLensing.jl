@@ -1,5 +1,8 @@
 using .CuArrays
 using .CuArrays.CUSPARSE
+using .CuArrays.CUSPARSE: CuSparseMatrix
+using .CuArrays.CUSOLVER: CuQR
+
 using Serialization
 import Serialization: serialize
 
@@ -50,4 +53,13 @@ CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
 
 # InterpLens constructor code not GPU-compatible yet
-InterpLens(ϕ::FlatS0{P,T,M}) where {P,T,M<:CuArray{T}} = adapt(CuArray{T},InterpLens(adapt(Array{T},ϕ)))
+InterpLens(ϕ::CuFlatS0) = adapt(CuArray,InterpLens(adapt(Array,ϕ)))
+
+# CuArrays somehow missing this one
+# see https://github.com/JuliaGPU/CuArrays.jl/issues/103
+# and https://github.com/JuliaGPU/CuArrays.jl/pull/580
+ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
+
+# bug in CuArrays for this one
+# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
+mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
