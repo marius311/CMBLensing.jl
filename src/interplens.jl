@@ -97,18 +97,16 @@ function *(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
 end
 
 function \(Lϕ::InterpLens, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(bicgstabl(
-        get_anti_lensing_sparse_repr!(Lϕ) * Lϕ.sparse_repr, 
-        get_anti_lensing_sparse_repr!(Lϕ) * view(f[:Ix],:),
-        max_mv_products = 3
+    FlatMap{P}(reshape(gmres(
+        Lϕ.sparse_repr, view(f[:Ix],:),
+        Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
     ), N, N))
 end
 
 function \(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(bicgstabl(
-        get_anti_lensing_sparse_repr!(parent(Lϕ))' * parent(Lϕ).sparse_repr', 
-        get_anti_lensing_sparse_repr!(parent(Lϕ))' * view(f[:Ix],:),
-        max_mv_products = 3
+    FlatMap{P}(reshape(gmres(
+        parent(Lϕ).sparse_repr', view(f[:Ix],:),
+        Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 10
     ), N, N))
 end
 

@@ -13,11 +13,10 @@ using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers
 using FFTW
 using InteractiveUtils
-using IterativeSolvers
 using KahanSummation
 using Loess
 using LinearAlgebra
-using LinearAlgebra: diagzero
+using LinearAlgebra: diagzero, matprod, promote_op
 using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
 using Match
 using Markdown
