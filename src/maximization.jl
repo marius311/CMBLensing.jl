@@ -205,7 +205,7 @@ function MAP_marg(
     Nϕ = nothing,
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
-    α = 0.02,
+    α = 0.2,
     weights = :unlensed, 
     Nsims = 50,
     progress = :summary,

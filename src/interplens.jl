@@ -75,6 +75,9 @@ function InterpLens(ϕ::FlatS0)
 
 end
 
+
+# lazily computing the sparse representation for anti-lensing
+
 function get_anti_lensing_sparse_repr!(Lϕ::InterpLens)
     if Lϕ.anti_lensing_sparse_repr == nothing
         Lϕ.anti_lensing_sparse_repr = InterpLens(-Lϕ.ϕ).sparse_repr
@@ -82,6 +85,8 @@ function get_anti_lensing_sparse_repr!(Lϕ::InterpLens)
     Lϕ.anti_lensing_sparse_repr
 end
 
+
+# applying various forms of the operator
 
 function *(Lϕ::InterpLens, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(Lϕ.sparse_repr * view(f[:Ix],:), N, N))
@@ -107,8 +112,6 @@ function \(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
     ), N, N))
 end
 
-
-
 # special cases for InterpLens(0ϕ), which don't work with bicgstabl, 
 # see https://github.com/JuliaMath/IterativeSolvers.jl/issues/271
 function \(Lϕ::InterpLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}}
@@ -117,7 +120,6 @@ end
 function \(Lϕ::Adjoint{<:Any,<:InterpLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}}
     parent(Lϕ).sparse_repr \ f
 end
-
 
 for op in (:*, :\)
     @eval function ($op)(Lϕ::Union{InterpLens, Adjoint{<:Any,<:InterpLens}}, f::FieldTuple)
@@ -128,6 +130,7 @@ for op in (:*, :\)
 end
 
 
+# gradients
 
 @adjoint InterpLens(ϕ) = InterpLens(ϕ), Δ -> (Δ,)
 
@@ -138,3 +141,8 @@ end
     end
     f̃, back
 end
+
+
+# gpu
+
+adapt_structure(storage, Lϕ::InterpLens) = InterpLens(adapt(storage, fieldvalues(Lϕ))...)

@@ -1,4 +1,5 @@
 using .CuArrays
+using .CuArrays.CUSPARSE
 using Serialization
 import Serialization: serialize
 
@@ -42,3 +43,11 @@ dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+
+
+# this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
+# dense CuArray
+adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
+
+# InterpLens constructor code not GPU-compatible yet
+InterpLens(ϕ::FlatS0{P,T,M}) where {P,T,M<:CuArray{T}} = adapt(CuArray{T},InterpLens(adapt(Array{T},ϕ)))
