@@ -1,4 +1,5 @@
 using .CuArrays
+using .CuArrays.CUDAnative
 using .CuArrays.CUSPARSE
 using .CuArrays.CUSPARSE: CuSparseMatrix
 using .CuArrays.CUSOLVER: CuQR
@@ -7,6 +8,15 @@ using Serialization
 import Serialization: serialize
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
+
+# a function version of @cuda which can be referenced before CUDAnative is
+# loaded as long as it exists by run-time (unlike the macro @cuda which must
+# exist at compile-time)
+function cuda(f, args...; threads=256)
+    @cuda threads=threads f(args...)
+end
+
+is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
@@ -51,9 +61,6 @@ CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
 # dense CuArray
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
-
-# InterpLens constructor code not GPU-compatible yet
-InterpLens(ϕ::CuFlatS0) = adapt(CuArray,InterpLens(adapt(Array,ϕ)))
 
 # CuArrays somehow missing this one
 # see https://github.com/JuliaGPU/CuArrays.jl/issues/103

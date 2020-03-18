@@ -8,14 +8,12 @@ interpolation. The action of the operator, as well as its adjoint, inverse,
 inverse-adjoint, and gradient w.r.t. ϕ can all be computed. The log-determinant
 of the operation is non-zero and can't be computed. 
 
-Internally, InterpLens forms a SparseMatrix with the interpolation weights,
+Internally, InterpLens forms a sparse matrix with the interpolation weights,
 which can be applied and adjoint-ed extremely fast (e.g. at least an order of
 magnitude faster than LenseFlow). Inverse and inverse-adjoint lensing is
 somewhat slower as it is implemented with several steps of the [preconditioned
-Biconjugate gradient stabilized
-method](https://juliamath.github.io/IterativeSolvers.jl/dev/linear_systems/bicgstabl/),
-taking anti-lensing as the
-preconditioner.
+generalized minimal residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
+algorithm, taking anti-lensing as the preconditioner.
 
 """
 mutable struct InterpLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
@@ -24,54 +22,78 @@ mutable struct InterpLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
     anti_lensing_sparse_repr :: Union{S, Nothing}
 end
 
-
 function InterpLens(ϕ::FlatS0)
     
-    if iszero(ϕ)
+    # if ϕ == 0 then just return identity operator
+    if norm(ϕ) == 0
         return InterpLens(ϕ,I,I)
     end
     
     @unpack Nside,Δx,T = fieldinfo(ϕ)
     
-    # the (i,j)-th pixel is deflected to (ĩ,j̃)
-    j̃,ĩ = Map.((∇*ϕ)./Δx)
-    ĩ.Ix .+= (1:Nside)
-    j̃.Ix .+= (1:Nside)'
+    # the (i,j)-th pixel is deflected to (ĩs[i],j̃s[j])
+    j̃s,ĩs = getindex.((∇*ϕ)./Δx, :Ix)
+    ĩs .=  ĩs  .+ (1:Nside)
+    j̃s .= (j̃s' .+ (1:Nside))'
     
+    # sub2ind converts a 2D index to 1D index, including wrapping at edges
     indexwrap(i) = mod(i - 1, Nside) + 1
-    
-    K = collect(flatten(repeated.(1:Nside^2,4)))
-    M,V = similar(K,Float32), similar(K,Float32)
-    
-    for I in eachindex(ĩ)
+    sub2ind(i,j) = Base._sub2ind((Nside,Nside),indexwrap(i),indexwrap(j))
+
+    # compute the 4 non-zero entries in L[I,:] (ie the Ith row of the sparse
+    # lensing representation, L) and add these to the sparse constructor
+    # matrices, M, and V, accordingly. this function is split off so it can be
+    # called directly or used as a CUDA kernels
+    function compute_row!(I, ĩ, j̃, M, V)
+
+        # (i,j) indices of the 4 nearest neighbors
+        left,right = floor(Int,ĩ) .+ (0, 1)
+        top,bottom = floor(Int,j̃) .+ (0, 1)
         
-        let ĩ=ĩ[I], j̃=j̃[I]
-            
-            # (i,j) indices of the 4 nearest neighbors
-            left_right = floor(Int,ĩ) .+ (0, 1)
-            top_bottom = floor(Int,j̃) .+ (0, 1)
-            
-            # 1-D indices of the 4 nearest neighbors
-            M[4I-3:4I] = [Base._sub2ind((Nside,Nside),indexwrap(i),indexwrap(j)) for i=left_right, j=top_bottom]
-            
-            # weights of these neighbors in the bilinear interpolation
-            Δx⁻, Δx⁺ = (left_right .- ĩ)
-            Δy⁻, Δy⁺ = (top_bottom .- j̃)
-            A = @SMatrix[
-                1 Δx⁻ Δy⁻ Δx⁻*Δy⁻;
-                1 Δx⁺ Δy⁻ Δx⁺*Δy⁻;
-                1 Δx⁻ Δy⁺ Δx⁻*Δy⁺;
-                1 Δx⁺ Δy⁺ Δx⁺*Δy⁺
-            ]
-            # todo: I think there's a faster way than inverting the whole matrix
-            # but need to work it out
-            V[4I-3:4I] = inv(A)[1,:]
-            
-        end
+        # 1-D indices of the 4 nearest neighbors
+        M[4I-3:4I] .= (sub2ind(left,top), sub2ind(right,top), sub2ind(left,bottom), sub2ind(right,bottom))
         
+        # weights of these neighbors in the bilinear interpolation
+        Δx⁻, Δx⁺ = ((left,right) .- ĩ)
+        Δy⁻, Δy⁺ = ((top,bottom) .- j̃)
+        A = @SMatrix[
+            1 Δx⁻ Δy⁻ Δx⁻*Δy⁻;
+            1 Δx⁺ Δy⁻ Δx⁺*Δy⁻;
+            1 Δx⁻ Δy⁺ Δx⁻*Δy⁺;
+            1 Δx⁺ Δy⁺ Δx⁺*Δy⁺
+        ]
+        V[4I-3:4I] .= inv(A)[1,:]
+
     end
     
-    InterpLens(ϕ, sparse(K, M, V), nothing)
+    # CPU
+    function compute_sparse_repr(is_gpu_backed::Val{false})
+        K = Int32.(collect(flatten(repeated.(1:Nside^2,4))))
+        M = similar(K)
+        V = similar(K,Float32)
+        for I in 1:length(ĩs)
+            compute_row!(I, ĩs[I], j̃s[I], M, V)
+        end
+        sparse(K,M,V)
+    end
+
+    # GPU
+    function compute_sparse_repr(is_gpu_backed::Val{true})
+        K = adapt(CuArray, Cint.(collect(1:4:4Nside^2+4)))
+        M = similar(K,4Nside^2)
+        V = similar(K,Float32,4Nside^2)
+        cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
+            index = threadIdx().x
+            stride = blockDim().x
+            for I in index:stride:length(ĩs)
+                compute_row!(I, ĩs[I], j̃s[I], M, V)
+            end
+        end
+        CuSparseMatrixCSR(K, M, V, (Nside^2, Nside^2))
+    end
+    
+    
+    InterpLens(ϕ, compute_sparse_repr(Val(is_gpu_backed(ϕ))), nothing)
 
 end
 
