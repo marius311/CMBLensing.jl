@@ -68,6 +68,7 @@ function InterpLens(ϕ::FlatS0)
     
     # CPU
     function compute_sparse_repr(is_gpu_backed::Val{false})
+        # constructed in COO format
         K = Int32.(collect(flatten(repeated.(1:Nside^2,4))))
         M = similar(K)
         V = similar(K,Float32)
@@ -79,6 +80,8 @@ function InterpLens(ϕ::FlatS0)
 
     # GPU
     function compute_sparse_repr(is_gpu_backed::Val{true})
+        # constructed in CSR-like format, but my ordering of M/V isn't quite
+        # right so the switch2csc fixes it
         K = adapt(CuArray, Cint.(collect(1:4:4Nside^2+4)))
         M = similar(K,4Nside^2)
         V = similar(K,Float32,4Nside^2)
@@ -89,7 +92,7 @@ function InterpLens(ϕ::FlatS0)
                 compute_row!(I, ĩs[I], j̃s[I], M, V)
             end
         end
-        CuSparseMatrixCSR(K, M, V, (Nside^2, Nside^2))
+        switch2csc(CuSparseMatrixCSR(K, M, V, (Nside^2, Nside^2)))
     end
     
     
