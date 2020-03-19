@@ -230,7 +230,7 @@ function MAP_marg(
             progress=(progress==:verbose), return_state=true, previous_state=state,
             conjgrad_kwargs=conjgrad_kwargs
         )
-        ϕ -= T(α) * Hϕ⁻¹ * g
+        ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr,@dictpack(i,g,state,ϕ))
     end
     

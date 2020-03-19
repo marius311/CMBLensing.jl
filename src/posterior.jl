@@ -117,7 +117,7 @@ function δlnP_δϕ(
         )
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
-        g = gradient(ϕ -> -v' * (L(ϕ) * w), ϕ)[1]
+        g = gradient(ϕ -> v' * (L(ϕ) * w), ϕ)[1]
         @namedtuple(g, f_wf)
     end
 
