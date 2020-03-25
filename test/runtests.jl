@@ -230,7 +230,7 @@ end
     @test L * Diagonal(f) isa FlatIEBCov
     @test Diagonal(f) * L isa FlatIEBCov
     @test_broken @inferred L * Diagonal(f)
-    @test @inferred(diag(L)) isa DiagOp{<:FlatIEBFourier}
+    @test @inferred(diag(L)) isa FlatIEBFourier
     @test @inferred(L + I) isa FlatIEBCov
     @test @inferred(2 * L) isa FlatIEBCov
     @test @inferred(similar(L)) isa FlatIEBCov

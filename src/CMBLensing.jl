@@ -114,8 +114,8 @@ include("sampling.jl")
 # other estimates
 include("quadratic_estimate.jl")
 
-# curved-sky (not yet upgraded to new system)
-# include("healpix.jl")
+# curved-sky
+include("healpix.jl")
 
 include("autodiff.jl")
 

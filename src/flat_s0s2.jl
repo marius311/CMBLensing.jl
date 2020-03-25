@@ -77,8 +77,8 @@ struct FlatIEBCov{T,F} <: ImplicitOp{IEBFourier,S02,Pix}
 end
 
 # contructing from Cℓs
-function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S02}, CℓTT, CℓEE, CℓBB, CℓTE) where {T,P}
-    ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(P,T,S0,Cℓ) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S02}, CℓTT, CℓEE, CℓBB, CℓTE; kwargs...) where {T,P}
+    ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(P,T,S0,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
 end
 
@@ -95,8 +95,8 @@ adjoint(L::FlatIEBCov) = L
 sqrt(L::FlatIEBCov) = FlatIEBCov(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::FlatIEBCov) = FlatIEBCov(pinv(L.ΣTE), pinv(L.ΣB))
 simulate(L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) * white_noise(FlatIEBFourier{P,T,M})
-diag(L::FlatIEBCov) = Diagonal(FlatIEBFourier(L.ΣTE[1].diag, L.ΣTE[2].diag, L.ΣB.diag))
-similar(L::FlatIEBCov) = (similar(L.ΣB); similar.(L.ΣTE); L)
+diag(L::FlatIEBCov) = FlatIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
+similar(L::FlatIEBCov) = FlatIEBCov(similar.(L.ΣTE), similar(L.ΣB))
 
 # getindex
 function getindex(L::FlatIEBCov, k::Symbol)
