@@ -124,6 +124,7 @@ function MAP_joint(
     
     f, f° = nothing, nothing
     ϕ = (ϕstart==nothing) ? zero(diag(Cϕ)) : ϕstart
+    ϕstep = nothing
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
     α = 0
@@ -162,17 +163,17 @@ function MAP_joint(
             if (progress==:verbose)
                 @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
             end
-            push!(tr,@namedtuple(i,lnPcur,hist,ϕ,f,α))
+            push!(tr,@namedtuple(i,lnPcur,hist,ϕ,f,α,ϕstep))
             if callback != nothing
                 callback(f, ϕ, tr)
             end
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕnew = Hϕ⁻¹*(gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
-                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕnew,ds)), T(0), T(αmax), abs_tol=αtol)
+                ϕstep = Hϕ⁻¹*(gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
+                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕstep,ds)), T(0), T(αmax), abs_tol=αtol)
                 α = res.minimizer
-                ϕ = ϕ+α*ϕnew
+                ϕ = ϕ+α*ϕstep
             end
 
         end
