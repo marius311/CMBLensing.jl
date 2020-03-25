@@ -97,7 +97,7 @@ function load_sim_dataset(;
     # mask parameters, or set M directly
     pixel_mask_kwargs = nothing,
     bandpass_mask = LowPass(3000),
-    M = nothing,
+    M = nothing, M̂ = nothing,
     
     # theory
     rfid = 0.05,
@@ -163,6 +163,9 @@ function load_sim_dataset(;
         if (pixel_mask_kwargs != nothing)
             M = M * adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
         end
+    end
+    if diag(M̂) isa BandPass
+        M̂ = Diagonal(M̂ * one(diag(Cf)))
     end
     
     # beam

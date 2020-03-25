@@ -1,4 +1,8 @@
 using .CuArrays
+using .CuArrays.CUDAdrv: devices
+using .CuArrays.CUDAnative: device!
+
+using Pkg
 using Serialization
 import Serialization: serialize
 
@@ -42,3 +46,45 @@ dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+
+
+@doc doc"""
+
+    add_gpu_procs([n = all-GPUs-on-node])
+    
+A utility function for running jobs on multiple GPUs on a single node. This will
+add `n` Julia processes, activate the same package environment on each as on the main
+process, and set each process to use one of the GPUs. If `n` is not specified,
+use all the available GPUs found on the node.
+
+"""
+function add_gpu_procs(n = length(devices()))
+    
+    (n > length(devices())) && error("Tried to use $(n) GPUs but only $(length(devices())) GPUs were found.")
+    (n == 1) && error("Tried use 1 GPU process, in this case, just omit the call to `add_gpu_procs`.")
+    
+    addprocs(n)
+    
+    @everywhere workers() @eval begin
+        # activate the same environment on the workers as the master
+        using Pkg
+        Pkg.activate($(Pkg.API.Context().env.project_file))
+        
+        # load CuArrays-enabled CMBLensing on workers as well
+        using CuArrays, CMBLensing
+        
+        # until the fixes to https://github.com/JuliaGPU/CuArrays.jl/issues/589 hit a release:
+        CuArrays.CURAND.seed!(rand(0:typemax(Int)))
+    end
+
+    # assign devices
+    asyncmap((zip(workers(), devices()))) do (p, d)
+        remotecall_wait(p) do
+            device!(d)
+            @info "Worker $p uses $d"
+        end
+    end
+    
+    nothing
+    
+end

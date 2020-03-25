@@ -161,6 +161,8 @@ function sample_joint(
     storage = basetype(M)
     ) where {P,T,M}
     
+    ds = adapt(Array, ds)
+    
     # save input configuration to chain
     rundat = adapt(Array, Base.@locals)
     
