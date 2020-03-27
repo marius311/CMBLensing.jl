@@ -130,7 +130,7 @@ function load_sim_dataset(;
     S,ks,F,F̂,nF = @match pol begin
         :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
+        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
         _   => throw(ArgumentError("`pol` should be one of :I, :P, or :IP"))
     end
     
