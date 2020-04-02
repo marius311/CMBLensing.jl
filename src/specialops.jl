@@ -266,6 +266,7 @@ literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{n}) where {n} = LazyBinaryOp
 ^(op::ImplicitOrAdjOp, n::Int) = LazyBinaryOp(^,op,n)
 inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
 -(op::ImplicitOrAdjOp) = -1 * op
+pinv(op::LazyBinaryOp{*}) = pinv(op.b) * pinv(op.a)
 # evaluating LazyBinaryOps
 for op in (:+, :-)
     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
