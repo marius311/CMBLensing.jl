@@ -261,10 +261,8 @@ for op in (:+, :-, :*)
     @eval ($op)(D1::DiagOp{<:Field{B1}}, D2::DiagOp{<:Field{B2}}) where {B1,B2} = LazyBinaryOp($op,D1,D2)
 end
 /(op::ImplicitOrAdjOp, n::Real) = LazyBinaryOp(/,op,n)
-literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{-1}) = inv(op)
-literal_pow(::typeof(^), op::ImplicitOrAdjOp, ::Val{n}) where {n} = LazyBinaryOp(^,op,n)
-^(op::ImplicitOrAdjOp, n::Int) = LazyBinaryOp(^,op,n)
-inv(op::ImplicitOrAdjOp) = LazyBinaryOp(^,op,-1)
+^(op::Union{ImplicitOrAdjOp,DiagOp{<:ImplicitField}}, n::Int) = LazyBinaryOp(^,op,n)
+inv(op::Union{ImplicitOrAdjOp,DiagOp{<:ImplicitField}}) = LazyBinaryOp(^,op,-1)
 -(op::ImplicitOrAdjOp) = -1 * op
 pinv(op::LazyBinaryOp{*}) = pinv(op.b) * pinv(op.a)
 # evaluating LazyBinaryOps
