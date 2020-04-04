@@ -16,5 +16,6 @@ plots/
 paper/
 scripts/
 *.jld*
-docs/
 test/benchmarks
+!.github/**
+docs/src/*.ipynb

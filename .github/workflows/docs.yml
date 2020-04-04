@@ -1,0 +1,21 @@
+name: docs
+on: push
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: build
+        uses: docker/build-push-action@v1.0.1
+        with:
+          dockerfile: Dockerfile.base
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: marius311/cmblensing.jl
+          tags: latest
+          # tag_with_ref: true
+      # - name: build-placeholder
+      #   run: docker pull marius311/cmblensing.jl:latest
+      # - name: postbuild
+      #   run: docker run marius311/cmblensing.jl:latest -v 

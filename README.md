@@ -15,15 +15,18 @@ At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the 
     * `LenseFlow` ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
     * `Taylens` ([Næss & Louis 2013](https://arxiv.org/abs/1307.0719))
     * Taylor series expansion to any order
-* Maximize and sample $\mathcal{P}(f,\phi,\theta\,|\,d)$, the joint maximum a posteriori estimate of the lensing potential, $\phi$, the  temperature and/or polarization fields, $f$, and cosmological parameters, $\theta$ ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
+    * Bilinear interpolation
+* Maximize and sample $\mathcal{P}(f,\phi,\theta\,|\,d)$, the joint maximum a posteriori estimate of the lensing potential, $\phi$, the  temperature and/or polarization fields, $f$, and cosmological parameters, $\theta$ ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753), [Millea, Anderes, & Wandelt 2020](https://arxiv.org/abs/2002.00965))
 * Maximize $\mathcal{P}(\phi\,|\,d,\theta)$, i.e. the marginal maximum a posteriori estimate of the lensing potential, $\phi$, at fixed cosmological parameters, $\theta$ ([Carron & Lewis 2017](https://arxiv.org/abs/1704.08230))
-* Do quadratic estimation of $\phi$ ([Hu & Okamoto 2003](https://arxiv.org/abs/astro-ph/0111606))
+* Do basic quadratic estimation of $\phi$ ([Hu & Okamoto 2003](https://arxiv.org/abs/astro-ph/0111606))
 
 ## Documentation
 
 The best place to get started is to read the [documentation](https://cosmicmar.com/CMBLensing.jl/) (which is a work-in-progress, but contains many useful examples). 
 
-Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). You can also find the notebooks in [this folder](https://github.com/marius311/CMBLensing.jl/tree/gh-pages/src) if you want to run them locally (which will usually lead to higher performance).
+Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). 
+
+You can also clone the repostiory and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommented to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
 
 
 ## Installation
@@ -31,8 +34,8 @@ Most of the pages in the documentation are Jupyter notebooks, and you can click 
 ### Requirements
 
 * Julia 1.3 or higher
-* Python 3 + matplotlib (used for plotting)
-* _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
+* _(optional)_ Python 3 + matplotlib (used for plotting)
+* _(optional)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
 * _(optional)_ An Nvidia GPU and [CuArrays](https://github.com/JuliaGPU/CuArrays.jl) for GPU support
 * _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
@@ -41,7 +44,7 @@ Most of the pages in the documentation are Jupyter notebooks, and you can click 
 To install the Julia package locally, run:
 
 ```juliapkg
-pkg> add https://github.com/marius311/CMBLensing.jl#master
+pkg> add CMBLensing
 ```
 
 (type `]` at the Julia REPL to reach the `pkg>` prompt)
