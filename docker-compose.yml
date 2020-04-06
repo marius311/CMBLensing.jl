@@ -2,14 +2,10 @@ version: "3"
 
 services:
   cmblensing:
-    image: marius311/cmblensing.jl:mybinder-${TAG:-latest}
-    build: 
+    image: marius311/cmblensing.jl:${TAG:-stable}
+    build:
       context: .
-      dockerfile: Dockerfile.base
-    volumes:
-      - "./docs/Project.toml:/home/cosmo/CMBLensing/docs/Project.toml"
-      - "./docs/src:/home/cosmo/CMBLensing/docs/src"
-    ports: 
+    ports:
      - "${PORT:-8888}:${PORT:-8888}"
     hostname: localhost
     environment:

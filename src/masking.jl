@@ -19,7 +19,7 @@ function make_mask(
         cos_apod(boundary, deg2npix(apodization_deg), deg2npix(edge_rounding_deg)) .* cos_apod(ptsrc, arcmin2npix(ptsrc_radius_arcmin));
     end
     
-    FlatMap(mask_array, θpix=θpix)
+    FlatMap(Float32.(mask_array), θpix=θpix)
 end
 
 make_mask(::FlatField{<:Flat{Nside,θpix}}; kwargs...) where {Nside,θpix} = make_mask(Nside, θpix; kwargs...)

@@ -1,5 +1,5 @@
 *
 !src
 !Project.toml
-!docs/src/*.ipynb
-!docs/Project.toml
+!README.md
+!docs

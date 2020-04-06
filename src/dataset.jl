@@ -130,7 +130,7 @@ function load_sim_dataset(;
     S,ks,F,F̂,nF = @match pol begin
         :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
         :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatTEBFourier, 3)
+        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
         _   => throw(ArgumentError("`pol` should be one of :I, :P, or :IP"))
     end
     
@@ -163,6 +163,9 @@ function load_sim_dataset(;
         if (pixel_mask_kwargs != nothing)
             M = M * adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
         end
+    end
+    if diag(M̂) isa BandPass
+        M̂ = Diagonal(M̂ * one(diag(Cf)))
     end
     
     # beam

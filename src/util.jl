@@ -316,3 +316,26 @@ function corrify(H)
     end
     H
 end
+
+
+
+struct FailedPyimport
+    err
+end
+getproperty(p::FailedPyimport, ::Symbol) = throw(getfield(p,:err))
+
+@doc doc"""
+
+    safe_pyimport(s)
+
+Like `pyimport`, but if `s` fails to import, instead of an error right away, the
+error will be thrown the first time the user tries to access the contents of the
+module.
+"""
+function safe_pyimport(s)
+    try
+        pyimport(s)
+    catch err
+        FailedPyimport(err)
+    end
+end
