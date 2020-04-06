@@ -104,8 +104,7 @@ function MAP_joint(
     Nϕ = nothing,
     quasi_sample = false, 
     nsteps = 10, 
-    Ncg = 500,
-    cgtol = 1e-1,
+    conjgrad_kwargs = (nsteps=500, tol=1e-1),
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = nothing,
@@ -154,7 +153,7 @@ function MAP_joint(
             (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    conjgrad_kwargs=(tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose)))
+                    conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))
                     
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
@@ -225,9 +224,9 @@ function MAP_marg(
     state = nothing
     
     @showprogress (progress==:summary ? 1 : Inf) "MAP_marg: " for i=1:nsteps
-        g, state = δlnP_δϕ(
+        g = δlnP_δϕ(
             ϕ, ds, Nsims=Nsims, weights=weights,
-            progress=(progress==:verbose), return_state=true, previous_state=state,
+            progress=(progress==:verbose), return_state=false, previous_state=state,
             conjgrad_kwargs=conjgrad_kwargs
         )
         ϕ += T(α) * Hϕ⁻¹ * g
