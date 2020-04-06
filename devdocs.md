@@ -11,3 +11,5 @@ To write new documentation:
 The Github Actions workflow will build documentation for master and for all tags and PRs. It pushes these to the `gh-pages` branch of CMBLensing.jl which is then hosted at [cosmicmar.com/CMBLensing.jl](https://cosmicmar.com/CMBLensing.jl)
 
 All MyBinder links point to the `gh-pages` branch of CMBLensing.jl. MyBinder uses the `Dockerfile` in the root folder of this branch which is a symlink pointing to `stable/Dockerfile`, and `stable/` is itself a symlink managed by Documenter.jl made to point at the most recent tagged version. This means MyBinder links from any version of the documentation will always point to the most recent stable tagged vesion (ideally they would point to whatever version the documenation itself was, but that's harder to set up).
+
+The `docker-compose.yml` points to a Docker image tagged `marius311/cmblensing.jl:stable`. Its currently required to manually tag the most recent release with this name on Docker Hub (the image is built and tagged with the release number, so its just a matter of adding another tag, although in the future this should be automated with Github Actions too). 
