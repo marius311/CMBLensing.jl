@@ -1,1 +1,1 @@
-FROM marius311/cmblensing.jl:actions
+FROM marius311/cmblensing.jl:latest
