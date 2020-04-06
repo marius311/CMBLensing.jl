@@ -68,7 +68,7 @@ export
     FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU,
     FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map,
     Fourier, fourier∂, FuncOp, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ,
-    get_ℓ⁴Cℓ, gradhess, HighPass, IdentityOp, IEBFourier, IEBMap, InterpLens, 
+    get_ℓ⁴Cℓ, gradhess, HighPass, IdentityOp, IEBFourier, IEBMap, BilinearLens, 
     InterpolatedCℓs, IQUFourier, IQUMap, LazyBinaryOp, LenseBasis, LenseFlow,
     LinOp, lnP, load_camb_Cℓs, load_sim_dataset, LowPass, make_mask, Map,
     MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero, noiseCℓs, NoLensing,
@@ -100,7 +100,7 @@ include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
 include("taylens.jl")
-include("interplens.jl")
+include("bilinearlens.jl")
 
 # plotting
 isjuno = false

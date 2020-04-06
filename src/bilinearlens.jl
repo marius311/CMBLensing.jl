@@ -1,14 +1,14 @@
 
 @doc doc"""
 
-    InterpLens(ϕ)
+    BilinearLens(ϕ)
     
-InterpLens is a lensing operator that computes lensing with bilinear
+BilinearLens is a lensing operator that computes lensing with bilinear
 interpolation. The action of the operator, as well as its adjoint, inverse,
 inverse-adjoint, and gradient w.r.t. ϕ can all be computed. The log-determinant
 of the operation is non-zero and can't be computed. 
 
-Internally, InterpLens forms a sparse matrix with the interpolation weights,
+Internally, BilinearLens forms a sparse matrix with the interpolation weights,
 which can be applied and adjoint-ed extremely fast (e.g. at least an order of
 magnitude faster than LenseFlow). Inverse and inverse-adjoint lensing is
 somewhat slower as it is implemented with several steps of the [preconditioned
@@ -16,17 +16,17 @@ generalized minimal residual](https://en.wikipedia.org/wiki/Generalized_minimal_
 algorithm, taking anti-lensing as the preconditioner.
 
 """
-mutable struct InterpLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
+mutable struct BilinearLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
     ϕ :: Φ
     sparse_repr :: S
     anti_lensing_sparse_repr :: Union{S, Nothing}
 end
 
-function InterpLens(ϕ::FlatS0)
+function BilinearLens(ϕ::FlatS0)
     
     # if ϕ == 0 then just return identity operator
     if norm(ϕ) == 0
-        return InterpLens(ϕ,I,I)
+        return BilinearLens(ϕ,I,I)
     end
     
     @unpack Nside,Δx,T = fieldinfo(ϕ)
@@ -94,16 +94,16 @@ function InterpLens(ϕ::FlatS0)
     end
     
     
-    InterpLens(ϕ, compute_sparse_repr(Val(is_gpu_backed(ϕ))), nothing)
+    BilinearLens(ϕ, compute_sparse_repr(Val(is_gpu_backed(ϕ))), nothing)
 
 end
 
 
 # lazily computing the sparse representation for anti-lensing
 
-function get_anti_lensing_sparse_repr!(Lϕ::InterpLens)
+function get_anti_lensing_sparse_repr!(Lϕ::BilinearLens)
     if Lϕ.anti_lensing_sparse_repr == nothing
-        Lϕ.anti_lensing_sparse_repr = InterpLens(-Lϕ.ϕ).sparse_repr
+        Lϕ.anti_lensing_sparse_repr = BilinearLens(-Lϕ.ϕ).sparse_repr
     end
     Lϕ.anti_lensing_sparse_repr
 end
@@ -111,39 +111,39 @@ end
 
 # applying various forms of the operator
 
-function *(Lϕ::InterpLens, f::FlatS0{P}) where {N,P<:Flat{N}}
+function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(Lϕ.sparse_repr * view(f[:Ix],:), N, N))
 end
 
-function *(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
+function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(parent(Lϕ).sparse_repr' * view(f[:Ix],:), N, N))
 end
 
-function \(Lϕ::InterpLens, f::FlatS0{P}) where {N,P<:Flat{N}}
+function \(Lϕ::BilinearLens, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(gmres(
         Lϕ.sparse_repr, view(f[:Ix],:),
         Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
     ), N, N))
 end
 
-function \(Lϕ::Adjoint{<:Any,<:InterpLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
+function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
     FlatMap{P}(reshape(gmres(
         parent(Lϕ).sparse_repr', view(f[:Ix],:),
         Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
     ), N, N))
 end
 
-# special cases for InterpLens(0ϕ), which don't work with bicgstabl, 
+# special cases for BilinearLens(0ϕ), which don't work with bicgstabl, 
 # see https://github.com/JuliaMath/IterativeSolvers.jl/issues/271
-function \(Lϕ::InterpLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}}
+function \(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}}
     Lϕ.sparse_repr \ f
 end
-function \(Lϕ::Adjoint{<:Any,<:InterpLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}}
+function \(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}}
     parent(Lϕ).sparse_repr \ f
 end
 
 for op in (:*, :\)
-    @eval function ($op)(Lϕ::Union{InterpLens, Adjoint{<:Any,<:InterpLens}}, f::FieldTuple)
+    @eval function ($op)(Lϕ::Union{BilinearLens, Adjoint{<:Any,<:BilinearLens}}, f::FieldTuple)
         Łf = Ł(f)
         F = typeof(Łf)
         F(map(f->($op)(Lϕ,f), Łf.fs))
@@ -153,9 +153,9 @@ end
 
 # gradients
 
-@adjoint InterpLens(ϕ) = InterpLens(ϕ), Δ -> (Δ,)
+@adjoint BilinearLens(ϕ) = BilinearLens(ϕ), Δ -> (Δ,)
 
-@adjoint function *(Lϕ::InterpLens, f::Field{B}) where {B}
+@adjoint function *(Lϕ::BilinearLens, f::Field{B}) where {B}
     f̃ = Lϕ * f
     function back(Δ)
         (∇' * (Ref(tuple_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ*Δ)
@@ -166,4 +166,4 @@ end
 
 # gpu
 
-adapt_structure(storage, Lϕ::InterpLens) = InterpLens(adapt(storage, fieldvalues(Lϕ))...)
+adapt_structure(storage, Lϕ::BilinearLens) = BilinearLens(adapt(storage, fieldvalues(Lϕ))...)
