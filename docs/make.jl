@@ -66,7 +66,7 @@ end
         pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
         nbpath = foldl(replace,["src-staging"=>"src",".md"=>".ipynb"], init=pageurl)
         if @show isfile(nbpath)
-            url = "https://mybinder.org/v2/gh/marius311/CMBLensing.jl/master?urlpath=lab/tree/$(basename(nbpath))"
+            url = "https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/$(basename(nbpath))"
             push!(navbar_right.nodes, a[".docs-right", :href => url](img[:src => "https://mybinder.org/badge_logo.svg"]()))
         end
     end
@@ -136,7 +136,6 @@ end
 makedocs(
     sitename="CMBLensing.jl", 
     source = "src-staging",
-    build = "latest",
     format = Documenter.HTML(
         assets = ["assets/cmblensing.css"],
         disable_git = true,
@@ -150,4 +149,14 @@ makedocs(
         "05_field_basics.md",
         "api.md"
     ],
+)
+
+open("build/Dockerfile","w") do io
+    write(io,"FROM $(ENV["IMAGE_NAME"])")
+end
+
+
+deploydocs(
+    repo = "github.com/marius311/CMBLensing.jl.git",
+    devbranch = "actions", # remove once done testing 
 )

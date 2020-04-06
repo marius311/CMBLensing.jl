@@ -6,16 +6,17 @@ jobs:
     steps: 
       - name: checkout
         uses: actions/checkout@v2
-      - name: build
-        uses: docker/build-push-action@v1.0.1
-        with:
-          dockerfile: Dockerfile.base
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: marius311/cmblensing.jl
-          tags: latest
-          # tag_with_ref: true
-      # - name: build-placeholder
-      #   run: docker pull marius311/cmblensing.jl:latest
-      # - name: postbuild
-      #   run: docker run marius311/cmblensing.jl:latest -v 
+      # - name: build
+      #   uses: docker/build-push-action@v1.0.1
+      #   with:
+      #     dockerfile: Dockerfile.base
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
+      #     repository: marius311/cmblensing.jl
+      #     tag_with_ref: true
+      - name: build-placeholder
+        run: docker pull marius311/cmblensing.jl:actions
+      - name: postbuild
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
+        run: .github/workflows/docs.sh
