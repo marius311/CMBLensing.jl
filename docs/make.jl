@@ -158,5 +158,4 @@ end
 
 deploydocs(
     repo = "github.com/marius311/CMBLensing.jl.git",
-    devbranch = "actions", # remove once done testing 
 )
