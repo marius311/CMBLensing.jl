@@ -6,6 +6,8 @@ using Pkg
 using Serialization
 import Serialization: serialize
 
+export add_gpu_procs
+
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
 ### broadcasting

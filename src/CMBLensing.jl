@@ -56,7 +56,7 @@ import Statistics: std
 
 
 export
-    @BandpowerParamOp, @namedtuple, @repeated, @unpack, add_gpu_procs, animate,
+    @BandpowerParamOp, @namedtuple, @repeated, @unpack, animate,
     argmaxf_lnP, BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D,
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
@@ -69,7 +69,7 @@ export
     IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
     LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
     load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂, MidPass,
-    mix, nan2zero, noiseCℓs, NoLensing, OuterProdOp, ParamDependentOp, pixwin,
+    mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp, pixwin,
     PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2, sample_joint,
     shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint,
     ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀,
