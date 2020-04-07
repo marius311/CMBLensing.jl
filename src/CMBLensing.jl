@@ -30,7 +30,6 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
-using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray
 using Statistics
@@ -58,7 +57,7 @@ import Statistics: std
 
 export
     @BandpowerParamOp, @namedtuple, @repeated, @unpack, animate,
-    argmaxf_lnP, BandPassOp, BilinearLens, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D,
+    argmaxf_lnP, BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D,
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
     FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector,

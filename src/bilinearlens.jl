@@ -1,4 +1,6 @@
 
+export BilinearLens
+
 @doc doc"""
 
     BilinearLens(ϕ)
@@ -14,6 +16,12 @@ magnitude faster than LenseFlow). Inverse and inverse-adjoint lensing is
 somewhat slower as it is implemented with several steps of the [preconditioned
 generalized minimal residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
 algorithm, taking anti-lensing as the preconditioner.
+
+!!! warning 
+
+    Due to [this bug](https://github.com/JuliaLang/PackageCompiler.jl/issues/379)
+    in PackageCompiler, currently you have to run `using SparseArrays` by hand
+    in your Julia session before `BilinearLens` is available.
 
 """
 mutable struct BilinearLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
