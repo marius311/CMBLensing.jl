@@ -1,6 +1,6 @@
 using .CuArrays
 using .CuArrays.CUDAnative
-using .CuArrays.CUDAdrv
+using .CuArrays.CUDAdrv: devices
 using .CuArrays.CUSPARSE
 using .CuArrays.CUSPARSE: CuSparseMatrix
 using .CuArrays.CUSOLVER: CuQR
@@ -64,7 +64,10 @@ CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
 # dense CuArray
-adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
+@require SparseArrays="2f01184e-e22b-5df5-ae63-d93ebab69eaf" begin
+    using .SparseArrays
+    adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
+end
 
 # CuArrays somehow missing this one
 # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
