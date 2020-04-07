@@ -22,7 +22,7 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
 
-function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, kwargs...)
+function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
@@ -45,26 +45,27 @@ function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=
         _      => error("Unrecognized preconditioner='$preconditioner'")
     end
     
-    conjugate_gradient(A_preconditioner, A, b, guess==nothing ? 0*b : guess; kwargs...)
+    conjugate_gradient(A_preconditioner, A, b, (guess==nothing ? 0*b : guess); conjgrad_kwargs...)
     
 end
 
 
 @doc doc"""
-    Σ(ϕ,  ds, ::Type{L}=LenseFlow) where {L}
-    Σ(Lϕ, ds)
+    Σ(ϕ::Field,  ds; conjgrad_kwargs=())
+    Σ(Lϕ,        ds; conjgrad_kwargs=())
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
-applied and inverted.
+applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
+`conjugate_gradient`.
 """
-Σ(ϕ::Field, ds) = Σ(ds.L(ϕ),ds)
-Σ(Lϕ,       ds) = begin
+Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
+Σ(Lϕ,       ds; conjgrad_kwargs=()) = begin
 
-    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂ = ds
+    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
 
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
-        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ B̂*Cf*B̂'), Σ(Lϕ, ds), x, nsteps=100, tol=1e-1)
+        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
 
 end
@@ -103,8 +104,7 @@ function MAP_joint(
     Nϕ = nothing,
     quasi_sample = false, 
     nsteps = 10, 
-    Ncg = 500,
-    cgtol = 1e-1,
+    conjgrad_kwargs = (nsteps=500, tol=1e-1),
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = nothing,
@@ -154,7 +154,7 @@ function MAP_joint(
             (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    tol=cgtol, nsteps=Ncg, hist=(:i,:res), progress=(progress==:verbose))
+                    conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))
                     
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
@@ -202,16 +202,17 @@ $\mathcal{P}(\phi,\theta\,|\,d)$.
 function MAP_marg(
     ds;
     ϕstart = nothing,
-    L = LenseFlow,
     Nϕ = nothing,
     nsteps = 10, 
-    Ncg = 500,
-    cgtol = 1e-1,
-    α = 0.02,
-    Nmc_det = 50,
+    conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    α = 0.2,
+    weights = :unlensed, 
+    Nsims = 50,
+    progress = :summary,
     )
     
     @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
+    T = eltype(Cf)
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
@@ -221,10 +222,16 @@ function MAP_marg(
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     tr = []
 
-    for i=1:nsteps
-        g, det_sims = δlnP_δϕ(ϕ, ds, progress=true, Nmc_det=Nmc_det, return_sims=true)
-        ϕ += α * Hϕ⁻¹ * g
-        push!(tr,@dictpack(i,g,det_sims,ϕ))
+    state = nothing
+    
+    @showprogress (progress==:summary ? 1 : Inf) "MAP_marg: " for i=1:nsteps
+        g = δlnP_δϕ(
+            ϕ, ds, Nsims=Nsims, weights=weights,
+            progress=(progress==:verbose), return_state=false, previous_state=state,
+            conjgrad_kwargs=conjgrad_kwargs
+        )
+        ϕ += T(α) * Hϕ⁻¹ * g
+        push!(tr,@dictpack(i,g,state,ϕ))
     end
     
     return ϕ, tr

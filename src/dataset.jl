@@ -186,7 +186,11 @@ function load_sim_dataset(;
     end
       
     # simulate data
-    if (seed != nothing); seed!(seed); end
+    if (seed != nothing)
+        if storage == Array; Random.seed!(seed)
+        elseif storage == CuArray; CuArrays.CURAND.seed!(seed)
+        else; error("Don't know how to set seed for storage=$storage"); end
+    end
     if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
     if (f  == nothing); f  = simulate(Cf); end
     if (n  == nothing); n  = simulate(Cn); end

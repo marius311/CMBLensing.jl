@@ -66,5 +66,5 @@ end
 function *(L::Taylens, f::FieldTuple)
     Łf = Ł(f)
     F = typeof(Łf)
-    F(map(f->L*f, f.fs))
+    F(map(f->L*f, Łf.fs))
 end

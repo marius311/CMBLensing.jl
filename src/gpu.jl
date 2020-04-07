@@ -1,6 +1,9 @@
 using .CuArrays
+using .CuArrays.CUDAnative
 using .CuArrays.CUDAdrv: devices
-using .CuArrays.CUDAnative: device!
+using .CuArrays.CUSPARSE
+using .CuArrays.CUSPARSE: CuSparseMatrix
+using .CuArrays.CUSOLVER: CuQR
 
 using Pkg
 using Serialization
@@ -9,6 +12,15 @@ import Serialization: serialize
 export add_gpu_procs
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
+
+# a function version of @cuda which can be referenced before CUDAnative is
+# loaded as long as it exists by run-time (unlike the macro @cuda which must
+# exist at compile-time)
+function cuda(f, args...; threads=256)
+    @cuda threads=threads f(args...)
+end
+
+is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
@@ -48,6 +60,24 @@ dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+
+
+# this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
+# dense CuArray
+@require SparseArrays="2f01184e-e22b-5df5-ae63-d93ebab69eaf" begin
+    using .SparseArrays
+    adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
+end
+
+# CuArrays somehow missing this one
+# see https://github.com/JuliaGPU/CuArrays.jl/issues/103
+# and https://github.com/JuliaGPU/CuArrays.jl/pull/580
+ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
+
+# bug in CuArrays for this one
+# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
+mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
+
 
 
 @doc doc"""

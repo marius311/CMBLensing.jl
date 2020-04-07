@@ -184,7 +184,7 @@ This is simply the Wiener filter of the data given a signal covariance which inc
 In CMBLensing.jl, the `argmaxf_lnP` function performs this task. Its arguments are similar to `lnP`,
 
 ```julia
-f_wf = argmaxf_lnP(ϕ, (Aϕ=1,), ds, tol=1e-1, progress=true);
+f_wf = argmaxf_lnP(ϕ, (Aϕ=1,), ds, conjgrad_kwargs=(tol=1e-1, progress=true));
 ```
 
 Wiener filtering effectively delenses the data by a given $\phi$. Here we are Wiener filtering at the true $\phi$, so this is perfect delensing. Note below the large amount of B mode power in the data, as well as the aliasing near the border mask, and how this is removed in the Wiener filtered B, which visually is tracing the true B map up to the level of the noise.

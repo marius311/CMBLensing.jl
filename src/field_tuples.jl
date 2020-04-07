@@ -164,6 +164,9 @@ struct TupleAdjoint{T<:Field}
 end
 tuple_adjoint(f::Field) = TupleAdjoint(f)
 
+*(a::TupleAdjoint{F}, b::F) where {F<:Field{<:Any,S0}} = a.f .* b
+*(a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple} = sum(map((a,b)->tuple_adjoint(a)*b, a.f.fs, b.fs))
+
 mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:Field{<:Any,S0}} = dst .= a.f .* b
 mul!(dst::Field{<:Any,S0}, a::TupleAdjoint{FT}, b::FT) where {FT<:FieldTuple{<:Any,<:NamedTuple{<:Any,NTuple{2}}}} = 
     (@. dst = a.f[1]*b[1] + a.f[2]*b[2])

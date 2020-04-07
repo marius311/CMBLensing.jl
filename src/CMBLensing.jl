@@ -3,7 +3,7 @@ module CMBLensing
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, preprocess_args, Style
-using Base.Iterators: repeated, product
+using Base.Iterators: flatten, product, repeated
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
@@ -16,7 +16,7 @@ using InteractiveUtils
 using KahanSummation
 using Loess
 using LinearAlgebra
-using LinearAlgebra: diagzero
+using LinearAlgebra: diagzero, matprod, promote_op
 using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
 using Match
 using Markdown
@@ -98,6 +98,7 @@ include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
 include("taylens.jl")
+@init @require SparseArrays="2f01184e-e22b-5df5-ae63-d93ebab69eaf" include("bilinearlens.jl")
 
 # plotting
 isjuno = false
@@ -120,6 +121,7 @@ include("healpix.jl")
 include("autodiff.jl")
 
 # gpu
+is_gpu_backed(x) = false
 @init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")
 
 end

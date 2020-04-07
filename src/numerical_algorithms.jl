@@ -166,3 +166,40 @@ function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapo
     end
     
 end
+
+
+@doc doc"""
+
+    gmres(A, b; maxiter, Pl=I)
+
+Solve `A \ b` with `maxiter` iterations of the [generalized minimal
+residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
+algorithm. `Pl` is a left-preconditioner which should approximate `inv(A)`. 
+
+Note: the implemenation is memory inefficient and uses O(n * maxiter) memory, where
+`n,n=size(A)` (may not be a big deal for small `maxiter`), although is totally generic
+and works with CPU or GPU and dense or sparse matrices, unlike IterativeSolver's
+`gmres`.
+"""
+function gmres(A, b; Pl=I, maxiter)
+    
+    n = maxiter
+    T = promote_op(matprod, eltype(A), eltype(b))
+    
+    # build Krylov matrix K = [(Pl*A)*b (Pl*A)²*b ...]
+    K = similar(b, T, length(b), n+1)
+    mul!(view(K, :, 1), Pl, b)
+    for i=2:n+1
+        mul!(view(K,:,i), A, view(K,:,i-1))
+        if Pl !== I
+            mul!(view(K,:,i), Pl, K[:,i]) # copy needed here
+        end
+    end
+    
+    # solve least-squares problem |Pl * A * K * α - Pl * b|²
+    α = qr(view(K, :, 2:n+1)) \ view(K, :, 1)
+    
+    # return solution, K * α
+    view(K, :, 1:n) * α
+    
+end
