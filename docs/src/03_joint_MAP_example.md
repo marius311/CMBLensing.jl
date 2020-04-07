@@ -142,46 +142,6 @@ plot(10^6*[ϕ ϕbf], title=["true" "best-fit"] .* raw" $\phi$", vlim=17);
 Here is the difference in terms of the power spectra. Note the best-fit has high-$\ell$ power suppressed, like a Wiener filter solution (in fact what we're doing here is akin to a non-linear Wiener filter). In the high S/N region ($\ell\lesssim1000$), the difference is approixmately equal to the noise, which you can see is almost two orders of magnitude below the signal.
 
 ```julia
-ℓedges = 100:200:3000
-```
-
-```julia
-semilogx(get_ρℓ(ϕbf,ϕ))
-```
-
-```julia
-(1 / get_ρℓ(ϕbf,ϕ)^2 - 1)
-```
-
-```julia
-
-```
-
-```julia
-chain = sample_joint(
-    ds,
-    symp_kwargs = [(N=25, ϵ=0.05)],
-    nsamps_per_chain = 100,
-    nchains = 1, 
-    nburnin_always_accept = Inf,
-    progress = :summary
-);
-```
-
-```julia
-get_ρℓ(ϕ,ϕbf,ℓedges=100:50:3000)
-```
-
-```julia
-plot(ϕbf, which=:Il)
-```
-
-```julia
-loglog(ℓ⁴*Cℓ.total.ϕϕ)
-loglog(ℓ⁴*Cℓ.total.ϕϕ * (1 / get_ρℓ(ϕbf,ϕ,Δℓ=25)^2 - 1))
-```
-
-```julia
 loglog(ℓ⁴ * Cℓ.total.ϕϕ, "k")
 loglog(get_ℓ⁴Cℓ(ϕ))
 loglog(get_ℓ⁴Cℓ(ϕbf))
