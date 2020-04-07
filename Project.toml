@@ -1,7 +1,7 @@
 name = "CMBLensing"
 uuid = "b60c06c0-7e54-11e8-3788-4bd722d65317"
 authors = ["marius <mariusmillea@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
