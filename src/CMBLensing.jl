@@ -99,7 +99,7 @@ include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
 include("taylens.jl")
-include("bilinearlens.jl")
+# @init @require SparseArrays="2f01184e-e22b-5df5-ae63-d93ebab69eaf" include("bilinearlens.jl")
 
 # plotting
 isjuno = false
