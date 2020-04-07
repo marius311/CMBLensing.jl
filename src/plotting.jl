@@ -1,6 +1,6 @@
 
-using PyCall
 using .PyPlot
+using .PyPlot.PyCall
 import .PyPlot: loglog, plot, semilogx, semilogy
 
 

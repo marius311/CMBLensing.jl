@@ -79,13 +79,19 @@ ARG JULIA_FFTW_PROVIDER=MKL
 
 
 ## install CMBLensing
+# to improve Docker caching, we first precompile dependencies by copying in
+# Project.toml (and making a dummy src/CMBLensing.jl which we have to), so that
+# other changes to files in src/ won't have to redo these steps
 COPY --chown=1000 Project.toml $HOME/CMBLensing/
-COPY --chown=1000 src          $HOME/CMBLensing/src
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
+RUN mkdir $HOME/CMBLensing/src && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate"' \
-    && (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"') \
+RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; precompile"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
+COPY --chown=1000 src $HOME/CMBLensing/src
+RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
+
+
 
 ## PackageCompiler
 # bake CMBLensing into the system image to further speed up load times and
@@ -105,11 +111,12 @@ RUN jupytext --to notebook *.md \
         jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 $f || ! break; \
     done
 
-
+## prepare for building documentation
 COPY --chown=1000 docs/make.jl docs/index.html docs/documenter.tpl $HOME/CMBLensing/docs/
 COPY --chown=1000 docs/src-staging $HOME/CMBLensing/docs/src-staging
 COPY --chown=1000 README.md $HOME/CMBLensing/
 
+## set up Jupyterlab
 ENV PORT 8888
 ENV SHELL=bash
 CMD jupyter lab --ip=0.0.0.0 --no-browser --port $PORT
