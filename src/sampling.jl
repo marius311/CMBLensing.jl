@@ -52,11 +52,19 @@ Interpolate the log pdf `lnP` with support on `range`, and return  the
 integrated log pdf as well `nsamples` samples (drawn via inverse transform
 sampling)
 
-`lnP` should accept a NamedTuple argument and `range` should be a NamedTuple mapping
-those same names to `range` objects specifying where to evaluate `lnP`, e.g.:
+`lnP` should either accept a NamedTuple argument and `range` should be a
+NamedTuple mapping those same names to `range` objects specifying where to
+evaluate `lnP`, e.g.:
 
 ```julia
 grid_and_sample(nt->-(nt.x^2+nt.y^2)/2, (x=range(-3,3,length=100),y=range(-3,3,length=100)))
+```
+
+or `lnP` should accept a single scalar argument and `range` should be directly
+the range for this variable:
+
+```julia
+grid_and_sample(x->-x^2/2, range(-3,3,length=100))
 ```
 
 The return value is `(lnP, samples, Px)` where `lnP` is an interpolated/smoothed
@@ -97,7 +105,11 @@ function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progr
     end
     
 end
-grid_and_sample(lnP::Function, range, progress=false) = error("Can only currently sample from 1D distributions.")
+grid_and_sample(lnP::Function, range::NamedTuple; kwargs...) = error("Can only currently sample from 1D distributions.")
+function grid_and_sample(lnP::Function, range::AbstractVector; nsamples=1, kwargs...)
+    ilnP, θsamples, lnPs = grid_and_sample(θ -> lnP(θ.x), (x=range,); nsamples=nsamples, kwargs...)
+    nsamples==1 ? (ilnP, θsamples.x, lnPs) : (ilnP, getindex.(θsamples,:x), lnPs)
+end
 # allow more conveniently evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
@@ -143,13 +155,15 @@ function sample_joint(
     nburnin_always_accept = 0,
     nburnin_fixθ = 0,
     Nϕ = :qe,
+    filename = nothing,
     chains = nothing,
     ϕstart = 0,
     θrange = NamedTuple(),
     θstart = nothing,
     Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
-    wf_kwargs = (tol=1e-1, nsteps=500),
+    conjgrad_kwargs = (tol=1e-1, nsteps=500),
+    preconditioner = :diag,
     nhmc = 1,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (αmax=0.3, nsteps=40),
@@ -157,7 +171,6 @@ function sample_joint(
     progress = false,
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
-    filename = nothing,
     storage = basetype(M)
     ) where {P,T,M}
     
@@ -170,31 +183,32 @@ function sample_joint(
     @assert progress in [false,:summary,:verbose]
 
     @unpack L, Cϕ = ds
-
+    
     if (chains == nothing)
-        if (θstart == nothing)
-            θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
-        else 
-            @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
-            θstarts = fill(θstart, nchains)
-        end
-        if (ϕstart == 0); ϕstart = zero(ds().Cϕ.diag); end
-        @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
-        if ϕstart isa Field
-            ϕstarts = fill(ϕstart, nchains)
+        if isfile(filename)
+            @info "Resuming chain at $filename"
+            chains = @ondemand(FileIO.load)(filename,"chains")
         else
-            ϕstarts = pmap(θstarts) do θstart
-                Random.seed!()
-                MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
+            if (θstart == nothing)
+                θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+            else 
+                @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
+                θstarts = fill(θstart, nchains)
+            end
+            if (ϕstart == 0); ϕstart = zero(ds().Cϕ.diag); end
+            @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
+            if ϕstart isa Field
+                ϕstarts = fill(ϕstart, nchains)
+            else
+                ϕstarts = pmap(θstarts) do θstart
+                    Random.seed!()
+                    MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
+                end
+            end
+            chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
+                Any[@dictpack i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart seed=>deepcopy(Random.seed!())]
             end
         end
-        chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            Any[@dictpack i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart seed=>deepcopy(Random.seed!())]
-        end
-    elseif chains == :resume
-        chains = @ondemand(FileIO.load)(filename,"chains")
-    elseif chains isa String
-        chains = @ondemand(FileIO.load)(chains,"chains")
     end
     
     if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac; end
@@ -224,7 +238,13 @@ function sample_joint(
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
                         Lϕ = cache(L(ϕ), ds.d)
-                        f = argmaxf_lnP(Lϕ, dsθ; which=:sample, guess=f, progress=(progress==:verbose), wf_kwargs...)
+                        f = argmaxf_lnP(
+                            Lϕ, dsθ; 
+                            which=:sample, 
+                            guess=f, 
+                            preconditioner=preconditioner, 
+                            conjgrad_kwargs=(progress=(progress==:verbose), conjgrad_kwargs...)
+                        )
                         f°, = mix(f,ϕ,dsθ)
                     end
                     
@@ -299,6 +319,7 @@ function sample_joint(
             end
             
             if filename != nothing
+                rm(swap_filename, force=true)
                 @ondemand(FileIO.save)(swap_filename, "chains", chains, "rundat", rundat)
                 mv(swap_filename, filename, force=true)
             end
