@@ -36,6 +36,7 @@ for (F,F0,(X,Y),T) in [
         $F($X::AbstractMatrix, $Y::AbstractMatrix; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X, $Y)
         $F{P}($X::AbstractMatrix, $Y::AbstractMatrix) where {P} = $F{P}($F0{P}($X), $F0{P}($Y))
         $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T} = $F{P,T}($F0{P,T}($X), $F0{P,T}($Y))
+        $F{P,T,M}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T,M} = $F{P,T,M}($F0{P,T,M}($X), $F0{P,T,M}($Y))
     end
 end
 

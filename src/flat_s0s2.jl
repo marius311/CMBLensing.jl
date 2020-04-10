@@ -39,6 +39,7 @@ for (F,F2,F0,(X,Y,Z),(X′,Y′,Z′),T) in [
         $F($X, $Y, $Z; kwargs...) = $F($F0($X; kwargs...), $F2($Y,$Z; kwargs...))
         $F{P}($X, $Y, $Z) where {P} = $F{P}($F0{P}($X), $F2{P}($Y,$Z))
         $F{P,T}($X, $Y, $Z) where {P,T} = $F{P,T}($F0{P,T}($X), $F2{P,T}($Y,$Z))
+        $F{P,T,M}($X, $Y, $Z) where {P,T,M} = $F{P,T,M}($F0{P,T,M}($X), $F2{P,T,M}($Y,$Z))
         $F($X′::$F0, $Y′::$F0, $Z′::$F0) = $F($X′, $F2($Y′,$Z′))
     end
 end

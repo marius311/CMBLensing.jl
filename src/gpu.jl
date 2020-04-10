@@ -1,8 +1,7 @@
 using .CuArrays
 using .CuArrays.CUDAnative
 using .CuArrays.CUDAdrv: devices
-using .CuArrays.CUSPARSE
-using .CuArrays.CUSPARSE: CuSparseMatrix
+using .CuArrays.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSC
 using .CuArrays.CUSOLVER: CuQR
 
 using Pkg
@@ -116,7 +115,7 @@ function add_gpu_procs(n = length(devices()))
             @info "Worker $p uses $d"
         end
     end
-    
+        
     nothing
     
 end

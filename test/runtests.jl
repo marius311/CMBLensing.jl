@@ -110,13 +110,20 @@ end
             (FlatIEBFourier, (Il,Il,Il))
         ]
         @testset "f::$F" begin
+            # the four basic construtor types with no type changing
             @test F(args...; kwargs...) isa F{P}
             @test (@inferred F{P}(args...)) isa F{P}
+            @test (@inferred F{P,Float64}(args...)) isa F{P}
+            @test (@inferred F{P,Float64,typeof(args[1])}(args...)) isa F{P}
+            
+            # forcing the eltype to something different
+            @test real(eltype(@inferred F{P,Float32}(args...))) == Float32
+            
+            # broadcasting `real` keeps the Complex{T} eltype for Fourier objects
             @test (@inferred broadcast(real, (F{P}(args...)))) isa F{P}
             if eltype(args[1]) <: Complex
                 @test (@inferred F{P}(map(real,args)...)) isa F{P}
             end
-            @test real(eltype(@inferred F{P,Float32}(args...))) == Float32
         end
     end
 
