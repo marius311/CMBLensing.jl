@@ -89,9 +89,6 @@ end
 # some stuff which arguably belongs in Zygote or ChainRules
 # see also: https://github.com/FluxML/Zygote.jl/issues/316
 
-@adjoint broadcasted(::typeof(-), x ::Numeric, y::Numeric) =
-    broadcast(-, x, y), Δ -> (nothing, unbroadcast(x, Δ), unbroadcast(y, -Δ))
-
 @adjoint broadcasted(::typeof(\), x ::Numeric, y::Numeric) =
     broadcast(\, x, y), Δ -> (nothing, unbroadcast(x, @. -Δ*y/x^2), unbroadcast(y, @. Δ/x))
 

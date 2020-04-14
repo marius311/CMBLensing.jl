@@ -43,6 +43,8 @@ inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(S
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
 dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 ≈(a::CuFlatS0, b::CuFlatS0) = (firstfield(a) ≈ firstfield(b))
+sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
+
 
 # some pretty low-level hacks to get a few thing broadcasting correctly for
 # Complex arguments that don't currently work in CuArrays
