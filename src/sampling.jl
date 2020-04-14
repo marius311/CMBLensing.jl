@@ -185,7 +185,7 @@ function sample_joint(
     @unpack L, Cϕ = ds
     
     if (chains == nothing)
-        if isfile(filename)
+        if (filename != nothing) && isfile(filename)
             @info "Resuming chain at $filename"
             chains = @ondemand(FileIO.load)(filename,"chains")
         else

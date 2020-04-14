@@ -339,3 +339,112 @@ function safe_pyimport(s)
         FailedPyimport(err)
     end
 end
+
+
+### parallel utility function
+
+PARALLEL_WORKER_TYPE = nothing
+
+@doc doc"""
+
+    init_GPU_workers([N = all-available-GPUs])
+    
+An all-purpose utility function for setting up runs on multiple GPUs with either
+one-MPI-process-per-GPU or one-Julia-process-per-GPU. The function takes one
+optional argument, `N`, which is the number of desired workers. Generally it
+should be left blank, which will default to the number of available GPUs. After
+the call, you should have `N` Julia workers, each tied to an individual GPU,
+which can be accessed using standard Julia parallel constructs like `pmap`,
+`@fetch`, etc... 
+
+
+Assuming you want `N` parallel chains to run across `N` GPUs, the usage for each
+mode is:
+
+1. **MPI** -- Run your Julia script with `mpiexec -n $(N+1) julia mychain.jl` or
+   equivalent. Then put `using MPIClusterManagers; CMBLensing.init_GPU_workers()` in
+   your script. Note that the call will only return on the MPI rank 0 process.
+    
+2. **Julia processes** -- Run your Julia script with `julia -p $N
+   mychain.jl`. Put `CMBLensing.init_GPU_workers()` in your script. You can omit the
+   `-p $N` part in which case the processes will be launched at the point
+   `init_GPU_workers()` is called.
+
+"""
+init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
+
+@init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" begin
+
+    using Distributed
+    using .CuArrays
+    using .CuArrays.CUDAnative: device!
+    using .CuArrays.CUDAdrv: devices, device
+
+
+    if nprocs()>1
+        PARALLEL_WORKER_TYPE = :procs
+    end
+
+    @require MPIClusterManagers="e7922434-ae4b-11e9-05c5-9780451d2c66" begin
+
+        PARALLEL_WORKER_TYPE = :MPI
+        
+        using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL
+        
+        function init_GPU_workers(::Val{:MPI}, n=nothing)
+            
+            !MPI.Initialized() && MPI.Init()
+            size = MPI.Comm_size(MPI.COMM_WORLD)
+            rank = MPI.Comm_rank(MPI.COMM_WORLD)
+            if n!=nothing && n!=size-1
+                error("If number of workers ($n) is provided to init_GPU_workers, it must be one less than MPI size ($size)")
+            end
+            device!(mod(rank,size-1))
+            @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $(device())"
+            start_main_loop(TCP_TRANSPORT_ALL)
+
+        end
+        
+    end
+
+    function init_GPU_workers(::Val{:procs}, n=nothing)
+        
+        if n == nothing
+            n = length(devices())
+        end
+        
+        if n == 1
+            return
+        elseif (n > length(devices()))
+            error("Tried to use $(n) GPUs but only $(length(devices())) GPUs were found.")
+        elseif nprocs()==1 && myid()==1
+            addprocs(n)
+        elseif nworkers()!=n
+            error("The number of GPU workers ($n) and the number of prespawned Julia processes ($(nworkers())) must be the same.")
+        end
+        
+        @everywhere workers() @eval begin
+            # activate the same environment on the workers as the master
+            using Pkg
+            Pkg.activate($(Pkg.API.Context().env.project_file))
+            
+            # load CuArrays-enabled CMBLensing on workers as well
+            using CuArrays, CMBLensing
+            
+            # until the fixes to https://github.com/JuliaGPU/CuArrays.jl/issues/589 hit a release:
+            CuArrays.CURAND.seed!(rand(0:typemax(Int)))
+        end
+
+        # assign devices
+        asyncmap((zip(workers(), devices()))) do (p, d)
+            remotecall_wait(p) do
+                device!(d)
+                @info "Julia process $p is using $d"
+            end
+        end
+        
+        nothing
+        
+    end
+    
+end

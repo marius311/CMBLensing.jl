@@ -23,6 +23,7 @@ using Markdown
 using Measurements
 using Memoization
 using Parameters
+using Pkg
 using Printf
 using ProgressMeter
 using Random

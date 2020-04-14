@@ -5,12 +5,6 @@ using .CuArrays.CUSPARSE
 using .CuArrays.CUSPARSE: CuSparseMatrix
 using .CuArrays.CUSOLVER: CuQR
 
-using Pkg
-using Serialization
-import Serialization: serialize
-
-export add_gpu_procs
-
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
 # a function version of @cuda which can be referenced before CUDAnative is
@@ -34,11 +28,6 @@ function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
 end
 BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
     FlatS0Style{basetype(F){P},CuArray}()
-
-
-# always adapt to Array storage when serializing since we may deserialize in an
-# environment that does not have CuArrays loaded 
-serialize(s::AbstractSerializer, f::CuFlatS0) = serialize(s, adapt(Array,f))
 
 
 ### misc
@@ -77,46 +66,3 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 # bug in CuArrays for this one
 # see https://github.com/JuliaGPU/CuArrays.jl/pull/637
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
-
-
-
-@doc doc"""
-
-    add_gpu_procs([n = all-GPUs-on-node])
-    
-A utility function for running jobs on multiple GPUs on a single node. This will
-add `n` Julia processes, activate the same package environment on each as on the main
-process, and set each process to use one of the GPUs. If `n` is not specified,
-use all the available GPUs found on the node.
-
-"""
-function add_gpu_procs(n = length(devices()))
-    
-    (n > length(devices())) && error("Tried to use $(n) GPUs but only $(length(devices())) GPUs were found.")
-    (n == 1) && error("Tried use 1 GPU process, in this case, just omit the call to `add_gpu_procs`.")
-    
-    addprocs(n)
-    
-    @everywhere workers() @eval begin
-        # activate the same environment on the workers as the master
-        using Pkg
-        Pkg.activate($(Pkg.API.Context().env.project_file))
-        
-        # load CuArrays-enabled CMBLensing on workers as well
-        using CuArrays, CMBLensing
-        
-        # until the fixes to https://github.com/JuliaGPU/CuArrays.jl/issues/589 hit a release:
-        CuArrays.CURAND.seed!(rand(0:typemax(Int)))
-    end
-
-    # assign devices
-    asyncmap((zip(workers(), devices()))) do (p, d)
-        remotecall_wait(p) do
-            device!(d)
-            @info "Worker $p uses $d"
-        end
-    end
-    
-    nothing
-    
-end
