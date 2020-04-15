@@ -49,11 +49,11 @@ Pack some variables in a dictionary
 ```julia
 > x = 3
 > y = 4
-> @dictpack x y z=>5
+> @dict x y z=>5
 Dict(:x=>3,:y=>4,:z=>5)
 ```
 """
-macro dictpack(exs...)
+macro dict(exs...)
     kv(ex::Symbol) = :($(QuoteNode(ex))=>$(esc(ex)))
     kv(ex) = isexpr(ex,:call) && ex.args[1]==:(=>) ? :($(QuoteNode(ex.args[2]))=>$(esc(ex.args[3]))) : error()
     :(Dict($((kv(ex) for ex=exs)...)))

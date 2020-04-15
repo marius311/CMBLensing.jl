@@ -110,7 +110,7 @@ function grid_and_sample(lnP::Function, range::AbstractVector; nsamples=1, kwarg
     ilnP, θsamples, lnPs = grid_and_sample(θ -> lnP(θ.x), (x=range,); nsamples=nsamples, kwargs...)
     nsamples==1 ? (ilnP, θsamples.x, lnPs) : (ilnP, getindex.(θsamples,:x), lnPs)
 end
-# allow more conveniently evaluation of Loess-interpolated functions
+# allow more convenient evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
 @doc doc"""
@@ -156,7 +156,6 @@ function sample_joint(
     nburnin_fixθ = 0,
     Nϕ = :qe,
     filename = nothing,
-    chains = nothing,
     ϕstart = 0,
     θrange = NamedTuple(),
     θstart = nothing,
@@ -176,64 +175,85 @@ function sample_joint(
     
     ds = adapt(Array, ds)
     
-    # save input configuration to chain
+    # save input configuration to later write to chain file
     rundat = adapt(Array, Base.@locals)
     
-    @assert (length(θrange) in [0,1]) || (gibbs_pass_θ!=nothing) "Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`"
-    @assert progress in [false,:summary,:verbose]
+    # validate arguments
+    if (length(θrange)>1 && gibbs_pass_θ==nothing)
+        error("Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`")
+    end
+    if !(progress in [false,:summary,:verbose])
+        error("`progress` should be one of [false,:summary,:verbose]")
+    end
+    if (filename!=nothing && splitext(filename)[2] != ".jld2")
+        error("Chain filename '$filename' should have '.jld2' extension.")
+    end
+    if (mod(nsavemaps,nchunk) != 0)
+        error("`nsavemaps` should divide evenly into `nchunk`")
+    end
 
-    @unpack L, Cϕ = ds
-    
-    if (chains == nothing)
-        if (filename != nothing) && isfile(filename)
-            @info "Resuming chain at $filename"
-            chains = @ondemand(FileIO.load)(filename,"chains")
-        else
-            if (θstart == nothing)
-                θstarts = [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
-            else 
-                @assert θstart isa NamedTuple "θstart should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point."
-                θstarts = fill(θstart, nchains)
-            end
-            if (ϕstart == 0); ϕstart = zero(ds().Cϕ.diag); end
-            @assert ϕstart isa Field || ϕstart in [:quasi_sample, :best_fit]
-            if ϕstart isa Field
-                ϕstarts = fill(ϕstart, nchains)
-            else
-                ϕstarts = pmap(θstarts) do θstart
-                    Random.seed!()
-                    MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
-                end
-            end
-            chains = pmap(θstarts,ϕstarts) do θstart,ϕstart
-                Any[@dictpack i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart seed=>deepcopy(Random.seed!())]
-            end
+    # initialize chains
+    if (filename != nothing) && isfile(filename)
+        @info "Resuming chain at $filename"
+        local chunks_index, last_chunks
+        jldopen(filename,"r") do io
+            chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")])
+            last_chunks = read(io, "chunks_$(chunks_index)")
         end
+    else
+        
+        θstarts = if (θstart == nothing)
+            [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+        elseif (θstart isa NamedTuple)
+            fill(θstart, nchains)
+        else
+            error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
+        end
+        
+        ϕstarts = if (ϕstart == 0) 
+            fill(zero(ds().Cϕ.diag), nchains)
+        elseif ϕstart isa Field
+            fill(ϕstart, nchains)
+        elseif ϕstart in [:quasi_sample, :best_fit]
+            pmap(θstarts) do θstart
+                MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
+            end
+        else
+            error("`ϕstart` should be 0, :quasi_sample, :best_fit, or a Field.")
+        end
+        
+        last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
+            [@dict i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart]
+        end
+        chunks_index = 1
+        save(filename, "rundat", rundat, "chunks_1", last_chunks)
     end
     
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac; end
     
-    swap_filename = (filename == nothing) ? nothing : joinpath(dirname(filename), ".swap.$(basename(filename))")
-    
+    @unpack L, Cϕ = ds
+    if (Nϕ == :qe)
+        Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac
+    end
     dsₐ,Nϕₐ = ds,Nϕ
 
     # start chains
     try
-        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for _=1:nsamps_per_chain÷nchunk
+        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
             
-            append!.(chains, pmap(last.(chains)) do state
+            last_chunks = pmap(last.(last_chunks)) do state
                 
-                @unpack i,ϕ°,f,θ,seed = state
+                @unpack i,ϕ°,f,θ = state
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
-                copy!(Random.GLOBAL_RNG, seed)
                 dsθ = ds(;θ...)
                 ϕ = dsθ.G\ϕ°
                 pϕ°, ΔH, accept = nothing, nothing, nothing
                 L = ds.L
                 lnPθ = nothing
-                chain = []
+                chain_chunk = []
                 
-                for i=(i+1):(i+nchunk)
+                for (i, savemaps) in zip( (i+1):(i+nchunk), cycle([fill(false,nsavemaps-1); true]) )
+                    
+                    @show i, savemaps
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
@@ -290,41 +310,33 @@ function sample_joint(
 
                     
                     # compute un-mixed maps
-                    f,ϕ = unmix(f°,ϕ°,θ,ds)
+                    f, ϕ = unmix(f°,ϕ°,θ,ds)
                     f̃ = L(ϕ)*f
 
                     
                     # save state to chain and print progress
                     timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    state = @dictpack i f f° f̃ ϕ ϕ° pϕ° θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) seed=>deepcopy(Random.default_rng()) timing
-                    push!(chain, adapt(Array, state))
-                    if (progress==:verbose)
-                        @show i, accept, ΔH, θ
+                    state = @dict i θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) timing
+                    if savemaps
+                        merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
                     end
+                    push!(chain_chunk, adapt(Array, state))
                     
                 end
 
-                chain
+                return chain_chunk
                 
-            end)
-            
-            # only keep maps every `nsavemaps` samples, as well as the last
-            # sample (so we can continue the chain)
-            for chain in chains
-                for sample in chain[1:end-1]
-                    if mod(sample[:i]-1,nsavemaps)!=0
-                        filter!(kv->!(kv.second isa Field), sample)
-                    end
-                end
             end
             
             if filename != nothing
-                rm(swap_filename, force=true)
-                @ondemand(FileIO.save)(swap_filename, "chains", chains, "rundat", rundat)
-                mv(swap_filename, filename, force=true)
+                jldopen(filename,"a+") do io
+                    wsession = JLDWriteSession()
+                    write(io, "chunks_$chunks_index", last_chunks, wsession)
+                end
             end
             
         end
+        
     catch err
         if interruptable && (err isa InterruptException)
             println()
@@ -334,6 +346,47 @@ function sample_joint(
         end
     end
     
-    @namedtuple(rundat, chains)
     
+end
+
+
+
+@doc doc"""
+    load_chains(filename; burnin=0, thin=1, join=false)
+    
+Load some chains produced by [`sample_joint`](@ref). 
+
+Keyword arguments: 
+
+* `burnin` — Remove this many samples from the start of each parallel chain.
+* `thin` — If `thin` is an integer, thin the chain by this factor. If
+  `thin == :hasmaps`, return only samples which have maps saved.
+* `join` — If true, concatenate all the chains together.
+
+"""
+function load_chains(filename; burnin=0, thin=1, join=false)
+    chains = jldopen(filename) do io
+        ks = keys(io)
+        for i in countfrom(1)
+            k = "chunks_$i"
+            if k in ks
+                if i == 1
+                    chains = read(io,k)
+                else
+                    append!.(chains, read(io,k))
+                end
+            else
+                break
+            end
+        end
+        chains
+    end
+    if thin isa Int
+        chains = [chain[(1+burnin):thin:end] for chain in chains]
+    elseif thin == :hasmaps
+        chains = [samp for chain in chains for samp in chain[(1+burnin):end] if :ϕ in keys(samp)]
+    else
+        error("`thin` should be an Int or :hasmaps")
+    end
+    join ? reduce(vcat, chains) : chains
 end
