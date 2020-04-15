@@ -100,8 +100,8 @@ function load_sim_dataset(;
     M = nothing, M̂ = nothing,
     
     # theory
-    rfid = nothing,
     Cℓ = nothing,
+    rfid = (Cℓ == nothing ? nothing : Cℓ.params.r), 
     
     seed = nothing,
     D = nothing,
@@ -119,9 +119,12 @@ function load_sim_dataset(;
     if Cℓ==nothing && rfid!=nothing
         Cℓ = camb(r=rfid, ℓmax=ℓmax)
     elseif Cℓ!=nothing && rfid==nothing
-        rfid = Cℓ.params.r
-    else
-        error("Must provide one and only one of `Cℓ` and `rfid`.")
+        if maximum(Cℓ.total.TT.ℓ) < ℓmax
+            error("ℓmax of `Cℓ` argument be higher than $ℓmax for this configuration.")
+        end
+        if rfid != Cℓ.params.r 
+            error("`rfid` and `Cℓ.params.r` are inconsistent.")
+        end
     end
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
