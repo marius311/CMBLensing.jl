@@ -11,8 +11,8 @@
     M̂  :: TM̂  = M           # approximate user mask, diagonal in same basis as Cf
     B  :: TB  = 1           # beam and instrumental transfer functions
     B̂  :: TB̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
-    D  :: TD  = IdentityOp  # mixing matrix for mixed parametrization
-    G  :: TG  = IdentityOp  # reparametrization for ϕ
+    D  :: TD  = 1           # mixing matrix for mixed parametrization
+    G  :: TG  = 1           # reparametrization for ϕ
     P  :: TP  = 1           # pixelization operator (if estimating field on higher res than data)
     L  :: TL  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for memory
 end
@@ -138,7 +138,7 @@ function load_sim_dataset(;
     Pix = Flat(Nside=Nside, θpix=θpix, ∂mode=∂mode)
     if (θpix_data == θpix)
         Pix_data = Pix
-        P = IdentityOp
+        P = Identity
     else
         Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
         P = FuncOp(

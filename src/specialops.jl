@@ -115,13 +115,41 @@ const ∂y = ∇[2]
     op⁻ᴴ = nothing
 end
 SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
-*(L::FuncOp, f::Field) = L.op   != nothing ? L.op(f)   : error("op*f not implemented")
-*(f::Field, L::FuncOp) = L.opᴴ  != nothing ? L.opᴴ(f)  : error("f*op not implemented")
-\(L::FuncOp, f::Field) = L.op⁻¹ != nothing ? L.op⁻¹(f) : error("op\\f not implemented")
+FuncOp(op::Function) = FuncOp(op=op)
+SymmetricFuncOp(op::Function) = SymmetricFuncOp(op=op)
+*(L::FuncOp, f::Field) = 
+    L.op   != nothing ? L.op(f)   : error("op*f not implemented")
+\(L::FuncOp, f::Field) = 
+    L.op⁻¹ != nothing ? L.op⁻¹(f) : error("op\\f not implemented")
+*(f::Adjoint{<:Any,Field}, L::FuncOp) = 
+    L.opᴴ  != nothing ? L.opᴴ(f)  : error("opᴴ*f not implemented")
 adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
-const IdentityOp = FuncOp(identity,identity,identity,identity)
 inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
 adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
+
+
+### IdentityOp
+
+struct IdentityOp <: ImplicitOp{Basis,Spin,Pix} 
+    IdentityOp(args...) = new()
+end
+(::IdentityOp)(args...) = Identity
+*(::IdentityOp, f::Field) = f
+*(f::Adjoint{<:Any,Field}, ::IdentityOp) = f
+\(::IdentityOp, f::Field) = f
+for op in (:adjoint, :pinv, :inv)
+    @eval ($op)(::IdentityOp) = Identity
+end
+cache(::IdentityOp, ::Field) = Identity
+cache!(::IdentityOp, ::Field) = Identity
+
+@doc doc"""
+`Identity` is an operator which can be used in place of any other operator in
+CMBLensing.jl, including being adjointed, evaluated at parameters, etc..., and
+it just does nothing.
+"""
+const Identity = IdentityOp()
+
 
 
 ### BandPassOp

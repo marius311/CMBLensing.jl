@@ -23,6 +23,7 @@ using Markdown
 using Measurements
 using Memoization
 using Parameters
+using Pkg
 using Printf
 using ProgressMeter
 using Random
@@ -66,14 +67,14 @@ export
     FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
     FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂,
     FuncOp, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
-    IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
-    LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
-    load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂, MidPass,
-    mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp, pixwin,
-    PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2, sample_joint,
-    shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint,
-    ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀,
-    ∇₁, ⋅, ⨳
+    Identity, IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier,
+    IQUMap, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
+    load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂,
+    MidPass, mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp, pixwin,
+    PowerLens, QUFourier, QUMap, resimulate, RK4Solver, S0, S02, S2,
+    sample_joint, shiftℓ, simulate, symplectic_integrate, Taylens, toCℓ, toDℓ,
+    tuple_adjoint, ud_grade, unmix, Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹,
+    ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")
