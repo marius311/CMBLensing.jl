@@ -188,7 +188,7 @@ function sample_joint(
     if (filename!=nothing && splitext(filename)[2] != ".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
-    if (mod(nsavemaps,nchunk) != 0)
+    if (nsavemaps>nchunk || mod(nsavemaps,nchunk) != 0)
         error("`nsavemaps` should divide evenly into `nchunk`")
     end
 
@@ -238,7 +238,10 @@ function sample_joint(
 
     # start chains
     try
-        @showprogress (progress==:summary ? 1 : Inf) "Gibbs chain: " for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
+        
+        @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 1, "Gibbs chain: ")
+
+        for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
             
             last_chunks = pmap(last.(last_chunks)) do state
                 
@@ -252,8 +255,6 @@ function sample_joint(
                 chain_chunk = []
                 
                 for (i, savemaps) in zip( (i+1):(i+nchunk), cycle([fill(false,nsavemaps-1); true]) )
-                    
-                    @show i, savemaps
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
@@ -321,6 +322,11 @@ function sample_joint(
                         merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
                     end
                     push!(chain_chunk, adapt(Array, state))
+                    
+                    if @isdefined pbar
+                        next!(pbar, showvalues = [("step",i), ("θ",θ), ("(ΔH,accept)", (ΔH,accept)), ("timing",timing)])
+                    end
+
                     
                 end
 
