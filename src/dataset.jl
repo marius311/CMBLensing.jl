@@ -100,7 +100,7 @@ function load_sim_dataset(;
     M = nothing, M̂ = nothing,
     
     # theory
-    rfid = 0.05,
+    rfid = nothing,
     Cℓ = nothing,
     
     seed = nothing,
@@ -116,8 +116,12 @@ function load_sim_dataset(;
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
     # CMB Cℓs
-    if Cℓ == nothing
+    if Cℓ==nothing && rfid!=nothing
         Cℓ = camb(r=rfid, ℓmax=ℓmax)
+    elseif Cℓ!=nothing && rfid==nothing
+        rfid = Cℓ.params.r
+    else
+        error("Must provide one and only one of `Cℓ` and `rfid`.")
     end
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
