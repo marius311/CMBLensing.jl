@@ -119,7 +119,7 @@ function MAP_joint(
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    @set! ds.G = IdentityOp
+    @set! ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
@@ -151,7 +151,7 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? IdentityOp : Lϕ), ds, 
+            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? Identity : Lϕ), ds, 
                     which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                     guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
                     conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))

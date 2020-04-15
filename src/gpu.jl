@@ -1,8 +1,7 @@
 using .CuArrays
 using .CuArrays.CUDAnative
 using .CuArrays.CUDAdrv: devices
-using .CuArrays.CUSPARSE
-using .CuArrays.CUSPARSE: CuSparseMatrix
+using .CuArrays.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSC
 using .CuArrays.CUSOLVER: CuQR
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
