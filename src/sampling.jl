@@ -239,7 +239,9 @@ function sample_joint(
     # start chains
     try
         
-        @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 1, "Gibbs chain: ")
+        if progress==:summary
+            @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
+        end
 
         for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
             
@@ -324,7 +326,7 @@ function sample_joint(
                     push!(chain_chunk, adapt(Array, state))
                     
                     if @isdefined pbar
-                        next!(pbar, showvalues = [("step",i), ("θ",θ), ("(ΔH,accept)", (ΔH,accept)), ("timing",timing)])
+                        next!(pbar, showvalues = [("step",i), ("θ",θ), ("HMC", @namedtuple(ΔH,accept)), ("timing",timing)])
                     end
 
                     
