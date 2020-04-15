@@ -391,7 +391,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
         
         using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL
         
-        function init_GPU_workers(::Val{:MPI}, n=nothing)
+        function init_GPU_workers(::Val{:MPI}, n=nothing, stdout_to_master=false, stderr_to_master=false)
             
             !MPI.Initialized() && MPI.Init()
             size = MPI.Comm_size(MPI.COMM_WORLD)
@@ -401,7 +401,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
             end
             device!(mod(rank,size-1))
             @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $(device())"
-            start_main_loop(TCP_TRANSPORT_ALL)
+            start_main_loop(TCP_TRANSPORT_ALL, stdout_to_master=stdout_to_master, stderr_to_master=stderr_to_master)
 
         end
         
