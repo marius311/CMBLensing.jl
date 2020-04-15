@@ -160,3 +160,18 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; fps=25, 
     end
     HTML(ani.to_html5_video())
 end
+
+
+### Plotting Loess interpolated objects
+
+for plot in (:plot, :loglog, :semilogx, :semilogy)
+
+	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
+	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
+	    xs′ = range(first(m.xs),last(m.xs),length=10*length(m.xs))
+	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
+	end
+
+	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
+	
+end
