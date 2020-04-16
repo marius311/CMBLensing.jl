@@ -188,7 +188,7 @@ function sample_joint(
     if (filename!=nothing && splitext(filename)[2] != ".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
-    if (nsavemaps>nchunk || mod(nsavemaps,nchunk) != 0)
+    if mod(nchunk,nsavemaps) != 0
         error("`nsavemaps` should divide evenly into `nchunk`")
     end
 
@@ -235,6 +235,7 @@ function sample_joint(
         Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac
     end
     dsₐ,Nϕₐ = ds,Nϕ
+    t_write = 0
 
     # start chains
     try
@@ -337,7 +338,8 @@ function sample_joint(
             end
             
             if filename != nothing
-                jldopen(filename,"a+") do io
+                last_chunks[1][end][:t_write] = t_write
+                t_write = @elapsed jldopen(filename,"a+") do io
                     wsession = JLDWriteSession()
                     write(io, "chunks_$chunks_index", last_chunks, wsession)
                 end

@@ -399,9 +399,12 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
             if n!=nothing && n!=size-1
                 error("If number of workers ($n) is provided to init_GPU_workers, it must be one less than MPI size ($size)")
             end
-            device!(mod(rank,size-1))
-            @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $(device())"
-            start_main_loop(TCP_TRANSPORT_ALL, stdout_to_master=stdout_to_master, stderr_to_master=stderr_to_master)
+            if size>1
+                device!(mod(rank,size-1))
+                @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $(device())"
+                start_main_loop(TCP_TRANSPORT_ALL, stdout_to_master=stdout_to_master, stderr_to_master=stderr_to_master)
+            end
+            @everywhere CuArrays.CURAND.seed!(rand(0:typemax(Int))) # needed until CuArrays v2.0.0
 
         end
         
@@ -431,8 +434,8 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
             # load CuArrays-enabled CMBLensing on workers as well
             using CuArrays, CMBLensing
             
-            # until the fixes to https://github.com/JuliaGPU/CuArrays.jl/issues/589 hit a release:
-            CuArrays.CURAND.seed!(rand(0:typemax(Int)))
+            # needed until CuArrays v2.0.0
+            CuArrays.CURAND.seed!(rand(0:typemax(Int))) 
         end
 
         # assign devices
