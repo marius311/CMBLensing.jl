@@ -100,8 +100,8 @@ function load_sim_dataset(;
     M = nothing, M̂ = nothing,
     
     # theory
-    rfid = 0.05,
     Cℓ = nothing,
+    fiducial_θ = NamedTuple(),
     
     seed = nothing,
     D = nothing,
@@ -116,9 +116,18 @@ function load_sim_dataset(;
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
     # CMB Cℓs
-    if Cℓ == nothing
-        Cℓ = camb(r=rfid, ℓmax=ℓmax)
+    Aϕ₀ = get(fiducial_θ, :Aϕ, 1)
+    fiducial_θ = Base.structdiff(fiducial_θ, NamedTuple{(:Aϕ,)}) # remove Aϕ key if present
+    if Cℓ==nothing
+        Cℓ = camb(;fiducial_θ..., ℓmax=ℓmax)
+    else
+        if !isempty(fiducial_θ)
+            error("Can't pass both `Cℓ` and `fiducial_θ` parameters which affect `Cℓ`, choose one or the other.")
+        elseif maximum(Cℓ.total.TT.ℓ) < ℓmax
+            error("ℓmax of `Cℓ` argument should be higher than $ℓmax for this configuration.")
+        end
     end
+    r₀ = Cℓ.params.r
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
     if (Cℓn == nothing)
@@ -154,8 +163,8 @@ function load_sim_dataset(;
     Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
     Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=rfid, _...)->(mem .= Cfs + T(r/rfid)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=1  , _...)->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((mem; r=r₀,   _...)->(mem .= Cfs + T(r/r₀)*Cft), similar(Cfs))
+    Cϕ = ParamDependentOp((mem; Aϕ=Aϕ₀, _...)->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
     
     # data mask
     if (M == nothing)
@@ -177,7 +186,7 @@ function load_sim_dataset(;
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
         D = ParamDependentOp(
-            function (mem;r=rfid,_...)
+            function (mem;r=r₀,_...)
                 Cfr = Cf(mem,r=r)
                 mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
             end,
@@ -207,72 +216,11 @@ function load_sim_dataset(;
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        G = ParamDependentOp((;Aϕ=1,_...)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
+        G = ParamDependentOp((;Aϕ=Aϕ₀,_...)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
     end
     @set! ds.G = G
    
     
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
-end
-
-
-###
-
-
-function load_healpix_sim_dataset(;
-    Nside,
-    pol,
-    gradient_cache,
-    T = Float32,
-    μKarcminT = 3,
-    ℓknee = 100,
-    αknee = 3,
-    ℓmax_ops = 2Nside,
-    ℓmax_data = 3000,
-    beamFWHM = 0,
-    rfid = 0.05,
-    Cℓ = camb(r=rfid, ℓmax=ℓmax_ops),
-    Cℓn = nothing,
-    Cn = nothing,
-    seed = nothing,
-    M = nothing,
-    B = nothing,
-    D = nothing,
-    G = nothing,
-    ϕ = nothing,
-    f = nothing,
-    mask_kwargs = nothing,
-    L = LenseFlow)
-    
-    @assert pol==:T 
-    
-    # Cℓs
-    if (Cℓn == nothing)
-        Cℓn = noiseCℓs(μKarcminT, beamFWHM=0, ℓknee=ℓknee, αknee=αknee, ℓmax=ℓmax_ops)
-    end
-    Cℓf, Cℓf̃ = Cℓ[:f], Cℓ[:f̃]
-
-    Cf = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:TT][0:ℓmax_ops])), gradient_cache)
-    Cf̃ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf̃[:TT][0:ℓmax_ops])), gradient_cache)
-    Cn = IsotropicHarmonicCov(T.(nan2zero.(Cℓn[:TT][0:ℓmax_ops])), gradient_cache)
-    Cϕ = IsotropicHarmonicCov(T.(nan2zero.(Cℓf[:ϕϕ][0:ℓmax_ops])), gradient_cache)
-    
-    P=B=1 #for now
-    
-    if (seed != nothing); seed!(seed); end
-    if (ϕ==nothing); ϕ = simulate(Cϕ); end
-    if (f==nothing); f = simulate(Cf); end
-    f̃ = L(ϕ)*f
-    n = simulate(Cn)
-    d = M*P*B*f̃ + n
-
-    
-    # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cf, Cf̃, Cϕ, M)...)
-
-    
-    return @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds())
-
-
 end

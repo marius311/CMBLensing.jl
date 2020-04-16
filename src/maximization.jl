@@ -231,7 +231,7 @@ function MAP_marg(
             conjgrad_kwargs=conjgrad_kwargs
         )
         ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr,@dictpack(i,g,state,ϕ))
+        push!(tr,@dict(i,g,state,ϕ))
     end
     
     return ϕ, tr
