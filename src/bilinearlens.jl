@@ -1,6 +1,4 @@
 
-using .SparseArrays
-
 export BilinearLens
 
 @doc doc"""

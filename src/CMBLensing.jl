@@ -33,6 +33,7 @@ using Random: seed!
 using Roots
 using Requires
 using Setfield
+using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray
 using Statistics
@@ -101,7 +102,7 @@ include("flat_s0s2.jl")
 include("flat_generic.jl")
 include("masking.jl")
 include("taylens.jl")
-@init @require SparseArrays="2f01184e-e22b-5df5-ae63-d93ebab69eaf" include("bilinearlens.jl")
+include("bilinearlens.jl")
 
 # plotting
 isjuno = false
