@@ -191,6 +191,9 @@ function sample_joint(
     if mod(nchunk,nsavemaps) != 0
         error("`nsavemaps` should divide evenly into `nchunk`")
     end
+    
+    # seed
+    @everywhere seed_for_storage!($storage)
 
     # initialize chains
     if (filename != nothing) && isfile(filename)

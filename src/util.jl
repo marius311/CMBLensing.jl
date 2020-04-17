@@ -341,6 +341,27 @@ function safe_pyimport(s)
 end
 
 
+@doc doc"""
+    @ismain()
+    
+Return true if the current file is being run as a script.
+"""
+macro ismain()
+    (__source__ != nothing) && (String(__source__.file) == abspath(PROGRAM_FILE))
+end
+
+
+@doc doc"""
+    seed_for_storage!(storage[, seed])
+    
+Set the global random seed for the RNG which controls `storage`-type. 
+"""
+seed_for_storage!(::Type{<:Array}, seed=nothing) = 
+    Random.seed!((seed == nothing ? () : (seed,))...)
+seed_for_storage!(storage::Any, seed=nothing) = 
+    error("Don't know how to set seed for storage=$storage")
+
+
 ### parallel utility function
 
 PARALLEL_WORKER_TYPE = nothing
@@ -391,7 +412,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
         
         using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL
         
-        function init_GPU_workers(::Val{:MPI}, n=nothing, stdout_to_master=false, stderr_to_master=false)
+        function init_GPU_workers(::Val{:MPI}, n=nothing; stdout_to_master=false, stderr_to_master=false)
             
             !MPI.Initialized() && MPI.Init()
             size = MPI.Comm_size(MPI.COMM_WORLD)
@@ -404,7 +425,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
                 @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $(device())"
                 start_main_loop(TCP_TRANSPORT_ALL, stdout_to_master=stdout_to_master, stderr_to_master=stderr_to_master)
             end
-            @everywhere CuArrays.CURAND.seed!(rand(0:typemax(Int))) # needed until CuArrays v2.0.0
+            @everywhere seed_for_storage!(CuArray) # needed until CuArrays v2.0.0
 
         end
         
@@ -435,7 +456,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
             using CuArrays, CMBLensing
             
             # needed until CuArrays v2.0.0
-            CuArrays.CURAND.seed!(rand(0:typemax(Int))) 
+            seed_for_storage!(CuArray)
         end
 
         # assign devices

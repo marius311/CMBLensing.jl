@@ -15,6 +15,9 @@ end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 
+seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
+    CuArrays.CURAND.seed!((seed == nothing ? (rand(0:typemax(Int),)) : seed)...)
+
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
     Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
