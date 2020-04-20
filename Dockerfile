@@ -70,9 +70,11 @@ RUN mkdir -p $HOME/src/camb \
 
 
 ## build args
-# build with PRECOMPILE=0 to not precompile anything, which makes for a
-# quicker build but slower startup (mostly useful for debugging)
+# build with PRECOMPILE=0 and/or PACKAGECOMPILE=0 to skip precompilation steps,
+# which makes for a quicker build but slower startup (mostly useful for
+# debugging)
 ARG PRECOMPILE=1
+ARG PACKAGECOMPILE=1
 # JULIA_FFTW_PROVIDER="FFTW" can be used for quicker building / smaller image
 # (but slower execution)
 ARG JULIA_FFTW_PROVIDER=MKL
@@ -97,7 +99,7 @@ RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
 # bake CMBLensing into the system image to further speed up load times and
 # reduce memory usage during package load (the latter is necessary otherwise we
 # hit the mybinder memory limit)
-RUN test $PRECOMPILE = 0 \
+RUN test $PACKAGECOMPILE = 0 \
     || julia -e 'using PackageCompiler; create_sysimage([:CMBLensing],cpu_target="generic",replace_default=true)'
 
 ## execute documentation notebooks and save outputs
