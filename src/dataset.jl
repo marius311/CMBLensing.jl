@@ -102,6 +102,7 @@ function load_sim_dataset(;
     # theory
     Cℓ = nothing,
     fiducial_θ = NamedTuple(),
+    rfid = nothing,
     
     seed = nothing,
     D = nothing,
@@ -116,6 +117,10 @@ function load_sim_dataset(;
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
     # CMB Cℓs
+    if rfid != nothing
+        @warn "`rfid` will be removed in a future version. Use `fiducial_θ=(r=...,)` instead."
+        fiducial_θ = merge(fiducial_θ,(r=rfid,))
+    end
     Aϕ₀ = get(fiducial_θ, :Aϕ, 1)
     fiducial_θ = Base.structdiff(fiducial_θ, NamedTuple{(:Aϕ,)}) # remove Aϕ key if present
     if Cℓ==nothing
