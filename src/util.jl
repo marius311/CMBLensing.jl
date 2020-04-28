@@ -417,6 +417,10 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
         
         function init_GPU_workers(::Val{:MPI}, n=nothing; stdout_to_master=false, stderr_to_master=false)
             
+            if !CuArrays.functional()
+                return
+            end
+
             !MPI.Initialized() && MPI.Init()
             size = MPI.Comm_size(MPI.COMM_WORLD)
             rank = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -435,6 +439,10 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
     end
 
     function init_GPU_workers(::Val{:procs}, n=nothing)
+        
+        if !CuArrays.functional()
+            return
+        end
         
         if n == nothing
             n = length(devices())
