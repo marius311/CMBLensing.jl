@@ -353,6 +353,7 @@ end
 
 @doc doc"""
     seed_for_storage!(storage[, seed])
+    seed_for_storage!((storage1, storage2, ...)[, seed])
     
 Set the global random seed for the RNG which controls `storage`-type. 
 """
@@ -360,6 +361,8 @@ seed_for_storage!(::Type{<:Array}, seed=nothing) =
     Random.seed!((seed == nothing ? () : (seed,))...)
 seed_for_storage!(storage::Any, seed=nothing) = 
     error("Don't know how to set seed for storage=$storage")
+seed_for_storage!(storages::Tuple, seed=nothing) = 
+    seed_for_storage!.(storages, seed)
 
 
 ### parallel utility function
