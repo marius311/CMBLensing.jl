@@ -92,7 +92,7 @@ Keyword arguments:
 * `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`, whichever is first)
 * `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$ quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
 * `αmax` — Maximum value for $\alpha$ in the linesearch
-* `progress` — `false`, `:summary`, or `:verbose`, to control progress output
+* `progress` — whether to show progress bar
 
 Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
 `ϕ` is the lensing potential, and `tr` contains info about the run. 
@@ -109,10 +109,9 @@ function MAP_joint(
     αmax = 0.5,
     cache_function = nothing,
     callback = nothing,
-    interruptable = false,
-    progress = false)
+    interruptable::Bool = false,
+    progress::Bool = false)
     
-    @assert progress in [false,:summary,:verbose]
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
@@ -138,7 +137,9 @@ function MAP_joint(
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
     
     try
-        @showprogress (progress==:summary ? 1 : Inf) "MAP_joint: " for i=1:nsteps
+        pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+        
+        for i=1:nsteps
 
             # ==== f step ====
                 
@@ -160,9 +161,7 @@ function MAP_joint(
             lnPcur = lnP(:mix,f°,ϕ,ds)
             
             # ==== show progress ====
-            if (progress==:verbose)
-                @printf("(step=%i, χ²=%.2f, Ncg=%i%s)\n", i, -2lnPcur, length(hist), (α==0 ? "" : @sprintf(", α=%.6f",α)))
-            end
+            next!(pbar, showvalues=[("step",i), ("χ²",-2lnPcur), ("Ncg",length(hist)), ("α",α)])
             push!(tr,@namedtuple(i,lnPcur,hist,ϕ,f,α,ϕstep))
             if callback != nothing
                 callback(f, ϕ, tr)
