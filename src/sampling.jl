@@ -193,7 +193,7 @@ function sample_joint(
     end
     
     # seed
-    @everywhere seed_for_storage!($storage)
+    @everywhere seed_for_storage!((Array,$storage))
 
     # initialize chains
     if (filename != nothing) && isfile(filename)
