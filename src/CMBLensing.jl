@@ -108,7 +108,19 @@ include("bilinearlens.jl")
 isjuno = false
 function animate end
 @init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
-@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+if get(ENV,"CMBLENSING_NONLAZY_PYPLOT",nothing) == "1"
+    using PyPlot
+    using PyPlot: @py_str, pyimport, @pydef
+    import PyPlot: loglog, plot, semilogx, semilogy
+    include("plotting.jl")
+else
+    @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" begin
+        using .PyPlot
+        using .PyPlot: @py_str, pyimport, @pydef
+        import .PyPlot: loglog, plot, semilogx, semilogy
+        include("plotting.jl")
+    end
+end
 
 # sampling and maximizing the posteriors
 include("dataset.jl")
@@ -122,6 +134,7 @@ include("quadratic_estimate.jl")
 # curved-sky
 include("healpix.jl")
 
+# things needed to get autodiff working
 include("autodiff.jl")
 
 # gpu

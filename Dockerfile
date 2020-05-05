@@ -28,7 +28,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.4/julia-1.4.0-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.4/julia-1.4.1-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -85,13 +85,15 @@ ARG JULIA_FFTW_PROVIDER=MKL
 # Project.toml (and making a dummy src/CMBLensing.jl which we have to), so that
 # other changes to files in src/ won't have to redo these steps
 COPY --chown=1000 Project.toml $HOME/CMBLensing/
-COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
+COPY --chown=1000 docs/Project.toml docs/Manifest.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; add ProgressMeter#master; precompile"' \
+ENV CMBLENSING_NONLAZY_PYPLOT=1
+RUN julia -e 'using Pkg; pkg"instantiate"' \
+    && if [ "$PRECOMPILE" = "1" ]; then julia -e 'using Pkg; pkg"precompile"'; fi \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
-RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
+RUN if [ "$PRECOMPILE" = "1" ]; then julia -e 'using Pkg; pkg"precompile"'; fi
 
 
 
@@ -99,8 +101,16 @@ RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
 # bake CMBLensing into the system image to further speed up load times and
 # reduce memory usage during package load (the latter is necessary otherwise we
 # hit the mybinder memory limit)
-RUN test $PACKAGECOMPILE = 0 \
-    || julia -e 'using PackageCompiler; create_sysimage([:CMBLensing],cpu_target="generic",replace_default=true)'
+COPY docs/pyplot_packagecompiler_script.jl /tmp/
+RUN if [ "$PACKAGECOMPILE" = "1" ]; then \
+        julia -e 'using PackageCompiler; \
+                  create_sysimage(\
+                      [:PyCall, :IJulia, :PyPlot, :CMBLensing], \
+                      cpu_target="generic", \
+                      replace_default=true, \
+                      script="/tmp/pyplot_packagecompiler_script.jl" \
+                  )'; \
+    fi
 
 ## execute documentation notebooks and save outputs
 COPY --chown=1000 docs/src $HOME/CMBLensing/docs/src
