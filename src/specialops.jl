@@ -166,9 +166,12 @@ struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Spin,Pix}
 end
 BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
 BandPassOp(Wℓ::InterpolatedCℓs) = Diagonal(BandPass(Wℓ))
-HighPass(ℓ;Δℓ=50) = BandPassOp(0:10000, [zeros(ℓ-Δℓ); @.((cos($range(π,0,length=2Δℓ))+1)/2); ones(10001-ℓ-Δℓ)])
-LowPass(ℓ;Δℓ=50) = BandPassOp(0:(ℓ+Δℓ-1), [ones(ℓ-Δℓ); @.(cos($range(0,π,length=2Δℓ))+1)/2])
-MidPass(ℓmin,ℓmax;Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-Δℓ);  @.(cos($range(π,0,length=2Δℓ))+1)/2; ones(ℓmax-ℓmin-2Δℓ); @.((cos($range(0,π,length=2Δℓ))+1)/2)])
+cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
+cos_ramp_down(length) = 1 .- cos_ramp_up(length)
+HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])
+LowPass(ℓ; Δℓ=50) = BandPassOp(0:ℓ, [ones(ℓ-Δℓ+1); cos_ramp_down(Δℓ)])
+MidPass(ℓmin, ℓmax; Δℓ=50) = BandPassOp(ℓmin:ℓmax, [cos_ramp_up(Δℓ); ones(ℓmax-ℓmin-2Δℓ+1); cos_ramp_down(Δℓ)])
+MidPasses(ℓedges; Δℓ=0) = [MidPass(ℓmin,ℓmax; Δℓ=Δℓ) for (ℓmin,ℓmax) in zip(ℓedges[1:end-1],ℓedges[2:end])]
 
 
 ### ParamDependentOp
@@ -181,19 +184,14 @@ MidPass(ℓmin,ℓmax;Δℓ=50)  = BandPassOp(0:(ℓmax+Δℓ-1), [zeros(ℓmin-
 
 @doc doc"""
     ParamDependentOp(recompute_function::Function)
-    ParamDependentOp(recompute_function!::Function, mem)
     
 Creates an operator which depends on some parameters $\theta$ and can be
 evaluated at various values of these parameters. 
 
-There are two forms to construct this operator. In the first form,
 `recompute_function` should be a function which accepts keyword arguments for
 $\theta$ and returns the operator. Each keyword must have a default value; the
 operator will act as if evaluated at these defaults unless it is explicitly
-evaluated at other parameters. In the second form, we can preallocate some
-memory for the results `mem`, in which case `recompute_function!` should
-additionally accept a single positional argument holding this memory, which
-should then be assigned in-place. 
+evaluated at other parameters. 
 
 Example:
 
@@ -203,9 +201,6 @@ Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
 
 Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
 Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
-
-# a version which preallocates the memory:
-Cϕ = ParamDependentOp((mem;Aϕ=1)->(@. mem = Aϕ*Cϕ₀), similar(Cϕ₀))
 ```
 
 Note: if you are doing parallel work, global variables referred to in the
@@ -221,36 +216,26 @@ Cϕ = let Cϕ₀=Cϕ₀
 end
 ```
 
-After executing the code above, `Cϕ` is now ready to be shipped to any workers
+After executing the code above, `Cϕ` is now ready to be (auto-)shipped to any workers
 and will work regardless of what global variables are defined on these workers. 
 """
 struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S,P}
     op::L
     recompute_function::F
     parameters::Vector{Symbol}
-    inplace::Bool
 end
 function ParamDependentOp(recompute_function::Function)
-    ParamDependentOp(recompute_function(), recompute_function, get_kwarg_names(recompute_function), false)
+    ParamDependentOp(recompute_function(), recompute_function, get_kwarg_names(recompute_function))
 end
-function ParamDependentOp(recompute_function!::Function, mem)
-    op = recompute_function!(similar(mem))
-    ParamDependentOp(op, (mem=mem;θ...)->(recompute_function!(mem;θ...);mem), get_kwarg_names(recompute_function!), true)
-end
-function (L::ParamDependentOp)(mem=nothing;θ...) 
-    if (mem!=nothing)
-        L.inplace || throw(ArgumentError("Can't pass preallocated memory to non-inplace ParamDependentOp."))
-        mem isa typeof(L.op) || throw(ArgumentError("Preallocated memory passed to ParamDependentOp should be $(typeof(L.op)), not $(typeof(mem))."))
-    end
+function (L::ParamDependentOp)(;θ...) 
     if depends_on(L,θ)
         
         # filtering out non-dependent parameters disabled until I can find a fix to:
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
-        # 
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
         
         # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
-        L.recompute_function((mem==nothing ? () : (mem,))...; θ...) :: typeof(L.op)
+        L.recompute_function(;θ...) :: typeof(L.op)
     else
         L.op
     end 
@@ -266,7 +251,7 @@ depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
 
 adapt_structure(to, L::ParamDependentOp) = 
-    ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters, L.inplace)
+    ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)
 
 
 ### LazyBinaryOp
@@ -343,32 +328,33 @@ tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
 
 
 
-### BandpowerParamOp
+### BinRescaledOp
 
 """
-    macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
-        
-Create a ParamDependentOp which has a keyword argument with name specified by
-`A` which controls the amplitude of bandpowers of `C₀` in bins specified by
-`ℓedges` which have smoothed edges given by `Δℓ_bin_taper`. E.g.
-
-    Cfb = @BandpowerParamOp(Cf, [500,1000,1500], :A)
+    BinRescaledOp(C₀, Cbins, θname::Symbol)
     
-where you can now do `Cfb(A=[1,2])` to compute a new operator which scales the
-original `Cf` by `1` in the bin `[500,1000]`, by `2` in the bin `[1000,1500]`,
-and leaves it unmodified elsewhere.
+Create a [`ParamDependentOp`](@ref) which has a parameter named `θname` which is
+an array that controls the amplitude of bandpowers in bins given by `Cbins`. 
 
-The resulting operator is differentiable in the bandpower arguments.
+For example, `BinRescaledOp(C₀, [Cbin1, Cbin2], :A)` creates the operator: 
+
+    ParamDependentOp( (;A=[1,1], _...) -> C₀ + (A[1]-1) * Cbin1 + (A[2]-1) * Cbin2 )
+
+where `C₀`, `Cbin1`, and `Cbin2` should be some `LinOp`s. Note `Cbins` are
+directly the power which is added, rather than a mask. 
+
+The resulting operator is differentiable in `θname`.
+
 """
-macro BandpowerParamOp(C₀, ℓedges, A, Δℓ_bin_taper=10)
-    quote
-        # Cbins here is made a tuple instead of an Array so that `adapt` works recursively through it
-        let C₀ = $(esc(C₀)), Cbins = tuple(map(zip($(esc(ℓedges))[1:end-1],$(esc(ℓedges))[2:end])) do (ℓmin,ℓmax)
-                MidPass(ℓmin,ℓmax; Δℓ=$(esc(Δℓ_bin_taper))) .* C₀
-            end...)
-            ParamDependentOp(function (;$(esc(A.value))=ones(Int,length(Cbins)),_...)
-                T = real(eltype(C₀))
-                C₀ + sum(T.(tuple($(esc(A.value))...) .- 1) .* Cbins)
+function BinRescaledOp(C₀, Cbins, θname::Symbol)
+    # for some reason, if I eval this into CMBLensing as opposed to Main, it
+    # doesn't get shipped to workers correctly. 
+    # see also: https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main
+    @eval Main begin
+        # ensure Cbins is a tuple and not Array so that `adapt` works recursively through it
+        let C₀=$C₀, T=$(eltype(C₀)), Cbins=$(tuple(Cbins...)) 
+            $ParamDependentOp(function (;($θname)=$(ones(Int,length(Cbins))), _...)
+                C₀ + sum(T.(tuple(($θname)...) .- 1) .* Cbins)
             end)
         end
     end

@@ -168,8 +168,8 @@ function load_sim_dataset(;
     Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
     Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=r₀,   _...)->(mem .= Cfs + T(r/r₀)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=Aϕ₀, _...)->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
+    Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) .* Cϕ₀))
     
     # data mask
     if (M == nothing)
@@ -187,18 +187,6 @@ function load_sim_dataset(;
         B̂ = B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
     end
     
-    # D mixing matrix
-    if (D == nothing)
-        σ²len = T(deg2rad(5/60)^2)
-        D = ParamDependentOp(
-            function (mem;r=r₀,_...)
-                Cfr = Cf(mem,r=r)
-                mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
-            end,
-            similar(Cf())
-        )
-    end
-      
     # simulate data
     seed_for_storage!(storage, seed)
     if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
@@ -212,15 +200,29 @@ function load_sim_dataset(;
     # put everything in DataSet
     ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
     
-    # with the DataSet created, we can now more conveniently call the quadratic
-    # estimate to compute Nϕ if needed for the G mixing matrix
+    
+    # with the DataSet created, we now create the mixing matrices D and G, which
+    # will close-over `ds` and use `ds.Cf` and `ds.Cϕ`, so if these are later
+    # changed the mixing matrices will remain consistent. we have to wrap the
+    # closed-over `ds` in a Ref to prevent a circular dependency since our
+    # recursive `adapt` function doesn't check for loops, but doesn't recurse
+    # into `Ref`s. 
+    
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        G = ParamDependentOp((;Aϕ=Aϕ₀,_...)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
+        ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(@. nan2zero(sqrt(1 + 2/(($Cϕ(;Aϕ=Aϕ)/Nϕ)))/G₀)))
     end
-    @set! ds.G = G
-   
+    
+    if (D == nothing)
+        σ²len = T(deg2rad(5/60)^2)
+        ds.D = ParamDependentOp(
+            function (;r=r₀, _...)
+                Cfr = Cf(;r=r)
+                sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
+            end,
+        )
+    end
     
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
