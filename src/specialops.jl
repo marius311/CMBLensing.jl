@@ -352,7 +352,7 @@ function BinRescaledOp(C₀, Cbins, θname::Symbol)
     # see also: https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main
     @eval Main begin
         # ensure Cbins is a tuple and not Array so that `adapt` works recursively through it
-        let C₀=$C₀, T=$(eltype(C₀)), Cbins=$(tuple(Cbins...)) 
+        let C₀=$C₀, T=$(real(eltype(C₀))), Cbins=$(tuple(Cbins...)) 
             $ParamDependentOp(function (;($θname)=$(ones(Int,length(Cbins))), _...)
                 C₀ + sum(T.(tuple(($θname)...) .- 1) .* Cbins)
             end)
