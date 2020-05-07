@@ -309,7 +309,7 @@ adapt_structure(to, d::Dict) = Dict(k => adapt(to, v) for (k,v) in d)
 
 
 function corrify(H)
-    σ = sqrt.(diag(H))
+    σ = sqrt.(abs.(diag(H)))
     for i=1:checksquare(H)
         H[i,:] ./= σ
         H[:,i] ./= σ
