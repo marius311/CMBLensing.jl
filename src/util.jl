@@ -353,6 +353,7 @@ end
 
 @doc doc"""
     seed_for_storage!(storage[, seed])
+    seed_for_storage!((storage1, storage2, ...)[, seed])
     
 Set the global random seed for the RNG which controls `storage`-type. 
 """
@@ -360,6 +361,8 @@ seed_for_storage!(::Type{<:Array}, seed=nothing) =
     Random.seed!((seed == nothing ? () : (seed,))...)
 seed_for_storage!(storage::Any, seed=nothing) = 
     error("Don't know how to set seed for storage=$storage")
+seed_for_storage!(storages::Tuple, seed=nothing) = 
+    seed_for_storage!.(storages, seed)
 
 
 ### parallel utility function
@@ -414,6 +417,10 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
         
         function init_GPU_workers(::Val{:MPI}, n=nothing; stdout_to_master=false, stderr_to_master=false)
             
+            if !CuArrays.functional()
+                return
+            end
+
             !MPI.Initialized() && MPI.Init()
             size = MPI.Comm_size(MPI.COMM_WORLD)
             rank = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -432,6 +439,10 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
     end
 
     function init_GPU_workers(::Val{:procs}, n=nothing)
+        
+        if !CuArrays.functional()
+            return
+        end
         
         if n == nothing
             n = length(devices())

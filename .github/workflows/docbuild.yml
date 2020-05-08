@@ -1,4 +1,4 @@
-name: docs
+name: docbuild
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
     
 jobs:
-  docs:
+  main:
     runs-on: ubuntu-latest
     steps: 
       - name: checkout
@@ -24,4 +24,4 @@ jobs:
       - name: docs-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
-        run: .github/workflows/docs.sh
+        run: .github/workflows/docbuild.sh

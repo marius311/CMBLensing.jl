@@ -22,81 +22,104 @@ end
 
 plotsize₀ = 4
 
-pretty_name(s::Symbol) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
-pretty_name(::Val{s},::Val{:x}) where {s} = "$s Map"
-pretty_name(::Val{s},::Val{:l}) where {s} = "$s Fourier"
-pretty_name(::Val{:T},::Val{:x}) where {s} = "Map"
-pretty_name(::Val{:T},::Val{:l}) where {s} = "Fourier"
+pretty_name(s) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
+pretty_name(::Val{s}, b::Val) where {s} = "$s "*pretty_name(b)
+pretty_name(::Val{:x}) = "Map"
+pretty_name(::Val{:l}) = "Fourier"
 
-# generic plotting some components of a FlatField
-function _plot(f::FlatField{P}, ax, k, title, vlim; units=:deg, ticklabels=true, axeslabels=false, kwargs...) where {N,θ,P<:Flat{N,θ}}
-    if string(k)[2] == 'x'
-        x = θ*N/Dict(:deg=>60,:arcmin=>1)[units]/2
-    elseif string(k)[2] == 'l'
-        x = fieldinfo(f).nyq
-    else
-        throw(ArgumentError("Invalid `which`: $k"))
-    end
-    extent = [-x,x,-x,x]
-    (title == nothing) && (title="$(pretty_name(k)) ($(N)x$(N) @ $(θ)')")
-    (vlim == nothing) && (vlim=:sym)
-    _plot(Array(f[k]); ax=ax, extent=extent, title=title, vlim=vlim, kwargs...)
-    if ticklabels
-        if string(k)[2] == 'x'
-            @pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
-                __call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
-            end
-            ax.xaxis.set_major_formatter(MyFmt())
-            ax.yaxis.set_major_formatter(MyFmt())
-            if axeslabels
-                ax.set_xlabel("RA")
-                ax.set_ylabel("Dec")
-            end
-        else
-            ax.set_xlabel(raw"$\ell_x$")
-            ax.set_ylabel(raw"$\ell_y$")
-            ax.tick_params(axis="x", rotation=45)
-        end
-        ax.tick_params(labeltop=false, labelbottom=true)
-    else
-        ax.tick_params(labeltop=false, labelleft=false)
-    end
-end
-
-# plotting a map
-function _plot(m::AbstractMatrix{<:Real}; ax=gca(), title=nothing, vlim=:sym, cmap="RdBu_r", vscale=:linear, cbar=true, kwargs...)
+function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, ticklabels=true, axeslabels=false, kwargs...)
     
-    # some logic to automatically get upper/lower limits
-    if vlim==:sym
-        vmax = quantile(abs.(m[@. !isnan(m)][:]),0.999)
+	@unpack Nside, θpix = fieldinfo(f)
+	ismap = endswith(string(k), "x")
+	
+	# default values
+	if title == nothing
+		if f isa FlatS0
+			title = pretty_name(string(k)[2])
+		else
+			title = pretty_name(k)
+		end
+		title *= " ($(Nside)x$(Nside) @ $(θpix)')"
+	end
+	if vlim == nothing 
+		vlim = ismap ? :sym : :asym
+	end
+	if vscale == nothing
+		vscale = ismap ? :linear : :log
+	end
+	if cmap == nothing
+		if ismap
+			cmap = get_cmap("RdBu_r")
+		else
+			cmap = get_cmap("viridis")
+			cmap.set_bad("lightgray")
+		end
+	end
+
+	# build array
+	if ismap
+		arr = Array(f[k])
+	else
+		arr = abs.(ifftshift(unfold(Array(f[k]))))
+	end
+	if vscale == :log
+		arr[arr .== 0] .= NaN
+	end
+	
+	# auto vlim's
+	if vlim==:sym
+        vmax = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
         vmin = -vmax
     elseif vlim==:asym
-        vmin, vmax = (quantile(m[@. !isnan(m)][:],q) for q=(0.001,0.999))
+        vmin, vmax = (quantile(arr[@. !isnan(arr)][:],q) for q=(0.001,0.999))
     elseif isa(vlim,Tuple)
         vmin, vmax = vlim
     else
         vmax = vlim
         vmin = -vmax
     end
-       
-    m = Float64.(m)
-    m[isinf.(m)] .= NaN
-    
-    cax = ax.matshow(clamp.(m,vmin,vmax); vmin=vmin, vmax=vmax, cmap=cmap, rasterized=true, kwargs...)
-    cbar && gcf().colorbar(cax,ax=ax)
-    title!=nothing && ax.set_title(title, y=1)
-    ax
-end
-
-# plotting fourier coefficients 
-function _plot(m::AbstractMatrix{<:Complex}; vscale=:log, kwargs...)
-    dat = ifftshift(unfold(m))
-    if vscale==:log
-        dat .= log10.(abs.(dat))
+	
+	# make the plot
+	if ismap
+		extent = [-1,1,-1,1] .* θpix*Nside/Dict(:deg=>60,:arcmin=>1)[units]/2
+	else
+		extent = [-1,1,-1,1] .* fieldinfo(f).nyq
+	end
+	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
+	cax = ax.matshow(
+		arr; 
+		vmin=vmin, vmax=vmax, extent=extent,
+		cmap=cmap, rasterized=true, norm=norm,
+		kwargs...
+	)
+	
+	# annonate
+    if cbar
+		colorbar(cax,ax=ax)
+	end
+    ax.set_title(title, y=1)
+    if ticklabels
+		if ismap
+			@pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
+				__call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
+			end
+			ax.xaxis.set_major_formatter(MyFmt())
+			ax.yaxis.set_major_formatter(MyFmt())
+			if axeslabels
+				ax.set_xlabel("RA")
+				ax.set_ylabel("Dec")
+			end
+		else
+	        ax.set_xlabel(raw"$\ell_x$")
+	        ax.set_ylabel(raw"$\ell_y$")
+	        ax.tick_params(axis="x", rotation=45)
+		end
+        ax.tick_params(labeltop=false, labelbottom=true)
+    else
+        ax.tick_params(labeltop=false, labelleft=false)
     end
-    _plot(real.(dat); vlim=(nothing,nothing), cmap=nothing, kwargs...)
+	
 end
-
 
 
 @doc doc"""
@@ -106,14 +129,29 @@ end
 Plotting fields. 
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
-function plot(fs::AbstractVecOrMat{F}; plotsize=plotsize₀, which=default_which(fs), title=nothing, vlim=nothing, return_all=false, kwargs...) where {F<:Field}
+plot(D::DiagOp; kwargs...) = 
+	plot([diag(D)]; which=permutedims([x for x in propertynames(diag(D)) if string(x)[end] in "xl"]), kwargs...)
+
+function plot(
+	fs::AbstractVecOrMat{F}; 
+	plotsize = plotsize₀, 
+	which = default_which(fs), 
+	title = nothing, 
+	vlim = nothing, 
+	vscale = nothing,
+	cmap = nothing,
+	return_all = false, 
+	kwargs...) where {F<:Field}
+	
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
-    _plot.(fs,axs,which,title,vlim; kwargs...)
+    _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
     tight_layout(w_pad=-10)
     return_all ? (fig,axs,which) : isjuno ? fig : nothing
+	
 end
+
 default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
 default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
 default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
@@ -125,6 +163,8 @@ function default_which(fs::AbstractVecOrMat{<:Field})
     end
 end
 
+
+### animations of FlatFields
 
 @doc doc"""
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
@@ -168,7 +208,9 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 
 	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
 	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
-	    xs′ = range(first(m.xs),last(m.xs),length=10*length(m.xs))
+        xs′ = vcat(map(1:length(m.xs)-1) do i
+		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
+		end..., [last(m.xs)])
 	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
 	end
 

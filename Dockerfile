@@ -88,7 +88,7 @@ COPY --chown=1000 Project.toml $HOME/CMBLensing/
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; precompile"' \
+RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; add ProgressMeter#master; precompile"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
 RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
