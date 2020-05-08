@@ -43,15 +43,26 @@ adapt_structure(to, ds::DataSet) = DataSet(adapt(to, fieldvalues(ds))...)
 
     
 @doc doc"""
-    resimulate(ds::DataSet; f=..., ϕ=...)
+    resimulate!(ds::DataSet; f=..., ϕ=...)
     
 Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
 are resimulated if not provided)
 """
-function resimulate(ds::DataSet; f=simulate(ds.Cf), ϕ=simulate(ds.Cϕ), n=simulate(ds.Cn), f̃=ds.L(ϕ)*f, return_truths=false)
+function resimulate!(
+    ds::DataSet{F}; 
+    f=nothing, ϕ=nothing, n=nothing,
+    rng=global_rng_for(F), seed=nothing,
+    ) where {F}
+    
+    if ϕ==nothing; ϕ = simulate(ds.Cϕ; rng=rng, seed=seed); end
+    if f==nothing; f = simulate(ds.Cf; rng=rng, seed=seed+1); end
+    if n==nothing; n = simulate(ds.Cn; rng=rng, seed=seed+2); end
+    
     @unpack M,P,B = ds
-    @set! ds.d = M*P*B*f̃ + n
-    return_truths ? @namedtuple(ds,f,ϕ,n,f̃) : ds
+    f̃ = ds.L(ϕ)*f
+    ds.d = M*P*B*f̃ + n
+    
+    @namedtuple(ds,f,ϕ,n,f̃)
 end
 
 
