@@ -91,8 +91,8 @@ dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix)
 ≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))
 
 ### simulation and power spectra
-function white_noise(::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-    FlatMap{P}(randn!(basetype(M){T}(undef,N,N)))
+function white_noise(rng::AbstractRNG, ::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
+    FlatMap{P}(randn!(rng, basetype(M){T}(undef,N,N)))
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)

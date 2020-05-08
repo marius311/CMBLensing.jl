@@ -3,7 +3,8 @@
 # we use Base.Diagonal(f) for diagonal operators so very little specific code is
 # actually needed here. 
 
-simulate(D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(F)
+simulate(rng::AbstractRNG, D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(rng, F)
+global_rng_for(::Type{<:DiagOp{F}}) where {F} = global_rng_for(F)
 
 # automatic basis conversion (and NaN-zeroing)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = D.diag .* B(f)
@@ -258,9 +259,10 @@ end
 (L::ParamDependentOp)(θ::NamedTuple) = L(;θ...)
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
+simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
 depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
 depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
@@ -328,8 +330,6 @@ struct OuterProdOp{TV,TW} <: ImplicitOp{Basis,Spin,Pix}
 end
 OuterProdOp(V) = OuterProdOp(V,V)
 _check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
-simulate(L::OuterProdOp{<:DiagOp{F}}) where {F} = (_check_sym(L); L.V * white_noise(F))
-simulate(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); L.V.a * sqrt(L.V.b) * simulate(L.V.b))
 pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
 *(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
 \(L::OuterProdOp{<:LinOp,<:LinOp}, f::Field) = L.W' \ (L.V \ f)

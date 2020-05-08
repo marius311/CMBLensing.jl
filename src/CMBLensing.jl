@@ -29,7 +29,7 @@ using Pkg
 using Printf
 using ProgressMeter
 using Random
-using Random: seed!
+using Random: seed!, AbstractRNG
 using Roots
 using Requires
 using Setfield

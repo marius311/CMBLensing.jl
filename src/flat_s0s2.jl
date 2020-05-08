@@ -95,7 +95,7 @@ end
 adjoint(L::FlatIEBCov) = L
 sqrt(L::FlatIEBCov) = FlatIEBCov(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::FlatIEBCov) = FlatIEBCov(pinv(L.ΣTE), pinv(L.ΣB))
-simulate(L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) * white_noise(FlatIEBFourier{P,T,M})
+simulate(rng::AbstractRNG, L::FlatIEBCov{Complex{T},FlatFourier{P,T,M}}) where {P,T,M} = sqrt(L) * white_noise(rng, FlatIEBFourier{P,T,M})
 diag(L::FlatIEBCov) = FlatIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::FlatIEBCov) = FlatIEBCov(similar.(L.ΣTE), similar(L.ΣB))
 

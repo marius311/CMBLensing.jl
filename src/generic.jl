@@ -142,6 +142,33 @@ logdet(L::Int, θ) = 0 # the default returns Float64 which unwantedly poisons th
 logdet(L, θ) = logdet(L)
 
 
+### Simulation
+
+@doc doc"""
+    simulate(Σ; rng=global_rng_for(Σ), seed=nothing)
+    
+Draw a simulation from the covariance matrix `Σ`, i.e. draw a random vector
+$\xi$ such that the covariance $\langle \xi \xi^\dagger \rangle = \Sigma$. 
+
+The random number generator `rng` will be used and advanced in the proccess, and
+is by default the appropriate one depending on if `Σ` is backed by `Array` or
+`CuArray`.
+
+The `seed` argument can also be used to seed the `rng`.
+"""
+function simulate(Σ; rng=global_rng_for(Σ), seed=nothing)
+    (seed != nothing) && Random.seed!(rng, seed)
+    simulate(rng, Σ)
+end
+function white_noise(Σ; rng=global_rng_for(Σ), seed=nothing)
+    (seed != nothing) && Random.seed!(rng, seed)
+    white_noise(rng, Σ)
+end
+global_rng_for(x::T) where {T} = global_rng_for(T)
+global_rng_for(::T) where {T<:Type} = error("`global_rng_for(::$T) not defined`.")
+global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
+
+
 # 
 # ### Matrix conversion
 # 

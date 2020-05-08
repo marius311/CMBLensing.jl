@@ -129,11 +129,10 @@ getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs),s)
 propertynames(f::FieldTuple) = (:fs, propertynames(f.fs)...)
 
 ### simulation
-white_noise(::Type{<:FieldTuple{B,FS}}) where {B,FS<:Tuple} = 
-    FieldTuple(map(white_noise, tuple(FS.parameters...)))
-white_noise(::Type{<:FieldTuple{B,NamedTuple{Names,FS}}}) where {B,Names,FS<:Tuple} = 
-    FieldTuple(NamedTuple{Names}(map(white_noise, tuple(FS.parameters...))))
-    
+white_noise(rng::AbstractRNG, ::Type{<:FieldTuple{B,FS}}) where {B,FS<:Tuple} = 
+    FieldTuple(map(x->white_noise(rng,x), tuple(FS.parameters...)))
+white_noise(rng::AbstractRNG, ::Type{<:FieldTuple{B,NamedTuple{Names,FS}}}) where {B,Names,FS<:Tuple} = 
+    FieldTuple(NamedTuple{Names}(map(x->white_noise(rng,x), tuple(FS.parameters...))))
 
 # generic AbstractVector inv/pinv don't work with FieldTuples because those
 # implementations depends on get/setindex which we don't implement for FieldTuples

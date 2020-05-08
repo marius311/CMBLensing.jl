@@ -14,9 +14,10 @@ function cuda(f, args...; threads=256)
 end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
-
+global_rng_for(::Type{<:CuArray}) = CuArrays.CURAND.generator()
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
     CuArrays.CURAND.seed!((seed == nothing ? (rand(0:typemax(Int),)) : seed)...)
+Random.seed!(rng::CuArrays.CURAND.RNG,seed) = CuArrays.CURAND.seed!(rng, seed)
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
