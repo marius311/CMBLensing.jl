@@ -177,6 +177,7 @@ function sample_joint(
     
     # save input configuration to later write to chain file
     rundat = adapt(Array, Base.@locals)
+    pop!.(Ref(rundat), (:metadata, :ds)) # saved separately
     
     # validate arguments
     if (length(θrange)>1 && gibbs_pass_θ==nothing)
@@ -229,7 +230,14 @@ function sample_joint(
             [@dict i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart]
         end
         chunks_index = 1
-        save(filename, "rundat", rundat, "chunks_1", last_chunks)
+        save(
+            filename, 
+            "rundat", rundat, 
+            "ds", ds,
+            "ds₀", ds(), # save separately incase ds has trouble loading
+            "metadata", metadata, 
+            "chunks_1", last_chunks
+        )
     end
     
     
