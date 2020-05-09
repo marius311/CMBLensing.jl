@@ -250,9 +250,17 @@ one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f)) # dot is implemented to add the factor of Δx
 
 
-invalid_broadcast_error(B1,B2) = 
-    error("""Can't broadcast fields in different bases. ($B1, $B2)
-    Try the same operation without broadcasting (which will do an automatic basis conversion).""")
+function invalid_broadcast_error(B1,F1,B2,F2)
+    if B1!=B2
+        error("""Can't broadcast across fields in $B1 and $B2 bases.
+        Try the same operation without broadcasting (which will do an automatic basis conversion).""")
+    else
+        error("""Broadcasting across fields with the following differing broadcast styles is not implemented:
+        * $F1
+        * $F2
+        """)
+    end
+end
 
 
 @init @require PyCall="438e738f-606a-5dbb-bf0a-cddfbfd45ab0" begin

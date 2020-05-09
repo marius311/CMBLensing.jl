@@ -66,7 +66,8 @@ end
 ### broadcasting
 struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end
 (::Type{FTS})(::Val{1}) where {FTS<:FieldTupleStyle} = FTS()
-BroadcastStyle(::FieldTupleStyle{B1}, ::FieldTupleStyle{B2}) where {B1,B2} = invalid_broadcast_error(B1,B2)
+BroadcastStyle(FS1::FieldTupleStyle{B1}, FS2::FieldTupleStyle{B2}) where {B1,B2} =
+    invalid_broadcast_error(B1,FS1,B2,FS2)
 BroadcastStyle(::Type{FT}) where {B,FS<:Tuple,FT<:FieldTuple{B,FS}} = FieldTupleStyle{B,Nothing,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 BroadcastStyle(::Type{FT}) where {B,Names,FS,NT<:NamedTuple{Names,FS},FT<:FieldTuple{B,NT}} = FieldTupleStyle{B,Names,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 similar(::Broadcasted{FTS}, ::Type{T}) where {T, FTS<:FieldTupleStyle} = similar(FTS,T)

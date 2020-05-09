@@ -55,7 +55,7 @@ struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
 (::Type{FS})(::Val{2}) where {FS<:FlatS0Style} = error("Broadcast expression would create a dense Field operator.")
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
-BroadcastStyle(::FlatS0Style{<:Field{B1}}, ::FlatS0Style{<:Field{B2}}) where {B1,B2} = invalid_broadcast_error(B1,B2)
+BroadcastStyle(FS1::FlatS0Style{<:Field{B1}}, FS2::FlatS0Style{<:Field{B2}}) where {B1,B2} = invalid_broadcast_error(B1,FS1,B2,FS2)
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
