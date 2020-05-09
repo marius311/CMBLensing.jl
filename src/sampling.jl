@@ -405,7 +405,7 @@ function load_chains(filename; burnin=0, thin=1, join=false)
     if thin isa Int
         chains = [chain[(1+burnin):thin:end] for chain in chains]
     elseif thin == :hasmaps
-        chains = [samp for chain in chains for samp in chain[(1+burnin):end] if :ϕ in keys(samp)]
+        chains = [[samp for samp in chain[(1+burnin):end] if :ϕ in keys(samp)] for chain in chains]
     else
         error("`thin` should be an Int or :hasmaps")
     end
