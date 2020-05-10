@@ -113,8 +113,14 @@ function white_noise(rng::AbstractRNG, ::Type{F2}) where {F2<:FlatS2}
     FlatEBMap(E=white_noise(rng,F), B=white_noise(rng,F))
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; kwargs...) where {P,T,M}
-    Diagonal(FlatEBFourier(E=Cℓ_to_Cov(P,T,S0,CℓEE;kwargs...).diag, B=Cℓ_to_Cov(P,T,S0,CℓBB;kwargs...).diag))
+    Diagonal(FlatEBFourier(E=diag(Cℓ_to_Cov(P,T,S0,CℓEE;kwargs...)), B=diag(Cℓ_to_Cov(P,T,S0,CℓBB;kwargs...))))
 end
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
+    C₀ = Cℓ_to_Cov(P, T, S2, CℓEE, CℓBB, units=units)
+    Cbins = Diagonal.(FlatEBFourier.(MidPasses(ℓedges) .* [diag(C₀).E], [zero(diag(C₀).B)]))
+    BinRescaledOp(C₀,Cbins,θname)
+end
+
 
 
 function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)

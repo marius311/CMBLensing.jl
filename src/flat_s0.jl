@@ -97,6 +97,11 @@ end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
 end
+function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, (Cℓ, ℓedges, θname)::Tuple; units=fieldinfo(P).Ωpix) where {P,T}
+    C₀ = Cℓ_to_Cov(P, T, S0, Cℓ, units=units)
+    Cbins = Diagonal.(MidPasses(ℓedges) .* [diag(C₀)])
+    BinRescaledOp(C₀,Cbins,θname)
+end
 
 
 function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
