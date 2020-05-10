@@ -14,7 +14,7 @@ using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotec
 using FileIO
 using FFTW
 using InteractiveUtils
-using IterTools
+using IterTools: flagfirst
 using JLD2: jldopen, JLDWriteSession
 using KahanSummation
 using Loess
