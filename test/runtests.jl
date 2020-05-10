@@ -285,16 +285,13 @@ end
 @testset "ParamDependentOp" begin
     
     D = Diagonal(FlatMap(rand(4,4)))
-    mem = similar(D)
-    
-    @test_throws ArgumentError ParamDependentOp((;x=1, y=1)->x*y*D)(mem) # passing memory to non-inplace op
-    @test_throws ArgumentError ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(1) # passing wrong-type memory
     
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(x=2) ≈ 2D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
-    @test ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(D) ≈ D # inplace 
+    @test_throws MethodError ParamDependentOp((;x=1, y=1)->x*y*D)(2) # only Tuple unnamed arg is OK
+
 end
 
 ##
