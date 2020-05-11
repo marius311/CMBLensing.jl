@@ -41,31 +41,52 @@ end
 
 adapt_structure(to, ds::DataSet) = DataSet(adapt(to, fieldvalues(ds))...)
 
-    
+
 @doc doc"""
-    resimulate!(ds::DataSet; f=..., ϕ=...)
+    resimulate(ds::DataSet; [f, ϕ, n])
     
-Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
-are resimulated if not provided)
+Make a new DataSet replacing the data with a simulation, potentially given a
+fixed f, ϕ, or n, if any are provided. 
+
+Returns a named tuple of `(ds, f, ϕ, n, f̃)`
 """
-function resimulate!(
+function resimulate(
     ds::DataSet{F}; 
-    f=nothing, ϕ=nothing, n=nothing,
-    rng=global_rng_for(F), seed=nothing,
-    ) where {F}
+    f=nothing, ϕ=nothing, n=nothing, 
+    rng=global_rng_for(F), seed=nothing) where {F}
     
-    if ϕ==nothing; ϕ = simulate(ds.Cϕ; rng=rng, seed=seed); end
-    if f==nothing; f = simulate(ds.Cf; rng=rng, seed=seed+1); end
-    if n==nothing; n = simulate(ds.Cn; rng=rng, seed=seed+2); end
-    
-    @unpack M,P,B = ds
-    f̃ = ds.L(ϕ)*f
-    ds.d = M*P*B*f̃ + n
+    if (ϕ == nothing)
+        ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
+    end
+    if (f == nothing)
+        f = simulate(ds.Cf, rng=rng, seed=(seed==nothing ? nothing : seed+1))
+    end
+    if (n == nothing)
+        n = simulate(ds.Cn, rng=rng, seed=(seed==nothing ? nothing : seed+2))
+    end
+
+    @unpack M,P,B,L = ds
+    f̃ = L(ϕ)*f
+    d = M*P*B*f̃ + n
+    ds = (@set ds.d = d)
     
     @namedtuple(ds,f,ϕ,n,f̃)
 end
 
-
+@doc doc"""
+    resimulate!(ds::DataSet; [f, ϕ, n])
+    
+Replace the data in this DataSet in-place with a simulation, potentially given a
+fixed f, ϕ, or n, if any are provided. 
+    
+Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+"""
+function resimulate!(ds::DataSet; kwargs...)
+    ds′ = ds
+    @unpack ds,f,ϕ,n,f̃ = resimulate(ds; kwargs...)
+    ds′.d = ds.d
+    @namedtuple(ds=ds′,f,ϕ,n,f̃)
+end
 
 
 
