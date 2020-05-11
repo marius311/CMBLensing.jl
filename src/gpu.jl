@@ -15,7 +15,7 @@ end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 global_rng_for(::Type{<:CuArray}) = CuArrays.CURAND.generator()
-seed_for_storage!(::Type{<:CuArray}, seed=Base.rand(UInt64)) = 
+seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
     Random.seed!(global_rng_for(CuArray), seed)
 
 
@@ -70,6 +70,7 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 # see https://github.com/JuliaGPU/CuArrays.jl/pull/637
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
-# CuArrays doesn't seem to implement some of the Random API yet
+# some Random API which CuArrays doesn't implement yet
 Random.randn(rng::CuArrays.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+Random.seed!(rng::CuArrays.CURAND.RNG, ::Nothing) = Random.seed!(rng)

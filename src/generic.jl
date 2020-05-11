@@ -164,8 +164,7 @@ function white_noise(Σ; rng=global_rng_for(Σ), seed=nothing)
     (seed != nothing) && Random.seed!(rng, seed)
     white_noise(rng, Σ)
 end
-global_rng_for(x::T) where {T} = global_rng_for(T)
-global_rng_for(::T) where {T<:Type} = error("`global_rng_for(::$T) not defined`.")
+global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
 global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 
