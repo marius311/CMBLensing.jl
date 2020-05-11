@@ -89,7 +89,6 @@ function resimulate!(ds::DataSet; kwargs...)
 end
 
 
-
 @doc doc"""
     load_sim_dataset
     
@@ -136,6 +135,7 @@ function load_sim_dataset(;
     fiducial_θ = NamedTuple(),
     rfid = nothing,
     
+    rng = global_rng_for(storage),
     seed = nothing,
     D = nothing,
     G = nothing,
@@ -219,33 +219,22 @@ function load_sim_dataset(;
         B̂ = B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
     end
     
-    # simulate data
-    seed_for_storage!(storage, seed)
-    if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
-    if (f  == nothing); f  = simulate(Cf); end
-    if (n  == nothing); n  = simulate(Cn); end
-    Lϕ = cache(L(ϕ),f)
-    if (f̃  == nothing); f̃  = Lϕ*f;         end
-    if (Bf̃ == nothing); Bf̃ = B*f̃;          end
-    if (d  == nothing); d  = M*P*Bf̃ + n;   end
-    
+    # creating lensing operator cache
+    Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
+
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
+    ds = DataSet(;@namedtuple(d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L)...)
     
-    
-    # with the DataSet created, we now create the mixing matrices D and G, which
-    # will close-over `ds` and use `ds.Cf` and `ds.Cϕ`, so if these are later
-    # changed the mixing matrices will remain consistent. we have to wrap the
-    # closed-over `ds` in a Ref to prevent a circular dependency since our
-    # recursive `adapt` function doesn't check for loops, but doesn't recurse
-    # into `Ref`s. 
-    
+    # simulate data
+    @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)
+
+
+    # with the DataSet created, we now more conveniently create the mixing matrices D and G
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(@. nan2zero(sqrt(1 + 2/(($Cϕ(;Aϕ=Aϕ)/Nϕ)))/G₀)))
     end
-    
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
         ds.D = ParamDependentOp(

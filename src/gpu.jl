@@ -16,7 +16,7 @@ end
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 global_rng_for(::Type{<:CuArray}) = CuArrays.CURAND.generator()
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
-    CuArrays.CURAND.seed!((seed == nothing ? (rand(0:typemax(Int),)) : seed)...)
+    Random.seed!(global_rng_for(CuArray), seed)
 
 
 
@@ -50,8 +50,8 @@ dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
 
 
-# some pretty low-level hacks to get a few thing broadcasting correctly for
-# Complex arguments that don't currently work in CuArrays
+# these only work for Reals in CuArrays
+# with these definitions, they work for Complex as well
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
@@ -70,7 +70,7 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 # see https://github.com/JuliaGPU/CuArrays.jl/pull/637
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
-# CuArrays doesn't seem to implement some of the Random API yet
-Random.seed!(rng::CuArrays.CURAND.RNG, seed) = CuArrays.CURAND.seed!(rng, seed)
+# some Random API which CuArrays doesn't implement yet
 Random.randn(rng::CuArrays.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+Random.seed!(rng::CuArrays.CURAND.RNG, ::Nothing) = Random.seed!(rng)
