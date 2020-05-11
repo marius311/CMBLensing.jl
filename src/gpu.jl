@@ -50,8 +50,8 @@ dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
 sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
 
 
-# some pretty low-level hacks to get a few thing broadcasting correctly for
-# Complex arguments that don't currently work in CuArrays
+# these only work for Reals in CuArrays
+# with these definitions, they work for Complex as well
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
