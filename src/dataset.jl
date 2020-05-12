@@ -201,7 +201,7 @@ function load_sim_dataset(;
     Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
-    Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) .* Cϕ₀))
+    Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
     if (M == nothing)
