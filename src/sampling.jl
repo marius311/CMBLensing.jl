@@ -173,10 +173,10 @@ function sample_joint(
     storage = basetype(M)
     ) where {P,T,M}
     
-    ds = adapt(Array, ds)
+    ds = cpu(ds)
     
     # save input configuration to later write to chain file
-    rundat = adapt(Array, Base.@locals)
+    rundat = Base.@locals
     pop!.(Ref(rundat), (:metadata, :ds)) # saved separately
     
     # validate arguments
@@ -227,16 +227,16 @@ function sample_joint(
         end
         
         last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            [@dict i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart]
+            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*ϕstart) θ=>θstart]
         end
         chunks_index = 1
         save(
             filename, 
-            "rundat", rundat, 
-            "ds", ds,
-            "ds₀", ds(), # save separately incase ds has trouble loading
-            "metadata", metadata, 
-            "chunks_1", last_chunks
+            "rundat",   cpu(rundat),
+            "ds",       cpu(ds),
+            "ds₀",      cpu(ds()), # save separately incase θ-dependent has trouble loading
+            "metadata", cpu(metadata),
+            "chunks_1", cpu(last_chunks)
         )
     end
     
@@ -335,7 +335,7 @@ function sample_joint(
                     if savemaps
                         merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
                     end
-                    push!(chain_chunk, adapt(Array, state))
+                    push!(chain_chunk, cpu(state))
                     
                     if @isdefined pbar
                         next!(pbar, showvalues = [("step",i), ("θ",θ), ("HMC", @namedtuple(ΔH,accept)), ("timing",timing)])

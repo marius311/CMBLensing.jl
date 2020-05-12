@@ -307,6 +307,14 @@ end
 
 adapt_structure(to, d::Dict) = Dict(k => adapt(to, v) for (k,v) in d)
 
+@doc doc"""
+
+    cpu(xs)
+
+Recursively move an object to CPU memory (i.e. the opposite of `cu`)
+"""
+cpu(xs) = adapt_structure(Array, xs)
+
 
 function corrify(H)
     σ = sqrt.(abs.(diag(H)))
