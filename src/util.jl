@@ -491,3 +491,7 @@ init_GPU_workers(n=nothing) = init_GPU_workers(Val(PARALLEL_WORKER_TYPE), n)
     end
     
 end
+
+
+firsthalf(x) = x[1:end÷2]
+lasthalf(x) = x[end÷2:end]
