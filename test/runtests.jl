@@ -296,6 +296,34 @@ end
 
 ##
 
+@testset "Chains" begin
+
+    chains = CMBLensing.wrap_chains([
+        [Dict(:i=>1, :b=>2), Dict(:i=>2       ), Dict(:i=>3, :b=>2)],
+        [Dict(:i=>1, :b=>3), Dict(:i=>2, :b=>3), Dict(:i=>3, :b=>3)],
+    ])
+    
+    # basic
+    @test chains[1, 1, :i] == 1
+    @test chains[:, 1, :i] == [1,1]
+    @test chains[:, :, :i] == [[1, 2, 3], [1, 2, 3]]
+    
+    # slices
+    @test chains[1, 1:2, :i] == [1, 2]
+    @test chains[:, 1:2, :i] == [[1,2], [1,2]]
+    
+    # implied : in first dims
+    @test chains[:i] == [[1,2,3],[1,2,3]]
+    @test chains[1,:i] == [1,2,3]
+    
+    # missing
+    @test all(chains[1,:b] .=== [2, missing, 2])
+
+end;
+
+
+##
+
 @testset "Zygote" begin
 
     for (f,g,h) in [
