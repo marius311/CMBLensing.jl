@@ -439,6 +439,7 @@ end
     
     Cℓ = camb().unlensed_total
     nside = 128
+    seed!(0)
     
     for T in (Float32, Float64)
         

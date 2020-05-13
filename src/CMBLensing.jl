@@ -25,7 +25,6 @@ using Match
 using Markdown
 using Measurements
 using Memoization
-using Parameters
 using Pkg
 using Printf
 using ProgressMeter
@@ -40,6 +39,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
 using Statistics
 using StatsBase
 using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
+using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint
 
