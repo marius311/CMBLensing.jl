@@ -38,13 +38,9 @@ end
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
-size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
-size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
-batchsize(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D
-
-# _size(::Type{<:FlatS0{<:Flat{<:Any,N,<:Any,D}}}) where {D} = D==1 ? (N,N) : (N,N,D)
-# _ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
-
+_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N,N) : (N,N,D)
+_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N÷2+1,N) : (N÷2+1,N,D)
+_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 adapt_structure(to::Type{T}, f::F) where {T<:AbstractArray,         P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
@@ -65,12 +61,12 @@ BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
 similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = 
-    F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...,(batchsize(F)==1 ? () : (batchsize(F),))...))
+    F(basetype(M){eltype(F{real(T)})}(undef,_size(F)))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = 
-    Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+    Broadcasted{DefaultArrayStyle{_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
-broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = reshape(f, size_2d(F))
+broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = error()
 broadcastable(::Any, x) = x
 
 ### basis conversion

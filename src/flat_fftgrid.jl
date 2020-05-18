@@ -37,7 +37,7 @@ const FFTW_NUM_THREADS = Ref{Int}()
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
 
     Δx   = T(deg2rad(θpix/60))
-    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside,D),(1,2))
+    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside,(D==1 ? () : (D,))...), (1,2))
     Δℓ   = T(2π/(Nside*Δx))
     nyq  = T(2π/(2Δx))
     Ωpix = T(Δx^2)

@@ -106,11 +106,11 @@ include("flat_generic.jl")
 # include("taylens.jl")
 # include("bilinearlens.jl")
 # 
-# # plotting
-# isjuno = false
-# function animate end
-# @init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
-# @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+# plotting
+isjuno = false
+function animate end
+@init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
+@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 # 
 # # sampling and maximizing the posteriors
 # include("dataset.jl")
