@@ -4,8 +4,8 @@ const FlatFieldMap{P,T,M} = Union{FlatMap{P,T,M},FlatS2Map{P,T,M},FlatS02Map{P,T
 const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
 
 ### pretty printing
-@show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,T,M,F<:FlatField{Flat{N,θ,∂mode},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+@show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
+    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "×$D") map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
@@ -13,8 +13,8 @@ for F in (:FlatMap, :FlatFourier,
 end
 
 ### field info
-@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = 
-    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside))..., ∂mode=∂mode)
+@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,D,P<:Flat{Nside,θpix,∂mode,D},T,M} = 
+    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside),Val(D))..., ∂mode=∂mode)
 @generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
     (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
 fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)

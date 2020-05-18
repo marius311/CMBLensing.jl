@@ -9,10 +9,10 @@ promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 
 # Flat{Nside,θpix,∂mode} is a flat sky pixelization with `Nside` pixels per side
 # and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
-abstract type Flat{Nside,θpix,∂mode<:∂modes} <: Pix end
+abstract type Flat{Nside,θpix,∂mode<:∂modes,D} <: Pix end
 
 # for convenience
-Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂) = Flat{Nside,θpix,∂mode}
+Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂, D=1) = Flat{Nside,θpix,∂mode,D}
 Nside(::Type{P}) where {N,P<:Flat{N}} = N
 
 # default angular resolution used by a number of convenience constructors
@@ -32,12 +32,12 @@ const FFTW_NUM_THREADS = Ref{Int}()
 @init FFTW_NUM_THREADS[] = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
 
 
-@generated function FlatInfo(::Type{T}, ::Type{Arr}, ::Val{θpix}, ::Val{Nside}) where {T<:Real, Arr<:AbstractArray, θpix, Nside}
+@generated function FlatInfo(::Type{T}, ::Type{Arr}, ::Val{θpix}, ::Val{Nside}, ::Val{D}) where {T<:Real, Arr<:AbstractArray, θpix, Nside, D}
 
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
 
     Δx   = T(deg2rad(θpix/60))
-    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside))
+    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside,D),(1,2))
     Δℓ   = T(2π/(Nside*Δx))
     nyq  = T(2π/(2Δx))
     Ωpix = T(Δx^2)

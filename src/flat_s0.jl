@@ -1,9 +1,9 @@
 
 ### FlatMap and FlatFourier types
-struct FlatMap{P<:Flat,T<:Real,M<:AbstractMatrix{T}} <: Field{Map,S0,P,T}
+struct FlatMap{P<:Flat,T<:Real,M<:AbstractArray{T}} <: Field{Map,S0,P,T}
     Ix :: M
 end
-struct FlatFourier{P<:Flat,T<:Real,M<:AbstractMatrix{Complex{T}}} <: Field{Fourier,S0,P,Complex{T}}
+struct FlatFourier{P<:Flat,T<:Real,M<:AbstractArray{Complex{T}}} <: Field{Fourier,S0,P,Complex{T}}
     Il :: M
 end
 const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
@@ -27,11 +27,11 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractMatrix; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X)
-        $F{P}($X::M) where {P,T,M<:AbstractMatrix{$T}} = $F{P,T,M}($X)
-        $F{P,T}($X::AbstractMatrix) where {P,T} = $F{P}($T.($X))
+        $F($X::AbstractArray; kwargs...) = $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X)
+        $F{P}($X::M) where {P,T,M<:AbstractArray{$T}} = $F{P,T,M}($X)
+        $F{P,T}($X::AbstractArray) where {P,T} = $F{P}($T.($X))
     end
-    T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractMatrix{T}} = $F{P,T}($X)
+    T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractArray{T}} = $F{P,T}($X)
 end
 
 
@@ -40,6 +40,11 @@ size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
 size_2d(::Type{<:FlatMap{<:Flat{N}}}) where {N} = (N,N)
 size_2d(::Type{<:FlatFourier{<:Flat{N}}}) where {N} = (N÷2+1,N)
+batchsize(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D
+
+# _size(::Type{<:FlatS0{<:Flat{<:Any,N,<:Any,D}}}) where {D} = D==1 ? (N,N) : (N,N,D)
+# _ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
+
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 adapt_structure(to::Type{T}, f::F) where {T<:AbstractArray,         P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
@@ -59,8 +64,10 @@ BroadcastStyle(FS1::FlatS0Style{<:Field{B1}}, FS2::FlatS0Style{<:Field{B2}}) whe
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
-similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...))
-@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = 
+    F(basetype(M){eltype(F{real(T)})}(undef,size_2d(F)...,(batchsize(F)==1 ? () : (batchsize(F),))...))
+@inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = 
+    Broadcasted{DefaultArrayStyle{2}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
 broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = reshape(f, size_2d(F))
