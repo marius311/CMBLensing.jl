@@ -22,7 +22,7 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
     adapt(M,broadcastable(F, arg))
 function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
