@@ -22,12 +22,12 @@ fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
 # automatically handled in broadcasting
-function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatField{Flat{θ2,N2,∂mode2},T2}}
+function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{<:Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatField{<:Flat{θ2,N2,∂mode2},T2}}
     B     = promote_type(basis(F1),basis(F2))
     ∂mode = promote_type(∂mode1,∂mode2)
     B(∂mode(f1)), B(∂mode(f2))
 end
-(::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,F<:FlatS0{<:Flat{N,θ}}} = basetype(F){Flat{N,θ,∂mode}}(fieldvalues(f)...)
+(::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,D,F<:FlatS0{<:Flat{N,θ,<:Any,D}}} = basetype(F){Flat{N,θ,∂mode,D}}(fieldvalues(f)...)
 (::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
 
 ### basis-like definitions

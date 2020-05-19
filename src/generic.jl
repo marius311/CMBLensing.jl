@@ -227,8 +227,8 @@ show_vector(io::IO, f::ImplicitField) = print(io, "[…]")
 
 # addition/subtraction works between any fields and scalars, promotion is done
 # automatically if fields are in different bases
-for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
-    @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
+for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
 end
 
 ≈(a::Field, b::Field) = ≈(promote(a,b)...)
