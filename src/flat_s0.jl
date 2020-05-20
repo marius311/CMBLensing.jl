@@ -58,18 +58,31 @@ struct FlatS0Style{F,M} <: AbstractArrayStyle{1} end
 (::Type{FS})(::Val{1}) where {FS<:FlatS0Style} = FS()
 (::Type{FS})(::Val{2}) where {FS<:FlatS0Style} = error("Broadcast expression would create a dense Field operator.")
 @generated BroadcastStyle(::Type{F}) where {P,T,M,F<:FlatS0{P,T,M}} = FlatS0Style{basetype(F){P},basetype(M)}()
-BroadcastStyle(FS1::FlatS0Style{<:Field{B1}}, FS2::FlatS0Style{<:Field{B2}}) where {B1,B2} = invalid_broadcast_error(B1,FS1,B2,FS2)
+# both orders needed bc of https://github.com/JuliaLang/julia/pull/35948:
+BroadcastStyle(S::FlatS0Style{<:FlatS0{Flat{N,θ,∂m,D}}},  ::FlatS0Style{<:FlatS0{Flat{N,θ,∂m,1}}}) where {N,θ,∂m,D} = S
+BroadcastStyle( ::FlatS0Style{<:FlatS0{Flat{N,θ,∂m,1}}}, S::FlatS0Style{<:FlatS0{Flat{N,θ,∂m,D}}}) where {N,θ,∂m,D} = S
 BroadcastStyle(S::FieldTupleStyle, ::FlatS0Style) = S
 BroadcastStyle(S::FieldOrOpArrayStyle, ::FlatS0Style) = S
+BroadcastStyle(S1::FlatS0Style{<:Field{B1}}, S2::FlatS0Style{<:Field{B2}}) where {B1,B2} = 
+    invalid_broadcast_error(B1,S1,B2,S2)
+instantiate(bc::Broadcasted{<:FlatS0Style}) = bc
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
 similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = 
     F(basetype(M){eltype(F{real(T)})}(undef,_size(F)))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = 
     Broadcasted{DefaultArrayStyle{_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
-broadcastable(::Type{F}, f::FlatS0{P}) where {P,F<:FlatS0{P}} = firstfield(f)
-broadcastable(::Type{F}, f::AbstractVector) where {P,F<:FlatS0{P}} = error()
+broadcastable(::Type{<:FlatS0}, f::FlatS0) = firstfield(f)
 broadcastable(::Any, x) = x
+@inline function Broadcast.copyto!(dest::FlatS0, bc::Broadcasted{Nothing})
+    bc′ = preprocess(dest, bc)
+    @simd for I in eachindex(bc′)
+        @inbounds dest[I] = bc′[I]
+    end
+    return dest
+end
+
+
 
 ### basis conversion
 Fourier(f::FlatMap{P}) where {P} = FlatFourier{P}(fieldinfo(f).FFT * f.Ix)
@@ -97,7 +110,7 @@ dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix)
 
 ### simulation and power spectra
 function white_noise(rng::AbstractRNG, ::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-    FlatMap{P}(randn!(rng, basetype(M){T}(undef,N,N)))
+    FlatMap{P}(randn!(rng, basetype(M){T}(undef, _size(FlatMap{P}))))
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)

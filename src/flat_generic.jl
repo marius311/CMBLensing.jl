@@ -5,7 +5,7 @@ const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fo
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "×$D") map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "×$D") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
@@ -40,6 +40,29 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,fourier∂}}}) = IQUFourier
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})      =    Map
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})      =  QUMap
 DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
+
+### construct batched fields
+@doc doc"""
+    batch(fs::FlatField...)
+    batch(fs::Vector{<:FlatField})
+    batch(fs::TUple{<:FlatField})
+    
+Turn a length-N array of `FlatField`'s into a single batch-length-N `FlatField`.
+"""
+batch(fs::F...) where {N,θ,∂m,F<:FlatS0{<:Flat{N,θ,∂m}}} = 
+    basetype(F){Flat{N,θ,∂m,length(fs)}}(cat(map(firstfield,fs)..., dims=3))
+batch(fs::F...) where {F<:Union{FlatS2,FlatS02}} =
+    FieldTuple{basis(F)}(map(batch, map(firstfield,fs)...))
+batch(fs::Union{Vector{<:FlatField},Tuple{<:FlatField}}) = batch(fs...)
+
+@doc doc"""
+    batch(f::FlatField, D::Int)
+    
+Construct a batch-length-`D` `FlatField` from an unbatched `FlatField` which
+will broadcast as if it were `D` copies of `f` (data not actually copied)
+"""    
+batch(f::F, D::Int) where {N,θ,∂m,F<:FlatS0{Flat{N,θ,∂m,1}}} = basetype(F){Flat{N,θ,∂m,D}}(firstfield(f))
+batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
 
 ### derivatives
 
