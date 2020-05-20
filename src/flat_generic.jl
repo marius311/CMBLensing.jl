@@ -72,7 +72,7 @@ Get the `I`th indexed batch (index can be a slice).
 batchindex(f::F, I) where {N,θ,∂mode,P<:Flat{N,θ,∂mode},F<:FlatS0{P}} = 
     basetype(F){Flat{N,θ,∂mode,length(I)}}(f[:,:,I])
 batchindex(f::FlatField, I) = 
-    FieldTuple{basis(B)}(map(f->batchindex(f, I), f.fs))
+    FieldTuple{basis(f)}(map(f->batchindex(f, I), f.fs))
 
 
 ### derivatives
@@ -127,13 +127,13 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
     
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il)))))
-logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix)))))
-logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El)))) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl)))))
+logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il))),dims=(1,2)))
+logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix))),dims=(1,2)))
+logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl))),dims=(1,2)))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
-tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Ix)))
-tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
+tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il),dims=(1,2)))
+tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Ix),dims=(1,2)))
+tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2)))
 
 
 ### misc
