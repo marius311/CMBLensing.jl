@@ -61,7 +61,6 @@ function sum(f::FieldTuple; dims=:)
         error("Invalid dims in sum(::FieldTuple, dims=$(dims)).")
     end
 end
-batchindex(f::FieldTuple{B,Names}, I) where {B,Names} = FieldTuple{B,Names}(map(f->batchindex(f, I), f.fs))
 
 ### broadcasting
 struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end

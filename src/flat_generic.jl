@@ -41,7 +41,7 @@ DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})      =    Map
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})      =  QUMap
 DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 
-### construct batched fields
+### batching
 @doc doc"""
     batch(fs::FlatField...)
     batch(fs::Vector{<:FlatField})
@@ -63,6 +63,17 @@ will broadcast as if it were `D` copies of `f` (data not actually copied)
 """    
 batch(f::F, D::Int) where {N,θ,∂m,F<:FlatS0{Flat{N,θ,∂m,1}}} = basetype(F){Flat{N,θ,∂m,D}}(firstfield(f))
 batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
+
+@doc """
+    batchindex(f::FlatField, I)
+    
+Get the `I`th indexed batch (index can be a slice). 
+"""
+batchindex(f::F, I) where {N,θ,∂mode,P<:Flat{N,θ,∂mode},F<:FlatS0{P}} = 
+    basetype(F){Flat{N,θ,∂mode,length(I)}}(f[:,:,I])
+batchindex(f::FlatField, I) = 
+    FieldTuple{basis(B)}(map(f->batchindex(f, I), f.fs))
+
 
 ### derivatives
 

@@ -49,8 +49,6 @@ function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
     @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
     basetype(F){P}(similar(firstfield(f),T))
 end
-batchindex(f::F, I) where {N,θ,∂mode,P<:Flat{N,θ,∂mode},F<:FlatS0{P}} = 
-    basetype(F){Flat{N,θ,∂mode,length(I)}}(f[:,:,I])
 
 
 ### broadcasting
