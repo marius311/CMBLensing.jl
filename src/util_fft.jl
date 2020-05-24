@@ -35,7 +35,7 @@ N×N one via symmetries.
 """
 unfold(Tls::AbstractArray{<:Complex,3}) = mapslices(unfold, Tls, dims=(1,2))
 unfold(Tl::AbstractMatrix{<:Complex}) = unfold(Array(Tl))
-function unfold(Tl::AbstractMatrix{<:Complex})
+function unfold(Tl::Matrix{<:Complex})
     m,n = size(Tl)
     @assert m==n÷2+1
     m2 = iseven(n) ? 2m : 2m+1

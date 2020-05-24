@@ -215,7 +215,7 @@ function sample_joint(
         end
         
         ϕstarts = if (ϕstart == 0) 
-            fill(zero(ds().Cϕ.diag), nchains)
+            fill(batch(zero(diag(ds().Cϕ)),batchsize(ds.d)), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
         elseif ϕstart in [:quasi_sample, :best_fit]
