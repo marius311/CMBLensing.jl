@@ -497,10 +497,10 @@ firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
 
-function sum_kbn(A; dims=:)
-    if (dims == (:)) || (ndims(A) == length(dims))
+function sum_kbn(A::Array{T,N}; dims=:) where {T,N}
+    if (dims == (:)) || (N == length(dims))
         KahanSummation.sum_kbn(A)
     else
-        dropdims(mapslices(sum_kbn, A, dims=dims), dims=dims)
+        dropdims(mapslices(sum_kbn, A, dims=dims), dims=dims) :: Array{T,N-length(dims)}
     end
 end

@@ -139,7 +139,8 @@ end
         (EBFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
         (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))), # unnamed FieldTuple
         (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple,
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))) # unnamed nested FieldTuple
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))), # unnamed nested FieldTuple
+        (Fourier,   FlatMap(rand(4,4,2))), # batched S0 
     ]
     
     for (B,f) in fs
@@ -179,9 +180,15 @@ end
             
             # Field dot products
             D = Diagonal(f)
-            @test (@inferred f' * f) isa Real
-            @test (@inferred f' * B(f)) isa Real
-            @test (@inferred f' * D * f) isa Real
+            if f isa FlatField && batchlength(f)>1 # batched fields not inferred
+                @test (f' * f) isa Real
+                @test (f' * B(f)) isa Real
+                @test (f' * D * f) isa Real
+            else
+                @test (@inferred f' * f) isa Real
+                @test (@inferred f' * B(f)) isa Real
+                @test (@inferred f' * D * f) isa Real
+            end
             @test sum(f, dims=:) ≈ sum(f[:])
             @test_throws Any sum(f, dims=1)
             @test sum(f, dims=2) == f

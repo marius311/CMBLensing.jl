@@ -1,9 +1,9 @@
 
 ### FlatMap and FlatFourier types
-struct FlatMap{P<:Flat,T<:Real,M<:AbstractArray{T}} <: Field{Map,S0,P,T}
+struct FlatMap{P<:Flat,T<:Real,M<:AbstractRank2or3Array{T}} <: Field{Map,S0,P,T}
     Ix :: M
 end
-struct FlatFourier{P<:Flat,T<:Real,M<:AbstractArray{Complex{T}}} <: Field{Fourier,S0,P,Complex{T}}
+struct FlatFourier{P<:Flat,T<:Real,M<:AbstractRank2or3Array{Complex{T}}} <: Field{Fourier,S0,P,Complex{T}}
     Il :: M
 end
 const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
@@ -15,23 +15,23 @@ for (F, X, T) in [
     ]
     doc = """
         # main constructor:
-        $F($X::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        $F($X::AbstractArray[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
         
         # more low-level:
-        $F{P}($X::AbstractMatrix) # specify pixelization P explicilty
-        $F{P,T}($X::AbstractMatrix) # additionally, convert elements to type $T
-        $F{P,T,M<:AbstractMatrix{$T}}($X::M) # specify everything explicilty
+        $F{P}($X::AbstractArray) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractArray) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractArray{$T}}($X::M) # specify everything explicilty
         
     Construct a `$F` object. The top form of the constructor is most convenient
     for interactive work, while the others may be more useful for low-level code.
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractArray; kwargs...) = $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X)
-        $F{P}($X::M) where {P,T,M<:AbstractArray{$T}} = $F{P,T,M}($X)
-        $F{P,T}($X::AbstractArray) where {P,T} = $F{P}($T.($X))
+        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X)
+        $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
+        $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
-    T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractArray{T}} = $F{P,T}($X)
+    T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{T}} = $F{P,T}($X)
 end
 
 
@@ -101,7 +101,7 @@ end
 
 ### dot products
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
-dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2))
+dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = batch(sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2)))
 
 ### isapprox
 ≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))

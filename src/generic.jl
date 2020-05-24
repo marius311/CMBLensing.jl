@@ -246,7 +246,7 @@ end
 
 # misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
-norm(f::Field) = sqrt(dot(f,f)) # dot is implemented to add the factor of Δx
+norm(f::Field) = sqrt(dot(f,f))
 
 
 function invalid_broadcast_error(B1,F1,B2,F2)

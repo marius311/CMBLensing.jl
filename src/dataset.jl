@@ -35,7 +35,7 @@ end
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all([(L isa Scalar) || (L isa typeof(Cf)) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
+    @assert(all([(L isa Scalar) || (basis(diag(L))==basis(diag(Cf))) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
             "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 

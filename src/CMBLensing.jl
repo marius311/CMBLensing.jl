@@ -45,7 +45,7 @@ using Zygote: unbroadcast, Numeric, @adjoint
 
 
 import Adapt: adapt_structure
-import Base: +, -, *, \, /, ^, ~, ≈,
+import Base: +, -, *, \, /, ^, ~, ≈, <,
     abs, adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
@@ -102,39 +102,41 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_s0s2.jl")
 include("flat_generic.jl")
-# include("masking.jl")
-# include("taylens.jl")
-# include("bilinearlens.jl")
-# 
+include("flat_batch.jl")
+include("masking.jl")
+include("taylens.jl")
+include("bilinearlens.jl")
+
 # plotting
 isjuno = false
 function animate end
 @init @require Juno="e5e0dc1b-0480-54bc-9374-aad01c23163d" isjuno=Juno.isactive()
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
-# 
-# # sampling and maximizing the posteriors
-# include("dataset.jl")
-# include("posterior.jl")
-# include("maximization.jl")
-# include("sampling.jl")
-# include("chains.jl")
-# 
-# # other estimates
-# include("quadratic_estimate.jl")
-# 
-# # curved-sky
-# include("healpix.jl")
-# 
-# include("autodiff.jl")
-# 
-# # gpu
+
+# sampling and maximizing the posteriors
+include("dataset.jl")
+include("posterior.jl")
+include("maximization.jl")
+include("sampling.jl")
+include("chains.jl")
+
+# other estimates
+include("quadratic_estimate.jl")
+
+# curved-sky
+include("healpix.jl")
+
+include("autodiff.jl")
+
+# gpu
 is_gpu_backed(x) = false
 @init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")
-# 
-# # misc init
-# # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
-# @init if ProgressMeter.@isdefined ijulia_behavior
-#     ProgressMeter.ijulia_behavior(:clear)
-# end
+
+# misc init
+# see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
+@init if ProgressMeter.@isdefined ijulia_behavior
+    ProgressMeter.ijulia_behavior(:clear)
+end
 
 end
+ 

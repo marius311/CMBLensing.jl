@@ -5,11 +5,15 @@ const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fo
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "×$D") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
+    print(io, "$(pretty_type_name(F)){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $M}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
+end
+function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
+    print(io, "$(N^2)", (D==1 ? "" : "(×$D batches)"), "-element ")
+    showarg(io, f, true)
 end
 
 ### field info
@@ -40,39 +44,6 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,fourier∂}}}) = IQUFourier
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})      =    Map
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})      =  QUMap
 DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
-
-### batching
-@doc doc"""
-    batch(fs::FlatField...)
-    batch(fs::Vector{<:FlatField})
-    batch(fs::TUple{<:FlatField})
-    
-Turn a length-N array of `FlatField`'s into a single batch-length-N `FlatField`.
-"""
-batch(fs::F...) where {N,θ,∂m,F<:FlatS0{<:Flat{N,θ,∂m}}} = 
-    basetype(F){Flat{N,θ,∂m,length(fs)}}(cat(map(firstfield,fs)..., dims=3))
-batch(fs::F...) where {F<:Union{FlatS2,FlatS02}} =
-    FieldTuple{basis(F)}(map(batch, map(firstfield,fs)...))
-batch(fs::Union{Vector{<:FlatField},Tuple{<:FlatField}}) = batch(fs...)
-
-@doc doc"""
-    batch(f::FlatField, D::Int)
-    
-Construct a batch-length-`D` `FlatField` from an unbatched `FlatField` which
-will broadcast as if it were `D` copies of `f` (data not actually copied)
-"""    
-batch(f::F, D::Int) where {N,θ,∂m,F<:FlatS0{Flat{N,θ,∂m,1}}} = basetype(F){Flat{N,θ,∂m,D}}(firstfield(f))
-batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
-
-@doc """
-    batchindex(f::FlatField, I)
-    
-Get the `I`th indexed batch (index can be a slice). 
-"""
-batchindex(f::F, I) where {N,θ,∂mode,P<:Flat{N,θ,∂mode},F<:FlatS0{P}} = 
-    basetype(F){Flat{N,θ,∂mode,length(I)}}(f[:,:,I])
-batchindex(f::FlatField, I) = 
-    FieldTuple{basis(f)}(map(f->batchindex(f, I), f.fs))
 
 
 ### derivatives
@@ -127,13 +98,13 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
     
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il))),dims=(1,2)))
-logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix))),dims=(1,2)))
-logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl))),dims=(1,2)))
+logdet(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il))),dims=(1,2))))
+logdet(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix))),dims=(1,2))))
+logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.El))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl))),dims=(1,2))))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il),dims=(1,2)))
-tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Ix),dims=(1,2)))
-tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2)))
+tr(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(unfold(L.diag.Il),dims=(1,2))))
+tr(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(complex(L.diag.Ix),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2))))
 
 
 ### misc

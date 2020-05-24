@@ -11,6 +11,9 @@ promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 # and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
 abstract type Flat{Nside,θpix,∂mode<:∂modes,D} <: Pix end
 
+# abstract type for the kind of data that can be stored in FlatFields
+const AbstractRank2or3Array{T} = Union{AbstractArray{T,2},AbstractArray{T,3}}
+
 # for convenience
 Flat(;Nside, θpix=θpix₀, ∂mode=fourier∂, D=1) = Flat{Nside,θpix,∂mode,D}
 Nside(::Type{P}) where {N,P<:Flat{N}} = N

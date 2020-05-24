@@ -230,14 +230,16 @@ function sample_joint(
             [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*ϕstart) θ=>θstart]
         end
         chunks_index = 1
-        save(
-            filename, 
-            "rundat",   cpu(rundat),
-            "ds",       cpu(ds),
-            "ds₀",      cpu(ds()), # save separately incase θ-dependent has trouble loading
-            "metadata", cpu(metadata),
-            "chunks_1", cpu(last_chunks)
-        )
+        if filename != nothing
+            save(
+                filename, 
+                "rundat",   cpu(rundat),
+                "ds",       cpu(ds),
+                "ds₀",      cpu(ds()), # save separately incase θ-dependent has trouble loading
+                "metadata", cpu(metadata),
+                "chunks_1", cpu(last_chunks)
+            )
+        end
     end
     
     
@@ -272,9 +274,8 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        Lϕ = cache(L(ϕ), ds.d)
                         f = argmaxf_lnP(
-                            Lϕ, dsθ; 
+                            ϕ, dsθ;
                             which=:sample, 
                             guess=f, 
                             preconditioner=preconditioner, 
@@ -298,13 +299,9 @@ function sample_joint(
                                 progress=(progress==:verbose),
                                 kwargs...
                             )
-
-                            if (i < nburnin_always_accept) || (log(rand()) < ΔH)
-                                ϕ° = ϕtest°
-                                accept = true
-                            else
-                                accept = false
-                            end
+                            
+                            accept = batch(@. (i < nburnin_always_accept) | (log(rand()) < $unbatch(ΔH)))
+                            ϕ° = @. accept * ϕtest° + (1 - accept) * ϕ°
                             
                         end
                         
@@ -369,4 +366,3 @@ function sample_joint(
     
     
 end
-
