@@ -5,14 +5,14 @@ const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fo
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $M}")
+    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "(×$D)") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
 function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
-    print(io, "$(N^2)", (D==1 ? "" : "(×$D batches)"), "-element ")
+    print(io, "$(N^2)", (D==1 ? "" : "(×$D)"), "-element ")
     showarg(io, f, true)
 end
 

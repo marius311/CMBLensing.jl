@@ -76,6 +76,7 @@ for op in [:+, :-, :*, :/]
 end
 <(a::BatchedReal, b::BatchedReal) = all(a.vals .< b.vals)
 <(a::BatchedReal, b::Real) = all(a.vals .< b)
+sqrt(br::BatchedReal) = BatchedReal(sqrt.(br.vals))
 eltype(::BatchedReal{T}) where {T} = T
 broadcastable(::Type{<:FlatS0}, br::BatchedReal) = reshape(br.vals,1,1,length(br.vals))
 one(br::BatchedReal) = BatchedReal(one.(br.vals))
