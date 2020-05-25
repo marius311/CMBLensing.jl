@@ -83,5 +83,7 @@ broadcastable(::Type{<:FlatS0}, br::BatchedReal) = reshape(br.vals,1,1,length(br
 one(br::BatchedReal) = BatchedReal(one.(br.vals))
 unbatch(br::BatchedReal) = br.vals
 unbatch(r::Real) = r
+Base.show(io::IO, br::BatchedReal{T}) where {T} = print(io, "Batched", T, br.vals)
+
 
 batch(L::Diagonal{<:Any,<:FlatField}, D::Int) = Diagonal(batch(diag(L), D))

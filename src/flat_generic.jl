@@ -62,7 +62,8 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
     basetype(M)(@. $fieldinfo(F).k'^2 + $fieldinfo(F).k[1:N÷2+1]^2)
 
 ## Map-space
-function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,F<:FlatMap{Flat{N,θ,map∂},T}}
+function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,D,F<:FlatMap{Flat{N,θ,map∂,D},T}}
+    D!=1 && error("Gradients of batched map∂ flat maps not implemented yet.")
     f = bc.args[2]
     n,m = size(f.Ix)
     α = 2 * prefactor * fieldinfo(f).Δx

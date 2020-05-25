@@ -1,7 +1,7 @@
 using CMBLensing
 using CMBLensing: 
     @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
-    LinearInterpolation, Measurement, RK4Solver, seed!, ±
+    LinearInterpolation, Measurement, RK4Solver, seed!, ±, batchsize
 
 ##
 
@@ -180,7 +180,7 @@ end
             
             # Field dot products
             D = Diagonal(f)
-            if f isa FlatField && batchlength(f)>1 # batched fields not inferred
+            if f isa FlatField && batchsize(f)>1 # batched fields not inferred
                 @test (f' * f) isa Real
                 @test (f' * B(f)) isa Real
                 @test (f' * D * f) isa Real
