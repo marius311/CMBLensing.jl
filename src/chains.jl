@@ -13,6 +13,7 @@ Keyword arguments:
 * `thin` — If `thin` is an integer, thin the chain by this factor. If
   `thin == :hasmaps`, return only samples which have maps saved. If thin is a
   `Function`, filter the chain by this function (e.g. `thin=haskey(:g)` on Julia 1.5+)
+* `unbatch` — If true, [unbatch](@ref) the chains if they are batched. 
 * `join` — If true, concatenate all the chains together.
 * `skip_missing_chunks` — Skip missing chunks in the chain instead of
   terminating the chain there. 
@@ -37,7 +38,7 @@ indexing properties for convenience:
 
 
 """
-function load_chains(filename; burnin=0, thin=1, join=false)
+function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true)
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = [k for k in ks if startswith(k,"chunks_")]
@@ -59,7 +60,11 @@ function load_chains(filename; burnin=0, thin=1, join=false)
     else
         error("`thin` should be an Int or :hasmaps")
     end
-    wrap_chains(join ? reduce(vcat, chains) : chains)
+    chains = wrap_chains(chains)
+    if unbatch
+        chains = CMBLensing.unbatch(chains)
+    end
+    return join ? Chain(reduce(vcat, chains)) : chains
 end
 
 
@@ -77,6 +82,11 @@ function Base.print_array(io::IO, cs::Chains; indent="  ")
         println(io)
         Base.print_array(io, c, indent="    ")
     end
+end
+function lastindex(c::Chains, d)
+    d==1 ? lastindex(c.chains) : 
+    d==2 ? lastindex(c.chains[1]) : 
+    error("`end` only valid in first or second dim of Chains")
 end
 
 
@@ -109,3 +119,33 @@ _getindex(x,                         k) = getindex(x, k)
 
 wrap_chains(chains::Vector{<:Vector{<:Dict}}) = Chains(Chain.(chains))
 wrap_chains(chain::Vector{<:Dict}) = Chain(chain)
+
+
+# batching
+@doc doc"""
+    unbatch(chain::Chain)
+
+Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
+"""
+function unbatch(chain::Chain)
+    D = batchsize(chain[1][:ϕ°])
+    (D==1) && return chain
+    Chains(map(1:D) do I
+        Chain(map(chain) do samp
+            Dict(map(collect(samp)) do (k,v)
+                if v isa Union{BatchedReal,FlatField}
+                    k => batchindex(v, I)
+                else
+                    k => v
+                end
+            end)
+        end)
+    end)
+end
+
+@doc doc"""
+    unbatch(chains::Chains)
+
+Expand each chain in this `Chains` object by unbatching it. 
+"""
+unbatch(chains::Chains) = Chains(reduce(vcat, map(unbatch, chains)))

@@ -67,6 +67,7 @@ struct BatchedReal{T<:Real,D,V<:AbstractVector{T}} <: Real
 end
 batch(r::Real) = r
 batch(v::AbstractVector) = BatchedReal(v)
+batchindex(br::BatchedReal, I) = getindex(br.vals,I)
 for op in [:+, :-, :*, :/]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = BatchedReal(broadcast(($op), a.vals, b.vals))
