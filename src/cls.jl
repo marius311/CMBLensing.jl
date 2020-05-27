@@ -124,7 +124,7 @@ end
     
     camb = @ondemand(PyCall.pyimport)(:camb)
     
-    Base.invokelatest(function ()
+    Base.invokelatest() do
     
         ℓmax′ = min(5000,ℓmax)
         cp = camb.set_params(
@@ -170,7 +170,7 @@ end
             params = (;params...)
         )
     
-    end)
+    end
 
 end
 

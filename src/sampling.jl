@@ -11,7 +11,7 @@ each step is also returned.
 
 """
 function symplectic_integrate(
-    x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->@ondemand(Zygote.gradient)(U,x)[1]; 
+    x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->gradient(U,x)[1]; 
     N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
     
     xᵢ, pᵢ = x₀, p₀
@@ -22,12 +22,12 @@ function symplectic_integrate(
 
     @showprogress (progress ? 1 : Inf) "Symplectic Integration: " for i=1:N
         xᵢ₊₁    = xᵢ - T(ϵ) * (Λ \ (pᵢ - T(ϵ)/2 * δUδxᵢ))
-        δUδx₊₁  = δUδx(xᵢ₊₁)
-        pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδx₊₁ + δUδxᵢ)
-        xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδx₊₁
+        δUδxᵢ₊₁ = δUδx(xᵢ₊₁)
+        pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδxᵢ₊₁ + δUδxᵢ)
+        xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδxᵢ₊₁
         
         if hist!=nothing
-            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδx₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
+            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδxᵢ₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
             push!(_hist, getfield.(Ref(histᵢ),hist))
         end
 
@@ -75,41 +75,43 @@ Monte-Carlo samples of each of the parameters.
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1, span=0.25, rtol=1e-5) where {S}
+function grid_and_sample(lnP::Function, range::AbstractVector; progress=false, kwargs...)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, range)
+    grid_and_sample(lnPs, range; progress=progress, kwargs...)
+end
+
+function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
+    batches = [grid_and_sample(batchindex.(lnPs,i), xs; kwargs...) for i=1:batchsize(lnPs[1])]
+    ((batch(getindex.(batches,i)) for i=1:3)...,)
+end
+
+function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, rtol=1e-5)
     
-    xs = first(range)
-    xmin,xmax = first(xs),last(xs)
-    
-    # probe the pdf along the grid and interpolate
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->Float64(lnP(NamedTuple{S}(x))), xs)
-    lnPs .-= maximum(lnPs)
-    ilnP = loess(xs,lnPs,span=span)
+    xmin, xmax = first(xs), last(xs)
+    lnPs = lnPs .- maximum(lnPs)
+    ilnP = loess(xs, lnPs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
     A = @ondemand(QuadGK.quadgk)(exp∘ilnP, xmin, xmax)[1]
     lnPs .-= log(A)
-    ilnP = loess(xs,lnPs,span=span)
+    ilnP = loess(xs, lnPs, span=span)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(@showprogress (progress ? 1 : Inf) map(1:nsamples) do i
+    θsamples = @showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
         fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+sqrt(eps()),x,rtol=rtol)[1]-r),xmin+sqrt(eps()),xmax,rtol=rtol)
-    end)
-    
-    if nsamples==1
-        ilnP, map(first, θsamples), lnPs
-    else
-        ilnP, θsamples, lnPs
     end
     
+    (nsamples==1 ? θsamples[1] : θsamples), ilnP, lnPs
+    
 end
-grid_and_sample(lnP::Function, range::NamedTuple; kwargs...) = error("Can only currently sample from 1D distributions.")
-function grid_and_sample(lnP::Function, range::AbstractVector; nsamples=1, kwargs...)
-    ilnP, θsamples, lnPs = grid_and_sample(θ -> lnP(θ.x), (x=range,); nsamples=nsamples, kwargs...)
-    nsamples==1 ? (ilnP, θsamples.x, lnPs) : (ilnP, getindex.(θsamples,:x), lnPs)
+
+function grid_and_sample(lnP::Function, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
+    NamedTuple{S}.(Ref.(grid_and_sample(x -> lnP(NamedTuple{S}(x)), first(range); kwargs...)))
 end
+
 # allow more convenient evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
@@ -312,9 +314,9 @@ function sample_joint(
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ && length(θrange)>0)
                             if gibbs_pass_θ == nothing
-                                lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
+                                θ, lnPθ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
                             else
-                                lnPθ, θ = gibbs_pass_θ(;(Base.@locals)...)
+                                θ, lnPθ = gibbs_pass_θ(;(Base.@locals)...)
                             end
                             dsθ = ds(;θ...)
                         end

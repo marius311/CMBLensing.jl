@@ -235,8 +235,7 @@ function (L::ParamDependentOp)(;θ...)
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
         
-        # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
-        L.recompute_function(;θ...) :: typeof(L.op)
+        L.recompute_function(;θ...)
     else
         L.op
     end 

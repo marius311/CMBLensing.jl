@@ -61,29 +61,39 @@ batchsize(::FlatField{<:Flat{<:Any,<:Any,<:Any,D}}) where {D} = D
 Holds a vector of real numbers and broadcasts algebraic operations over them,
 as well as broadcasting with batched `FlatField`s, but is itself a `Real`. 
 """
-struct BatchedReal{T<:Real,D,V<:AbstractVector{T}} <: Real
+struct BatchedVals{T,D,V<:AbstractVector{T}} <: Real
     vals :: V
-    BatchedReal(v::V) where {T,V<:AbstractVector{T}} = new{T,length(v),V}(v)
+    BatchedVals(v::V) where {T,V<:AbstractVector{T}} = new{T,length(v),V}(v)
 end
+const BatchedReal{D,V,T<:Real} = BatchedVals{T,D,V}
 batch(r::Real) = r
-batch(v::AbstractVector) = BatchedReal(v)
-batchindex(br::BatchedReal, I) = getindex(br.vals,I)
+batch(v::AbstractVector) = BatchedVals(v)
+batchindex(br::BatchedVals, I) = getindex(br.vals,I)
+batchsize(::BatchedVals{<:Any,D}) where {D} = D
+struct BatchedRealStyle{D} <: AbstractArrayStyle{0} end
+BroadcastStyle(::Type{<:BatchedReal{D}}) where {D} = BatchedRealStyle{D}()
+BroadcastStyle(::FlatS0Style{F,M}, ::BatchedRealStyle{D′}) where {D′,N,θ,∂m,D,M,F<:FlatS0{Flat{N,θ,∂m,D}}} = 
+    (D==1 || D′==1 || D==D′) ? FlatS0Style{basetype(F){Flat{N,θ,∂m,max(D,D′)}},M}() : Broadcast.Unknown
+BroadcastStyle(::FieldTupleStyle{B,Names,FS}, S2::BatchedRealStyle) where {B,Names,FS} = 
+    FieldTupleStyle{B,Names,Tuple{map_tupleargs(S1->typeof(Broadcast.result_style(S1(),S2)), FS)...}}()
 for op in [:+, :-, :*, :/]
     @eval begin
-        ($op)(a::BatchedReal, b::BatchedReal) = BatchedReal(broadcast(($op), a.vals, b.vals))
-        ($op)(a::BatchedReal, b::Real)        = BatchedReal(broadcast(($op), a.vals, b))
-        ($op)(a::Real, b::BatchedReal)        = BatchedReal(broadcast(($op), a,      b.vals))
+        ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
+        ($op)(a::BatchedReal, b::Real)        = batch(broadcast(($op), a.vals, b))
+        ($op)(a::Real, b::BatchedReal)        = batch(broadcast(($op), a,      b.vals))
     end
 end
 <(a::BatchedReal, b::BatchedReal) = all(a.vals .< b.vals)
 <(a::BatchedReal, b::Real) = all(a.vals .< b)
-sqrt(br::BatchedReal) = BatchedReal(sqrt.(br.vals))
-eltype(::BatchedReal{T}) where {T} = T
+sqrt(br::BatchedReal) = batch(sqrt.(br.vals))
+eltype(::BatchedVals{T}) where {T} = T
 broadcastable(::Type{<:FlatS0}, br::BatchedReal) = reshape(br.vals,1,1,length(br.vals))
-one(br::BatchedReal) = BatchedReal(one.(br.vals))
-unbatch(br::BatchedReal) = br.vals
+one(br::BatchedReal) = batch(one.(br.vals))
+unbatch(br::BatchedVals) = br.vals
 unbatch(r::Real) = r
-Base.show(io::IO, br::BatchedReal{T}) where {T} = print(io, "Batched", T, br.vals)
+Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
+(::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
+
 
 
 batch(L::Diagonal{<:Any,<:FlatField}, D::Int) = Diagonal(batch(diag(L), D))

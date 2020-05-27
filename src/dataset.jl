@@ -233,7 +233,7 @@ function load_sim_dataset(;
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(@. nan2zero(sqrt(1 + 2/(($Cϕ(;Aϕ=Aϕ)/Nϕ)))/G₀)))
+        ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)

@@ -1,7 +1,8 @@
 using CMBLensing
 using CMBLensing: 
     @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
-    LinearInterpolation, Measurement, RK4Solver, seed!, ±, batchsize
+    LinearInterpolation, Measurement, RK4Solver, seed!, ±, batchsize, basetype,
+    unbatch, batchindex
 
 ##
 
@@ -253,6 +254,27 @@ end
 end
 
 ##
+
+@testset "BatchedReal" begin
+    
+    r  = 1.
+    rb = batch([1.,2])
+    
+    for (f,fb) in [
+        (  FlatMap(rand(8,8)),           FlatMap(rand(8,8,2))),
+        (FlatQUMap(rand(8,8),rand(8,8)), FlatQUMap(rand(8,8,2),rand(8,8,2)))
+    ]
+        @testset "f :: $(typeof(f))" begin
+            @test @inferred(r * f)  == f
+            @test @inferred(r * fb) == fb
+            @test unbatch(@inferred(rb * f)) == [f, 2f]
+            @test unbatch(@inferred(rb * fb)) == [batchindex(fb,1), 2batchindex(fb,2)]
+        end
+    end
+    
+end
+
+## 
 
 @testset "Gradients" begin
     
