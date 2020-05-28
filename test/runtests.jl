@@ -141,6 +141,7 @@ end
         (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple,
         (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))), # unnamed nested FieldTuple
         (Fourier,   FlatMap(rand(4,4,2))), # batched S0 
+        (Fourier,   FlatQUMap(rand(4,4,2),rand(4,4,2))), # batched S2
     ]
     
     for (B,f) in fs
