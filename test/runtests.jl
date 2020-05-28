@@ -1,8 +1,7 @@
 using CMBLensing
 using CMBLensing: 
     @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
-    LinearInterpolation, Measurement, RK4Solver, seed!, ±, batchsize, basetype,
-    unbatch, batchindex
+    LinearInterpolation, Measurement, RK4Solver, seed!, ±
 
 ##
 
