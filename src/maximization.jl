@@ -25,14 +25,15 @@ argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cac
 function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
     
     check_hat_operators(ds)
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds()
+    D = batchsize(d)
     
     b = 0
     if (which in (:wf, :sample))
         b += Lϕ'*B'*P'*M'*(Cn\d)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(Cf) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn))
+        b += Cf\simulate(batch(Cf,D)) + Lϕ'*B'*P'*M'*(Cn\simulate(batch(Cn,D)))
     end
     
     A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
@@ -117,13 +118,14 @@ function MAP_joint(
     end
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
-    # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    @set! ds.G = 1
+    # ϕ° = G(θ)*ϕ, so set G to constant here to avoid wasted computation
+    ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart==nothing) ? zero(diag(Cϕ)) : ϕstart
+    ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),batchsize(d)))) : ϕstart
     ϕstep = nothing
+    @show typeof(ϕ) typeof(d)
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
     α = 0

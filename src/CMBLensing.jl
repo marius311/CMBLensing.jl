@@ -16,7 +16,7 @@ using FFTW
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2: jldopen, JLDWriteSession
-using KahanSummation
+import KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op
@@ -45,7 +45,7 @@ using Zygote: unbroadcast, Numeric, @adjoint
 
 
 import Adapt: adapt_structure
-import Base: +, -, *, \, /, ^, ~, ≈,
+import Base: +, -, *, \, /, ^, ~, ≈, <,
     abs, adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, convert,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
@@ -60,26 +60,26 @@ import Measurements: ±
 import Statistics: std
 
 
-export 
+export  
     @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
-    argmaxf_lnP, BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D,
-    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
-    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
-    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector,
-    FieldVector, firsthalf, Flat, FlatEB, FlatEBFourier, FlatEBMap, FlatField,
-    FlatFieldFourier, FlatFieldMap, FlatFourier, FlatIEBCov, FlatIEBFourier,
-    FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
-    FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂,
-    FuncOp, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
-    Identity, IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
-    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
-    load_chains, load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    map∂, MidPass, mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp, pixwin,
-    PowerLens, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, S0, S02, S2,
-    sample_joint, seed_for_storage!, shiftℓ, simulate, SymmetricFuncOp,
-    symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix, Ð, Ł,
-    δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
-
+    argmaxf_lnP, BandPassOp, batch, batchindex, batchsize, cache, CachedLenseFlow,
+    camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal,
+    DiagOp, dot, EBFourier, EBMap, Field, FieldArray, fieldinfo, FieldMatrix,
+    FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector, FieldOrOpVector,
+    FieldRowVector, FieldTuple, FieldVector, FieldVector, firsthalf, Flat, FlatEB,
+    FlatEBFourier, FlatEBMap, FlatField, FlatFieldFourier, FlatFieldMap,
+    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap,
+    FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2,
+    FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, get_Cℓ, get_Cℓ, get_Dℓ,
+    get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass, Identity, IdentityOp,
+    IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, lasthalf, LazyBinaryOp,
+    LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs, load_chains, load_sim_dataset,
+    LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂, MidPass, mix, nan2zero,
+    noiseCℓs, OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap,
+    resimulate!, resimulate, RK4Solver, S0, S02, S2, sample_joint,
+    seed_for_storage!, shiftℓ, simulate, SymmetricFuncOp, symplectic_integrate,
+    Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unbatch, unmix, Ð, Ł,
+    δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
 
 # generic stuff
 include("util.jl") 
@@ -102,6 +102,7 @@ include("flat_s0.jl")
 include("flat_s2.jl")
 include("flat_s0s2.jl")
 include("flat_generic.jl")
+include("flat_batch.jl")
 include("masking.jl")
 include("taylens.jl")
 include("bilinearlens.jl")
@@ -138,3 +139,4 @@ is_gpu_backed(x) = false
 end
 
 end
+ 

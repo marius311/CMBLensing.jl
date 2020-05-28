@@ -139,7 +139,9 @@ end
         (EBFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
         (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))), # unnamed FieldTuple
         (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple,
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))) # unnamed nested FieldTuple
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))), # unnamed nested FieldTuple
+        (Fourier,   FlatMap(rand(4,4,2))), # batched S0 
+        (Fourier,   FlatQUMap(rand(4,4,2),rand(4,4,2))), # batched S2
     ]
     
     for (B,f) in fs
@@ -179,9 +181,15 @@ end
             
             # Field dot products
             D = Diagonal(f)
-            @test (@inferred f' * f) isa Real
-            @test (@inferred f' * B(f)) isa Real
-            @test (@inferred f' * D * f) isa Real
+            if f isa FlatField && batchsize(f)>1 # batched fields not inferred
+                @test (f' * f) isa Real
+                @test (f' * B(f)) isa Real
+                @test (f' * D * f) isa Real
+            else
+                @test (@inferred f' * f) isa Real
+                @test (@inferred f' * B(f)) isa Real
+                @test (@inferred f' * D * f) isa Real
+            end
             @test sum(f, dims=:) ≈ sum(f[:])
             @test_throws Any sum(f, dims=1)
             @test sum(f, dims=2) == f
@@ -246,6 +254,27 @@ end
 end
 
 ##
+
+@testset "BatchedReal" begin
+    
+    r  = 1.
+    rb = batch([1.,2])
+    
+    for (f,fb) in [
+        (  FlatMap(rand(8,8)),           FlatMap(rand(8,8,2))),
+        (FlatQUMap(rand(8,8),rand(8,8)), FlatQUMap(rand(8,8,2),rand(8,8,2)))
+    ]
+        @testset "f :: $(typeof(f))" begin
+            @test @inferred(r * f)  == f
+            @test @inferred(r * fb) == fb
+            @test unbatch(@inferred(rb * f)) == [f, 2f]
+            @test unbatch(@inferred(rb * fb)) == [batchindex(fb,1), 2batchindex(fb,2)]
+        end
+    end
+    
+end
+
+## 
 
 @testset "Gradients" begin
     

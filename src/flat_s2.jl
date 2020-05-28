@@ -21,22 +21,26 @@ for (F,F0,(X,Y),T) in [
     ]
     doc = """
         # main constructor:
-        $F($X::AbstractMatrix, $Y::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
         
         # more low-level:
-        $F{P}($X::AbstractMatrix, $Y::AbstractMatrix) # specify pixelization P explicilty
-        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) # additionally, convert elements to type $T
-        $F{P,T,M<:AbstractMatrix{$T}}($X::M, $Y::M) # specify everything explicilty
+        $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractRank2or3Array{$T}}($X::M, $Y::M) # specify everything explicilty
         
     Construct a `$F` object. The top form of the constructor is most convenient
     for interactive work, while the others may be more useful for low-level code.
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractMatrix, $Y::AbstractMatrix; kwargs...) = $F{Flat(Nside=size($X,2);kwargs...)}($X, $Y)
-        $F{P}($X::AbstractMatrix, $Y::AbstractMatrix) where {P} = $F{P}($F0{P}($X), $F0{P}($Y))
-        $F{P,T}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T} = $F{P,T}($F0{P,T}($X), $F0{P,T}($Y))
-        $F{P,T,M}($X::AbstractMatrix, $Y::AbstractMatrix) where {P,T,M} = $F{P,T,M}($F0{P,T,M}($X), $F0{P,T,M}($Y))
+        $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array; kwargs...) =
+            $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X, $Y)
+        $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P} =
+            $F{P}(($F0{P}($X), $F0{P}($Y)))
+        $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P,T} =
+            $F{P,T}($F0{P,T}($X), $F0{P,T}($Y))
+        $F{P,T,M}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P,T,M} =
+            $F{P,T,M}($F0{P,T,M}($X), $F0{P,T,M}($Y))
     end
 end
 

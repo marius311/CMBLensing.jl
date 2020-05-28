@@ -22,7 +22,7 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
     adapt(M,broadcastable(F, arg))
 function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
@@ -45,7 +45,7 @@ end
 pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
-dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
+dot(a::CuFlatS0, b::CuFlatS0) = dot(adapt(Array,Map(a)), adapt(Array,Map(b)))
 ≈(a::CuFlatS0, b::CuFlatS0) = (firstfield(a) ≈ firstfield(b))
 sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
 

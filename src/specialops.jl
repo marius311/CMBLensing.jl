@@ -235,8 +235,7 @@ function (L::ParamDependentOp)(;θ...)
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
         
-        # type annotation here for if any Core.Box'ed variables slipped into our recompute_function:
-        L.recompute_function(;θ...) :: typeof(L.op)
+        L.recompute_function(;θ...)
     else
         L.op
     end 
@@ -321,8 +320,8 @@ pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a
 adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
 adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
 diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
-*(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D)*L.V, L.W)
-*(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W*diag(D))
+*(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D) .* L.V, L.W)
+*(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W .* diag(D))
 tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
 
 
