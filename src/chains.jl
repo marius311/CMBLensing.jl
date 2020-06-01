@@ -136,7 +136,7 @@ function unbatch(chain::Chain)
                 if v isa Union{BatchedReal,FlatField}
                     k => batchindex(v, I)
                 elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:BatchedVals}}
-                    k => map(x -> (x isa BatchedReal ? batchindex(x,I) : x), v)
+                    k => map(x -> (x isa BatchedVals ? batchindex(x,I) : x), v)
                 else
                     k => v
                 end
