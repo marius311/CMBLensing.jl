@@ -150,4 +150,4 @@ end
 
 Expand each chain in this `Chains` object by unbatching it. 
 """
-unbatch(chains::Chains) = Chains(reduce(vcat, map(unbatch, chains)))
+unbatch(chains::Chains) = Chains(mapreduce(unbatch, vcat, chains))

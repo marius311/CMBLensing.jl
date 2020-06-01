@@ -171,7 +171,7 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
     Nnew = round(Int, N * θ ÷ θnew)
-    Pnew = Flat{Nnew,θnew,∂mode}
+    Pnew = Flat(Nside=Nnew,θpix=θnew,∂mode=∂mode)
 
     if deconv_pixwin
         @unpack Δx,k = fieldinfo(Pnew,T,M)

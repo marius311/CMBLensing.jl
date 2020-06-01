@@ -26,7 +26,7 @@ copies of the data in `f`)
 """    
 batch(f::F, D::Int) where {N,θ,∂m,F<:FlatS0{Flat{N,θ,∂m,1}}} = basetype(F){Flat{N,θ,∂m,D}}(firstfield(f))
 batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
-batch(f::Field, ::Nothing) = f
+batch(x, ::Nothing) = x
 
 @doc doc"""
     unbatch(f::FlatField)
