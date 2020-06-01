@@ -24,7 +24,8 @@ Construct a batch-length-`D` `FlatField` from an unbatched `FlatField` which
 will broadcast as if it were `D` copies of `f` (without actually making `D`
 copies of the data in `f`)
 """    
-batch(f::F, D::Int) where {N,θ,∂m,F<:FlatS0{Flat{N,θ,∂m,1}}} = basetype(F){Flat{N,θ,∂m,D}}(firstfield(f))
+batch(f::F, D::Int) where {N,θ,∂m,D′,F<:FlatS0{Flat{N,θ,∂m,D′}}} = 
+    (D′==D || D′==1) ? basetype(F){Flat{N,θ,∂m,D}}(firstfield(f)) : error("Can't change batch-length from $(D′) to $D.")
 batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
 batch(x, ::Nothing) = x
 
