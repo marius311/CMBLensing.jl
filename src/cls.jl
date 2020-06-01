@@ -116,7 +116,7 @@ end
 @memoize function camb(;
     ℓmax = 6000, 
     r = 0.2, ωb = 0.0224567, ωc = 0.118489, τ = 0.055, Σmν = 0.06,
-    Θs = 0.0104098, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
+    θs = 0.0104098, H0 = nothing, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
     Aϕ = 1,
     k_pivot = 0.002)
     
@@ -132,22 +132,23 @@ end
             omch2 = ωc,
             tau = τ,
             mnu = Σmν,
-            cosmomc_theta = Θs,
-            H0 = nothing,
+            cosmomc_theta = θs,
+            H0 = H0,
             ns = nₛ,
             nt = nₜ,
             As = exp(logA)*1e-10,
             pivot_scalar = k_pivot,
             pivot_tensor = k_pivot,
             lmax = ℓmax′,
-            r = r
+            r = r,
         )
         cp.max_l_tensor = ℓmax′
         cp.max_eta_k_tensor = 2ℓmax′
         cp.WantScalars = true
         cp.WantTensors = true
         cp.DoLensing = true
-        
+        cp.set_nonlinear_lensing(true)
+
         res = camb.get_results(cp)
         
         
