@@ -188,7 +188,7 @@ function sample_joint(
     if !(progress in [false,:summary,:verbose])
         error("`progress` should be one of [false,:summary,:verbose]")
     end
-    if (filename!=nothing && splitext(filename)[2] != ".jld2")
+    if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
     if mod(nchunk,nsavemaps) != 0
