@@ -129,8 +129,8 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     @unpack Nside,Δx,kmag = fieldinfo(f)
     α = (Nside/Δx)^2
 
-    L = kmag[:]
-    CLobs = real.(dot.(unfold(f[:Il]),unfold(f2[:Il])))[:] ./ α
+    L = Float64.(kmag[:])
+    CLobs = real.(dot.(unfold(Float64(f)[:Il]),unfold(Float64(f2)[:Il])))[:] ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
@@ -171,7 +171,7 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
     Nnew = round(Int, N * θ ÷ θnew)
-    Pnew = Flat{Nnew,θnew,∂mode}
+    Pnew = Flat(Nside=Nnew,θpix=θnew,∂mode=∂mode)
 
     if deconv_pixwin
         @unpack Δx,k = fieldinfo(Pnew,T,M)
