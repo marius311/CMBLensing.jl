@@ -101,8 +101,8 @@ function hessian(f, xs::Vector; ε=1f-3)
     hcat(finite_difference(xs->vcat(gradient(f,xs)[1]...),xs,ε=ε)...)
 end
 
-function finite_difference(f, xs::Vector; ε=1f-3)
-    map(1:length(xs)) do i
+function finite_difference(f, xs::Vector; ε=1f-3, progress=false)
+    @showprogress (progress ? 1 : Inf) map(1:length(xs)) do i
         xs₊ = copy(xs); xs₊[i] += ε
         xs₋ = copy(xs); xs₋[i] -= ε
         (f(xs₊) .- f(xs₋)) ./ (2ε)

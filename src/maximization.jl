@@ -108,6 +108,7 @@ function MAP_joint(
     quasi_sample = false, 
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    preconditioner = :diag,
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = nothing,
@@ -155,10 +156,14 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? Identity : Lϕ), ds, 
-                    which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
-                    guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))
+            (f, hist) = argmaxf_lnP(
+                (i==1 && ϕstart==nothing) ? Identity : Lϕ, 
+                ds, 
+                which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
+                conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
+                preconditioner=preconditioner
+            )
                     
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
