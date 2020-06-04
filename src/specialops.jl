@@ -226,15 +226,17 @@ struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S
     parameters::Vector{Symbol}
 end
 function ParamDependentOp(recompute_function::Function)
-    ParamDependentOp(recompute_function(), recompute_function, get_kwarg_names(recompute_function))
+    # invokelatest here allows creating a ParamDependent op which calls a
+    # BinRescaledOp (eg this is the case for the mixing matrix G which depends
+    # on Cϕ) from inside function. this would otherwise fail due to
+    # BinRescaledOp eval'ed function being too new
+    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, get_kwarg_names(recompute_function))
 end
 function (L::ParamDependentOp)(;θ...) 
     if depends_on(L,θ)
-        
         # filtering out non-dependent parameters disabled until I can find a fix to:
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-        
         L.recompute_function(;θ...)
     else
         L.op
