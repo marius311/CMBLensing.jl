@@ -35,7 +35,7 @@ const FFTW_NUM_THREADS = Ref{Int}()
 @init FFTW_NUM_THREADS[] = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
 
 
-@generated function FlatInfo(::Type{T}, ::Type{Arr}, ::Val{θpix}, ::Val{Nside}, ::Val{D}) where {T<:Real, Arr<:AbstractArray, θpix, Nside, D}
+function FlatInfo(T, Arr, θpix, Nside, D)
 
     FFTW.set_num_threads(FFTW_NUM_THREADS[])
 

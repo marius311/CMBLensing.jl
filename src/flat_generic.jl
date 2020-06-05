@@ -17,11 +17,11 @@ function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
 end
 
 ### field info
-@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,D,P<:Flat{Nside,θpix,∂mode,D},T,M} = 
-    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside),Val(D))..., ∂mode=∂mode)
-@generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
+@memoize fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,D,P<:Flat{Nside,θpix,∂mode,D},T,M} = 
+    (;FlatInfo(T,basetype(M),θpix,Nside,D)..., ∂mode=∂mode)
+@memoize fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
     (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
-fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
+@memoize fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
