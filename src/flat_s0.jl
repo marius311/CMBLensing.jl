@@ -136,13 +136,13 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
 
     local A, Cℓ, ℓ, N, Cℓ²
-    @sync begin
-        @spawn A  = sum_in_ℓbins(w)
-        @spawn Cℓ = sum_in_ℓbins(w .* CLobs)
-        @spawn ℓ  = sum_in_ℓbins(w .* L)
+    Threads.@sync begin
+        Threads.@spawn A  = sum_in_ℓbins(w)
+        Threads.@spawn Cℓ = sum_in_ℓbins(w .* CLobs)
+        Threads.@spawn ℓ  = sum_in_ℓbins(w .* L)
         if err_estimate
-            @spawn N   = sum_in_ℓbins(one.(w)) / 2
-            @spawn Cℓ² = sum_in_ℓbins(w .* CLobs.^2)
+            Threads.@spawn N   = sum_in_ℓbins(one.(w)) / 2
+            Threads.@spawn Cℓ² = sum_in_ℓbins(w .* CLobs.^2)
         end
     end
 

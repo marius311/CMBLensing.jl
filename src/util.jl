@@ -277,7 +277,7 @@ function tmap(f, args...)
     @static if nthreads()==1 || VERSION<v"1.3"
         map(f, args...)
     else
-        map(fetch,map((args...)->@spawn(f(args...)),args...))
+        map(fetch,map((args...)->Threads.@spawn(f(args...)),args...))
     end
 end
 
@@ -378,7 +378,6 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
 
 @init @require MPIClusterManagers="e7922434-ae4b-11e9-05c5-9780451d2c66" begin
 
-    using Distributed
     using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL
 
     @doc doc"""
@@ -395,13 +394,16 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
     """
     function init_MPI_workers(;stdout_to_master=false, stderr_to_master=false)
         
-        !MPI.Initialized() && MPI.Init()
+        if !MPI.Initialized()
+            MPI.Init()
+        end
         size = MPI.Comm_size(MPI.COMM_WORLD)
         rank = MPI.Comm_rank(MPI.COMM_WORLD)
 
         if size>1
-            if @eval Main isdefined(:CuArrays) && CuArrays.functional()
-                @eval Main CuArrays.CUDAnative.device!(mod($rank,$size-1))
+            if isdefined(Main, :CuArrays) && CuArrays.functional()
+                # cant use @eval because of https://github.com/JuliaPackaging/Requires.jl/issues/86
+                Main.eval(:(CuArrays.CUDAnative.device!(mod($rank,$size-1))))
                 device_string = @eval Main CuArrays.CUDAdrv.device()
             else
                 device_string = "CPU"

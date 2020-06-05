@@ -4,13 +4,14 @@ using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, preprocess_args, Style
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
-using Base.Threads: @spawn, @sync, nthreads
+using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat
+using Distributed
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait
 using FileIO
 using FFTW
 using InteractiveUtils
