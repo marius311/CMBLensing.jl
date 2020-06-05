@@ -277,7 +277,7 @@ function tmap(f, args...)
     @static if nthreads()==1 || VERSION<v"1.3"
         map(f, args...)
     else
-        map(fetch,map((args...)->Threads.@spawn(f(args...)),args...))
+        map(fetch,map((args...)->@spawn(f(args...)),args...))
     end
 end
 
