@@ -101,7 +101,7 @@ end
 
 ### dot products
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
-dot(a::FlatS0{P}, b::FlatS0{P}) where {P} = batch(sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2)))
+dot(a::FlatS0{<:Flat{N,θ}}, b::FlatS0{<:Flat{N,θ}}) where {N,θ} = batch(sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2)))
 
 ### isapprox
 ≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))

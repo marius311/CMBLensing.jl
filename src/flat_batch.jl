@@ -68,7 +68,9 @@ struct BatchedVals{T,D,V<:AbstractVector{T}} <: Real
 end
 const BatchedReal{D,V,T<:Real} = BatchedVals{T,D,V}
 batch(r::Real) = r
+batch(r::Real, D::Int) = batch(collect(repeated(r,D)))
 batch(v::AbstractVector) = BatchedVals(v)
+batch(rs::Real...) = BatchedVals(collect(rs))
 batchindex(br::BatchedVals, I) = getindex(br.vals,I)
 batchsize(::BatchedVals{<:Any,D}) where {D} = D
 struct BatchedRealStyle{D} <: AbstractArrayStyle{0} end
@@ -84,6 +86,7 @@ for op in [:+, :-, :*, :/]
         ($op)(a::Real, b::BatchedReal)        = batch(broadcast(($op), a,      b.vals))
     end
 end
+-(br::BatchedReal) = batch(.-br.vals)
 <(a::BatchedReal, b::BatchedReal) = all(a.vals .< b.vals)
 <(a::BatchedReal, b::Real) = all(a.vals .< b)
 sqrt(br::BatchedReal) = batch(sqrt.(br.vals))
