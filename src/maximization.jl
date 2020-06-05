@@ -84,19 +84,21 @@ $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample.
 Keyword arguments:
 
 * `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*
-* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give `Nϕ=:qe` 
-         to use the EB quadratic estimate noise *(default:* `:qe`*)*
+* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give
+    `Nϕ=:qe` to use the EB quadratic estimate noise *(default:* `:qe`*)*
 * `quasi_sample` — `true` to iterate quasi-samples, or an integer to compute
-                   a specific quasi-sample.
+    a specific quasi-sample.
 * `nsteps` — The number of iterations for the maximizer
 * `Ncg` — Maximum number of conjugate gradient steps during the $f$ update
-* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`, whichever is first)
-* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$ quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
+* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`,
+    whichever is first)
+* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$
+    quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
 * `αmax` — Maximum value for $\alpha$ in the linesearch
 * `progress` — whether to show progress bar
 
-Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
-`ϕ` is the lensing potential, and `tr` contains info about the run. 
+Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample)
+field, `ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
 function MAP_joint(
@@ -106,6 +108,7 @@ function MAP_joint(
     quasi_sample = false, 
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    preconditioner = :diag,
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = nothing,
@@ -125,7 +128,6 @@ function MAP_joint(
     f, f° = nothing, nothing
     ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),batchsize(d)))) : ϕstart
     ϕstep = nothing
-    @show typeof(ϕ) typeof(d)
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
     α = 0
@@ -154,10 +156,14 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? Identity : Lϕ), ds, 
-                    which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
-                    guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))
+            (f, hist) = argmaxf_lnP(
+                (i==1 && ϕstart==nothing) ? Identity : Lϕ, 
+                ds, 
+                which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
+                conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
+                preconditioner=preconditioner
+            )
                     
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)

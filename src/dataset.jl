@@ -70,7 +70,7 @@ function resimulate(
     d = M*P*B*f̃ + n
     ds = (@set ds.d = d)
     
-    @namedtuple(ds,f,ϕ,n,f̃)
+    @namedtuple(ds,f,ϕ,n,f̃,d)
 end
 
 @doc doc"""
@@ -85,7 +85,7 @@ function resimulate!(ds::DataSet; kwargs...)
     ds′ = ds
     @unpack ds,f,ϕ,n,f̃ = resimulate(ds; kwargs...)
     ds′.d = ds.d
-    @namedtuple(ds=ds′,f,ϕ,n,f̃)
+    @namedtuple(ds=ds′,f,ϕ,n,f̃,d)
 end
 
 
