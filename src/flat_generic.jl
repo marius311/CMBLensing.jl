@@ -21,7 +21,7 @@ end
     (;FlatInfo(T,basetype(M),θpix,Nside,D)..., ∂mode=∂mode)
 @memoize fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
     (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
-@memoize fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
+fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
