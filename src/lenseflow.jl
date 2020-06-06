@@ -12,7 +12,7 @@ end
 struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{RK4Solver{N},t₀,t₁,Φ}
     
     # save ϕ to know when to trigger recaching
-    ϕ :: Ref{Φ}
+    ϕ :: Ref{Any}
     
     # p and M⁻¹ quantities precomputed at every time step
     p   :: Dict{Float16,FieldOrOpVector{Diagonal{T,ŁΦ}}}
@@ -29,6 +29,7 @@ struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,
     memÐϕ  :: ÐΦ
     memŁvϕ :: FieldVector{ŁΦ}
     memÐvϕ :: FieldVector{ÐΦ}
+
 end
 
 ### constructors
@@ -74,7 +75,7 @@ function alloc_cache(L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁
         p[τ]   = Diagonal.(similar.(@SVector[Łϕ,Łϕ]))
     end
     CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ),typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf),eltype(Łϕ)}(
-        Ref(L.ϕ), p, M⁻¹, 
+        Ref{Any}(L.ϕ), p, M⁻¹, 
         similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
         similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
     )
