@@ -151,3 +151,38 @@ end
 Expand each chain in this `Chains` object by unbatching it. 
 """
 unbatch(chains::Chains) = Chains(mapreduce(unbatch, vcat, chains))
+
+
+
+@doc doc"""
+    mean_std_and_errors(samples; N_bootstrap=10000)
+
+Get the mean and standard deviation of a set of correlated `samples` from a
+chain where the error on the mean and standard deviation is estimated with
+bootstrap resampling using the calculated "effective sample size" of the chain.
+"""
+function mean_std_and_errors(samples; N_bootstrap=10000)
+    
+    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples)[1])
+    
+    μ = mean(samples)
+    σ = std(samples)
+
+    SEμ = std([mean(samples[rand(1:end, Neff)]) for i=1:N_bootstrap])
+    SEσ = std([ std(samples[rand(1:end, Neff)]) for i=1:N_bootstrap])
+    
+    "$(paren_errors(μ, SEμ)) ± $(paren_errors(σ, SEσ))"
+    
+end
+
+@doc doc"""
+    paren_errors(μ, σ; N_in_paren=2)
+
+Get a string represntation of `μ ± σ` in "parenthesis" format, e.g. `1.234 ±
+0.012` becomes `1.234(12)`.
+"""
+function paren_errors(μ, σ; N_in_paren=2)
+    N = round(Int, floor(log10(1/σ))) + N_in_paren
+    fmt = "%.$(N)f"
+    @ondemand(Formatting.sprintf1)(fmt, μ)*"($(round(Int,σ*10^N)))"
+end
