@@ -158,9 +158,9 @@ function sample_joint(
     nburnin_fixθ = 0,
     Nϕ = :qe,
     filename = nothing,
-    ϕstart = 0,
+    ϕstart = :prior,
+    θstart = :prior,
     θrange = NamedTuple(),
-    θstart = nothing,
     Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
@@ -207,17 +207,23 @@ function sample_joint(
             last_chunks = read(io, "chunks_$(chunks_index)")
         end
     else
+
+        D = batchsize(ds.d)
         
-        θstarts = if (θstart == nothing)
-            [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+        θstarts = if θstart == :prior
+            [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
         elseif (θstart isa NamedTuple)
             fill(θstart, nchains)
         else
             error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
         end
         
-        ϕstarts = if (ϕstart == 0) 
-            fill(batch(zero(diag(ds().Cϕ)),batchsize(ds.d)), nchains)
+        ϕstarts = if ϕstart == :prior
+            pmap(θstarts) do θstart
+                simulate(batch(ds(;θstart...).Cϕ, D))
+            end
+        elseif ϕstart == 0 
+            fill(batch(zero(diag(ds().Cϕ)), D), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
         elseif ϕstart in [:quasi_sample, :best_fit]
