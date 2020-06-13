@@ -27,9 +27,10 @@ function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
     
+    Δ = d - signal_model(0,0,0,θ,ds)
     b = 0
     if (which in (:wf, :sample))
-        b += Lϕ'*B'*P'*M'*(Cn\d)
+        b += Lϕ'*B'*P'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
         b += Cf\simulate(Cf) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn))

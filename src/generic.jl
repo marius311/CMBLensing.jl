@@ -102,8 +102,6 @@ checksquare(::ImplicitOp) = nothing
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
 
-diag(L::ImplicitOp) = error("diag(L) not implemented for L::$(typeof(L))")
-
 
 
 # printing
@@ -121,6 +119,10 @@ const DiagOp{F<:Field,T} = Diagonal{T,F}
 const LinOp{B,S,P} = Union{ImplicitOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 const ImplicitOrAdjOp{B,S,P} = Union{ImplicitOp{B,S,P}, Adjoint{<:Any,<:ImplicitOp{B,S,P}}}
 const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
+
+# assume no dependence on parameters θ unless otherwise specified
+(L::LinOrAdjOp)(θ::NamedTuple) = L
+
 
 ### Scalars
 # scalars which are allowed in our expressions must be real because we
