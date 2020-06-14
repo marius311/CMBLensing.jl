@@ -25,7 +25,8 @@ argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cac
 function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
     
     check_hat_operators(ds)
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds()
+    D = batchsize(d)
     
     Δ = d - signal_model(0,0,0,θ,ds)
     b = 0
@@ -33,7 +34,7 @@ function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=
         b += Lϕ'*B'*P'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(Cf) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn))
+        b += Cf\simulate(batch(Cf,D)) + Lϕ'*B'*P'*M'*(Cn\simulate(batch(Cn,D)))
     end
     
     A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
@@ -84,19 +85,21 @@ $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample.
 Keyword arguments:
 
 * `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*
-* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give `Nϕ=:qe` 
-         to use the EB quadratic estimate noise *(default:* `:qe`*)*
+* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give
+    `Nϕ=:qe` to use the EB quadratic estimate noise *(default:* `:qe`*)*
 * `quasi_sample` — `true` to iterate quasi-samples, or an integer to compute
-                   a specific quasi-sample.
+    a specific quasi-sample.
 * `nsteps` — The number of iterations for the maximizer
 * `Ncg` — Maximum number of conjugate gradient steps during the $f$ update
-* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`, whichever is first)
-* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$ quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
+* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`,
+    whichever is first)
+* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$
+    quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
 * `αmax` — Maximum value for $\alpha$ in the linesearch
 * `progress` — whether to show progress bar
 
-Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
-`ϕ` is the lensing potential, and `tr` contains info about the run. 
+Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample)
+field, `ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
 function MAP_joint(
@@ -106,6 +109,7 @@ function MAP_joint(
     quasi_sample = false, 
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    preconditioner = :diag,
     αtol = 1e-5,
     αmax = 0.5,
     cache_function = nothing,
@@ -118,12 +122,12 @@ function MAP_joint(
     end
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
-    # ϕₘ = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    @set! ds.G = 1
+    # ϕ° = G(θ)*ϕ, so set G to constant here to avoid wasted computation
+    ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart==nothing) ? zero(diag(Cϕ)) : ϕstart
+    ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),batchsize(d)))) : ϕstart
     ϕstep = nothing
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
@@ -153,10 +157,14 @@ function MAP_joint(
             if i!=1; cache!(Lϕ,ϕ); end
             
             # run wiener filter
-            (f, hist) = argmaxf_lnP(((i==1 && ϕstart==nothing) ? Identity : Lϕ), ds, 
-                    which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
-                    guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                    conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...))
+            (f, hist) = argmaxf_lnP(
+                (i==1 && ϕstart==nothing) ? Identity : Lϕ, 
+                ds, 
+                which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
+                guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
+                conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
+                preconditioner=preconditioner
+            )
                     
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)

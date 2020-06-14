@@ -11,7 +11,7 @@ each step is also returned.
 
 """
 function symplectic_integrate(
-    x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->@ondemand(Zygote.gradient)(U,x)[1]; 
+    x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->gradient(U,x)[1]; 
     N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
     
     xᵢ, pᵢ = x₀, p₀
@@ -22,12 +22,12 @@ function symplectic_integrate(
 
     @showprogress (progress ? 1 : Inf) "Symplectic Integration: " for i=1:N
         xᵢ₊₁    = xᵢ - T(ϵ) * (Λ \ (pᵢ - T(ϵ)/2 * δUδxᵢ))
-        δUδx₊₁  = δUδx(xᵢ₊₁)
-        pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδx₊₁ + δUδxᵢ)
-        xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδx₊₁
+        δUδxᵢ₊₁ = δUδx(xᵢ₊₁)
+        pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδxᵢ₊₁ + δUδxᵢ)
+        xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδxᵢ₊₁
         
         if hist!=nothing
-            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδx₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
+            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδxᵢ₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
             push!(_hist, getfield.(Ref(histᵢ),hist))
         end
 
@@ -75,41 +75,43 @@ Monte-Carlo samples of each of the parameters.
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(lnP::Function, range::NamedTuple{S, <:NTuple{1}}; progress=false, nsamples=1, span=0.25, rtol=1e-5) where {S}
+function grid_and_sample(lnP::Function, range::AbstractVector; progress=false, kwargs...)
+    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, range)
+    grid_and_sample(lnPs, range; progress=progress, kwargs...)
+end
+
+function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
+    batches = [grid_and_sample(batchindex.(lnPs,i), xs; kwargs...) for i=1:batchsize(lnPs[1])]
+    ((batch(getindex.(batches,i)) for i=1:3)...,)
+end
+
+function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, rtol=1e-5)
     
-    xs = first(range)
-    xmin,xmax = first(xs),last(xs)
-    
-    # probe the pdf along the grid and interpolate
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(x->Float64(lnP(NamedTuple{S}(x))), xs)
-    lnPs .-= maximum(lnPs)
-    ilnP = loess(xs,lnPs,span=span)
+    xmin, xmax = first(xs), last(xs)
+    lnPs = lnPs .- maximum(lnPs)
+    ilnP = loess(xs, lnPs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
     A = @ondemand(QuadGK.quadgk)(exp∘ilnP, xmin, xmax)[1]
     lnPs .-= log(A)
-    ilnP = loess(xs,lnPs,span=span)
+    ilnP = loess(xs, lnPs, span=span)
     
     # draw samples via inverse transform sampling
     # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
     # evaluated right at the lower bound)
-    θsamples = NamedTuple{S}(@showprogress (progress ? 1 : Inf) map(1:nsamples) do i
+    θsamples = @showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
         fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+sqrt(eps()),x,rtol=rtol)[1]-r),xmin+sqrt(eps()),xmax,rtol=rtol)
-    end)
-    
-    if nsamples==1
-        ilnP, map(first, θsamples), lnPs
-    else
-        ilnP, θsamples, lnPs
     end
     
+    (nsamples==1 ? θsamples[1] : θsamples), ilnP, lnPs
+    
 end
-grid_and_sample(lnP::Function, range::NamedTuple; kwargs...) = error("Can only currently sample from 1D distributions.")
-function grid_and_sample(lnP::Function, range::AbstractVector; nsamples=1, kwargs...)
-    ilnP, θsamples, lnPs = grid_and_sample(θ -> lnP(θ.x), (x=range,); nsamples=nsamples, kwargs...)
-    nsamples==1 ? (ilnP, θsamples.x, lnPs) : (ilnP, getindex.(θsamples,:x), lnPs)
+
+function grid_and_sample(lnP::Function, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
+    NamedTuple{S}.(Ref.(grid_and_sample(x -> lnP(NamedTuple{S}(x)), first(range); kwargs...)))
 end
+
 # allow more convenient evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
@@ -156,9 +158,9 @@ function sample_joint(
     nburnin_fixθ = 0,
     Nϕ = :qe,
     filename = nothing,
-    ϕstart = 0,
+    ϕstart = :prior,
+    θstart = :prior,
     θrange = NamedTuple(),
-    θstart = nothing,
     Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
@@ -173,10 +175,11 @@ function sample_joint(
     storage = basetype(M)
     ) where {P,T,M}
     
-    ds = adapt(Array, ds)
+    ds = cpu(ds)
     
     # save input configuration to later write to chain file
-    rundat = adapt(Array, Base.@locals)
+    rundat = Base.@locals
+    pop!.(Ref(rundat), (:metadata, :ds)) # saved separately
     
     # validate arguments
     if (length(θrange)>1 && gibbs_pass_θ==nothing)
@@ -185,7 +188,7 @@ function sample_joint(
     if !(progress in [false,:summary,:verbose])
         error("`progress` should be one of [false,:summary,:verbose]")
     end
-    if (filename!=nothing && splitext(filename)[2] != ".jld2")
+    if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
     if mod(nchunk,nsavemaps) != 0
@@ -204,17 +207,23 @@ function sample_joint(
             last_chunks = read(io, "chunks_$(chunks_index)")
         end
     else
+
+        D = batchsize(ds.d)
         
-        θstarts = if (θstart == nothing)
-            [map(range->(first(range) + rand() * (last(range) - first(range))), θrange) for i=1:nchains]
+        θstarts = if θstart == :prior
+            [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
         elseif (θstart isa NamedTuple)
             fill(θstart, nchains)
         else
             error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
         end
         
-        ϕstarts = if (ϕstart == 0) 
-            fill(zero(ds().Cϕ.diag), nchains)
+        ϕstarts = if ϕstart == :prior
+            pmap(θstarts) do θstart
+                simulate(batch(ds(;θstart...).Cϕ, D))
+            end
+        elseif ϕstart == 0 
+            fill(batch(zero(diag(ds().Cϕ)), D), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
         elseif ϕstart in [:quasi_sample, :best_fit]
@@ -226,10 +235,19 @@ function sample_joint(
         end
         
         last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            [@dict i=>1 f=>nothing ϕ°=>adapt(Array,ds(;θstart...).G*ϕstart) θ=>θstart]
+            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*ϕstart) θ=>θstart]
         end
         chunks_index = 1
-        save(filename, "rundat", rundat, "chunks_1", last_chunks)
+        if filename != nothing
+            save(
+                filename, 
+                "rundat",   cpu(rundat),
+                "ds",       cpu(ds),
+                "ds₀",      cpu(ds()), # save separately incase θ-dependent has trouble loading
+                "metadata", cpu(metadata),
+                "chunks_1", cpu(last_chunks)
+            )
+        end
     end
     
     
@@ -244,7 +262,7 @@ function sample_joint(
     try
         
         if progress==:summary
-            @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
+            Distributed.@spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
         for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
@@ -264,9 +282,8 @@ function sample_joint(
                     
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
-                        Lϕ = cache(L(ϕ), ds.d)
                         f = argmaxf_lnP(
-                            Lϕ, dsθ; 
+                            ϕ, dsθ;
                             which=:sample, 
                             guess=f, 
                             preconditioner=preconditioner, 
@@ -290,13 +307,9 @@ function sample_joint(
                                 progress=(progress==:verbose),
                                 kwargs...
                             )
-
-                            if (i < nburnin_always_accept) || (log(rand()) < ΔH)
-                                ϕ° = ϕtest°
-                                accept = true
-                            else
-                                accept = false
-                            end
+                            
+                            accept = batch(@. (i < nburnin_always_accept) | (log(rand()) < $unbatch(ΔH)))
+                            ϕ° = @. accept * ϕtest° + (1 - accept) * ϕ°
                             
                         end
                         
@@ -307,9 +320,9 @@ function sample_joint(
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ && length(θrange)>0)
                             if gibbs_pass_θ == nothing
-                                lnPθ, θ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
+                                θ, lnPθ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
                             else
-                                lnPθ, θ = gibbs_pass_θ(;(Base.@locals)...)
+                                θ, lnPθ = gibbs_pass_θ(;(Base.@locals)...)
                             end
                             dsθ = ds(;θ...)
                         end
@@ -327,7 +340,7 @@ function sample_joint(
                     if savemaps
                         merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
                     end
-                    push!(chain_chunk, adapt(Array, state))
+                    push!(chain_chunk, cpu(state))
                     
                     if @isdefined pbar
                         next!(pbar, showvalues = [("step",i), ("θ",θ), ("HMC", @namedtuple(ΔH,accept)), ("timing",timing)])
@@ -360,46 +373,4 @@ function sample_joint(
     end
     
     
-end
-
-
-
-@doc doc"""
-    load_chains(filename; burnin=0, thin=1, join=false)
-    
-Load some chains produced by [`sample_joint`](@ref). 
-
-Keyword arguments: 
-
-* `burnin` — Remove this many samples from the start of each parallel chain.
-* `thin` — If `thin` is an integer, thin the chain by this factor. If
-  `thin == :hasmaps`, return only samples which have maps saved.
-* `join` — If true, concatenate all the chains together.
-
-"""
-function load_chains(filename; burnin=0, thin=1, join=false)
-    chains = jldopen(filename) do io
-        ks = keys(io)
-        for i in countfrom(1)
-            k = "chunks_$i"
-            if k in ks
-                if i == 1
-                    chains = read(io,k)
-                else
-                    append!.(chains, read(io,k))
-                end
-            else
-                break
-            end
-        end
-        chains
-    end
-    if thin isa Int
-        chains = [chain[(1+burnin):thin:end] for chain in chains]
-    elseif thin == :hasmaps
-        chains = [samp for chain in chains for samp in chain[(1+burnin):end] if :ϕ in keys(samp)]
-    else
-        error("`thin` should be an Int or :hasmaps")
-    end
-    join ? reduce(vcat, chains) : chains
 end

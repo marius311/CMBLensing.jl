@@ -87,7 +87,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	end
 	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
 	cax = ax.matshow(
-		arr; 
+		clamp.(arr, vmin, vmax); 
 		vmin=vmin, vmax=vmax, extent=extent,
 		cmap=cmap, rasterized=true, norm=norm,
 		kwargs...

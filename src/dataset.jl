@@ -52,38 +52,58 @@ end
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all([(L isa Scalar) || (L isa typeof(Cf)) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
+    @assert(all([(L isa Scalar) || (basis(diag(L))==basis(diag(Cf))) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
             "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
-    
+
 @doc doc"""
-    resimulate!(ds::DataSet; f=..., ϕ=...)
+    resimulate(ds::DataSet; [f, ϕ, n])
     
-Resimulate the data in a given dataset, potentially at a fixed f and/or ϕ (both
-are resimulated if not provided)
+Make a new DataSet replacing the data with a simulation, potentially given a
+fixed f, ϕ, or n, if any are provided. 
+
+Returns a named tuple of `(ds, f, ϕ, n, f̃)`
 """
-function resimulate!(
+function resimulate(
     ds::DataSet{F}; 
-    f=nothing, ϕ=nothing, n=nothing,
-    rng=global_rng_for(F), seed=nothing,
-    ) where {F}
+    f=nothing, ϕ=nothing, n=nothing, 
+    rng=global_rng_for(F), seed=nothing) where {F}
     
-    if ϕ==nothing; ϕ = simulate(ds.Cϕ; rng=rng, seed=seed); end
-    if f==nothing; f = simulate(ds.Cf; rng=rng, seed=seed+1); end
-    if n==nothing; n = simulate(ds.Cn; rng=rng, seed=seed+2); end
+    if (ϕ == nothing)
+        ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
+    end
+    if (f == nothing)
+        f = simulate(ds.Cf, rng=rng, seed=(seed==nothing ? nothing : seed+1))
+    end
+    if (n == nothing)
+        n = simulate(ds.Cn, rng=rng, seed=(seed==nothing ? nothing : seed+2))
+    end
+
+    @unpack M,P,B,L = ds
+    f̃ = L(ϕ)*f
+    d = M*P*B*f̃ + n
+    ds = (@set ds.d = d)
     
-    @unpack M,P,B = ds
-    f̃ = ds.L(ϕ)*f
-    ds.d = M*P*B*f̃ + n
-    
-    @namedtuple(ds,f,ϕ,n,f̃)
+    @namedtuple(ds,f,ϕ,n,f̃,d)
 end
 
-
-
+@doc doc"""
+    resimulate!(ds::DataSet; [f, ϕ, n])
+    
+Replace the data in this DataSet in-place with a simulation, potentially given a
+fixed f, ϕ, or n, if any are provided. 
+    
+Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+"""
+function resimulate!(ds::DataSet; kwargs...)
+    ds′ = ds
+    @unpack ds,f,ϕ,n,f̃ = resimulate(ds; kwargs...)
+    ds′.d = ds.d
+    @namedtuple(ds=ds′,f,ϕ,n,f̃,d)
+end
 
 
 @doc doc"""
@@ -132,6 +152,7 @@ function load_sim_dataset(;
     fiducial_θ = NamedTuple(),
     rfid = nothing,
     
+    rng = global_rng_for(storage),
     seed = nothing,
     D = nothing,
     G = nothing,
@@ -196,8 +217,8 @@ function load_sim_dataset(;
     Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
     Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((mem; r=r₀,   _...)->(mem .= Cfs + T(r/r₀)*Cft), similar(Cfs))
-    Cϕ = ParamDependentOp((mem; Aϕ=Aϕ₀, _...)->(mem .= T(Aϕ) .* Cϕ₀), similar(Cϕ₀))
+    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
+    Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
     if (M == nothing)
@@ -215,40 +236,31 @@ function load_sim_dataset(;
         B̂ = B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
     end
     
-    # D mixing matrix
-    if (D == nothing)
-        σ²len = T(deg2rad(5/60)^2)
-        D = ParamDependentOp(
-            function (mem;r=r₀,_...)
-                Cfr = Cf(mem,r=r)
-                mem .= sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
-            end,
-            similar(Cf())
-        )
-    end
-      
+    # creating lensing operator cache
+    Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
+
+    # put everything in DataSet
+    ds = DataSet(;@namedtuple(d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
+    
     # simulate data
-    seed_for_storage!(storage, seed)
-    if (ϕ  == nothing); ϕ  = simulate(Cϕ); end
-    if (f  == nothing); f  = simulate(Cf); end
-    if (n  == nothing); n  = simulate(Cn); end
-    Lϕ = cache(L(ϕ),f)
-    if (f̃  == nothing); f̃  = Lϕ*f;         end
-    if (Bf̃ == nothing); Bf̃ = B*f̃;          end
-    if (d  == nothing); d  = M*P*Bf̃ + n;   end
-    
-    # put everything in BaseDataSet
-    ds = BaseDataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
-    
-    # with the BaseDataSet created, we can now more conveniently call the quadratic
-    # estimate to compute Nϕ if needed for the G mixing matrix
+    @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)
+
+
+    # with the DataSet created, we now more conveniently create the mixing matrices D and G
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        G = ParamDependentOp((;Aϕ=Aϕ₀,_...)->(@. nan2zero(sqrt(1 + 2/(($(Cϕ(Aϕ=Aϕ))/Nϕ)))/G₀)))
+        ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end
-    @set! ds.G = G
-   
+    if (D == nothing)
+        σ²len = T(deg2rad(5/60)^2)
+        ds.D = ParamDependentOp(
+            function (;r=r₀, _...)
+                Cfr = Cf(;r=r)
+                sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
+            end,
+        )
+    end
     
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     

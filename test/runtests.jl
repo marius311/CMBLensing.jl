@@ -138,8 +138,10 @@ end
         (Fourier,   FlatMap(rand(4,4))), 
         (EBFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
         (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))), # unnamed FieldTuple
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple,
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))) # unnamed nested FieldTuple
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple
+        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))), # unnamed nested FieldTuple
+        (Fourier,   FlatMap(rand(4,4,2))), # batched S0 
+        (EBFourier, FlatQUMap(rand(4,4,2),rand(4,4,2))), # batched S2
     ]
     
     for (B,f) in fs
@@ -179,9 +181,15 @@ end
             
             # Field dot products
             D = Diagonal(f)
-            @test (@inferred f' * f) isa Real
-            @test (@inferred f' * B(f)) isa Real
-            @test (@inferred f' * D * f) isa Real
+            if f isa FlatField && batchsize(f)>1 # batched fields not inferred
+                @test (f' * f) isa Real
+                @test (f' * B(f)) isa Real
+                @test (f' * D * f) isa Real
+            else
+                @test (@inferred f' * f) isa Real
+                @test (@inferred f' * B(f)) isa Real
+                @test (@inferred f' * D * f) isa Real
+            end
             @test sum(f, dims=:) ≈ sum(f[:])
             @test_throws Any sum(f, dims=1)
             @test sum(f, dims=2) == f
@@ -247,6 +255,27 @@ end
 
 ##
 
+@testset "BatchedReal" begin
+    
+    r  = 1.
+    rb = batch([1.,2])
+    
+    for (f,fb) in [
+        (  FlatMap(rand(8,8)),           FlatMap(rand(8,8,2))),
+        (FlatQUMap(rand(8,8),rand(8,8)), FlatQUMap(rand(8,8,2),rand(8,8,2)))
+    ]
+        @testset "f :: $(typeof(f))" begin
+            @test @inferred(r * f)  == f
+            @test @inferred(r * fb) == fb
+            @test unbatch(@inferred(rb * f)) == [f, 2f]
+            @test unbatch(@inferred(rb * fb)) == [batchindex(fb,1), 2batchindex(fb,2)]
+        end
+    end
+    
+end
+
+## 
+
 @testset "Gradients" begin
     
     @test (@inferred ∇[1] * FlatMap(rand(3,3), ∂mode=fourier∂)) isa FlatFourier
@@ -285,17 +314,42 @@ end
 @testset "ParamDependentOp" begin
     
     D = Diagonal(FlatMap(rand(4,4)))
-    mem = similar(D)
-    
-    @test_throws ArgumentError ParamDependentOp((;x=1, y=1)->x*y*D)(mem) # passing memory to non-inplace op
-    @test_throws ArgumentError ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(1) # passing wrong-type memory
     
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(x=2) ≈ 2D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
-    @test ParamDependentOp((mem;x=1, y=1)->mem.=x*y*D,similar(D))(D) ≈ D # inplace 
+    @test_throws MethodError ParamDependentOp((;x=1, y=1)->x*y*D)(2) # only Tuple unnamed arg is OK
+
 end
+
+##
+
+@testset "Chains" begin
+
+    chains = CMBLensing.wrap_chains([
+        [Dict(:i=>1, :b=>2), Dict(:i=>2       ), Dict(:i=>3, :b=>2)],
+        [Dict(:i=>1, :b=>3), Dict(:i=>2, :b=>3), Dict(:i=>3, :b=>3)],
+    ])
+    
+    # basic
+    @test chains[1, 1, :i] == 1
+    @test chains[:, 1, :i] == [1,1]
+    @test chains[:, :, :i] == [[1, 2, 3], [1, 2, 3]]
+    
+    # slices
+    @test chains[1, 1:2, :i] == [1, 2]
+    @test chains[:, 1:2, :i] == [[1,2], [1,2]]
+    
+    # implied : in first dims
+    @test chains[:i] == [[1,2,3],[1,2,3]]
+    @test chains[1,:i] == [1,2,3]
+    
+    # missing
+    @test all(chains[1,:b] .=== [2, missing, 2])
+
+end;
+
 
 ##
 
@@ -414,6 +468,7 @@ end
     
     Cℓ = camb().unlensed_total
     nside = 128
+    seed!(0)
     
     for T in (Float32, Float64)
         

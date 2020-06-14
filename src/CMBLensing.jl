@@ -38,6 +38,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray
 using Statistics
 using StatsBase
+using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint
 
@@ -48,8 +49,8 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, setindex!, setproperty!,
-    show, show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
+    promote_rule, promote_type, propertynames, real, setindex!, show,
+    show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
@@ -60,23 +61,24 @@ import Statistics: std
 
 export
     @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
-    argmaxf_lnP, BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D,
-    Cℓ_to_Cov, BaseDataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
-    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
-    FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector,
-    FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap, FlatFieldMap,
-    FlatFieldFourier, FlatField, FlatFourier, FlatIEBCov, FlatIEBFourier,
-    FlatIEBMap, FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier,
-    FlatQUMap, FlatS0, FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂,
-    FuncOp, get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, HighPass,
-    Identity, IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier,
-    IQUMap, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
-    load_chains, load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    map∂, MidPass, mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp,
-    pixwin, PowerLens, QUFourier, QUMap, resimulate!, RK4Solver, S0, S02, S2,
-    sample_joint, seed_for_storage!, shiftℓ, simulate, SymmetricFuncOp,
-    symplectic_integrate, Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unmix,
-    Ð, Ł, δf̃ϕ_δfϕ, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    argmaxf_lnP, BandPassOp, BaseDataSet, batch, batchindex, batchsize, cache, CachedLenseFlow,
+    camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal,
+    DiagOp, dot, EBFourier, EBMap, Field, FieldArray, fieldinfo, FieldMatrix,
+    FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector, FieldOrOpVector,
+    FieldRowVector, FieldTuple, FieldVector, FieldVector, firsthalf, Flat, FlatEB,
+    FlatEBFourier, FlatEBMap, FlatField, FlatFieldFourier, FlatFieldMap,
+    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap, FlatIQUFourier, FlatIQUMap,
+    FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0, FlatS02, FlatS2,
+    FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, get_Cℓ, get_Cℓ, get_Dℓ,
+    get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass, Identity, IdentityOp,
+    IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, lasthalf, LazyBinaryOp,
+    LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs, load_chains, load_sim_dataset,
+    LowPass, make_mask, Map, MAP_joint, MAP_marg, map∂, mean_std_and_errors, MidPass, 
+    mix, nan2zero, noiseCℓs, OuterProdOp, ParamDependentOp, pixwin, PowerLens, 
+    QUFourier, QUMap, resimulate!, resimulate, RK4Solver, S0, S02, S2, sample_joint,
+    seed_for_storage!, shiftℓ, simulate, SymmetricFuncOp, symplectic_integrate,
+    Taylens, toCℓ, toDℓ, tuple_adjoint, ud_grade, unbatch, unmix, Ð, Ł,
+    δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")

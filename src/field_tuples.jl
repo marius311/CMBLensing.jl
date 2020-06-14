@@ -49,10 +49,9 @@ fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple{B}) where {B} = FieldTuple{B}(map(f->adapt(to,f),f.fs))
 similar(ft::FT) where {FT<:FieldTuple} = FT(map(f->similar(f),ft.fs))
 function similar(ft::FT, ::Type{T}, dims::Dims) where {T<:Number, B, FT<:FieldTuple{B}}
-    @assert size(ft)==dims "Tried to make a field similar to $FT but dims should have been $(size(f)), not $dims."
+    @assert size(ft)==dims "Tried to make a field similar to $FT but dims should have been $(size(ft)), not $dims."
     FieldTuple{B}(map(f->similar(f,T),ft.fs))
 end
-# mapreduce(func, op, ft::FieldTuple; kw...) = mapreduce(f->mapreduce(func, op, f; kw...), op, ft.fs; kw...)
 function sum(f::FieldTuple; dims=:)
     if dims == (:)
         sum(sum,f.fs)
@@ -64,11 +63,16 @@ function sum(f::FieldTuple; dims=:)
 end
 
 ### broadcasting
-struct FieldTupleStyle{B,Names,FS<:Tuple} <: AbstractArrayStyle{1} end
+struct FieldTupleStyle{B,Names,FS} <: AbstractArrayStyle{1} end
 (::Type{FTS})(::Val{1}) where {FTS<:FieldTupleStyle} = FTS()
-BroadcastStyle(::FieldTupleStyle{B1}, ::FieldTupleStyle{B2}) where {B1,B2} = invalid_broadcast_error(B1,B2)
 BroadcastStyle(::Type{FT}) where {B,FS<:Tuple,FT<:FieldTuple{B,FS}} = FieldTupleStyle{B,Nothing,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 BroadcastStyle(::Type{FT}) where {B,Names,FS,NT<:NamedTuple{Names,FS},FT<:FieldTuple{B,NT}} = FieldTupleStyle{B,Names,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
+BroadcastStyle(::FieldTupleStyle{B,Names,FS1}, ::FieldTupleStyle{B,Names,FS2}) where {B,Names,FS1,FS2} = begin
+    FS = Tuple{map_tupleargs((S1,S2)->typeof(Broadcast.result_style(S1(),S2())), FS1, FS2)...}
+    FieldTupleStyle{B,Names,FS}()
+end
+BroadcastStyle(S1::FieldTupleStyle{B1}, S2::FieldTupleStyle{B2}) where {B1,B2} =
+    invalid_broadcast_error(B1,S1,B2,S2)
 similar(::Broadcasted{FTS}, ::Type{T}) where {T, FTS<:FieldTupleStyle} = similar(FTS,T)
 similar(::Type{FieldTupleStyle{B,Nothing,FS}}, ::Type{T}) where {B,FS,T} = FieldTuple{B}(map_tupleargs(F->similar(F,T), FS))
 similar(::Type{FieldTupleStyle{B,Names,FS}}, ::Type{T}) where {B,Names,FS,T} = FieldTuple{B}(NamedTuple{Names}(map_tupleargs(F->similar(F,T), FS)))

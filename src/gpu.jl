@@ -16,12 +16,13 @@ end
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 global_rng_for(::Type{<:CuArray}) = CuArrays.CURAND.generator()
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
-    CuArrays.CURAND.seed!((seed == nothing ? (rand(0:typemax(Int),)) : seed)...)
-Random.seed!(rng::CuArrays.CURAND.RNG,seed) = CuArrays.CURAND.seed!(rng, seed)
+    Random.seed!(global_rng_for(CuArray), seed)
+
+
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,size_2d(F)))
+    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
     adapt(M,broadcastable(F, arg))
 function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
@@ -44,13 +45,13 @@ end
 pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
-dot(a::CuFlatS0, b::CuFlatS0) = sum_kbn(Array(Map(a).Ix .* Map(b).Ix))
+dot(a::CuFlatS0{<:Flat{N,θ}}, b::CuFlatS0{<:Flat{N,θ}}) where {N,θ} = dot(adapt(Array,Map(a)), adapt(Array,Map(b)))
 ≈(a::CuFlatS0, b::CuFlatS0) = (firstfield(a) ≈ firstfield(b))
 sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
 
 
-# some pretty low-level hacks to get a few thing broadcasting correctly for
-# Complex arguments that don't currently work in CuArrays
+# these only work for Reals in CuArrays
+# with these definitions, they work for Complex as well
 CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
 CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
 CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
@@ -68,3 +69,8 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 # bug in CuArrays for this one
 # see https://github.com/JuliaGPU/CuArrays.jl/pull/637
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
+
+# some Random API which CuArrays doesn't implement yet
+Random.randn(rng::CuArrays.CURAND.RNG, T::Random.BitFloatType) = 
+    adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+Random.seed!(rng::CuArrays.CURAND.RNG, ::Nothing) = Random.seed!(rng)

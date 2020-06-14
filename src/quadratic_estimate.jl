@@ -86,7 +86,7 @@ function get_term_memoizer(f)
     Lfactors(inds...) = broadcast!(*, similar(Ðf), getproperty.(getindex.(Ref(∇),inds),:diag)...)
     term(C::Diagonal, inds...) = term(C.diag, inds...)
     term(C::Field, inds...) = term(count((x->x isa Int),inds)/2f0, C, first.(inds)...)
-    @sym_memo term(n, C::Field, @sym(inds...)) = Map(nan2zero.(C .* Lfactors(inds...) ./ ∇².diag.^n))
+    @sym_memo term(n, C::Field, @sym(inds...)) = Map(nan2zero.(C .* Lfactors(inds...) ./ real.(∇².diag).^n))
     term
 end
 ϵ(x...) = levicivita([x...])

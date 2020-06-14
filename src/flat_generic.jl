@@ -4,30 +4,34 @@ const FlatFieldMap{P,T,M} = Union{FlatMap{P,T,M},FlatS2Map{P,T,M},FlatS02Map{P,T
 const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
 
 ### pretty printing
-@show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,T,M,F<:FlatField{Flat{N,θ,∂mode},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N) map, $(θ)′ pixels, $(∂mode.name.name), $(M.name.name){$(M.parameters[1])}}")
+@show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
+    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "(×$D)") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
+function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
+    print(io, "$(N^2)", (D==1 ? "" : "(×$D)"), "-element ")
+    showarg(io, f, true)
+end
 
 ### field info
-@generated fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,P<:Flat{Nside,θpix,∂mode},T,M} = 
-    (;FlatInfo(T,basetype(M),Val(θpix),Val(Nside))..., ∂mode=∂mode)
-@generated fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
+@memoize fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,D,P<:Flat{Nside,θpix,∂mode,D},T,M} = 
+    (;FlatInfo(T,basetype(M),θpix,Nside,D)..., ∂mode=∂mode)
+@memoize fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
     (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
 fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
 # automatically handled in broadcasting
-function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatField{Flat{θ2,N2,∂mode2},T2}}
+function promote(f1::F1, f2::F2) where {T1,θ1,N1,∂mode1,F1<:FlatField{<:Flat{N1,θ1,∂mode1},T1},T2,θ2,N2,∂mode2,F2<:FlatField{<:Flat{θ2,N2,∂mode2},T2}}
     B     = promote_type(basis(F1),basis(F2))
     ∂mode = promote_type(∂mode1,∂mode2)
     B(∂mode(f1)), B(∂mode(f2))
 end
-(::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,F<:FlatS0{<:Flat{N,θ}}} = basetype(F){Flat{N,θ,∂mode}}(fieldvalues(f)...)
+(::Type{∂mode})(f::F) where {∂mode<:∂modes,N,θ,D,F<:FlatS0{<:Flat{N,θ,<:Any,D}}} = basetype(F){Flat{N,θ,∂mode,D}}(fieldvalues(f)...)
 (::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
 
 ### basis-like definitions
@@ -40,6 +44,7 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,fourier∂}}}) = IQUFourier
 DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,map∂}}})      =    Map
 DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,map∂}}})      =  QUMap
 DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
+
 
 ### derivatives
 
@@ -57,7 +62,8 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
     basetype(M)(@. $fieldinfo(F).k'^2 + $fieldinfo(F).k[1:N÷2+1]^2)
 
 ## Map-space
-function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,F<:FlatMap{Flat{N,θ,map∂},T}}
+function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,D,F<:FlatMap{Flat{N,θ,map∂,D},T}}
+    D!=1 && error("Gradients of batched map∂ flat maps not implemented yet.")
     f = bc.args[2]
     n,m = size(f.Ix)
     α = 2 * prefactor * fieldinfo(f).Δx
@@ -93,13 +99,13 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
     
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il)))))
-logdet(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix)))))
-logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(nan2zero.(log.(unfold(L.diag.El)))) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl)))))
+logdet(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il))),dims=(1,2))))
+logdet(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix))),dims=(1,2))))
+logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.El))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl))),dims=(1,2))))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier})   = real(sum_kbn(unfold(L.diag.Il)))
-tr(L::Diagonal{<:Real,<:FlatMap})          = real(sum_kbn(complex(L.diag.Ix)))
-tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = real(sum_kbn(unfold(L.diag.El)) + sum_kbn(unfold(L.diag.Bl)))
+tr(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(unfold(L.diag.Il),dims=(1,2))))
+tr(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(complex(L.diag.Ix),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2))))
 
 
 ### misc

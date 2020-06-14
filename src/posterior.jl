@@ -107,7 +107,7 @@ function δlnP_δϕ(
 
     # generate simulated datasets for the current ϕ
     ds_sims = map(f_sims, n_sims) do f,n
-        resimulate(ds, f=f, ϕ=ϕ, n=n)
+        resimulate(ds, f=f, ϕ=ϕ, n=n).ds
     end
 
     W = (weights == :unlensed) ? 1 : (Cf̃ * pinv(Cf))

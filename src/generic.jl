@@ -166,8 +166,7 @@ function white_noise(Σ; rng=global_rng_for(Σ), seed=nothing)
     (seed != nothing) && Random.seed!(rng, seed)
     white_noise(rng, Σ)
 end
-global_rng_for(x::T) where {T} = global_rng_for(T)
-global_rng_for(::T) where {T<:Type} = error("`global_rng_for(::$T) not defined`.")
+global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
 global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 
@@ -230,8 +229,8 @@ show_vector(io::IO, f::ImplicitField) = print(io, "[…]")
 
 # addition/subtraction works between any fields and scalars, promotion is done
 # automatically if fields are in different bases
-for op in (:+,:-), (T1,T2) in ((:Field,:Scalar),(:Scalar,:Field),(:Field,:Field))
-    @eval ($op)(a::$T1, b::$T2) = broadcast($op,($T1==$T2 ? promote : tuple)(a,b)...)
+for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
 end
 
 ≈(a::Field, b::Field) = ≈(promote(a,b)...)
@@ -249,12 +248,20 @@ end
 
 # misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
-norm(f::Field) = sqrt(dot(f,f)) # dot is implemented to add the factor of Δx
+norm(f::Field) = sqrt(dot(f,f))
 
 
-invalid_broadcast_error(B1,B2) = 
-    error("""Can't broadcast fields in different bases. ($B1, $B2)
-    Try the same operation without broadcasting (which will do an automatic basis conversion).""")
+function invalid_broadcast_error(B1,F1,B2,F2)
+    if B1!=B2
+        error("""Can't broadcast across fields in $B1 and $B2 bases.
+        Try the same operation without broadcasting (which will do an automatic basis conversion).""")
+    else
+        error("""Broadcasting across fields with the following differing broadcast styles is not implemented:
+        * $F1
+        * $F2
+        """)
+    end
+end
 
 
 @init @require PyCall="438e738f-606a-5dbb-bf0a-cddfbfd45ab0" begin
