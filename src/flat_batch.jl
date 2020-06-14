@@ -91,7 +91,7 @@ end
 <(a::BatchedReal, b::Real) = all(a.vals .< b)
 sqrt(br::BatchedReal) = batch(sqrt.(br.vals))
 eltype(::BatchedVals{T}) where {T} = T
-broadcastable(::Type{<:FlatS0}, br::BatchedReal) = reshape(br.vals,1,1,length(br.vals))
+broadcastable(::Type{<:FlatS0{<:Flat,T}}, br::BatchedReal) where {T} = reshape(T.(br.vals),1,1,length(br.vals))
 one(br::BatchedReal) = batch(one.(br.vals))
 unbatch(br::BatchedVals) = br.vals
 unbatch(r::Real) = r
