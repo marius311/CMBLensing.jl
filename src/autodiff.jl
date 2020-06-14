@@ -95,6 +95,10 @@ end
 @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
 
 
+# functions with no gradient which Zygote would otherwise fail on
+
+@nograd fieldinfo
+
 
 # finite difference Hessian using Zygote gradients
 function hessian(f, xs::Vector; ε=1f-3)

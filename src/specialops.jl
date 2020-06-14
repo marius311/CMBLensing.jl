@@ -232,7 +232,7 @@ function ParamDependentOp(recompute_function::Function)
     # BinRescaledOp eval'ed function being too new
     ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, get_kwarg_names(recompute_function))
 end
-function (L::ParamDependentOp)(;θ...) 
+function (L::ParamDependentOp)(θ::NamedTuple) 
     if depends_on(L,θ)
         # filtering out non-dependent parameters disabled until I can find a fix to:
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
@@ -242,7 +242,7 @@ function (L::ParamDependentOp)(;θ...)
         L.op
     end 
 end
-(L::ParamDependentOp)(θ::NamedTuple) = L(;θ...)
+(L::ParamDependentOp)(;θ...) = L((;θ...))
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)

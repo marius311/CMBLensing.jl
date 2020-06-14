@@ -15,6 +15,13 @@ function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{D
     DS(_super=DS′(;kw′...); kw...)
 end
 
+copy(ds::DS) where {DS<:DataSet} = 
+    DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
+
+# needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
+Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
+
+
 # Stores variables needed to construct the posterior
 @kwdef mutable struct BaseDataSet <: DataSet{Nothing}
     d                # data
@@ -43,12 +50,13 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(;θ...) 
+function (ds::DataSet)(θ::NamedTuple) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
-        (v isa ParamDependentOp) ? v(;θ...) : v
+        (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v
     end...)
 end
+(ds::DataSet)(;θ...) = ds((;θ...))
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
@@ -62,15 +70,26 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 @doc doc"""
     resimulate(ds::DataSet; [f, ϕ, n])
     
-Make a new DataSet replacing the data with a simulation, potentially given a
+Make a new DataSet with the data replaced by a simulation, potentially given a
 fixed f, ϕ, or n, if any are provided. 
 
 Returns a named tuple of `(ds, f, ϕ, n, f̃)`
 """
-function resimulate(
-    ds::DataSet{F}; 
+resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
+
+@doc doc"""
+    resimulate!(ds::DataSet; [f, ϕ, n])
+    
+Replace the data in this DataSet in-place with a simulation, potentially given a
+fixed f, ϕ, or n, if any are provided. 
+    
+Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+"""
+function resimulate!(
+    ds::DataSet; 
     f=nothing, ϕ=nothing, n=nothing, 
-    rng=global_rng_for(F), seed=nothing) where {F}
+    rng=global_rng_for(ds.d), seed=nothing
+)
     
     if (ϕ == nothing)
         ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
@@ -84,25 +103,10 @@ function resimulate(
 
     @unpack M,P,B,L = ds
     f̃ = L(ϕ)*f
-    d = M*P*B*f̃ + n
-    ds = (@set ds.d = d)
+    ds.d = d = M*P*B*f̃ + n
     
     @namedtuple(ds,f,ϕ,n,f̃,d)
-end
-
-@doc doc"""
-    resimulate!(ds::DataSet; [f, ϕ, n])
     
-Replace the data in this DataSet in-place with a simulation, potentially given a
-fixed f, ϕ, or n, if any are provided. 
-    
-Returns a named tuple of `(ds, f, ϕ, n, f̃)`
-"""
-function resimulate!(ds::DataSet; kwargs...)
-    ds′ = ds
-    @unpack ds,f,ϕ,n,f̃ = resimulate(ds; kwargs...)
-    ds′.d = ds.d
-    @namedtuple(ds=ds′,f,ϕ,n,f̃,d)
 end
 
 
