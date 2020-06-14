@@ -38,7 +38,6 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray
 using Statistics
 using StatsBase
-using Strided: capturestridedargs, make_capture, _mapreduce_fuse!, promoteshape, maybestrided, StridedView
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint
 
@@ -49,8 +48,8 @@ import Base: +, -, *, \, /, ^, ~, ≈,
     copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
-    promote_rule, promote_type, propertynames, real, setindex!, show,
-    show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
+    promote_rule, promote_type, propertynames, real, setindex!, setproperty!,
+    show, show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
 import Base.Broadcast: instantiate, preprocess
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
@@ -62,7 +61,7 @@ import Statistics: std
 export
     @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
     argmaxf_lnP, BandPassOp, cache, CachedLenseFlow, camb, cov_to_Cℓ, Cℓ_2D,
-    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
+    Cℓ_to_Cov, BaseDataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap,
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix,
     FieldOrOpRowVector, FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector,
     FieldVector, Flat, FlatEB, FlatEBFourier, FlatEBMap, FlatFieldMap,

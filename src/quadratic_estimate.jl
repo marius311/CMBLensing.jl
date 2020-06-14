@@ -27,11 +27,11 @@ normalization (which is already applied to ϕqe, it does not need to be applied
 again), and `Nϕ` is the analytic N0 noise bias (Nϕ==AL if using unlensed
 weights, currently only Nϕ==AL is always returned, no matter the weights)
 """
-function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wiener_filtered=true, AL=nothing, weights=:unlensed) where {F1,F2}
+function quadratic_estimate((ds1,ds2)::NTuple{2,DataSet}, which; wiener_filtered=true, AL=nothing, weights=:unlensed) where {F1,F2}
     @assert weights in (:lensed, :unlensed) "weights should be :lensed or :unlensed"
     @assert (which in [:TT, :EE, :EB]) "which='$which' not implemented"
     @assert (ds1.Cf===ds2.Cf && ds1.Cf̃===ds2.Cf̃ && ds1.Cn̂===ds2.Cn̂ && ds1.Cϕ===ds2.Cϕ && ds1.B̂===ds2.B̂) "operators in `ds1` and `ds2` should be the same"
-    @assert spin(F1)==spin(F2)
+    @assert spin(ds1.d)==spin(ds2.d)
     check_hat_operators(ds1)
     @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds1()
     (quadratic_estimate_func, pol) = @match which begin
@@ -43,8 +43,7 @@ function quadratic_estimate((ds1,ds2)::Tuple{DataSet{F1},DataSet{F2}}, which; wi
     quadratic_estimate_func((ds1.d[pol], ds2.d[pol]), Cf[pol], Cf̃[pol], Cn̂[pol], Cϕ, (M̂*B̂)[pol], wiener_filtered, weights, AL)
 end
 quadratic_estimate(ds::DataSet, which; kwargs...) = quadratic_estimate((ds,ds), which; kwargs...)
-quadratic_estimate(ds::DataSet{<:FlatS0}; kwargs...) = quadratic_estimate(ds, :TT; kwargs...)
-quadratic_estimate(ds::DataSet{<:FlatS2}; kwargs...) = quadratic_estimate(ds, :EB; kwargs...) # somewhat arbitraritly make default P estimate be EB
+quadratic_estimate(ds::DataSet; kwargs...) = quadratic_estimate(ds, ds.d isa FlatS0 ? :TT : :EB; kwargs...) # somewhat arbitraritly make default P estimate be EB
 
 
 

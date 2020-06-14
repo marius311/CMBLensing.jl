@@ -147,7 +147,7 @@ Keyword arguments:
 * `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when computing the starting point.
 """
 function sample_joint(
-    ds :: DataSet{<:FlatField{P,T,M}};
+    ds :: DataSet,
     nsamps_per_chain,
     nchains = nworkers(),
     nchunk = 1,

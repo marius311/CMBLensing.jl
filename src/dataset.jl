@@ -1,7 +1,23 @@
 
+
+abstract type DataSet{DS} end
+
+getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} = 
+    hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
+setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
+    hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
+propertynames(ds::DS) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
+    union(fieldnames(DS), fieldnames(DS′))
+
+function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
+    kw  = filter((k,_)->  k in fieldnames(DS),  kwargs)
+    kw′ = filter((k,_)->!(k in fieldnames(DS)), kwargs)
+    DS(_super=DS′(;kw′...); kw...)
+end
+
 # Stores variables needed to construct the posterior
-@kwdef mutable struct DataSet{F}
-    d :: F           # data
+@kwdef mutable struct BaseDataSet <: DataSet{Nothing}
+    d                # data
     Cϕ               # ϕ covariance
     Cf               # unlensed field covariance
     Cf̃ = nothing     # lensed field covariance (not always needed)
@@ -17,8 +33,8 @@
     L  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for memory
 end
 
-function subblock(ds::DataSet, block)
-    DataSet(map(collect(pairs(fields(ds)))) do (k,v)
+function subblock(ds::DS, block) where {DS<:DataSet}
+    DS(map(collect(pairs(fields(ds)))) do (k,v)
         @match (k,v) begin
             ((:Cϕ || :G || :L), v)              => v
             (_, L::Union{Nothing,FuncOp,Real})  => L
@@ -27,8 +43,9 @@ function subblock(ds::DataSet, block)
     end...)
 end
 
-function (ds::DataSet)(;θ...)
-    DataSet(map(fieldvalues(ds)) do v
+function (ds::DataSet)(;θ...) 
+    DS = typeof(ds)
+    DS(map(fieldvalues(ds)) do v
         (v isa ParamDependentOp) ? v(;θ...) : v
     end...)
 end
@@ -39,7 +56,7 @@ function check_hat_operators(ds::DataSet)
             "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
 end
 
-adapt_structure(to, ds::DataSet) = DataSet(adapt(to, fieldvalues(ds))...)
+adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
     
 @doc doc"""
@@ -72,7 +89,7 @@ end
 @doc doc"""
     load_sim_dataset
     
-Create a `DataSet` object with some simulated data. E.g.
+Create a `BaseDataSet` object with some simulated data. E.g.
 
 ```julia
 @unpack f,ϕ,ds = load_sim_dataset(;
@@ -220,10 +237,10 @@ function load_sim_dataset(;
     if (Bf̃ == nothing); Bf̃ = B*f̃;          end
     if (d  == nothing); d  = M*P*Bf̃ + n;   end
     
-    # put everything in DataSet
-    ds = DataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
+    # put everything in BaseDataSet
+    ds = BaseDataSet(;@namedtuple(d, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
     
-    # with the DataSet created, we can now more conveniently call the quadratic
+    # with the BaseDataSet created, we can now more conveniently call the quadratic
     # estimate to compute Nϕ if needed for the G mixing matrix
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac

@@ -100,7 +100,7 @@ Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
 
 """
 function MAP_joint(
-    ds;
+    ds :: DataSet;
     ϕstart = nothing,
     Nϕ = nothing,
     quasi_sample = false, 
