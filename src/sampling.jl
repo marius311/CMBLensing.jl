@@ -262,7 +262,7 @@ function sample_joint(
     try
         
         if progress==:summary
-            Distributed.@spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
+            @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
         for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
