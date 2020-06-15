@@ -10,8 +10,8 @@ propertynames(ds::DS) where {DS′<:DataSet, DS<:DataSet{DS′}} =
     union(fieldnames(DS), fieldnames(DS′))
 
 function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
-    kw  = filter((k,_)->  k in fieldnames(DS),  kwargs)
-    kw′ = filter((k,_)->!(k in fieldnames(DS)), kwargs)
+    kw  = filter(((k,_),)->  k in fieldnames(DS),  kwargs)
+    kw′ = filter(((k,_),)->!(k in fieldnames(DS)), kwargs)
     DS(_super=DS′(;kw′...); kw...)
 end
 
