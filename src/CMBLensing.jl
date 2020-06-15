@@ -35,7 +35,7 @@ using Requires
 using Setfield
 using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
-    StaticMatrix, StaticVector, SVector, SArray
+    StaticMatrix, StaticVector, SVector, SArray, SizedArray
 using Statistics
 using StatsBase
 using UnPack

@@ -244,7 +244,7 @@ function load_sim_dataset(;
     Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
 
     # put everything in DataSet
-    ds = DataSet(;@namedtuple(d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
+    ds = BaseDataSet(;@namedtuple(d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
     
     # simulate data
     @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)

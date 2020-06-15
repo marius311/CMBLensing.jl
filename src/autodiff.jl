@@ -94,6 +94,9 @@ end
 
 @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
 
+# workaround for https://github.com/FluxML/Zygote.jl/issues/686
+Zygote._zero(xs::StaticArray, T) = SizedArray{Tuple{size(xs)...},Union{T,Nothing}}(map(_->nothing, xs))
+
 
 # functions with no gradient which Zygote would otherwise fail on
 
