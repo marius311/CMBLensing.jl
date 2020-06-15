@@ -428,3 +428,13 @@ function sum_kbn(A::Array{T,N}; dims=:) where {T,N}
         dropdims(mapslices(sum_kbn, A, dims=dims), dims=dims) :: Array{T,N-length(dims)}
     end
 end
+
+
+# courtesy of Takafumi Arakaki
+versionof(pkg::Module) = versionof(Base.PkgId(pkg))
+if isdefined(Pkg, :dependencies)
+    # can drop this branch once I drop support for 1.3
+    versionof(pkg::Base.PkgId) = Pkg.dependencies()[pkg.uuid].version
+else
+    versionof(pkg::Base.PkgId) = Pkg.installed()[pkg.name]
+end

@@ -9,7 +9,7 @@ Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potentia
 """
 mix(f, ϕ, ds::DataSet) = mix(f,ϕ,NamedTuple(),ds)
 function mix(f, ϕ, θ::NamedTuple, ds::DataSet)
-    @unpack D,G,L = ds(;θ...)
+    @unpack D,G,L = ds(θ)
     L(ϕ)*D*f, G*ϕ
 end
 
@@ -24,7 +24,7 @@ evaluated at parameters `θ` (or at fiducial values if no `θ` provided).
 """
 unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,NamedTuple(),ds)
 function unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
-    @unpack D,G,L = ds(;θ...)
+    @unpack D,G,L = ds(θ)
     ϕ = G\ϕ°
     D\(L(ϕ)\f°), ϕ
 end
@@ -52,16 +52,21 @@ needed to construct the posterior.
 lnP(t, fₜ, ϕₜ,                ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
 lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
 
+function signal_model(f, f̃, ϕ, θ, ds::DataSet)
+    @unpack M,B = ds
+    M(θ) * B(θ) * f̃
+end
+
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     
-    @unpack Cn,Cf,Cϕ,M,P,B,L,d = ds(;θ...)
+    @unpack Cn,Cf,Cϕ,L,d = ds
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
-    Δ = d - M*B*f̃ # took out P, todo: figure out why it was causing Zygote error
+    Δ = d - signal_model(f,f̃,ϕ,θ,ds)
     -1/2f0 * (
-        Δ'*pinv(Cn)*Δ + logdet(ds.Cn,θ) +
-        f'*pinv(Cf)*f + logdet(ds.Cf,θ) +
-        ϕ'*pinv(Cϕ)*ϕ + logdet(ds.Cϕ,θ)
+        Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
+        f'*pinv(Cf(θ))*f + logdet(Cf,θ) +
+        ϕ'*pinv(Cϕ(θ))*ϕ + logdet(Cϕ,θ)
     )
 
 end

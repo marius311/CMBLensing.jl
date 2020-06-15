@@ -71,6 +71,7 @@ similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} =
     Broadcasted{DefaultArrayStyle{_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0}, f::FlatS0) = firstfield(f)
+broadcastable(::Type{<:FlatS0{<:Flat,T}}, r::Real) where {T} = convert(T,r)
 broadcastable(::Any, x) = x
 @inline function Broadcast.copyto!(dest::FlatS0, bc::Broadcasted{Nothing})
     bc′ = preprocess(dest, bc)

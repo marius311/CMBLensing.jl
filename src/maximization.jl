@@ -19,18 +19,19 @@ Keyword arguments:
 * `kwargs...` — all other arguments are passed to [`conjugate_gradient`](@ref)
 
 """
-argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds();      kwargs...)
-argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), ds(;θ...); kwargs...)
+argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
-function argmaxf_lnP(Lϕ, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
+function argmaxf_lnP(Lϕ, θ::NamedTuple, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
     
     check_hat_operators(ds)
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds()
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
     D = batchsize(d)
     
+    Δ = d - signal_model(0,0,0,θ,ds)
     b = 0
     if (which in (:wf, :sample))
-        b += Lϕ'*B'*P'*M'*(Cn\d)
+        b += Lϕ'*B'*P'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
         b += Cf\simulate(batch(Cf,D)) + Lϕ'*B'*P'*M'*(Cn\simulate(batch(Cn,D)))
@@ -101,8 +102,10 @@ Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample)
 field, `ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
+MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
 function MAP_joint(
-    ds;
+    θ :: NamedTuple, 
+    ds :: DataSet;
     ϕstart = nothing,
     Nϕ = nothing,
     quasi_sample = false, 
@@ -122,6 +125,7 @@ function MAP_joint(
     
     # since MAP estimate is done at fixed θ, we don't need to reparametrize to
     # ϕ° = G(θ)*ϕ, so set G to constant here to avoid wasted computation
+    ds = copy(ds)
     ds.G = 1
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
@@ -158,6 +162,7 @@ function MAP_joint(
             # run wiener filter
             (f, hist) = argmaxf_lnP(
                 (i==1 && ϕstart==nothing) ? Identity : Lϕ, 
+                θ,
                 ds, 
                 which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                 guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point

@@ -149,7 +149,7 @@ Keyword arguments:
 * `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when computing the starting point.
 """
 function sample_joint(
-    ds :: DataSet{<:FlatField{P,T,M}};
+    ds :: DataSet;
     nsamps_per_chain,
     nchains = nworkers(),
     nchunk = 1,
@@ -172,8 +172,8 @@ function sample_joint(
     progress = false,
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
-    storage = basetype(M)
-    ) where {P,T,M}
+    storage = basetype(fieldinfo(ds.d).M)
+    )
     
     ds = cpu(ds)
     
@@ -262,7 +262,7 @@ function sample_joint(
     try
         
         if progress==:summary
-            Distributed.@spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
+            @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
         for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
@@ -271,7 +271,7 @@ function sample_joint(
                 
                 @unpack i,ϕ°,f,θ = state
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
-                dsθ = ds(;θ...)
+                dsθ = ds(θ)
                 ϕ = dsθ.G\ϕ°
                 pϕ°, ΔH, accept = nothing, nothing, nothing
                 L = ds.L
@@ -283,7 +283,7 @@ function sample_joint(
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
                         f = argmaxf_lnP(
-                            ϕ, dsθ;
+                            ϕ, θ, dsθ;
                             which=:sample, 
                             guess=f, 
                             preconditioner=preconditioner, 
@@ -324,13 +324,13 @@ function sample_joint(
                             else
                                 θ, lnPθ = gibbs_pass_θ(;(Base.@locals)...)
                             end
-                            dsθ = ds(;θ...)
+                            dsθ = ds(θ)
                         end
                     end
 
                     
                     # compute un-mixed maps
-                    f, ϕ = unmix(f°,ϕ°,θ,ds)
+                    f, ϕ = unmix(f°,ϕ°,θ,dsθ)
                     f̃ = L(ϕ)*f
 
                     
