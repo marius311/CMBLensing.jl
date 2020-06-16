@@ -343,7 +343,14 @@ function sample_joint(
                     push!(chain_chunk, cpu(state))
                     
                     if @isdefined pbar
-                        next!(pbar, showvalues = [("step",i), ("θ",θ), ("HMC", @namedtuple(ΔH,accept)), ("timing",timing)])
+                        string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
+                        next!(pbar, showvalues = [
+                            ("step",i), 
+                            tuple.(keys(θ), string_trunc.(values(θ)))..., 
+                            ("ΔH", string_trunc(ΔH)), 
+                            ("accept", string_trunc(accept)), 
+                            ("timing", timing)
+                        ])
                     end
 
                     
