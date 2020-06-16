@@ -100,8 +100,8 @@ EBMap(f::FlatEBFourier) = FlatEBMap(map(Map,f.fs))
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
-QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (tmap(Fourier,f′.fs,f.fs); f′)
-QUMap(f′::FlatQUMap, f::FlatQUFourier) = (tmap(Map,f′.fs,f.fs); f′)
+QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (map(Fourier,f′.fs,f.fs); f′)
+QUMap(f′::FlatQUMap, f::FlatQUFourier) = (map(Map,f′.fs,f.fs); f′)
 
 Map(f::FlatQUFourier) = QUMap(f)
 Map(f::FlatEBFourier) = EBMap(f)

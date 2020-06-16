@@ -8,7 +8,7 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.4.0
+    display_name: Julia 1.4.1
     language: julia
     name: julia-1.4
 ---
@@ -226,10 +226,13 @@ You are free to manipulate the fields inside of the function whose gradient is b
 gradient(ϕ -> -2lnP(1,f_wf,3ϕ,ds), 0ϕ)[1] ≈ -6 * gradient(ϕ -> lnP(1,f_wf,ϕ,ds), 0ϕ)[1]
 ```
 
+Automatic differentiation with respect to any and all arguments of `lnP` works, including the cosmological parameters:
+
+```julia
+gradient(Aϕ -> lnP(1,f_wf,ϕ,(Aϕ=Aϕ,),ds), 1)[1]
+```
+
 Currently Zygote is working with many (but not all) operations that you can do to fields. If you run into things which Zygote is not able to differentiate successfully (generally you'll get some error), please feel free to file an [Issue](https://github.com/marius311/CMBLensing.jl/issues) with CMBLensing.jl.
-
-
-Automatic differentiation is not yet working with respect to cosmological parameters, $\theta$, but is planned to be added.
 
 
 ## Marginal posterior

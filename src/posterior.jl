@@ -54,7 +54,7 @@ lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ, 
 
 function signal_model(f, f̃, ϕ, θ, ds::DataSet)
     @unpack M,B = ds
-    M(θ) * B(θ) * f̃
+    f̃ == 0 ? 0 : M(θ)*B(θ)*f̃
 end
 
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
