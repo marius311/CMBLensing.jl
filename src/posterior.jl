@@ -52,17 +52,15 @@ needed to construct the posterior.
 lnP(t, fₜ, ϕₜ,                ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
 lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
 
-function signal_model(f, f̃, ϕ, θ, ds::DataSet)
-    @unpack M,B = ds
-    f̃ == 0 ? 0 : M(θ)*B(θ)*f̃
-end
+
+nonCMB_data_components(θ, ds::DataSet) = 0
 
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     
-    @unpack Cn,Cf,Cϕ,L,d = ds
+    @unpack Cn,Cf,Cϕ,L,M,B,d = ds
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
-    Δ = d - signal_model(f,f̃,ϕ,θ,ds)
+    Δ = d - M(θ)*B(θ)*f̃ - nonCMB_data_components(θ, ds)
     -1/2f0 * (
         Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
         f'*pinv(Cf(θ))*f + logdet(Cf,θ) +

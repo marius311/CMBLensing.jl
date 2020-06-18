@@ -28,7 +28,7 @@ function argmaxf_lnP(Lϕ, θ::NamedTuple, ds::DataSet; which=:wf, guess=nothing,
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
     D = batchsize(d)
     
-    Δ = d - signal_model(0,0,0,θ,ds)
+    Δ = d - nonCMB_data_components(θ,ds)
     b = 0
     if (which in (:wf, :sample))
         b += Lϕ'*B'*P'*M'*(Cn\Δ)
