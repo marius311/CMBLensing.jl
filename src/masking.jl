@@ -38,22 +38,22 @@ end
 
 function bleed(img, w)
     Nx,Ny = size(img)
-    nearest = getfield.(@ondemand(Images.feature_transform)(img),:I)
+    nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(img),:I)
     [norm(nearest[i,j] .- [i,j]) < w for i=1:Nx,j=1:Ny]
 end
 
 function cos_apod(img, w, smooth_distance=false)
     Nside,Nside = size(img)
-    nearest = getfield.(@ondemand(Images.feature_transform)(.!img),:I)
+    nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(.!img),:I)
     distance = [norm(nearest[i,j] .- [i,j]) for i=1:Nside,j=1:Nside]
     if smooth_distance!=false
-        distance = @ondemand(Images.imfilter)(distance, @ondemand(Images.Kernel.gaussian)(smooth_distance))
+        distance = @ondemand(ImageFiltering.imfilter)(distance, @ondemand(ImageFiltering.Kernel.gaussian)(smooth_distance))
     end
     @. (1-cos(min(distance,w)/w*pi))/2
 end
 
 function round_edges(img, w)
-    .!(@ondemand(Images.imfilter)(img, @ondemand(Images.Kernel.gaussian)(w)) .< 0.5)
+    .!(@ondemand(ImageFiltering.imfilter)(img, @ondemand(ImageFiltering.Kernel.gaussian)(w)) .< 0.5)
 end
 
 function sim_ptsrcs(Nside,nsources)
