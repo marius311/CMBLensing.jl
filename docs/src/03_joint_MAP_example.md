@@ -65,7 +65,7 @@ T     = Float32  # data type (Float32 is ~2 as fast as Float64);
 With these defined, the following generates the simulated data and returns the true unlensed and lensed CMB fields, `f` and `f̃` ,and the true lensing potential, `ϕ`, as well as a number of other quantities stored in the "DataSet" object `ds`. 
 
 ```julia
-@unpack f, f̃, ϕ, ds = load_sim_dataset(
+@unpack f, f̃, ϕ, ds = load_sim(
     seed = 3,
     Cℓ = Cℓ,
     Cℓn = Cℓn,

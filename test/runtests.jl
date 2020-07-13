@@ -521,7 +521,7 @@ end
         
         @testset "pol = $pol" begin
             
-            @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(
+            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
                 seed  = 0,
                 Cℓ    = Cℓ,
                 θpix  = 3,

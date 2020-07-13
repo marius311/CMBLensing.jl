@@ -79,7 +79,7 @@ using CMBLensing
 Next, we simulate some data:
 
 ```julia
-@unpack f,ϕ = load_sim_dataset(
+@unpack f,ϕ = load_sim(
     θpix  = 2,
     Nside = 256,
     T     = Float32,
@@ -114,7 +114,7 @@ To do so, first import CMBLensing. into Python. In Julia, `using CMBLensing` imp
 from julia.CMBLensing import *
 ```
 
-If we want to call `load_sim_dataset` as before, we must take into account a few things:
+If we want to call `load_sim` as before, we must take into account a few things:
 
 * You won't be able to use the `@unpack` macro since macros on arbitrary code don't exist in Python.
 * `Float32` isn't imported into Python by default, so you'll need to specify the module. 
@@ -123,7 +123,7 @@ If we want to call `load_sim_dataset` as before, we must take into account a few
 Given all of that, the call will look like:
 
 ```python
-sim = load_sim_dataset(
+sim = load_sim(
     θpix  = 2, 
     Nside = 256, 
     T     = julia.Base.Float32, 

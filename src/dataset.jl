@@ -111,12 +111,13 @@ end
 
 
 @doc doc"""
-    load_sim_dataset
+    load_sim
     
-Create a `BaseDataSet` object with some simulated data. E.g.
+Create a `BaseDataSet` object with some simulated data, returing the DataSet
+and simulated truths. E.g.
 
 ```julia
-@unpack f,ϕ,ds = load_sim_dataset(;
+@unpack f,ϕ,ds = load_sim(;
     θpix  = 2,
     Nside = 128,
     pol   = :I,
@@ -125,7 +126,7 @@ Create a `BaseDataSet` object with some simulated data. E.g.
 ```
 
 """
-function load_sim_dataset(;
+function load_sim(;
     
     # basic configuration
     θpix,
@@ -282,3 +283,5 @@ function load_sim_dataset(;
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
 end
+
+@deprecate load_sim_dataset(args...; kwargs...) load_sim(args...; kwargs...)

@@ -90,10 +90,10 @@ CMBLensing uses the function `lnP` to compute the log of the joint posterior pro
 
 To evaluate this posterior, we need the arguments of the probability distribution, $f$, $\phi$, and $\theta$. We also need the data $d$ and host of other operators and covariances which enter the expressions above, which CMBLensing stores in a `DataSet` object.
 
-First lets load up some simulated data. The function `load_sim_dataset` handles constructing a `DataSet` and is the recommended way to create the various fields and covariances needed. In this case, let's use 1$\mu$K-arcmin noise and a border mask:
+First lets load up some simulated data. The function `load_sim` handles constructing a `DataSet` and is the recommended way to create the various fields and covariances needed. In this case, let's use 1$\mu$K-arcmin noise and a border mask:
 
 ```julia
-@unpack f, f̃, ϕ, ds, L = load_sim_dataset(
+@unpack f, f̃, ϕ, ds, L = load_sim(
     θpix      = 2,
     Nside     = 256,
     T         = Float64,
@@ -154,7 +154,7 @@ We expect minus twice the posterior evaluated at the truth to be distributed lik
 which the previous result is within a few sigma of.
 
 
-Above, we didn't specify any cosmological parameters, $\theta$. Because of that, they were fixed at their fiducial values (i.e. the fiducial values which generated the simulated data in the call to `load_sim_dataset` earlier). Current only two parameters can be varied, $r$ (tensor-to-scalar ratio), and $A_\phi$ (the amplitude of $C_\ell^{\phi \phi}$). They can be specified as follows, with non-specified parameters left at their fiducial:
+Above, we didn't specify any cosmological parameters, $\theta$. Because of that, they were fixed at their fiducial values (i.e. the fiducial values which generated the simulated data in the call to `load_sim` earlier). Current only two parameters can be varied, $r$ (tensor-to-scalar ratio), and $A_\phi$ (the amplitude of $C_\ell^{\phi \phi}$). They can be specified as follows, with non-specified parameters left at their fiducial:
 
 ```julia
 -2*lnP(0, f, ϕ, (Aϕ=1.1,), ds)

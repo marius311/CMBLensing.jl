@@ -73,7 +73,7 @@ export
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     Identity, IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
-    load_chains, load_sim_dataset, LowPass, make_mask, Map, MAP_joint, MAP_marg,
+    load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
     OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, S0, S02, S2, sample_joint, seed_for_storage!, shiftℓ,

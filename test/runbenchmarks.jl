@@ -106,7 +106,7 @@ timing = []
 
 for (s,pol) in [(0,:I),(2,:P)]
     
-    @unpack f,f̃,ϕ,ds,ds₀ = load_sim_dataset(θpix=3, Nside=N, T=T, pol=pol, storage=storage, Cℓ=Cℓ);
+    @unpack f,f̃,ϕ,ds,ds₀ = load_sim(θpix=3, Nside=N, T=T, pol=pol, storage=storage, Cℓ=Cℓ);
     f°,ϕ° = mix(f,ϕ,ds₀)
     Lϕ = cache(LenseFlow(ϕ),f)
     

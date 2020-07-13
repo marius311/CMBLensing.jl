@@ -22,7 +22,7 @@ using CMBLensing, PyPlot
 First we load a simulated unlensed field, $f$, and lensing potential, $\phi$,
 
 ```julia
-@unpack f,ϕ = load_sim_dataset(
+@unpack f,ϕ = load_sim(
     θpix  = 2,       # size of the pixels in arcmin
     Nside = 256,     # number of pixels per side in the map
     T     = Float32, # Float32 or Float64 (former is ~twice as fast)
