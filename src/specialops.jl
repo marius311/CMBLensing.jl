@@ -129,30 +129,6 @@ inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
 adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
 
 
-### IdentityOp
-
-struct IdentityOp <: ImplicitOp{Basis,Spin,Pix} 
-    IdentityOp(args...) = new()
-end
-(::IdentityOp)(args...) = Identity
-*(::IdentityOp, f::Field) = f
-*(f::Adjoint{<:Any,Field}, ::IdentityOp) = f
-\(::IdentityOp, f::Field) = f
-for op in (:adjoint, :pinv, :inv)
-    @eval ($op)(::IdentityOp) = Identity
-end
-cache(::IdentityOp, ::Field) = Identity
-cache!(::IdentityOp, ::Field) = Identity
-
-@doc doc"""
-`Identity` is an operator which can be used in place of any other operator in
-CMBLensing.jl, including being adjointed, evaluated at parameters, etc..., and
-it just does nothing.
-"""
-const Identity = IdentityOp()
-
-
-
 ### BandPassOp
 
 # An op which applies some bandpass, like a high or low-pass filter. This object

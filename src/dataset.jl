@@ -37,7 +37,7 @@ Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
     D  = 1           # mixing matrix for mixed parametrization
     G  = 1           # reparametrization for ϕ
     P  = 1           # pixelization operator (if estimating field on higher res than data)
-    L  = alloc_cache(LenseFlow(similar(diag(Cϕ))),d) # a CachedLenseFlow which will be reused for memory
+    L  = LenseFlow   # lensing operator, possibly cached for memory reuse
 end
 
 function subblock(ds::DS, block) where {DS<:DataSet}
@@ -60,8 +60,8 @@ end
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all([(L isa Scalar) || (basis(diag(L))==basis(diag(Cf))) || (Cf isa FlatIEBCov && L isa DiagOp{<:FlatIEBFourier}) for L in [B̂,M̂,Cn̂]]),
-            "B̂, M̂, Cn̂ should be scalars or the same type as Cf")
+    @assert(all([(L isa Scalar) || (basis(diag(L))==basis(diag(Cf))) for L in [B̂,M̂,Cn̂]]),
+            "B̂, M̂, Cn̂ are used for preconditioning and should be scalars or in the same basis as Cf")
 end
 
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
@@ -144,13 +144,13 @@ function load_sim_dataset(;
     
     # beam parameters, or set B directly
     beamFWHM = 0,
-    B = nothing,
+    B = nothing, B̂ = nothing,
     
     # mask parameters, or set M directly
     pixel_mask_kwargs = nothing,
     bandpass_mask = LowPass(3000),
     M = nothing, M̂ = nothing,
-    
+
     # theory
     Cℓ = nothing,
     fiducial_θ = NamedTuple(),
@@ -170,13 +170,13 @@ function load_sim_dataset(;
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
     # CMB Cℓs
-    if rfid != nothing
+    if (rfid != nothing)
         @warn "`rfid` will be removed in a future version. Use `fiducial_θ=(r=...,)` instead."
         fiducial_θ = merge(fiducial_θ,(r=rfid,))
     end
     Aϕ₀ = get(fiducial_θ, :Aϕ, 1)
     fiducial_θ = Base.structdiff(fiducial_θ, NamedTuple{(:Aϕ,)}) # remove Aϕ key if present
-    if Cℓ==nothing
+    if (Cℓ == nothing)
         Cℓ = camb(;fiducial_θ..., ℓmax=ℓmax)
     else
         if !isempty(fiducial_θ)
@@ -205,7 +205,7 @@ function load_sim_dataset(;
     Pix = Flat(Nside=Nside, θpix=θpix, ∂mode=∂mode)
     if (θpix_data == θpix)
         Pix_data = Pix
-        P = Identity
+        P = 1
     else
         Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
         P = FuncOp(
@@ -226,18 +226,31 @@ function load_sim_dataset(;
     
     # data mask
     if (M == nothing)
-        M̂ = M = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
+        Mfourier = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
         if (pixel_mask_kwargs != nothing)
-            M = M * adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+        else
+            Mpix = 1
+        end
+        M = Mfourier * Mpix
+        if (M̂ == nothing)
+            M̂ = Mfourier
+        end
+    else
+        if (M̂ == nothing)
+            M̂ = M
         end
     end
-    if diag(M̂) isa BandPass
+    if (M̂ isa DiagOp{<:BandPass})
         M̂ = Diagonal(M̂ * one(diag(Cf)))
     end
     
     # beam
     if (B == nothing)
-        B̂ = B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
+        B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
+    end
+    if (B̂ == nothing)
+        B̂ = B
     end
     
     # creating lensing operator cache

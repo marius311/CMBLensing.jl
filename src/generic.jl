@@ -132,6 +132,12 @@ const Scalar = Real
 const FieldOrOp = Union{Field,LinOp}
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
+# allows one to pass `1` to something which expect a LenseFlow-like operator
+(s::Scalar)(::Field) = s
+alloc_cache(x::Any, ::Any) = x
+cache(x::Any, ::Field) = x
+cache!(x::Any, ::Field) = x
+
 
 """
     logdet(L::LinOp, θ)

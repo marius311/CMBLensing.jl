@@ -161,7 +161,7 @@ function MAP_joint(
             
             # run wiener filter
             (f, hist) = argmaxf_lnP(
-                (i==1 && ϕstart==nothing) ? Identity : Lϕ, 
+                (i==1 && ϕstart==nothing) ? 1 : Lϕ, 
                 θ,
                 ds, 
                 which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
