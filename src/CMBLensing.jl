@@ -71,7 +71,7 @@ export
     FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0,
     FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, get_Cℓ,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
-    Identity, IdentityOp, IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
+    IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
