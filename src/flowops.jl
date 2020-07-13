@@ -8,9 +8,6 @@ function velocityᴴ end
 function negδvelocityᴴ end
 
 
-# if no custom caching is defined
-cache(L::FlowOp, f) = L
-cache(L::Adjoint{<:Any,<:FlowOp}, f) = cache(L',f)'
 
 # define integrations for L*f, L'*f, L\f, and L'\f
 *(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁)

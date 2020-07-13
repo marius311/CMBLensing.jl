@@ -132,12 +132,6 @@ const Scalar = Real
 const FieldOrOp = Union{Field,LinOp}
 const FieldOpScal = Union{Field,LinOp,Scalar}
 
-# allows one to pass `1` to something which expect a LenseFlow-like operator
-(s::Scalar)(::Field) = s
-alloc_cache(x::Any, ::Any) = x
-cache(x::Any, ::Field) = x
-cache!(x::Any, ::Field) = x
-
 
 """
     logdet(L::LinOp, θ)
@@ -206,6 +200,15 @@ global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 ### Other generic stuff
 
+# allows one to pass `1` to something which expect a LenseFlow-like operator
+(s::Scalar)(::Field) = s
+alloc_cache(x, ::Any) = x
+cache(x, ::Any) = x
+cache!(x, ::Any) = x
+
+# caching for adjoints
+cache(L::Adjoint, f) = cache(L',f)'
+cache!(L::Adjoint, f) = cache!(L',f)'
 
 # convenience "getter" functions for the Basis/Spin/Pix
 # basis of UnionAlls like basis(Field) will return Basis (which means any Basis)
