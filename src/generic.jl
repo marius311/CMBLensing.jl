@@ -251,6 +251,11 @@ for op in (:*, :/)
     @eval ($op)(a::Field{B,S,P}, b::Field{B,S,P}) where {B,S,P} = broadcast($op, a, b)
 end
 
+# needed unless I convince them to undo the changes here:
+# https://github.com/JuliaLang/julia/pull/35257#issuecomment-657901503
+if VERSION>v"1.4"
+    *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
+end
 
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
 (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)
