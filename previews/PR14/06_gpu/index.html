@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>GPU · CMBLensing.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/cmblensing.css" rel="stylesheet" type="text/css"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">CMBLensing.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">CMBLensing.jl</a></li><li><a class="tocitem" href="../01_lense_a_map/">Lensing a flat-sky map</a></li><li><a class="tocitem" href="../02_posterior/">The Lensing Posterior</a></li><li><a class="tocitem" href="../03_joint_MAP_example/">MAP estimation</a></li><li><a class="tocitem" href="../04_from_python/">Calling from Python</a></li><li><a class="tocitem" href="../05_field_basics/">Field Basics</a></li><li class="is-active"><a class="tocitem" href>GPU</a><ul class="internal"><li><a class="tocitem" href="#CuArrays-basics-1"><span>CuArrays basics</span></a></li><li><a class="tocitem" href="#CMBLensing-GPU-basics-1"><span>CMBLensing GPU basics</span></a></li><li><a class="tocitem" href="#Batching-1"><span>Batching</span></a></li><li><a class="tocitem" href="#Gotchas-1"><span>Gotchas</span></a></li></ul></li><li><a class="tocitem" href="../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"></nav><div class="docs-right"><a class="docs-right" href="https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/06_gpu.ipynb"><img src="https://mybinder.org/badge_logo.svg"/></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="GPU-1"><a class="docs-heading-anchor" href="#GPU-1">GPU</a><a class="docs-heading-anchor-permalink" href="#GPU-1" title="Permalink"></a></h1><p>CMBLensing uses <a href="https://github.com/JuliaGPU/CuArrays.jl">CuArrays</a> for GPU functionality. (Recently CuArrays was merged into CUDA.jl, which CMBLensing doesn&#39;t quite yet support but will in the near future).</p><p>To use CuArrays, you&#39;ll need an Nvidia GPU and a recent version of CUDA. On NERSC, all you need to do is load the modules <code>cudnn/7.6.5</code> and <code>cuda/10.2.89</code> (other versions may work but those have been tested), as well as adding <code>export JULIA_CUDA_USE_BINARYBUILDER=false</code> to your bashrc. </p><p>You could also leave <code>export JULIA_CUDA_USE_BINARYBUILDER=true</code> (the default) and then CuArrays installs CUDA for you. See the <a href="https://juliagpu.gitlab.io/CUDA.jl/installation/overview/">install instructions</a> for more info. </p><h2 id="CuArrays-basics-1"><a class="docs-heading-anchor" href="#CuArrays-basics-1">CuArrays basics</a><a class="docs-heading-anchor-permalink" href="#CuArrays-basics-1" title="Permalink"></a></h2><p>To start, load the packages. Note that due to some Julia intricasies, you must load CuArrays first:</p><pre class="language-julia"><code class="language-julia">using CuArrays, Adapt, CMBLensing, PyPlot</code></pre><p>To check everything loaded correctly:</p><pre class="language-julia"><code class="language-julia">CuArrays.CUDAdrv.device()</code></pre><pre class="language-output"><code class="language-output">CuDevice(0): Tesla V100-SXM2-16GB</code></pre><pre class="language-julia"><code class="language-julia">CuArrays.functional()</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>CuArrays provides an array type called <code>CuArray</code> which is an array that resides on GPU. You can convert <code>Array</code>s to <code>CuArray</code>s via the <code>adapt</code> function:</p><pre class="language-julia"><code class="language-julia">x_cpu = rand(128,128)
+x_gpu = adapt(CuArray, x_cpu)</code></pre><pre class="language-output"><code class="language-output">128×128 CuArray{Float32,2,Nothing}:
+ 0.172669   0.827971   0.387605   …  0.652508     0.90504   0.455166
+ 0.74733    0.73267    0.804355      0.630155     0.326082  0.743511
+ 0.728653   0.984469   0.851493      0.558356     0.772188  0.108683
+ 0.792187   0.264499   0.76828       0.843917     0.31154   0.589746
+ 0.351228   0.126724   0.02205       0.401552     0.889307  0.874588
+ 0.506937   0.487868   0.127608   …  0.584744     0.560663  0.536732
+ 0.188598   0.0636124  0.158555      0.667915     0.277774  0.00371584
+ 0.406429   0.415561   0.95399       0.815961     0.3852    0.29617
+ 0.401363   0.735779   0.92507       0.585847     0.431015  0.794522
+ 0.111077   0.669423   0.0400124     0.715992     0.244717  0.951816
+ 0.578413   0.0676057  0.403338   …  0.276774     0.723532  0.354253
+ 0.525196   0.104041   0.294175      0.496804     0.416553  0.806498
+ 0.974873   0.50393    0.476492      0.418962     0.423297  0.0241134
+ ⋮                                ⋱  ⋮                      
+ 0.933762   0.112325   0.949583      0.757303     0.937198  0.806565
+ 0.154949   0.971012   0.705548      0.000588519  0.220555  0.509362
+ 0.0106136  0.328799   0.500782      0.108833     0.390299  0.446223
+ 0.337059   0.226294   0.457173      0.60434      0.281125  0.00334858
+ 0.0352115  0.271046   0.41049    …  0.872721     0.197224  0.399696
+ 0.655419   0.347501   0.682047      0.134907     0.950923  0.477025
+ 0.210183   0.864099   0.692062      0.538548     0.827023  0.673641
+ 0.849672   0.914018   0.244135      0.765005     0.521852  0.0385996
+ 0.0904094  0.544999   0.358309      0.0827945    0.418629  0.418206
+ 0.518032   0.596961   0.059866   …  0.249136     0.280221  0.936673
+ 0.11081    0.772588   0.524163      0.837193     0.889723  0.978635
+ 0.17501    0.129802   0.294081      0.177963     0.957008  0.18074</code></pre><p>Any operations you now to do <code>x_gpu</code> are done on GPU and are super fast (although benchmarking can be <a href="https://juliagpu.gitlab.io/CUDA.jl/development/profiling/">subtle</a>):</p><pre class="language-julia"><code class="language-julia">2 * x_gpu + x_gpu # happened on GPU</code></pre><pre class="language-output"><code class="language-output">128×128 CuArray{Float32,2,Nothing}:
+ 0.518007   2.48391   1.16282    …  1.95752     2.71512   1.3655
+ 2.24199    2.19801   2.41306       1.89047     0.978245  2.23053
+ 2.18596    2.95341   2.55448       1.67507     2.31656   0.32605
+ 2.37656    0.793498  2.30484       2.53175     0.93462   1.76924
+ 1.05368    0.380173  0.0661499     1.20465     2.66792   2.62376
+ 1.52081    1.4636    0.382823   …  1.75423     1.68199   1.6102
+ 0.565793   0.190837  0.475664      2.00374     0.833323  0.0111475
+ 1.21929    1.24668   2.86197       2.44788     1.1556    0.888511
+ 1.20409    2.20734   2.77521       1.75754     1.29305   2.38356
+ 0.333231   2.00827   0.120037      2.14798     0.73415   2.85545
+ 1.73524    0.202817  1.21002    …  0.830322    2.17059   1.06276
+ 1.57559    0.312123  0.882526      1.49041     1.24966   2.41949
+ 2.92462    1.51179   1.42947       1.25689     1.26989   0.0723402
+ ⋮                               ⋱  ⋮                     
+ 2.80129    0.336974  2.84875       2.27191     2.81159   2.41969
+ 0.464848   2.91304   2.11664       0.00176556  0.661666  1.52809
+ 0.0318409  0.986396  1.50235       0.326499    1.1709    1.33867
+ 1.01118    0.678881  1.37152       1.81302     0.843374  0.0100457
+ 0.105635   0.813138  1.23147    …  2.61816     0.591671  1.19909
+ 1.96626    1.0425    2.04614       0.404722    2.85277   1.43107
+ 0.630549   2.5923    2.07618       1.61565     2.48107   2.02092
+ 2.54902    2.74205   0.732405      2.29502     1.56556   0.115799
+ 0.271228   1.635     1.07493       0.248384    1.25589   1.25462
+ 1.5541     1.79088   0.179598   …  0.747407    0.840663  2.81002
+ 0.33243    2.31776   1.57249       2.51158     2.66917   2.9359
+ 0.525031   0.389405  0.882243      0.533889    2.87103   0.542221</code></pre><p>Note also that <code>cu(x)</code> is shorthand for <code>adapt(CuArray{Float32}, x)</code>, and <code>cpu(x)</code> is shorthand for <code>adapt(Array, x)</code> which moves a GPU array back to CPU (generally there&#39;s not many situations where you need to explicitly do this). </p><h2 id="CMBLensing-GPU-basics-1"><a class="docs-heading-anchor" href="#CMBLensing-GPU-basics-1">CMBLensing GPU basics</a><a class="docs-heading-anchor-permalink" href="#CMBLensing-GPU-basics-1" title="Permalink"></a></h2><p>CMBLensing fields can be put on GPU in exactly the same way.</p><pre class="language-julia"><code class="language-julia">f_cpu = FlatMap(rand(128,128))
+f_gpu = cu(f_cpu)</code></pre><pre class="language-output"><code class="language-output">16384-element FlatMap{128×128 map, 1′ pixels, fourier∂, CuArray{Float32,2,Nothing}}:
+ 0.7703476
+ 0.006633871
+ 0.3438239
+ 0.7451291
+ 0.2950027
+ 0.80756456
+ 0.002060233
+ 0.31896764
+ 0.22725068
+ 0.39234957
+ 0.65416765
+ 0.81066245
+ 0.9071043
+ ⋮
+ 0.9307507
+ 0.9035404
+ 0.53104675
+ 0.9079801
+ 0.003371941
+ 0.9189804
+ 0.94266665
+ 0.15706731
+ 0.8566093
+ 0.9442542
+ 0.8154679
+ 0.42589155</code></pre><p>Everything you can do to a CPU Field object you can do to a GPU one. </p><pre class="language-julia"><code class="language-julia">f_gpu&#39; * (2 * Fourier(f_gpu))</code></pre><pre class="language-output"><code class="language-output">11041.401f0</code></pre><p><code>cu(x)</code> works recursively through most objects, for example through NamedTuples:</p><pre class="language-julia"><code class="language-julia">(x=f_cpu, y=f_cpu) |&gt; typeof</code></pre><pre class="language-output"><code class="language-output">NamedTuple{(:x, :y),Tuple{FlatMap{128×128 map, 1′ pixels, fourier∂, Array{Float64,2}},FlatMap{128×128 map, 1′ pixels, fourier∂, Array{Float64,2}}}}</code></pre><pre class="language-julia"><code class="language-julia">cu((x=f_cpu, y=f_cpu)) |&gt; typeof</code></pre><pre class="language-output"><code class="language-output">NamedTuple{(:x, :y),Tuple{FlatMap{128×128 map, 1′ pixels, fourier∂, CuArray{Float32,2,Nothing}},FlatMap{128×128 map, 1′ pixels, fourier∂, CuArray{Float32,2,Nothing}}}}</code></pre><p>You can move an entire <code>DataSet</code> to GPU too with <code>cu(ds)</code>, which recursively moves all the fields and operators inside this object to GPU:</p><pre class="language-julia"><code class="language-julia">@unpack ds, ϕ = load_sim(Nside=256, θpix=3, pol=:P);</code></pre><pre class="language-julia"><code class="language-julia">ds.d |&gt; typeof</code></pre><pre class="language-output"><code class="language-output">FlatEBFourier{256×256 map, 3′ pixels, fourier∂, Array{Complex{Float32},2}}</code></pre><pre class="language-julia"><code class="language-julia">cu(ds).d |&gt; typeof</code></pre><pre class="language-output"><code class="language-output">FlatEBFourier{256×256 map, 3′ pixels, fourier∂, CuArray{Complex{Float32},2,Nothing}}</code></pre><p>Note that on NERSC, the <code>load_sim</code> command above is really slow because the GPU nodes only give you a few CPU cores per GPU (rathre than the 64 cores you get on a CPU compute node). You can also generate the <code>DataSet</code> directly on GPU, which is much faster:</p><pre class="language-julia"><code class="language-julia">@unpack ds, ϕ = load_sim(Nside=256, θpix=3, pol=:P, storage=CuArray);</code></pre><p>Once you have the <code>DataSet</code> object on GPU, all the normal high-level operations work on it, e.g.:</p><pre class="language-julia"><code class="language-julia">fJ,ϕJ = MAP_joint(ds, nsteps=10, progress=true);</code></pre><pre class="language-output"><code class="language-output">[32mMAP_joint: 100%|████████████████████████████████████████| Time: 0:00:06[39m
+[34m  step:  10[39m
+[34m  χ²:    132191.39[39m
+[34m  Ncg:   3[39m
+[34m  α:     0.044366088[39m</code></pre><pre class="language-julia"><code class="language-julia">plot([ϕ ϕJ])</code></pre><p><img src="../06_gpu_files/06_gpu_29_0.png" alt="png"/></p><h2 id="Batching-1"><a class="docs-heading-anchor" href="#Batching-1">Batching</a><a class="docs-heading-anchor-permalink" href="#Batching-1" title="Permalink"></a></h2><p>Just moving a <code>DataSet</code> to GPU will give you factors of about 2 - 10 speeds over CPU for <code>Nside</code> of 128 - 1024. You can go even faster by &quot;batching,&quot; which means doing the same operations to multiple fields at once, i.e. in &quot;batches&quot;. The trick is that for the full speedup, this parallelization has to happen on the inner-most-loop so that the GPU basically goes through the data all at once with a single GPU kernel. You do this by putting multiple fields into single &quot;batched fields&quot;. </p><p>Suppose you had 10 fields on GPU that you want to lense:</p><pre class="language-julia"><code class="language-julia">fs = [simulate(ds.Cf) for i=1:10]
+ϕs = [simulate(ds.Cϕ) for i=1:10];</code></pre><p>You could do the following, and it might still be a little faster than doing it sequentially:</p><pre class="language-julia"><code class="language-julia">f̃s = [LenseFlow(ϕ)*f for (f,ϕ) in zip(fs,ϕs)];</code></pre><p>But the <em>really</em> fast way to do it is pack those 10 fields into a batched field (note the indication these are batched in the printed type information):</p><pre class="language-julia"><code class="language-julia">f_batch = batch(fs)</code></pre><pre class="language-output"><code class="language-output">65536(×10)-element FlatEBFourier{256×256(×10) map, 3′ pixels, fourier∂, CuArray{Complex{Float32},3,Nothing}}:
+         0.0f0 + 0.0f0im
+   2067.3645f0 + 399.77438f0im
+  -2287.3489f0 + 61.209045f0im
+  -1842.4508f0 - 1402.0479f0im
+  -179.26314f0 + 5688.655f0im
+  -2507.1204f0 - 6289.249f0im
+   -2534.921f0 - 2604.5217f0im
+   1377.6554f0 + 2449.9495f0im
+  -1669.2716f0 + 4222.159f0im
+  -5429.2827f0 - 3590.9233f0im
+   3358.9407f0 + 3246.1667f0im
+   392.65005f0 - 934.55023f0im
+  -1447.2839f0 + 5346.973f0im
+               ⋮
+  0.47957772f0 - 0.02278672f0im
+ 0.023363959f0 - 0.22786018f0im
+  -0.3964136f0 - 0.09403831f0im
+  0.10330974f0 - 0.028876595f0im
+ -0.03227594f0 + 0.21710716f0im
+  0.16192076f0 - 0.04576766f0im
+  0.10407528f0 + 0.07237351f0im
+  0.05083293f0 - 0.35345325f0im
+ 0.101648785f0 - 0.12514368f0im
+ -0.04007726f0 - 0.06135367f0im
+ -0.07751867f0 - 0.67276037f0im
+ -0.07812396f0 + 0.14952393f0im</code></pre><pre class="language-julia"><code class="language-julia">ϕ_batch = batch(ϕs)</code></pre><pre class="language-output"><code class="language-output">65536(×10)-element FlatFourier{256×256(×10) map, 3′ pixels, fourier∂, CuArray{Complex{Float32},3,Nothing}}:
+          -0.0f0 + 0.0f0im
+   -0.07079744f0 + 0.18514323f0im
+    0.03290303f0 + 0.0133099845f0im
+   0.055003528f0 - 0.010883388f0im
+   0.013071878f0 - 0.013901264f0im
+  0.0026314836f0 + 0.009495603f0im
+   -0.01535961f0 - 0.0039537353f0im
+ -0.0028406451f0 + 0.008155016f0im
+  -0.001929042f0 - 0.0010767351f0im
+ -0.0024420973f0 - 0.0018367962f0im
+ -0.0011192076f0 + 0.002002884f0im
+ 0.00020532266f0 - 0.0008051438f0im
+     8.774912f-5 + 0.00035183338f0im
+                 ⋮
+   -9.2856413f-7 - 1.313165f-6im
+    2.0182463f-7 + 3.746073f-7im
+   -5.4367683f-7 - 1.739188f-7im
+    1.3828416f-7 - 5.1108645f-7im
+    1.4031918f-6 - 1.4046443f-6im
+    -1.070646f-6 - 4.3022308f-7im
+   -8.3058893f-7 + 4.4700573f-7im
+   -1.1472754f-6 + 1.0367636f-6im
+    2.5662965f-7 + 1.7411496f-7im
+    1.9959869f-7 - 1.2536533f-6im
+    -2.902696f-7 - 1.3798117f-7im
+     4.514513f-7 - 8.350644f-7im</code></pre><p>And then run the lensing operation once, which will lense each of the 10 <code>f</code>s by the corresponding <code>ϕ</code>. </p><pre class="language-julia"><code class="language-julia">f̃_batch = LenseFlow(ϕ_batch) * f_batch</code></pre><pre class="language-output"><code class="language-output">65536(×10)-element FlatQUMap{256×256(×10) map, 3′ pixels, fourier∂, CuArray{Float32,3,Nothing}}:
+  2.1484423
+  0.76446104
+ -4.805173
+ -5.590993
+ -1.6229104
+ -2.71861
+ -4.7061634
+ -2.4944959
+  0.28382298
+  1.0812734
+ -3.2973764
+ -4.6749506
+ -3.0414338
+  ⋮
+  2.4021819
+  6.0399837
+  6.6011925
+  5.1880527
+  3.5844803
+  0.2498419
+ -5.5041223
+ -8.682015
+ -6.0994425
+ -0.7920846
+ -0.6332435
+ -2.956285</code></pre><p>For the problem size of <code>Nside=256</code>, doing this batch of 10 lenses is almost no slower than doing a single one. </p><p>You can get the individual fields out of the batched result with <code>batchindex</code>, e.g. the first 2 (out of 10) lensed B fields:</p><pre class="language-julia"><code class="language-julia">plot([batchindex(f̃_batch,1) batchindex(f̃_batch, 2)], which=:Bx)</code></pre><p><img src="../06_gpu_files/06_gpu_42_0.png" alt="png"/></p><p>Normal broadcasting rules apply between batched and non-batched fields, so e.g.:</p><pre class="language-julia"><code class="language-julia">LenseFlow(ϕ) * f_batch</code></pre><pre class="language-output"><code class="language-output">65536(×10)-element FlatQUMap{256×256(×10) map, 3′ pixels, fourier∂, CuArray{Float32,3,Nothing}}:
+  1.9503771
+ -2.0569198
+ -6.6519375
+ -4.061547
+ -1.4537228
+ -4.24501
+ -3.3556654
+ -1.0300479
+  1.450831
+ -1.5256855
+ -4.8957267
+ -3.5637655
+ -3.0332656
+  ⋮
+  1.7997956
+  4.600568
+  6.7012835
+  5.675175
+  4.0865774
+  1.3602138
+ -3.764947
+ -8.091507
+ -7.967715
+ -3.761505
+  0.07485718
+ -1.4602507</code></pre><p>works and lenses the 10 different fields in <code>f_batch</code> by the <em>same</em> (non-batched) <code>ϕ</code>.</p><p>Most of CMBLensing works with batched fields just like with normal fields. This includes things like <code>lnP</code>, <code>conjugate_gradient</code> or <code>sample_joint</code>, although <code>MAP_joint</code> and <code>MAP_marg</code> only work with non-batched fields (but will be fixed in the future).</p><h2 id="Gotchas-1"><a class="docs-heading-anchor" href="#Gotchas-1">Gotchas</a><a class="docs-heading-anchor-permalink" href="#Gotchas-1" title="Permalink"></a></h2><p>Not much, hopefully. If something that works on CPU doesn&#39;t work on GPU, please file an Issue.</p><p>One thing to keep in mind is that CPU and GPU use different random number generators, so seeds will not correspond.</p><pre class="language-julia"><code class="language-julia">plot([simulate(cpu(ds.Cϕ), seed=0) simulate( cu(ds.Cϕ), seed=0)])</code></pre><p><img src="../06_gpu_files/06_gpu_50_0.png" alt="png"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../05_field_basics/">« Field Basics</a><a class="docs-footer-nextpage" href="../api/">API »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Saturday 18 July 2020 23:21">Saturday 18 July 2020</span>. Using Julia version 1.4.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
