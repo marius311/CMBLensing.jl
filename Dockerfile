@@ -118,6 +118,8 @@ RUN jupytext --to notebook *.md \
 COPY --chown=1000 docs/make.jl docs/index.html docs/documenter.tpl $HOME/CMBLensing/docs/
 COPY --chown=1000 docs/src-staging $HOME/CMBLensing/docs/src-staging
 COPY --chown=1000 README.md $HOME/CMBLensing/
+# shortens array output in Julia notebooks
+ENV LINES=10
 
 ## set up Jupyterlab
 ENV PORT 8888
