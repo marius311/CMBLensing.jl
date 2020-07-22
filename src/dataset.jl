@@ -50,13 +50,13 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(θ::NamedTuple) 
+function (ds::DataSet)(θ::NamedTuple...)
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
-        (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v
+        (v isa Union{ParamDependentOp,DataSet}) ? v(θ...) : v
     end...)
 end
-(ds::DataSet)(;θ...) = ds((;θ...))
+# (ds::DataSet)(;θ...) = ds((;θ...))
 
 function check_hat_operators(ds::DataSet)
     @unpack B̂, M̂, Cn̂, Cf = ds()
@@ -222,8 +222,8 @@ function load_sim(;
     Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
     Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
-    Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
+    Cf = ParamDependentOp((θ=(r=r₀,))   -> (Cfs + T(θ.r/r₀)*Cft))
+    Cϕ = ParamDependentOp((θ=(Aϕ=Aϕ₀,)) -> T(θ.Aϕ) * Cϕ₀)
     
     # data mask
     if (M == nothing)
@@ -268,13 +268,13 @@ function load_sim(;
     if (G == nothing)
         Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
         G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
-        ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
+        ds.G = ParamDependentOp((θ=(Aϕ=Aϕ₀,)) -> (pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(θ)))))
     end
     if (D == nothing)
         σ²len = T(deg2rad(5/60)^2)
         ds.D = ParamDependentOp(
-            function (;r=r₀, _...)
-                Cfr = Cf(;r=r)
+            function (θ=(r=r₀,))
+                Cfr = Cf(θ)
                 sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
             end,
         )

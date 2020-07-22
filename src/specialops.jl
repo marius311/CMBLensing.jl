@@ -206,28 +206,16 @@ function ParamDependentOp(recompute_function::Function)
     # BinRescaledOp (eg this is the case for the mixing matrix G which depends
     # on Cϕ) from inside function. this would otherwise fail due to
     # BinRescaledOp eval'ed function being too new
-    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, get_kwarg_names(recompute_function))
+    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, Symbol[])
 end
-function (L::ParamDependentOp)(θ::NamedTuple) 
-    if depends_on(L,θ)
-        # filtering out non-dependent parameters disabled until I can find a fix to:
-        # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
-        # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-        L.recompute_function(;θ...)
-    else
-        L.op
-    end 
-end
-(L::ParamDependentOp)(;θ...) = L((;θ...))
+(L::ParamDependentOp)(θ::NamedTuple...) = L.recompute_function(θ...)
+# (L::ParamDependentOp)(;θ...) = L((;θ...))
 *(L::ParamDependentOp, f::Field) = L.op * f
 \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
-depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
-depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
-depends_on(L,                   θ) = false
 
 adapt_structure(to, L::ParamDependentOp) = 
     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)

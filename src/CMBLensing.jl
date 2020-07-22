@@ -126,7 +126,8 @@ include("quadratic_estimate.jl")
 # curved-sky
 include("healpix.jl")
 
-include("autodiff.jl")
+include("autodiff_reverse.jl")
+include("autodiff_forward.jl")
 
 # gpu
 is_gpu_backed(x) = false

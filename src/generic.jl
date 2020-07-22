@@ -7,6 +7,9 @@ abstract type Basis end
 # All fields are a subtype of this. 
 abstract type Field{B<:Basis, S<:Spin, P<:Pix, T} <: AbstractVector{T} end
 
+# Adjoint fields use Julia's Adjoint wrapper
+const AdjField{F<:Field,T} = Adjoint{T,F}
+
 # Spin types, "S0" is spin-0, i.e. a scalar map. "S2" is spin-2 like QU, and S02
 # is a tuple of S0 and S2 like TQU. 
 abstract type S0 <: Spin end
@@ -139,7 +142,7 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 If L depends on θ, evaluates `logdet(L(θ))` offset by its fiducial value at
 `L()`. Otherwise, returns 0.
 """
-logdet(L::LinOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
+logdet(L::ParamDependentOp, θ) = logdet(L()\L(θ))
 logdet(L::Int, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
 logdet(L, θ) = logdet(L)
 
