@@ -97,6 +97,7 @@ unbatch(br::BatchedVals) = br.vals
 unbatch(r::Real) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
+convert(::Type{<:BatchedVals{T,N}}, v::Bool) where {T,N} = batch(T(v),N)
 
 
 
