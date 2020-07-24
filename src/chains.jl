@@ -38,7 +38,7 @@ indexing properties for convenience:
 
 
 """
-function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true)
+function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropmaps=false)
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = [k for k in ks if startswith(k,"chunks_")]
@@ -47,6 +47,9 @@ function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true)
                 chains = read(io,k)
             else
                 append!.(chains, read(io,k))
+            end
+            if dropmaps
+                map!(chain -> filter!.(((_,v),)->!(v isa Field), chain), chains, chains)
             end
         end
         chains
@@ -72,6 +75,7 @@ end
 struct Chains{T} <: AbstractVector{T}
     chains :: Vector{T}
 end
+Chains(chains::Chains) = chains
 getindex(c::Chains, k::Symbol, ks...) = _getindex(c.chains, :, :, k, ks...)
 getindex(c::Chains, k,         ks...) = _getindex(c.chains, k, ks...)
 size(c::Chains) = size(c.chains)
@@ -102,7 +106,7 @@ lastindex(c::Chain, d) = d==1 ? lastindex(c.chain) : error("`end` only valid in 
 size(c::Chain) = size(c.chain)
 function Base.print_array(io::IO, c::Chain; indent="  ")
     _,cols = displaysize(io)
-    for k in keys(c[1])
+    for k in keys(c[end])
         str = string("$(indent)$(k) => ", repr(c[k]; context=(:limit => true)))
         println(io, Base._truncate_at_width_or_chars(str, cols))
     end
@@ -128,7 +132,7 @@ wrap_chains(chain::Vector{<:Dict}) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
-    D = batchsize(chain[1][:ϕ°])
+    D = batchsize(chain[end][:lnP])
     (D==1) && return chain
     Chains(map(1:D) do I
         Chain(map(chain) do samp
@@ -137,6 +141,8 @@ function unbatch(chain::Chain)
                     k => batchindex(v, I)
                 elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:BatchedVals}}
                     k => map(x -> (x isa BatchedVals ? batchindex(x,I) : x), v)
+                elseif v isa AbstractArray{<:BatchedVals}
+                    k => batchindex.(v, I)
                 else
                     k => v
                 end

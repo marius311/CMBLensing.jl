@@ -162,11 +162,12 @@ function load_sim(;
     D = nothing,
     G = nothing,
     Nϕ_fac = 2,
-    ϕ=nothing, f=nothing, f̃=nothing, Bf̃=nothing, n=nothing, d=nothing, # can override any of these simulated fields
     L = LenseFlow,
     ∂mode = fourier∂
-    )
+
+)
     
+
     # the biggest ℓ on the 2D fourier grid
     ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
     
