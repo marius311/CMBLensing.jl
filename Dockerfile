@@ -109,7 +109,8 @@ WORKDIR $HOME/CMBLensing/docs/src
 ARG RUNDOCS=1
 RUN jupytext --to notebook *.md \
     && rm *.md \
-    && test $RUNDOCS = 0 || for f in $(ls *.ipynb); do \
+    && find . -not -name "*gpu*" -name "*.ipynb" \
+    && test $RUNDOCS = 0 || for f in $(find . -not -name "*gpu*" -name "*.ipynb"); do \
         jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 $f || ! break; \
     done
 
@@ -117,6 +118,8 @@ RUN jupytext --to notebook *.md \
 COPY --chown=1000 docs/make.jl docs/index.html docs/documenter.tpl $HOME/CMBLensing/docs/
 COPY --chown=1000 docs/src-staging $HOME/CMBLensing/docs/src-staging
 COPY --chown=1000 README.md $HOME/CMBLensing/
+# shortens array output in Julia notebooks
+ENV LINES=10
 
 ## set up Jupyterlab
 ENV PORT 8888
