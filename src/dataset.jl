@@ -87,22 +87,27 @@ Returns a named tuple of `(ds, f, ϕ, n, f̃)`
 """
 function resimulate!(
     ds::DataSet; 
-    f=nothing, ϕ=nothing, n=nothing, 
+    f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
     rng=global_rng_for(ds.d), seed=nothing
 )
+
+    @unpack M,P,B,L = ds
     
-    if (ϕ == nothing)
-        ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
-    end
-    if (f == nothing)
-        f = simulate(ds.Cf, rng=rng, seed=(seed==nothing ? nothing : seed+1))
+    if (f̃ == nothing)
+        if (ϕ == nothing)
+            ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
+        end
+        if (f == nothing)
+            f = simulate(ds.Cf, rng=rng, seed=(seed==nothing ? nothing : seed+1))
+        end
+        f̃ = L(ϕ)*f
+    else
+        f = ϕ = nothing
     end
     if (n == nothing)
         n = simulate(ds.Cn, rng=rng, seed=(seed==nothing ? nothing : seed+2))
     end
 
-    @unpack M,P,B,L = ds
-    f̃ = L(ϕ)*f
     ds.d = d = M*P*B*f̃ + n
     
     @namedtuple(ds,f,ϕ,n,f̃,d)
