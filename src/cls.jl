@@ -228,6 +228,9 @@ function load_camb_Cℓs(;
     lensed_scalar = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in lensed_scalar)...)
 
     if custom_tensor_params != nothing
+        if ℓmax != nothing
+            custom_tensor_params = merge(custom_tensor_params, (ℓmax=ℓmax,))
+        end
         tensor = camb(;custom_tensor_params...).tensor
     else
         tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(unlensed_tensor_filename,skipstart=1)[2:end,1:5])))
