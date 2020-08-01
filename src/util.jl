@@ -342,7 +342,7 @@ module.
 """
 function safe_pyimport(s)
     try
-        pyimport(s)
+        @ondemand(PyCall.pyimport)(s)
     catch err
         FailedPyimport(err)
     end
