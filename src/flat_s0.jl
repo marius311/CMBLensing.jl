@@ -130,8 +130,10 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     @unpack Nside,Δx,kmag = fieldinfo(f)
     α = (Nside/Δx)^2
 
-    L = Float64.(kmag[:])
-    CLobs = real.(dot.(unfold(Float64(f)[:Il]),unfold(Float64(f2)[:Il])))[:] ./ α
+    # faster to excise unused parts:
+    kmask = (kmag .> minimum(ℓedges)) .&  (kmag .< maximum(ℓedges)) 
+    L = Float64.(kmag[kmask])
+    CLobs = real.(dot.(unfold(Float64(f)[:Il])[kmask],unfold(Float64(f2)[:Il])[kmask])) ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
@@ -205,9 +207,9 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
             fnew = FlatMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
             deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
         else
-            fnew = FlatFourier{P}(zeros(Nnew÷2+1,Nnew))
-            broadcast_setindex!(fnew.Il, f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]');
-            fnew
+            fnew = FlatFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
+            setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
+            deconv_pixwin ? fnew * fac^2 : fnew
         end
     end
 end

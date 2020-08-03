@@ -12,6 +12,8 @@ const FlatEB{P,T,M}=Union{FlatEBMap{P,T,M},FlatEBFourier{P,T,M}}
 const FlatS2Map{P,T,M}=Union{FlatQUMap{P,T,M},FlatEBMap{P,T,M}}
 const FlatS2Fourier{P,T,M}=Union{FlatQUFourier{P,T,M},FlatEBFourier{P,T,M}}
 
+spin(::Type{<:FlatS2}) = S2
+
 ### convenience constructors
 for (F,F0,(X,Y),T) in [
         (:FlatQUMap,     :FlatMap,     (:Qx,:Ux), :T),

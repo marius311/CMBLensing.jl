@@ -342,7 +342,7 @@ module.
 """
 function safe_pyimport(s)
     try
-        pyimport(s)
+        @ondemand(PyCall.pyimport)(s)
     catch err
         FailedPyimport(err)
     end
@@ -438,3 +438,8 @@ if isdefined(Pkg, :dependencies)
 else
     versionof(pkg::Base.PkgId) = Pkg.installed()[pkg.name]
 end
+
+
+# for mixed eltype, which Loess stupidly does not support
+Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
+    loess(collect.(zip(promote.(x,y)...))...; kwargs...)

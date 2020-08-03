@@ -172,6 +172,7 @@ function sample_joint(
     progress = false,
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
+    postprocess = nothing,
     storage = basetype(fieldinfo(ds.d).M)
     )
     
@@ -265,7 +266,7 @@ function sample_joint(
             @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
-        for chunks_index = (chunks_index+1):(chunks_index+nsamps_per_chain÷nchunk)
+        for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk)
             
             last_chunks = pmap(last.(last_chunks)) do state
                 
@@ -279,7 +280,7 @@ function sample_joint(
                 chain_chunk = []
                 
                 for (i, savemaps) in zip( (i+1):(i+nchunk), cycle([fill(false,nsavemaps-1); true]) )
-                    
+
                     # ==== gibbs P(f°|ϕ°,θ) ====
                     t_f = @elapsed begin
                         f = argmaxf_lnP(
@@ -339,6 +340,9 @@ function sample_joint(
                     state = @dict i θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) timing
                     if savemaps
                         merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
+                    end
+                    if postprocess != nothing
+                        merge!(state, postprocess(;(Base.@locals)...))
                     end
                     push!(chain_chunk, cpu(state))
                     

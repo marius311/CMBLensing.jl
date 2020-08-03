@@ -147,6 +147,7 @@ makedocs(
         "03_joint_MAP_example.md",
         "04_from_python.md",
         "05_field_basics.md",
+        "06_gpu.md",
         "api.md"
     ],
 )
