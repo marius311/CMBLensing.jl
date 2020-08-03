@@ -107,7 +107,7 @@ function MAP_joint(
     θ :: NamedTuple, 
     ds :: DataSet;
     ϕstart = nothing,
-    Nϕ = nothing,
+    Nϕ = :qe,
     quasi_sample = false, 
     nsteps = 10, 
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
@@ -117,7 +117,7 @@ function MAP_joint(
     cache_function = nothing,
     callback = nothing,
     interruptable::Bool = false,
-    progress::Bool = false)
+    progress::Bool = true)
     
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
@@ -211,18 +211,23 @@ Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
 """
+MAP_marg(ds::DataSet; kwargs...) = MAP_marg(NamedTuple(), ds; kwargs...)
 function MAP_marg(
-    ds;
+    θ,
+    ds :: DataSet;
     ϕstart = nothing,
-    Nϕ = nothing,
+    Nϕ = :qe,
     nsteps = 10, 
+    nsteps_with_meanfield_update = 4,
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
     α = 0.2,
     weights = :unlensed, 
     Nsims = 50,
-    progress = :summary,
-    )
+    Nbatch = 1,
+    progress::Bool = true,
+)
     
+    ds = (@set ds.G = 1)
     @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
     T = eltype(Cf)
     
@@ -233,17 +238,25 @@ function MAP_marg(
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     tr = []
-
     state = nothing
+    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     
-    @showprogress (progress==:summary ? 1 : Inf) "MAP_marg: " for i=1:nsteps
-        g = δlnP_δϕ(
-            ϕ, ds, Nsims=Nsims, weights=weights,
-            progress=(progress==:verbose), return_state=false, previous_state=state,
+    for i=1:nsteps
+        g, state = δlnP_δϕ(
+            ϕ, θ, ds,
+            use_previous_MF = i>nsteps_with_meanfield_update,
+            Nsims=Nsims, Nbatch=Nbatch, weights=weights,
+            progress=false, return_state=true, previous_state=state,
             conjgrad_kwargs=conjgrad_kwargs
         )
         ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr,@dict(i,g,state,ϕ))
+        push!(tr, @dict(i,g,ϕ))
+        next!(pbar, showvalues=[
+            ("step",i), 
+            ("Ncg", length(state.gQD.hist)), 
+            ("Ncg_sims", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].hist) : "(MF not updated)"),
+            ("α",α)
+        ])
     end
     
     return ϕ, tr

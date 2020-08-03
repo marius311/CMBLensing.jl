@@ -78,26 +78,29 @@ end
 ### marginal posterior gradients
 
 function δlnP_δϕ(
-    ϕ, ds; 
-    previous_state=nothing,
-    Nsims=(previous_state==nothing ? 50 : previous_state.Nsims), 
-    weights=:unlensed,
-    return_state=false,
-    progress=false,
-    conjgrad_kwargs=()
-    )
+    ϕ, θ, ds; 
+    previous_state = nothing,
+    use_previous_MF = false,
+    Nsims = (previous_state==nothing ? 50 : previous_state.Nsims), 
+    Nbatch = 1,
+    weights = :unlensed,
+    return_state = false,
+    progress = false,
+    conjgrad_kwargs = ()
+)
 
-    @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds
+    @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
     Lϕ = L(ϕ)
+    Lϕ_batch = Nbatch==1 ? Lϕ : cache(LenseFlow(identity.(batch(ϕ,Nbatch))),identity.(batch(d,Nbatch)))
     
-    if !in(G,(1,IdentityOp))
+    if G!=1
         @warn "δlnP_δϕ does not currently handle the G mixing matrix"
     end
     
     if (previous_state == nothing)
-        f_sims = [simulate(ds.Cf) for i=1:Nsims]
-        n_sims = [simulate(ds.Cn) for i=1:Nsims]
-        f_wf_sims_guesses = fill(nothing, Nsims)
+        f_sims = [simulate(batch(Cf,Nbatch)) for i=1:Nsims÷Nbatch]
+        n_sims = [simulate(batch(Cn,Nbatch)) for i=1:Nsims÷Nbatch]
+        f_wf_sims_guesses = fill(nothing, Nsims÷Nbatch)
         f_wf_guess = nothing
     else
         @unpack f_sims, n_sims, f_wf_sims_guesses, f_wf_guess = previous_state
@@ -105,39 +108,45 @@ function δlnP_δϕ(
 
     # generate simulated datasets for the current ϕ
     ds_sims = map(f_sims, n_sims) do f,n
-        resimulate(ds, f=f, ϕ=ϕ, n=n).ds
+        resimulate(ds, f̃=Lϕ_batch*f, n=n).ds
     end
 
     W = (weights == :unlensed) ? 1 : (Cf̃ * pinv(Cf))
 
-    # gradient of the quadratic piece of the likelihood
+    # gradient of the quadratic (in ϕ) piece of the likelihood
     function get_gQD(Lϕ, ds, f_wf_guess)
         f_wf, hist = argmaxf_lnP(
-            Lϕ, ds;
-            which = :wf, 
-            guess = (f_wf_guess==nothing ? 0d : f_wf_guess), 
+            Lϕ, θ, ds;
+            which = :wf,
+            guess = (f_wf_guess==nothing ? nothing : f_wf_guess),
             conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
         )
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
-        g = gradient(ϕ -> v' * (L(ϕ) * w), ϕ)[1]
+        g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]
         @namedtuple(g, f_wf, hist)
     end
 
     # gQD for the real data
     gQD = get_gQD(Lϕ, ds, f_wf_guess)
 
-    # gQD for several simulated datasets, used to compute the gradient of the
-    # logdet term via Monte-Carlo
-    gQD_sims = @showprogress (progress ? 1 : Inf) "Hutchinson's method: " pmap(ds_sims, f_wf_sims_guesses) do ds, f_wf_guess
-        get_gQD(Lϕ, ds, f_wf_guess)
+    # gQD for several simulated datasets
+    if use_previous_MF
+        @unpack gQD_sims, ḡ = previous_state
+    else
+        gQD_sims = pmap(ds_sims, f_wf_sims_guesses) do ds_sim, f_wf_guess
+            get_gQD(Lϕ_batch, ds_sim, f_wf_guess)
+        end
+        ḡ = mean(mapreduce(vcat, gQD_sims) do gQD
+            [batchindex(gQD.g,i) for i=1:batchsize(gQD.g)]
+        end)
     end
-
-    # final total gradient, including gradient of the prior
-    g = gQD.g - mean(getindex.(gQD_sims,:g)) - Cϕ\ϕ
+    
+    # final total posterior gradient, including gradient of the prior
+    g = gQD.g - ḡ - Cϕ\ϕ
 
     if return_state
-        g, @namedtuple(f_sims, n_sims, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
+        g, @namedtuple(g, f_sims, n_sims, ḡ, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
     else
         g
     end

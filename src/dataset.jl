@@ -140,6 +140,7 @@ function load_sim(;
     pol,
     T = Float32,
     storage = Array,
+    Nbatch = nothing,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -284,6 +285,11 @@ function load_sim(;
                 sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
             end,
         )
+    end
+
+    if Nbatch != nothing
+        ds.d = identity.(batch(ds.d, Nbatch))
+        ds.L = alloc_cache(L(identity.(batch(similar(diag(Cϕ)), Nbatch))), ds.d)
     end
     
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
