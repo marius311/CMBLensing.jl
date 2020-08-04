@@ -130,7 +130,7 @@ include("autodiff.jl")
 
 # gpu
 is_gpu_backed(x) = false
-@init @require CuArrays="3a865a2d-5b23-5a0f-bc46-62713ec82fae" include("gpu.jl")
+@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

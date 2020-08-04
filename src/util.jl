@@ -387,7 +387,7 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
     Initialize MPI processes as Julia workers that can be used in a 
     parallel chain run. 
 
-    If CuArrays is loaded and functional in the Main module, 
+    If CUDA is loaded and functional in the Main module, 
     additionally bind each MPI process to one GPU. 
 
     This call only returns on the master process.
@@ -401,10 +401,10 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
         rank = MPI.Comm_rank(MPI.COMM_WORLD)
 
         if size>1
-            if isdefined(Main, :CuArrays) && CuArrays.functional()
+            if isdefined(Main, :CUDA) && CUDA.functional()
                 # cant use @eval because of https://github.com/JuliaPackaging/Requires.jl/issues/86
-                Main.eval(:(CuArrays.CUDAnative.device!(mod($rank,$size-1))))
-                device_string = @eval Main CuArrays.CUDAdrv.device()
+                Main.eval(:(CUDA.device!(mod($rank,$size-1))))
+                device_string = @eval Main CUDA.device()
             else
                 device_string = "CPU"
             end

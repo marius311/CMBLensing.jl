@@ -1,8 +1,8 @@
-using .CuArrays
-using .CuArrays.CUDAnative
-using .CuArrays.CUDAdrv: devices
-using .CuArrays.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSC, mv!
-using .CuArrays.CUSOLVER: CuQR
+
+using CUDA
+using CUDA: cufunc, curand_rng
+using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSC, mv!
+using CUDA.CUSOLVER: CuQR
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
@@ -14,7 +14,7 @@ function cuda(f, args...; threads=256)
 end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
-global_rng_for(::Type{<:CuArray}) = CuArrays.CURAND.generator()
+global_rng_for(::Type{<:CuArray}) = curand_rng()
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
     Random.seed!(global_rng_for(CuArray), seed)
 
@@ -22,7 +22,7 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
 
 ### broadcasting
 preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(CuArrays.cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,_size(F)))
+    Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,_size(F)))
 preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
     adapt(M,broadcastable(F, arg))
 function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
@@ -35,7 +35,7 @@ BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:Fla
 
 
 ### misc
-# the generic versions of these trigger scalar indexing of CuArrays, so provide
+# the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
 
 function copyto!(dst::F, src::F) where {F<:CuFlatS0}
@@ -50,27 +50,28 @@ dot(a::CuFlatS0{<:Flat{N,θ}}, b::CuFlatS0{<:Flat{N,θ}}) where {N,θ} = dot(ada
 sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
 
 
-# these only work for Reals in CuArrays
+# these only work for Reals in CUDA
 # with these definitions, they work for Complex as well
-CuArrays.CUDAnative.isfinite(x::Complex) = Base.isfinite(x)
-CuArrays.CUDAnative.sqrt(x::Complex) = CuArrays.CUDAnative.sqrt(CuArrays.CUDAnative.abs(x)) * CuArrays.CUDAnative.exp(im*CuArrays.CUDAnative.angle(x)/2)
-CuArrays.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+CUDA.isfinite(x::Complex) = Base.isfinite(x)
+CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
+CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 
 
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
 # dense CuArray
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
 
-# CuArrays somehow missing this one
-# see https://github.com/JuliaGPU/CuArrays.jl/issues/103
-# and https://github.com/JuliaGPU/CuArrays.jl/pull/580
+# CUDA somehow missing this one
+# see https://github.com/JuliaGPU/CUDA.jl/issues/103
+# and https://github.com/JuliaGPU/CUDA.jl/pull/580
 ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
-# bug in CuArrays for this one
-# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
-mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
+# bug in CUDA for this one
+# see https://github.com/JuliaGPU/CUDA.jl/pull/637
+mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = 
+    mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
-# some Random API which CuArrays doesn't implement yet
-Random.randn(rng::CuArrays.CURAND.RNG, T::Random.BitFloatType) = 
+# some Random API which CUDA doesn't implement yet
+Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
-Random.seed!(rng::CuArrays.CURAND.RNG, ::Nothing) = Random.seed!(rng)
+Random.seed!(rng::CUDA.CURAND.RNG, ::Nothing) = Random.seed!(rng)
