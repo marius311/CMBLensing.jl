@@ -43,8 +43,8 @@ _size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N÷2
 _ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
-adapt_structure(to::Type{T}, f::F) where {T<:AbstractArray,         P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
-adapt_structure(  ::Type{T}, f::F) where {T<:Union{Float32,Float64},P,F<:FlatS0{P}} = T(f)
+adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
+adapt_structure(::Type{T}, f::F) where {T<:Union{Float32,Float64},P,F<:FlatS0{P}} = T(f)
 function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
     @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
     basetype(F){P}(similar(firstfield(f),T))

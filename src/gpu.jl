@@ -62,12 +62,12 @@ CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
 
 # CUDA somehow missing this one
-# see https://github.com/JuliaGPU/CUDA.jl/issues/103
-# and https://github.com/JuliaGPU/CUDA.jl/pull/580
+# see https://github.com/JuliaGPU/CuArrays.jl/issues/103
+# and https://github.com/JuliaGPU/CuArrays.jl/pull/580
 ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
 # bug in CUDA for this one
-# see https://github.com/JuliaGPU/CUDA.jl/pull/637
+# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = 
     mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
