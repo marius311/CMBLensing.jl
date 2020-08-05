@@ -51,7 +51,7 @@ function BilinearLens(ϕ::FlatS0)
     # compute the 4 non-zero entries in L[I,:] (ie the Ith row of the sparse
     # lensing representation, L) and add these to the sparse constructor
     # matrices, M, and V, accordingly. this function is split off so it can be
-    # called directly or used as a CUDA kernels
+    # called directly or used as a CUDA kernel
     function compute_row!(I, ĩ, j̃, M, V)
 
         # (i,j) indices of the 4 nearest neighbors
@@ -59,7 +59,7 @@ function BilinearLens(ϕ::FlatS0)
         top,bottom = floor(Int,j̃) .+ (0, 1)
         
         # 1-D indices of the 4 nearest neighbors
-        M[4I-3:4I] .= (sub2ind(left,top), sub2ind(right,top), sub2ind(left,bottom), sub2ind(right,bottom))
+        M[4I-3:4I] .= @SVector[sub2ind(left,top), sub2ind(right,top), sub2ind(left,bottom), sub2ind(right,bottom)]
         
         # weights of these neighbors in the bilinear interpolation
         Δx⁻, Δx⁺ = ((left,right) .- ĩ)
