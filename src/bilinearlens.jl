@@ -99,7 +99,7 @@ function BilinearLens(ϕ::FlatS0)
         end
         # remove once CuSparseMatrixCOO makes it into official CUDA.jl:
         if !Base.isdefined(CUSPARSE,:CuSparseMatrixCOO)
-            error("To use BilinearLens on GPU, run `pkg> add https://github.com/marius311/CUDA.jl#coo` and restart Julia.")
+            error("To use BilinearLens on GPU, run `using Pkg; pkg\"add https://github.com/marius311/CUDA.jl#coo\"` and restart Julia.")
         end
         switch2csr(CUSPARSE.CuSparseMatrixCOO{Float32}(K,M,V,(Nside^2,Nside^2)))
     end
