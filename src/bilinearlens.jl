@@ -82,15 +82,14 @@ function BilinearLens(ϕ::FlatS0)
         for I in 1:length(ĩs)
             compute_row!(I, ĩs[I], j̃s[I], M, V)
         end
-        sparse(K,M,V)
+        sparse(K,M,V,Nside^2,Nside^2)
     end
 
     # GPU
     function compute_sparse_repr(is_gpu_backed::Val{true})
-        # need to 
-        K = Cint.(collect(flatten(repeated.(1:Nside^2,4))))
-        M = CuVector{Cint}(undef, 4Nside^2)
-        V = CuVector{Float32}(undef, 4Nside^2)
+        K = CuVector{Cint}(collect(flatten(repeated.(1:Nside^2,4))))
+        M = similar(K)
+        V = similar(K,Float32)
         cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
             index = threadIdx().x
             stride = blockDim().x
@@ -98,7 +97,11 @@ function BilinearLens(ϕ::FlatS0)
                 compute_row!(I, ĩs[I], j̃s[I], M, V)
             end
         end
-        CuSparseMatrixCSC(sparse(K,adapt(Array,M),adapt(Array,V)))
+        # remove once CuSparseMatrixCOO makes it into official CUDA.jl:
+        if !Base.isdefined(CUSPARSE,:CuSparseMatrixCOO)
+            error("To use BilinearLens on GPU, run `pkg> add https://github.com/marius311/CUDA.jl#coo` and restart Julia.")
+        end
+        switch2csr(CUSPARSE.CuSparseMatrixCOO{Float32}(K,M,V,(Nside^2,Nside^2)))
     end
     
     
@@ -119,12 +122,24 @@ end
 
 # applying various forms of the operator
 
-function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(Lϕ.sparse_repr * view(f[:Ix],:), N, N))
+function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    Łf = Ł(f)
+    f̃ = similar(Łf)
+    ds = (D == 1 ? ((),) : tuple.(1:D))
+    for d in ds
+        mul!(@views(f̃.Ix[:,:,d...][:]), Lϕ.sparse_repr, @views(f.Ix[:,:,d...][:]))
+    end
+    f̃
 end
 
-function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(parent(Lϕ).sparse_repr' * view(f[:Ix],:), N, N))
+function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    Łf = Ł(f)
+    f̃ = similar(Łf)
+    ds = (D == 1 ? ((),) : tuple.(1:D))
+    for d in ds
+        mul!(@views(f̃.Ix[:,:,d...][:]), parent(Lϕ).sparse_repr', @views(f.Ix[:,:,d...][:]))
+    end
+    f̃
 end
 
 function \(Lϕ::BilinearLens, f::FlatS0{P}) where {N,P<:Flat{N}}

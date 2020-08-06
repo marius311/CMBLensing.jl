@@ -1,12 +1,12 @@
 
 using CUDA
 using CUDA: cufunc, curand_rng
-using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSC, mv!
+using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, mv!, switch2csr
 using CUDA.CUSOLVER: CuQR
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
-# a function version of @cuda which can be referenced before CUDAnative is
+# a function version of @cuda which can be referenced before CUDA is
 # loaded as long as it exists by run-time (unlike the macro @cuda which must
 # exist at compile-time)
 function cuda(f, args...; threads=256)
@@ -59,7 +59,7 @@ CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
 # dense CuArray
-adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSC(L)
+adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSR) = CuSparseMatrixCSR(L)
 
 # CUDA somehow missing this one
 # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
