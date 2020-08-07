@@ -74,9 +74,12 @@ function BilinearLens(ϕ::FlatS0)
 
     end
     
+    # a surprisingly large fraction of the computation for large Nside, so memoize it:
+    @memoize getK(Nside) = Int32.((4:4Nside^2+3) .÷ 4)
+
     # CPU
     function compute_sparse_repr(is_gpu_backed::Val{false})
-        K = Int32.(collect(flatten(repeated.(1:Nside^2,4))))
+        K = Vector{Int32}(getK(Nside))
         M = similar(K)
         V = similar(K,Float32)
         for I in 1:length(ĩs)
@@ -87,7 +90,7 @@ function BilinearLens(ϕ::FlatS0)
 
     # GPU
     function compute_sparse_repr(is_gpu_backed::Val{true})
-        K = CuVector{Cint}(collect(flatten(repeated.(1:Nside^2,4))))
+        K = CuVector{Cint}(getK(Nside))
         M = similar(K)
         V = similar(K,Float32)
         cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
@@ -120,24 +123,29 @@ function get_anti_lensing_sparse_repr!(Lϕ::BilinearLens)
 end
 
 
+getϕ(Lϕ::BilinearLens) = Lϕ.ϕ
+(Lϕ::BilinearLens)(ϕ) = BilinearLens(ϕ)
+
 # applying various forms of the operator
 
 function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    Lϕ.sparse_repr==I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
     ds = (D == 1 ? ((),) : tuple.(1:D))
     for d in ds
-        mul!(@views(f̃.Ix[:,:,d...][:]), Lϕ.sparse_repr, @views(f.Ix[:,:,d...][:]))
+        mul!(@views(f̃.Ix[:,:,d...][:]), Lϕ.sparse_repr, @views(Łf.Ix[:,:,d...][:]))
     end
     f̃
 end
 
 function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    parent(Lϕ).sparse_repr==I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
     ds = (D == 1 ? ((),) : tuple.(1:D))
     for d in ds
-        mul!(@views(f̃.Ix[:,:,d...][:]), parent(Lϕ).sparse_repr', @views(f.Ix[:,:,d...][:]))
+        mul!(@views(f̃.Ix[:,:,d...][:]), parent(Lϕ).sparse_repr', @views(Łf.Ix[:,:,d...][:]))
     end
     f̃
 end
