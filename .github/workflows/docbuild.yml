@@ -17,7 +17,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: marius311/cmblensing.jl
-          build_args: PACKAGECOMPILE=0
+          build_args: PACKAGECOMPILE=1, PRECOMPILE=0, RUNDOCS=1
           tag_with_ref: true
       # - name: docker-build-placeholder
       #   run: docker pull marius311/cmblensing.jl:latest
