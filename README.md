@@ -34,6 +34,7 @@ You can also clone the repostiory and open the notebooks in [docs/src](https://g
 ### Requirements
 
 * Julia 1.3 or higher
+* _(recommended)_ Intel MKL FFT library for faster CPU FFTs 
 * _(optional)_ Python 3 + matplotlib (used for plotting)
 * _(optional)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
 * _(optional)_ An Nvidia GPU and [CuArrays](https://github.com/JuliaGPU/CuArrays.jl) for GPU support
@@ -48,6 +49,8 @@ pkg> add CMBLensing
 ```
 
 (type `]` at the Julia REPL to reach the `pkg>` prompt)
+
+It's recommended to link Julia to Intel MKL FFT libraries, which provide significantly faster FFTs when running on CPU. This can be done easily by running `ENV["JULIA_FFTW_PROVIDER"]="MKL"; using Pkg; Pkg.build("FFTW")` from Julia and restarting the session (see also [here](https://github.com/JuliaMath/FFTW.jl#mkl)).
 
 ### Docker installation
 
