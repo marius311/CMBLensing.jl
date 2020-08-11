@@ -89,7 +89,9 @@ Map(f::FlatFourier{P}) where {P} = FlatMap{P}(fieldinfo(f).FFT \ f.Il)
 
 ### inplace conversion
 Fourier(f′::FlatFourier, f::FlatMap) =  (mul!(f′.Il, fieldinfo(f).FFT, f.Ix); f′)
-Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, f.Il); f′)
+Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, maybecopy(f.Il)); f′)
+# need this for FFTW (but not MKL) see https://github.com/JuliaLang/julia/issues/37000
+@static FFTW.fftw_vendor==:fftw ? maybecopy(x) = copy(x) : maybecopy(x) = x
 
 ### properties
 getproperty(f::FlatS0, s::Symbol) = getproperty(f,Val(s))
