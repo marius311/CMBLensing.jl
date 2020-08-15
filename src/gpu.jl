@@ -57,9 +57,9 @@ CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
 CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 
 
-# this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSC rather than a
+# this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSR rather than a
 # dense CuArray
-adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSR) = CuSparseMatrixCSR(L)
+adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSR(L)
 
 # CUDA somehow missing this one
 # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
