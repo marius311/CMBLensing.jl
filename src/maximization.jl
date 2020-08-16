@@ -22,7 +22,15 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
-function argmaxf_lnP(Lϕ, θ::NamedTuple, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
+function argmaxf_lnP(
+    Lϕ, 
+    θ::NamedTuple,
+    ds::DataSet; 
+    which = :wf, 
+    guess = nothing, 
+    preconditioner = :diag, 
+    conjgrad_kwargs = (tol=1e-1,nsteps=500)
+)
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
@@ -53,23 +61,20 @@ end
 
 
 @doc doc"""
-    Σ(ϕ::Field,  ds; conjgrad_kwargs=())
-    Σ(Lϕ,        ds; conjgrad_kwargs=())
+    Σ(ϕ::Field,  ds; [conjgrad_kwargs])
+    Σ(Lϕ,        ds; [conjgrad_kwargs])
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
 applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
 `conjugate_gradient`.
 """
 Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
-Σ(Lϕ,       ds; conjgrad_kwargs=()) = begin
-
+function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
     @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
-
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
         op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
-
 end
 
 
@@ -110,7 +115,7 @@ function MAP_joint(
     Nϕ = :qe,
     quasi_sample = false, 
     nsteps = 10, 
-    conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
     preconditioner = :diag,
     αtol = 1e-5,
     αmax = 0.5,
@@ -219,7 +224,7 @@ function MAP_marg(
     Nϕ = :qe,
     nsteps = 10, 
     nsteps_with_meanfield_update = 4,
-    conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
     α = 0.2,
     weights = :unlensed, 
     Nsims = 50,

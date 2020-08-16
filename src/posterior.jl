@@ -86,7 +86,7 @@ function δlnP_δϕ(
     weights = :unlensed,
     return_state = false,
     progress = false,
-    conjgrad_kwargs = ()
+    conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
 
     @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
