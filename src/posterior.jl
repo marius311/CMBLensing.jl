@@ -52,19 +52,19 @@ needed to construct the posterior.
 lnP(t, fₜ, ϕₜ,                ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
 lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
 
-
-nonCMB_data_components(θ, ds::DataSet) = 0
-
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     
     @unpack Cn,Cf,Cϕ,L,M,B,d = ds
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
     Δ = d - M(θ)*B(θ)*f̃ - nonCMB_data_components(θ, ds)
-    -1/2f0 * (
-        Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
-        f'*pinv(Cf(θ))*f + logdet(Cf,θ) +
-        ϕ'*pinv(Cϕ(θ))*ϕ + logdet(Cϕ,θ)
+    (
+        -1/2f0 * (
+            Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
+            f'*pinv(Cf(θ))*f + logdet(Cf,θ) +
+            ϕ'*pinv(Cϕ(θ))*ϕ + logdet(Cϕ,θ)
+        ) 
+        + lnPriorθ(θ,ds)
     )
 
 end
@@ -73,6 +73,9 @@ function lnP(::Val{:mix}, f°, ϕ°, θ::NamedTuple, ds::DataSet)
     lnP(Val(0), unmix(f°,ϕ°,θ,ds)..., θ, ds) - logdet(ds.D,θ) - logdet(ds.G,θ)
 end
 
+# can be specialized for specific DataSet types:
+nonCMB_data_components(θ, ds::DataSet) = 0
+lnPriorθ(θ, ds::DataSet) = 0
 
 
 ### marginal posterior gradients
