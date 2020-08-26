@@ -174,7 +174,7 @@ function sample_joint(
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
     postprocess = nothing,
     storage = basetype(fieldinfo(ds.d).M)
-    )
+)
     
     ds = cpu(ds)
     

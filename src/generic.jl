@@ -101,7 +101,7 @@ checksquare(::ImplicitOp) = nothing
 
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
-
+adapt_structure(to, arr::Array{<:Field}) = map(f -> adapt(to,f), arr)
 
 
 # printing
