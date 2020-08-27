@@ -106,6 +106,7 @@ include("flat_batch.jl")
 include("masking.jl")
 include("taylens.jl")
 include("bilinearlens.jl")
+include("biquadlens.jl")
 
 # plotting
 isjuno = false

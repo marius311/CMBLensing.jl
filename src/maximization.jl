@@ -218,7 +218,7 @@ function MAP_marg(
     ϕstart = nothing,
     Nϕ = :qe,
     nsteps = 10, 
-    nsteps_with_meanfield_update = 4,
+    nsteps_with_meanfield_update = nsteps,
     conjgrad_kwargs = (nsteps=500, tol=1e-1),
     α = 0.2,
     weights = :unlensed, 

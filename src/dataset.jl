@@ -29,15 +29,19 @@ Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
     Cf               # unlensed field covariance
     Cf̃ = nothing     # lensed field covariance (not always needed)
     Cn               # noise covariance
-    Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
     M  = 1           # user mask
-    M̂  = M           # approximate user mask, diagonal in same basis as Cf
     B  = 1           # beam and instrumental transfer functions
-    B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  = 1           # mixing matrix for mixed parametrization
     G  = 1           # reparametrization for ϕ
-    P  = 1           # pixelization operator (if estimating field on higher res than data)
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
+    P  = 1           # pixelization operator (if estimating field on higher res than data)
+    
+    # preconditioners (denoted by \hat). these should all approximate the
+    # non-\hat version, but be fast to calculate:
+    Cn̂ = Cn
+    M̂  = M
+    B̂  = B
+    L̂  = 1
 end
 
 function subblock(ds::DS, block) where {DS<:DataSet}
