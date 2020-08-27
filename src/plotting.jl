@@ -141,14 +141,22 @@ function plot(
 	vscale = nothing,
 	cmap = nothing,
 	return_all = false, 
-	kwargs...) where {F<:Field}
+	kwargs...
+) where {F<:Field}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
-    tight_layout(w_pad=-10)
-    return_all ? (fig,axs,which) : isjuno ? fig : nothing
+	tight_layout(w_pad=-10)
+	
+	if return_all
+		(fig, axs, which)
+	elseif isdefined(Main,:IJulia) && Main.IJulia.inited
+		nothing # on IJulia, returning the figure can lead to it getting displayed twice
+	else
+		fig # returning the figure works on Juno/VSCode/Pluto
+	end
 	
 end
 
