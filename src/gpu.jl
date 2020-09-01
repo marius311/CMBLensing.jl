@@ -66,12 +66,6 @@ adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSR(L)
 # and https://github.com/JuliaGPU/CuArrays.jl/pull/580
 ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
-# bug in CUDA for this one
-# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
-mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = 
-    mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
-
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
-Random.seed!(rng::CUDA.CURAND.RNG, ::Nothing) = Random.seed!(rng)
