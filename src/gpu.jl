@@ -75,3 +75,23 @@ Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
 Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} = 
     (A .= adapt(CuArray{T}, randn!(rng, adapt(Array{T},A))))
 
+# CUDA makes some copies here as a workaround for the Issues mentioned below
+# but it doesn't appear to be needed in the R2C case, and in the C2R case the 
+# unsafe_free! helps prevent really long garbage collection times
+@init @eval CUDA.CUFFT begin
+    function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
+                             x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
+                             ) where {K,N}
+        @assert plan.xtype == CUFFT_R2C
+        ans = cufftExecR2C(plan, x, y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    end
+    function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
+                             x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
+                             ) where {K,N}
+        @assert plan.xtype == CUFFT_C2R
+        xc = copy(x)
+        ans = cufftExecC2R(plan, xc, y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+        unsafe_free!(xc)
+        ans
+    end
+end
