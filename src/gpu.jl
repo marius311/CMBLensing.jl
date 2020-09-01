@@ -69,3 +69,9 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+
+# perhaps minor type-piracy, but this lets us simulate into a CuArray using the
+# CPU random number generator
+Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} = 
+    (A .= adapt(CuArray{T}, randn!(rng, adapt(Array{T},A))))
+
