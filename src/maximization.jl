@@ -22,7 +22,15 @@ Keyword arguments:
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
 argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
-function argmaxf_lnP(Lϕ, θ::NamedTuple, ds::DataSet; which=:wf, guess=nothing, preconditioner=:diag, conjgrad_kwargs=())
+function argmaxf_lnP(
+    Lϕ, 
+    θ::NamedTuple,
+    ds::DataSet; 
+    which = :wf, 
+    guess = nothing, 
+    preconditioner = :diag, 
+    conjgrad_kwargs = (tol=1e-1,nsteps=500)
+)
     
     check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
@@ -53,23 +61,20 @@ end
 
 
 @doc doc"""
-    Σ(ϕ::Field,  ds; conjgrad_kwargs=())
-    Σ(Lϕ,        ds; conjgrad_kwargs=())
+    Σ(ϕ::Field,  ds; [conjgrad_kwargs])
+    Σ(Lϕ,        ds; [conjgrad_kwargs])
     
 An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
 applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
 `conjugate_gradient`.
 """
 Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
-Σ(Lϕ,       ds; conjgrad_kwargs=()) = begin
-
+function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
     @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
-
     SymmetricFuncOp(
         op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
         op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
-
 end
 
 
@@ -94,8 +99,9 @@ Keyword arguments:
 * `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`,
     whichever is first)
 * `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$
-    quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$
+    quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$.  
 * `αmax` — Maximum value for $\alpha$ in the linesearch
+* `αiters` — Number of Brent's method steps actually used in the $\alpha$ linesearch 
 * `progress` — whether to show progress bar
 
 Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample)
@@ -110,10 +116,11 @@ function MAP_joint(
     Nϕ = :qe,
     quasi_sample = false, 
     nsteps = 10, 
-    conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
     preconditioner = :diag,
     αtol = 1e-5,
     αmax = 0.5,
+    αiters = Int(floor(log(αmax/αtol))),
     cache_function = nothing,
     callback = nothing,
     interruptable::Bool = false,
@@ -130,7 +137,8 @@ function MAP_joint(
     @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
     
     f, f° = nothing, nothing
-    ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),batchsize(d)))) : ϕstart
+    D = batchsize(d)
+    ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),D))) : ϕstart
     ϕstep = nothing
     Lϕ = cache(L(ϕ),d)
     T = real(eltype(d))
@@ -182,10 +190,10 @@ function MAP_joint(
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕstep = Hϕ⁻¹*(gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1])
-                res = @ondemand(Optim.optimize)(α->(-lnP(:mix,f°,ϕ+α*ϕstep,ds)), T(0), T(αmax), abs_tol=αtol)
-                α = res.minimizer
-                ϕ = ϕ+α*ϕstep
+                ϕstep = Hϕ⁻¹ * gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1]
+                neg_lnP(α) = -lnP(:mix, f°, ϕ + α*ϕstep, ds)
+                α = optimize(batch(neg_lnP,D), T(0), T(αmax), abs_tol=0, rel_tol=0, iterations=αiters)
+                ϕ = ϕ + α*ϕstep
             end
 
         end
@@ -219,7 +227,7 @@ function MAP_marg(
     Nϕ = :qe,
     nsteps = 10, 
     nsteps_with_meanfield_update = 4,
-    conjgrad_kwargs = (nsteps=500, tol=1e-1),
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
     α = 0.2,
     weights = :unlensed, 
     Nsims = 50,
@@ -261,4 +269,27 @@ function MAP_marg(
     
     return ϕ, tr
 
+end
+
+
+"""
+    optimize(f::Function, args...; kwargs...)
+    optimize(f::BatchedFunction, args...; kwargs...)
+
+Tiny wrapper around `Optim.optimize` but if the target function is a batched
+function, takes care of making the call asynchronous and batching the result.
+E.g.:
+
+    optimize(batch(x -> x.^[2,4,6], 3), -1, 1)
+
+simultaneously optimizes `x^2`, `x^4`, and `x^6`, but results in only a single
+call to `x -> x.^[2,4,6]` per iteration of the Optim algorithm. Note: unlike
+Optim.optimize, this just returns the minimizer point. 
+"""
+optimize(f::Function, args...; kwargs...) = @ondemand(Optim.optimize)(f, args...; kwargs...).minimizer
+function optimize(f::BatchedFunction, args...; kwargs...)
+    results = asyncmap(1:batchsize(f)) do _
+        optimize(f.f, args...; kwargs...)
+    end
+    batch(results...)
 end

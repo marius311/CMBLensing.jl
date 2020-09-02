@@ -114,6 +114,8 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
     end
     Nϕ = AL # true only for unlensed weights
     
+    Memoization.empty_cache!(term)
+
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
     @namedtuple ϕqe AL Nϕ
 
@@ -153,6 +155,8 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     end
     Nϕ = AL # true only for unlensed weights
     
+    Memoization.empty_cache!(term)
+
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
     @namedtuple ϕqe AL Nϕ
 
@@ -187,11 +191,15 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
                 + (zeroB ? 0 :   term($(@. TF²E        / ΣEtot),           k, l, m, n) * term($(@. TF²B * CB^2 / ΣBtot), [i], [j], k, l, p, q)))
                 for (k,l,m,n,p,q) in inds(6)
             )
-            pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
+            AL = pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j)) for i=1:2,j=1:2)))
+            Memoization.empty_cache!(A)
+            AL
         end
     end
     Nϕ = AL # true only for unlensed weights
     
+    Memoization.empty_cache!(term)
+
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL * ϕqe_unnormalized)
     @namedtuple ϕqe AL Nϕ
 
