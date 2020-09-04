@@ -266,7 +266,7 @@ function sample_joint(
             pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
-        for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk)
+        for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
             
             last_chunks = pmap(last.(last_chunks)) do state
                 

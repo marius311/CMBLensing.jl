@@ -428,6 +428,7 @@ function sum_kbn(A::Array{T,N}; dims=:) where {T,N}
         dropdims(mapslices(sum_kbn, A, dims=dims), dims=dims) :: Array{T,N-length(dims)}
     end
 end
+@adjoint sum_kbn(A) = sum_kbn(A), Δ -> (fill!(similar(A),Δ),)
 
 
 # courtesy of Takafumi Arakaki

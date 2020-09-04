@@ -263,7 +263,7 @@ end
 # misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f))
-
+sum_kbn(f::Field) = sum_kbn(f[:])
 
 function invalid_broadcast_error(B1,F1,B2,F2)
     if B1!=B2

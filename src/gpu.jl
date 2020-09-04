@@ -66,12 +66,32 @@ adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSR(L)
 # and https://github.com/JuliaGPU/CuArrays.jl/pull/580
 ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
-# bug in CUDA for this one
-# see https://github.com/JuliaGPU/CuArrays.jl/pull/637
-mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = 
-    mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
-
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
-Random.seed!(rng::CUDA.CURAND.RNG, ::Nothing) = Random.seed!(rng)
+
+# perhaps minor type-piracy, but this lets us simulate into a CuArray using the
+# CPU random number generator
+Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} = 
+    (A .= adapt(CuArray{T}, randn!(rng, adapt(Array{T},A))))
+
+# CUDA makes some copies here as a workaround for the Issues mentioned below
+# but it doesn't appear to be needed in the R2C case, and in the C2R case the 
+# unsafe_free! helps prevent really long garbage collection times
+@init @eval CUDA.CUFFT begin
+    function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
+                             x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
+                             ) where {K,N}
+        @assert plan.xtype == CUFFT_R2C
+        ans = cufftExecR2C(plan, x, y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    end
+    function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
+                             x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
+                             ) where {K,N}
+        @assert plan.xtype == CUFFT_C2R
+        xc = copy(x)
+        ans = cufftExecC2R(plan, xc, y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+        unsafe_free!(xc)
+        ans
+    end
+end

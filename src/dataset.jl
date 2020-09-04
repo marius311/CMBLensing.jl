@@ -91,21 +91,22 @@ function resimulate!(
     rng=global_rng_for(ds.d), seed=nothing
 )
 
-    @unpack M,P,B,L = ds
+    @unpack M,P,B,L,Cϕ,Cf,Cn,d = ds()
+    D = batchsize(d)
     
     if (f̃ == nothing)
         if (ϕ == nothing)
-            ϕ = simulate(ds.Cϕ, rng=rng, seed=seed)
+            ϕ = simulate(batch(Cϕ,D), rng=rng, seed=seed)
         end
         if (f == nothing)
-            f = simulate(ds.Cf, rng=rng, seed=(seed==nothing ? nothing : seed+1))
+            f = simulate(batch(Cf,D), rng=rng, seed=(seed==nothing ? nothing : seed+1))
         end
         f̃ = L(ϕ)*f
     else
         f = ϕ = nothing
     end
     if (n == nothing)
-        n = simulate(ds.Cn, rng=rng, seed=(seed==nothing ? nothing : seed+2))
+        n = simulate(batch(Cn,D), rng=rng, seed=(seed==nothing ? nothing : seed+2))
     end
 
     ds.d = d = M*P*B*f̃ + n
