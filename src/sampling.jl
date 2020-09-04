@@ -262,8 +262,8 @@ function sample_joint(
     # start chains
     try
         
-        if progress==:summary
-            @spawnat first(workers()) global pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
+        if progress==:summary && myid()==first(workers())
+            pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
         end
 
         for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk)
