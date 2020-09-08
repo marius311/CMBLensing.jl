@@ -78,7 +78,7 @@ Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} =
 # CUDA makes some copies here as a workaround for the Issues mentioned below
 # but it doesn't appear to be needed in the R2C case, and in the C2R case the 
 # unsafe_free! helps prevent really long garbage collection times
-@init @eval CUDA.CUFFT begin
+@eval CUDA.CUFFT begin
     function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                              x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
                              ) where {K,N}
