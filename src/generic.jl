@@ -282,3 +282,6 @@ end
     # never try to auto-convert Fields or LinOps to Python arrays
     PyCall.PyObject(x::Union{LinOp,Field}) = PyCall.pyjlwrap_new(x)
 end
+
+
+gc = () -> GC.gc(true)

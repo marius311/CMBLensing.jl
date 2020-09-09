@@ -179,7 +179,7 @@ function MAP_joint(
                 conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
                 preconditioner=preconditioner
             )
-            aggressive_gc && GC.gc(true)
+            aggressive_gc && gc()
 
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
@@ -254,13 +254,13 @@ function MAP_marg(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     
     for i=1:nsteps
-        aggressive_gc && GC.gc(true)
+        aggressive_gc && gc()
         g, state = δlnP_δϕ(
             ϕ, θ, ds,
             use_previous_MF = i>nsteps_with_meanfield_update,
             Nsims=Nsims, Nbatch=Nbatch, weights=weights,
             progress=false, return_state=true, previous_state=state,
-            conjgrad_kwargs=conjgrad_kwargs
+            conjgrad_kwargs=conjgrad_kwargs, aggressive_gc=aggressive_gc
         )
         ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr, @dict(i,g,ϕ))

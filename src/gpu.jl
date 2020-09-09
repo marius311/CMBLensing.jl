@@ -95,3 +95,5 @@ Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} =
         ans
     end
 end
+
+gc = () -> (GC.gc(true); CUDA.reclaim())

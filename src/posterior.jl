@@ -90,7 +90,8 @@ function δlnP_δϕ(
     weights = :unlensed,
     return_state = false,
     progress = false,
-    conjgrad_kwargs = (tol=1e-1,nsteps=500)
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
+    aggressive_gc = fieldinfo(ϕ).Nside>=512
 )
 
     @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
@@ -125,6 +126,7 @@ function δlnP_δϕ(
             guess = (f_wf_guess==nothing ? 0d : f_wf_guess),
             conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
         )
+        aggressive_gc && gc()
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
         g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]
