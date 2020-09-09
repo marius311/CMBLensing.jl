@@ -122,7 +122,7 @@ function δlnP_δϕ(
         f_wf, hist = argmaxf_lnP(
             Lϕ, θ, ds;
             which = :wf,
-            guess = (f_wf_guess==nothing ? nothing : f_wf_guess),
+            guess = (f_wf_guess==nothing ? 0d : f_wf_guess),
             conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
         )
         v = Lϕ' \ (Cf \ f_wf)
