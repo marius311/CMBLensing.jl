@@ -80,7 +80,7 @@ Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} =
 # in the C2R case we pre-allocate the memory only once (via memoization) as well
 # as doing the copy asynchronously
 import CUDA.CUFFT: unsafe_execute!
-using CUDA.CUFFT: rCuFFTPlan, cufftReal, cufftComplex, CUFFT_R2C, cufftExecR2C, cufftExecC2R, CUFFT_C2R, unsafe_copyto!, CuStreamPerThread, pointer
+using CUDA.CUFFT: rCuFFTPlan, cufftReal, cufftComplex, CUFFT_R2C, cufftExecR2C, cufftExecC2R, CUFFT_C2R, unsafe_copyto!, CuDefaultStream, pointer
 
 plan_buffer(x) = plan_buffer(eltype(x),size(x))
 @memoize plan_buffer(T,dims) = CuArray{T}(undef,dims...)
@@ -95,7 +95,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                             x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
                             ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuStreamPerThread()), y)
+    cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuDefaultStream()), y)
 end
 
 gc = () -> (GC.gc(true); CUDA.reclaim())
