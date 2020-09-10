@@ -124,7 +124,9 @@ function MAP_joint(
     cache_function = nothing,
     callback = nothing,
     interruptable::Bool = false,
-    progress::Bool = true)
+    progress::Bool = true,
+    aggressive_gc = fieldinfo(ds.d).Nside>=1024
+)
     
     if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
@@ -177,7 +179,8 @@ function MAP_joint(
                 conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
                 preconditioner=preconditioner
             )
-                    
+            aggressive_gc && gc()
+
             f°, = mix(f,ϕ,ds)
             lnPcur = lnP(:mix,f°,ϕ,ds)
             
@@ -233,6 +236,7 @@ function MAP_marg(
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
+    aggressive_gc = fieldinfo(ds.d).Nside>=512
 )
     
     ds = (@set ds.G = 1)
@@ -250,12 +254,13 @@ function MAP_marg(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     
     for i=1:nsteps
+        aggressive_gc && gc()
         g, state = δlnP_δϕ(
             ϕ, θ, ds,
             use_previous_MF = i>nsteps_with_meanfield_update,
             Nsims=Nsims, Nbatch=Nbatch, weights=weights,
             progress=false, return_state=true, previous_state=state,
-            conjgrad_kwargs=conjgrad_kwargs
+            conjgrad_kwargs=conjgrad_kwargs, aggressive_gc=aggressive_gc
         )
         ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr, @dict(i,g,ϕ))

@@ -206,7 +206,11 @@ function ParamDependentOp(recompute_function::Function)
     # BinRescaledOp (eg this is the case for the mixing matrix G which depends
     # on Cϕ) from inside function. this would otherwise fail due to
     # BinRescaledOp eval'ed function being too new
-    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, get_kwarg_names(recompute_function))
+    kwarg_names = get_kwarg_names(recompute_function)
+    if endswith(string(kwarg_names[end]), "...") && !startswith(string(kwarg_names[end]),"_")
+        kwarg_decl = empty!(kwarg_names) # to indicate it depends on anything
+    end
+    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, kwarg_names)
 end
 function (L::ParamDependentOp)(θ::NamedTuple) 
     if depends_on(L,θ)
@@ -226,7 +230,7 @@ for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one
 end
 simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
 depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
-depends_on(L::ParamDependentOp, θ::Tuple) = any(L.parameters .∈ Ref(θ))
+depends_on(L::ParamDependentOp, θ::Tuple) = isempty(L.parameters) || any(L.parameters .∈ Ref(θ))
 depends_on(L,                   θ) = false
 
 adapt_structure(to, L::ParamDependentOp) = 

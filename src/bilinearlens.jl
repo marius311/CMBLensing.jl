@@ -81,7 +81,7 @@ function BilinearLens(ϕ::FlatS0)
     function compute_sparse_repr(is_gpu_backed::Val{false})
         K = Vector{Int32}(getK(Nside))
         M = similar(K)
-        V = similar(K,Float32)
+        V = similar(K,T)
         for I in 1:length(ĩs)
             compute_row!(I, ĩs[I], j̃s[I], M, V)
         end
@@ -92,7 +92,7 @@ function BilinearLens(ϕ::FlatS0)
     function compute_sparse_repr(is_gpu_backed::Val{true})
         K = CuVector{Cint}(getK(Nside))
         M = similar(K)
-        V = similar(K,Float32)
+        V = similar(K,T)
         cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
             index = threadIdx().x
             stride = blockDim().x
@@ -104,7 +104,7 @@ function BilinearLens(ϕ::FlatS0)
         if !Base.isdefined(CUSPARSE,:CuSparseMatrixCOO)
             error("To use BilinearLens on GPU, run `using Pkg; pkg\"add https://github.com/marius311/CUDA.jl#coo\"` and restart Julia.")
         end
-        switch2csr(CUSPARSE.CuSparseMatrixCOO{Float32}(K,M,V,(Nside^2,Nside^2)))
+        switch2csr(CUSPARSE.CuSparseMatrixCOO{T}(K,M,V,(Nside^2,Nside^2)))
     end
     
     
@@ -129,7 +129,7 @@ getϕ(Lϕ::BilinearLens) = Lϕ.ϕ
 # applying various forms of the operator
 
 function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
-    Lϕ.sparse_repr==I && return f
+    Lϕ.sparse_repr===I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
     ds = (D == 1 ? ((),) : tuple.(1:D))
@@ -140,7 +140,7 @@ function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
 end
 
 function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
-    parent(Lϕ).sparse_repr==I && return f
+    parent(Lϕ).sparse_repr===I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
     ds = (D == 1 ? ((),) : tuple.(1:D))
@@ -150,28 +150,39 @@ function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,D,P<:Flat{
     f̃
 end
 
-function \(Lϕ::BilinearLens, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(gmres(
-        Lϕ.sparse_repr, view(f[:Ix],:),
-        Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
-    ), N, N))
+function \(Lϕ::BilinearLens, f̃::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    Łf̃ = Ł(f̃)
+    f = similar(Łf̃)
+    ds = (D == 1 ? ((),) : tuple.(1:D))
+    for d in ds
+        @views(f.Ix[:,:,d...][:]) .= gmres(
+            Lϕ.sparse_repr, @views(Łf̃.Ix[:,:,d...][:]),
+            Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
+        )
+    end
+    f
 end
 
-function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,P<:Flat{N}}
-    FlatMap{P}(reshape(gmres(
-        parent(Lϕ).sparse_repr', view(f[:Ix],:),
-        Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
-    ), N, N))
+function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+    Łf̃ = Ł(f̃)
+    f = similar(Łf̃)
+    ds = (D == 1 ? ((),) : tuple.(1:D))
+    for d in ds
+        @views(f.Ix[:,:,d...][:]) .= gmres(
+            parent(Lϕ).sparse_repr', @views(Łf̃.Ix[:,:,d...][:]),
+            Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
+        )
+    end
+    f
 end
 
-# special cases for BilinearLens(0ϕ), which don't work with bicgstabl, 
-# see https://github.com/JuliaMath/IterativeSolvers.jl/issues/271
-function \(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}}
-    Lϕ.sparse_repr \ f
-end
-function \(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}}
-    parent(Lϕ).sparse_repr \ f
-end
+
+# optimizations for BilinearLens(0ϕ)
+\(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
+*(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
+\(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
+*(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
+
 
 for op in (:*, :\)
     @eval function ($op)(Lϕ::Union{BilinearLens, Adjoint{<:Any,<:BilinearLens}}, f::FieldTuple)

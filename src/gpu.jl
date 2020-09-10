@@ -97,3 +97,5 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
     @assert plan.xtype == CUFFT_C2R
     cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuStreamPerThread()), y)
 end
+
+gc = () -> (GC.gc(true); CUDA.reclaim())

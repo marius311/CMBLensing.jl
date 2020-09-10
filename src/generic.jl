@@ -101,7 +101,7 @@ checksquare(::ImplicitOp) = nothing
 
 
 adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
-
+adapt_structure(to, arr::Array{<:Field}) = map(f -> adapt(to,f), arr)
 
 
 # printing
@@ -263,7 +263,7 @@ end
 # misc
 one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f))
-
+sum_kbn(f::Field) = sum_kbn(f[:])
 
 function invalid_broadcast_error(B1,F1,B2,F2)
     if B1!=B2
@@ -282,3 +282,6 @@ end
     # never try to auto-convert Fields or LinOps to Python arrays
     PyCall.PyObject(x::Union{LinOp,Field}) = PyCall.pyjlwrap_new(x)
 end
+
+
+gc = () -> GC.gc(true)
