@@ -296,3 +296,66 @@ function optimize(f::BatchedFunction, args...; kwargs...)
     end
     batch(results...)
 end
+
+
+### OptimKit
+
+import OptimKit
+
+export MAP_joint_optimkit
+
+OptimKit._scale!(η::Field, β) = η .*= β
+OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
+
+function MAP_joint_optimkit(
+    θ :: NamedTuple, 
+    ds :: DataSet; 
+    nsteps = 20, 
+    Nϕ = :qe,
+    m = 5, 
+    ϕstart = nothing,
+    progress = false,
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
+)
+
+    dsθ = copy(ds(θ))
+    dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
+
+    ϕ = ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart
+    
+    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
+    # from quadratic estimate
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
+    Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
+
+    
+    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+
+    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ)
+    f°, = mix(f, ϕ, dsθ)
+    ϕ, = OptimKit.optimize(
+        ϕ -> ((-2lnP(:mix,f°,ϕ,dsθ)), gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]),
+        Map(ϕ),
+        LBFGS(m; maxiter=nsteps, verbosity=0, linesearch=OptimKit.HagerZhangLineSearch(verbosity=0)), 
+        finalize! = function (ϕ,χ²,g,i)
+            (f, hist) = argmaxf_lnP(
+                ϕ, θ, dsθ, 
+                guess = f, 
+                conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...)
+            )
+            f°, = mix(f, ϕ, dsθ)
+            g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+            χ² = -2lnP(:mix,f°,ϕ,dsθ)
+            next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
+            ϕ,χ²,g
+        end,
+        precondition=(_,η)->Map(Hϕ⁻¹*η)
+    )
+
+    f = argmaxf_lnP(ϕ,dsθ,guess=f)
+
+    f,ϕ
+
+end
+
+MAP_joint_optimkit(ds::DataSet; kwargs...) = MAP_joint_optimkit((;), ds; kwargs...)
