@@ -98,7 +98,7 @@ function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ł∇f = Ł(Ð∇f)
         @! v   = p' * Ł∇f
     end
-    return (v!, Ł(f₀))
+    return (v!, batch_promote!(L.memŁf,Ł(f₀)))
 end
 
 function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
@@ -111,7 +111,7 @@ function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ð_Łf_p = Ð(Łf_p)
         @! v = -∇ᵢ' * Ð_Łf_p
     end
-    return (v!, Ð(f₀))
+    return (v!, batch_promote!(L.memÐf,Ð(f₀)))
 end
 
 function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)

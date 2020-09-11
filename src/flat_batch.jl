@@ -31,6 +31,15 @@ batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(
 batch(x, ::Nothing) = x
 
 """
+    batch_promote!(to, f)
+
+Promote `f` to the same batch size as `to` by replication. If both are already
+the same batch size, no copy is made and `f` is returned. If promotion needs to
+happen, the answer is stored in-place in `to` and returned. 
+"""
+batch_promote!(to, f) = batchsize(to)==batchsize(f) ? f : (to .= f)
+
+"""
     unbatch(f::FlatField)
     
 If `f` is a batch-length-`D` field, return length-`D` vector of each batch
