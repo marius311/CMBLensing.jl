@@ -315,13 +315,14 @@ function MAP_joint_optimkit(
     m = 5, 
     ϕstart = nothing,
     progress = false,
+    verbosity = (0,0),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
 )
 
     dsθ = copy(ds(θ))
     dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
 
-    ϕ = ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart
+    ϕ = Map(ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart)
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
@@ -334,9 +335,17 @@ function MAP_joint_optimkit(
     f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ)
     f°, = mix(f, ϕ, dsθ)
     ϕ, = OptimKit.optimize(
-        ϕ -> ((-2lnP(:mix,f°,ϕ,dsθ)), gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]),
+        ϕ -> (
+            sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ))), 
+            gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+        ),
         Map(ϕ),
-        LBFGS(m; maxiter=nsteps, verbosity=0, linesearch=OptimKit.HagerZhangLineSearch(verbosity=0)), 
+        OptimKit.LBFGS(
+            m; 
+            maxiter = nsteps, 
+            verbosity = verbosity[1], 
+            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
+        ), 
         finalize! = function (ϕ,χ²,g,i)
             (f, hist) = argmaxf_lnP(
                 ϕ, θ, dsθ, 
@@ -345,14 +354,15 @@ function MAP_joint_optimkit(
             )
             f°, = mix(f, ϕ, dsθ)
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-            χ² = -2lnP(:mix,f°,ϕ,dsθ)
+            χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
             next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
-            ϕ,χ²,g
-        end,
-        precondition=(_,η)->Map(Hϕ⁻¹*η)
+            ϕ, χ², g
+        end;
+        inner = (x,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
+        precondition = (_,η)->Map(Hϕ⁻¹*η)
     )
 
-    f = argmaxf_lnP(ϕ,dsθ,guess=f)
+    f = argmaxf_lnP(ϕ, dsθ, guess=f)
 
     f,ϕ
 
