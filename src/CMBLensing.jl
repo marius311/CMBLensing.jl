@@ -2,7 +2,7 @@ module CMBLensing
 
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
-    DefaultArrayStyle, preprocess_args, Style
+    DefaultArrayStyle, preprocess_args, Style, result_style
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,

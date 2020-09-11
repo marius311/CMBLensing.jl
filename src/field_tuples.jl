@@ -68,7 +68,7 @@ struct FieldTupleStyle{B,Names,FS} <: AbstractArrayStyle{1} end
 BroadcastStyle(::Type{FT}) where {B,FS<:Tuple,FT<:FieldTuple{B,FS}} = FieldTupleStyle{B,Nothing,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 BroadcastStyle(::Type{FT}) where {B,Names,FS,NT<:NamedTuple{Names,FS},FT<:FieldTuple{B,NT}} = FieldTupleStyle{B,Names,Tuple{map_tupleargs(typeof∘BroadcastStyle,FS)...}}()
 BroadcastStyle(::FieldTupleStyle{B,Names,FS1}, ::FieldTupleStyle{B,Names,FS2}) where {B,Names,FS1,FS2} = begin
-    FS = Tuple{map_tupleargs((S1,S2)->typeof(Broadcast.result_style(S1(),S2())), FS1, FS2)...}
+    FS = Tuple{map_tupleargs((S1,S2)->typeof(result_style(S1(),S2())), FS1, FS2)...}
     FieldTupleStyle{B,Names,FS}()
 end
 BroadcastStyle(S1::FieldTupleStyle{B1}, S2::FieldTupleStyle{B2}) where {B1,B2} =
