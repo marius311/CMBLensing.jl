@@ -132,11 +132,9 @@ function MAP_joint(
         throw(ArgumentError("quasi_sample should be true, false, or an Int."))
     end
     
-    # since MAP estimate is done at fixed θ, we don't need to reparametrize to
-    # ϕ° = G(θ)*ϕ, so set G to constant here to avoid wasted computation
-    ds = copy(ds)
-    ds.G = 1
-    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = ds
+    dsθ = copy(ds(θ))
+    dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
+    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = dsθ
     
     f, f° = nothing, nothing
     D = batchsize(d)
@@ -151,7 +149,7 @@ function MAP_joint(
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
     
     try
@@ -173,16 +171,16 @@ function MAP_joint(
             (f, hist) = argmaxf_lnP(
                 (i==1 && ϕstart==nothing) ? 1 : Lϕ, 
                 θ,
-                ds, 
+                dsθ, 
                 which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
                 guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
                 conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
                 preconditioner=preconditioner
             )
             aggressive_gc && gc()
-
-            f°, = mix(f,ϕ,ds)
-            lnPcur = lnP(:mix,f°,ϕ,ds)
+                    
+            f°, = mix(f,ϕ,dsθ)
+            lnPcur = lnP(:mix,f°,ϕ,dsθ)
             
             # ==== show progress ====
             next!(pbar, showvalues=[("step",i), ("χ²",-2lnPcur), ("Ncg",length(hist)), ("α",α)])
@@ -193,8 +191,8 @@ function MAP_joint(
             
             # ==== ϕ step =====
             if (i!=nsteps)
-                ϕstep = Hϕ⁻¹ * gradient(ϕ->lnP(:mix,f°,ϕ,ds), ϕ)[1]
-                neg_lnP(α) = -lnP(:mix, f°, ϕ + α*ϕstep, ds)
+                ϕstep = Hϕ⁻¹ * gradient(ϕ->lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+                neg_lnP(α) = -lnP(:mix, f°, ϕ + α*ϕstep, dsθ)
                 α = optimize(batch(neg_lnP,D), T(0), T(αmax), abs_tol=0, rel_tol=0, iterations=αiters)
                 ϕ = ϕ + α*ϕstep
             end
