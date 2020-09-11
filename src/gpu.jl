@@ -1,7 +1,7 @@
 
 using CUDA
 using CUDA: cufunc, curand_rng
-using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, mv!, switch2csr
+using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
