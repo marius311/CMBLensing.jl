@@ -94,26 +94,26 @@ BroadcastStyle(::FlatS0Style{F,M}, ::BatchedRealStyle{D′}) where {D′,N,θ,�
     (D==1 || D′==1 || D==D′) ? FlatS0Style{basetype(F){Flat{N,θ,∂m,max(D,D′)}},M}() : Broadcast.Unknown
 BroadcastStyle(::FieldTupleStyle{B,Names,FS}, S2::BatchedRealStyle) where {B,Names,FS} = 
     FieldTupleStyle{B,Names,Tuple{map_tupleargs(S1->typeof(Broadcast.result_style(S1(),S2)), FS)...}}()
-for op in [:+, :-, :*, :/]
+for op in [:+, :-, :*, :/, :<, :<=, :&, :|]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
         ($op)(a::BatchedReal, b::Real)        = batch(broadcast(($op), a.vals, b))
-        ($op)(a::Real, b::BatchedReal)        = batch(broadcast(($op), a,      b.vals))
+        ($op)(a::Real,        b::BatchedReal) = batch(broadcast(($op), a,      b.vals))
     end
 end
--(br::BatchedReal) = batch(.-br.vals)
-<(a::BatchedReal, b::BatchedReal) = all(a.vals .< b.vals)
-<(a::BatchedReal, b::Real) = all(a.vals .< b)
-sqrt(br::BatchedReal) = batch(sqrt.(br.vals))
+for op in [:-, :sqrt, :one, :zero, :isfinite, :eps]
+    @eval ($op)(br::BatchedReal) = batch(broadcast(($op),br.vals))
+end
+for op in [:any, :all]
+    @eval ($op)(br::BatchedReal) = ($op)(br.vals)
+end
 eltype(::BatchedVals{T}) where {T} = T
 broadcastable(::Type{<:FlatS0{<:Flat,T}}, br::BatchedReal) where {T} = reshape(T.(br.vals),1,1,length(br.vals))
-one(br::BatchedReal) = batch(one.(br.vals))
 unbatch(br::BatchedVals) = br.vals
 unbatch(r::Real) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
 convert(::Type{<:BatchedVals{T,N}}, v::Bool) where {T,N} = batch(T(v),N)
-
 
 
 batch(L::Diagonal{<:Any,<:FlatField}, D::Int) = Diagonal(batch(diag(L), D))

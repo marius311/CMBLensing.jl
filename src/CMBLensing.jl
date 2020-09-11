@@ -44,9 +44,9 @@ using Zygote: unbroadcast, Numeric, @adjoint, @nograd
 
 
 import Adapt: adapt_structure
-import Base: +, -, *, \, /, ^, ~, ≈, <,
-    abs, adjoint, axes, broadcast, broadcastable, BroadcastStyle, conj, copy, convert,
-    copy, copyto!, eltype, fill!, getindex, getproperty, hash, hcat, hvcat, inv,
+import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &,
+    abs, adjoint, all, any, axes, broadcast, broadcastable, BroadcastStyle, conj, copy, convert,
+    copy, copyto!, eltype, eps, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
     iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
