@@ -150,7 +150,7 @@ function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTupl
     
     end
     
-    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), Ð(zero(getϕ(L)))))
+    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), batch_promote!(L.memÐϕ,Ð(zero(getϕ(L))))))
     
 end
 

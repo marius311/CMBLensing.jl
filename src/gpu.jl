@@ -47,7 +47,7 @@ inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(S
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
 dot(a::CuFlatS0{<:Flat{N,θ}}, b::CuFlatS0{<:Flat{N,θ}}) where {N,θ} = dot(adapt(Array,Map(a)), adapt(Array,Map(b)))
 ≈(a::CuFlatS0, b::CuFlatS0) = (firstfield(a) ≈ firstfield(b))
-sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : error("Not implemented")
+sum(f::CuFlatS0; dims=:) = ((dims == :) || (1 in dims)) ? sum(firstfield(f)) : f
 
 
 # these only work for Reals in CUDA
