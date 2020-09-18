@@ -109,7 +109,7 @@ tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El
 
 
 ### misc
-Cℓ_to_Cov(f::FlatField{P,T}, args...; kwargs...) where {P,T} = Cℓ_to_Cov(P,T,spin(f),args...; kwargs...)
+Cℓ_to_Cov(f::FlatField{P,T,M}, args...; kwargs...) where {P,T,M} = adapt(M, Cℓ_to_Cov(P,T,spin(f),args...; kwargs...))
 
 function pixwin(f::FlatField) 
     @unpack θpix,P,T,k = fieldinfo(f)

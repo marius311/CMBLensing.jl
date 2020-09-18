@@ -28,6 +28,7 @@ copies of the data in `f`)
 batch(f::F, D::Int) where {N,θ,∂m,D′,F<:FlatS0{Flat{N,θ,∂m,D′}}} = 
     (D′==D || D′==1) ? basetype(F){Flat{N,θ,∂m,D}}(firstfield(f)) : error("Can't change batch-length from $(D′) to $D.")
 batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
+batch(x::T, D::Int) where {T} = D==1 ? x : error("batching $T not implemented.")
 batch(x, ::Nothing) = x
 
 """
@@ -56,7 +57,7 @@ batchindex(f::FlatField, I) =
 The number of batches of in this object.
 """
 batchsize(::FlatField{<:Flat{<:Any,<:Any,<:Any,D}}) where {D} = D
-batchsize(x) = x
+batchsize(x) = 1
 
 
 
@@ -144,7 +145,7 @@ all the `g` calls.
 
 Basically used to turn code which isn't batchable into one that is. 
 """
-function batch(f::Function, batchsize)
+function batch(f::Function, batchsize::Int)
     if batchsize == 1
         f
     else

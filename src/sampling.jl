@@ -236,7 +236,7 @@ function sample_joint(
         end
         
         last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*ϕstart) θ=>θstart]
+            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*cpu(ϕstart)) θ=>θstart]
         end
         chunks_index = 1
         if filename != nothing

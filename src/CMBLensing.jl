@@ -61,7 +61,7 @@ import Statistics: std
 
 export
     @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
-    argmaxf_lnP, BandPassOp, BaseDataSet, batch, batchindex, batchsize, cache,
+    argmaxf_lnP, BandPassOp, BaseDataSet, batch, batchindex, batchsize, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, Field, FieldArray, fieldinfo,
     FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,

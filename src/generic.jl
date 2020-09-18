@@ -202,6 +202,7 @@ global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 # allows one to pass `1` to something which expect a LenseFlow-like operator
 (s::Scalar)(::Field) = s
+
 alloc_cache(x, ::Any) = x
 cache(x, ::Any) = x
 cache!(x, ::Any) = x

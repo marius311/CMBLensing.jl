@@ -154,6 +154,10 @@ function ud_grade(f::FieldTuple, args...; kwargs...)
     FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))
 end
 
+# misc
+fieldinfo(ft::FieldTuple) = fieldinfo(only(unique(map(typeof, ft.fs)))) # todo: make even more generic
+batchsize(ft::FieldTuple) = only(unique(map(batchsize, ft.fs)))
+global_rng_for(::Type{<:FieldTuple{B,FS}}) where {B,FS} = global_rng_for(eltype(FS))
 
 ### adjoint tuples
 

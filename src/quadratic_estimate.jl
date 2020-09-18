@@ -32,7 +32,6 @@ function quadratic_estimate((ds1,ds2)::NTuple{2,DataSet}, which; wiener_filtered
     @assert (which in [:TT, :EE, :EB]) "which='$which' not implemented"
     @assert (ds1.Cf===ds2.Cf && ds1.Cf̃===ds2.Cf̃ && ds1.Cn̂===ds2.Cn̂ && ds1.Cϕ===ds2.Cϕ && ds1.B̂===ds2.B̂) "operators in `ds1` and `ds2` should be the same"
     @assert spin(ds1.d)==spin(ds2.d)
-    check_hat_operators(ds1)
     @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds1()
     (quadratic_estimate_func, pol) = @match which begin
         :TT => (quadratic_estimate_TT, :I)

@@ -32,7 +32,6 @@ function argmaxf_lnP(
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
     
-    check_hat_operators(ds)
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
     D = batchsize(d)
     

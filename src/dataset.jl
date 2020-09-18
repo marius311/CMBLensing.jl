@@ -58,11 +58,6 @@ function (ds::DataSet)(θ::NamedTuple)
 end
 (ds::DataSet)(;θ...) = ds((;θ...))
 
-function check_hat_operators(ds::DataSet)
-    @unpack B̂, M̂, Cn̂, Cf = ds()
-    @assert(all([(L isa Scalar) || (basis(diag(L))==basis(diag(Cf))) for L in [B̂,M̂,Cn̂]]),
-            "B̂, M̂, Cn̂ are used for preconditioning and should be scalars or in the same basis as Cf")
-end
 
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
