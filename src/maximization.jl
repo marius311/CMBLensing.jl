@@ -171,8 +171,9 @@ function MAP_joint(
             aggressive_gc && gc()
             f°, = mix(f, ϕ, dsθ)
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-            χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
-            next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
+            χ²s = -2lnP(:mix,f°,ϕ,dsθ)
+            χ² = sum(unbatch(χ²s))
+            next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist))])
             push!(tr, @namedtuple(f,ϕ,lnP=-χ²/2))
             ϕ, χ², g
         end;
