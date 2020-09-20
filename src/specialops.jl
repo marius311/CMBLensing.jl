@@ -11,14 +11,15 @@ global_rng_for(::Type{<:DiagOp{F}}) where {F} = global_rng_for(F)
 (\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(D.diag .\ B(f))
 
 # broadcasting
-BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{F}}, ::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}) where {F<:Field} = StructuredMatrixStyle{DiagOp{F}}()
-BroadcastStyle(::StructuredMatrixStyle{<:DiagOp{<:ImplicitField}}, ::StructuredMatrixStyle{<:DiagOp{F}}) where {F<:Field} = Base.Broadcast.Unknown()
-function similar(bc::Broadcasted{<:StructuredMatrixStyle{<:DiagOp{F}}}, ::Type{T}) where {F<:Field,T}
-    Diagonal(similar(typeof(BroadcastStyle(F)),T))
-end
+struct DiagOpStyle{FS} <: AbstractArrayStyle{2} end
+BroadcastStyle(::Type{D}) where {F<:Field,D<:DiagOp{F}} = DiagOpStyle{typeof(BroadcastStyle(F))}()
+BroadcastStyle(::DiagOpStyle{FS1}, ::DiagOpStyle{FS2}) where {FS1,FS2} = DiagOpStyle{typeof(result_style(FS1(),FS2()))}()
+BroadcastStyle(S::DiagOpStyle, ::DefaultArrayStyle{0}) = S
+similar(bc::Broadcasted{DiagOpStyle{FS}}, ::Type{T}) where {FS,T} = Diagonal(similar(FS,T))
+instantiate(bc::Broadcasted{<:DiagOpStyle}) = bc
 diag_data(D::Diagonal) = D.diag
 diag_data(x) = x
-function copyto!(dest::DiagOp, bc::Broadcasted{<:StructuredMatrixStyle})
+function copyto!(dest::DiagOp, bc::Broadcasted{Nothing})
     copyto!(dest.diag, map_bc_args(diag_data, bc))
     dest
 end

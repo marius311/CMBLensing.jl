@@ -32,6 +32,15 @@ batch(x::T, D::Int) where {T} = D==1 ? x : error("batching $T not implemented.")
 batch(x, ::Nothing) = x
 
 """
+    batch_promote!(to, f)
+
+Promote `f` to the same batch size as `to` by replication. If both are already
+the same batch size, no copy is made and `f` is returned. If promotion needs to
+happen, the answer is stored in-place in `to` and returned. 
+"""
+batch_promote!(to, f) = batchsize(to)==batchsize(f) ? f : (to .= f)
+
+"""
     unbatch(f::FlatField)
     
 If `f` is a batch-length-`D` field, return length-`D` vector of each batch
@@ -86,26 +95,26 @@ BroadcastStyle(::FlatS0Style{F,M}, ::BatchedRealStyle{D′}) where {D′,N,θ,�
     (D==1 || D′==1 || D==D′) ? FlatS0Style{basetype(F){Flat{N,θ,∂m,max(D,D′)}},M}() : Broadcast.Unknown
 BroadcastStyle(::FieldTupleStyle{B,Names,FS}, S2::BatchedRealStyle) where {B,Names,FS} = 
     FieldTupleStyle{B,Names,Tuple{map_tupleargs(S1->typeof(Broadcast.result_style(S1(),S2)), FS)...}}()
-for op in [:+, :-, :*, :/]
+for op in [:+, :-, :*, :/, :<, :<=, :&, :|]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
         ($op)(a::BatchedReal, b::Real)        = batch(broadcast(($op), a.vals, b))
-        ($op)(a::Real, b::BatchedReal)        = batch(broadcast(($op), a,      b.vals))
+        ($op)(a::Real,        b::BatchedReal) = batch(broadcast(($op), a,      b.vals))
     end
 end
--(br::BatchedReal) = batch(.-br.vals)
-<(a::BatchedReal, b::BatchedReal) = all(a.vals .< b.vals)
-<(a::BatchedReal, b::Real) = all(a.vals .< b)
-sqrt(br::BatchedReal) = batch(sqrt.(br.vals))
+for op in [:-, :sqrt, :one, :zero, :isfinite, :eps]
+    @eval ($op)(br::BatchedReal) = batch(broadcast(($op),br.vals))
+end
+for op in [:any, :all]
+    @eval ($op)(br::BatchedReal) = ($op)(br.vals)
+end
 eltype(::BatchedVals{T}) where {T} = T
 broadcastable(::Type{<:FlatS0{<:Flat,T}}, br::BatchedReal) where {T} = reshape(T.(br.vals),1,1,length(br.vals))
-one(br::BatchedReal) = batch(one.(br.vals))
 unbatch(br::BatchedVals) = br.vals
 unbatch(r::Real) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
 convert(::Type{<:BatchedVals{T,N}}, v::Bool) where {T,N} = batch(T(v),N)
-
 
 
 batch(L::Diagonal{<:Any,<:FlatField}, D::Int) = Diagonal(batch(diag(L), D))
@@ -121,47 +130,3 @@ function batchmap(f, args...)
     _unbatch(x) = batchsize(x)==1 ? Ref(x) : unbatch(x)
     batch(broadcast(f, map(_unbatch, args)...)...)
 end
-
-
-### batched functions
-
-struct BatchedFunction{F}
-    f :: F
-    batchsize :: Int
-end
-(bf::BatchedFunction)(x) = bf.f(x)
-batchsize(bf::BatchedFunction) = bf.batchsize
-
-
-"""
-    batch(f::Function, batchsize)
-
-`f` is a function `f(::Batched) :: Batched`. 
-
-Returns a new function `g(::Scalar) :: Scalar` which waits until its called
-`batchsize` number of times (the calls to `g` will block) and then calls `f`
-once with all the arguments batched together, then distributes the answer to
-all the `g` calls.
-
-Basically used to turn code which isn't batchable into one that is. 
-"""
-function batch(f::Function, batchsize::Int)
-    if batchsize == 1
-        f
-    else
-        results_requested = Channel(batchsize)
-        @async while true
-            x_c = [take!(results_requested) for i=1:batchsize]
-            result = f(batch(first.(x_c)...))
-            put!.(last.(x_c), unbatch(result))
-        end
-        BatchedFunction(batchsize) do x
-            c = Channel()
-            put!(results_requested,(x,c))
-            ans = take!(c)
-            close(c)
-            ans
-        end
-    end
-end
-

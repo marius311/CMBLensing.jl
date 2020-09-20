@@ -285,7 +285,7 @@ function load_sim(;
 
     if Nbatch != nothing
         ds.d = identity.(batch(ds.d, Nbatch))
-        ds.L = alloc_cache(L(identity.(batch(similar(diag(Cϕ)), Nbatch))), ds.d)
+        ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
     end
     
     return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))

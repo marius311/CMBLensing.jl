@@ -100,7 +100,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         res  = res′
         t    = time() - t₀
         
-        if res<bestres
+        if all(res<bestres)
             bestres,bestx = res,x
         end
         if callback!=nothing
@@ -109,7 +109,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         if hist!=nothing && (i%histmod)==0
             push!(_hist, gethist())
         end
-        if res<tol
+        if all(res<tol)
             break
         end
         
