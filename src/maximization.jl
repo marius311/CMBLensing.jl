@@ -115,7 +115,15 @@ function MAP_joint(
     verbosity = (0,0),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
+    preconditioner = :diag,
+    aggressive_gc = fieldinfo(ds.d).Nside>=1024,
+    αtol = nothing,
+    αmax = nothing,
 )
+
+    if αtol!=nothing || αmax!=nothing
+        @warn "αtol and αmax are deprecated and will be removed in the future. This is now handled automatically."
+    end
 
     dsθ = copy(ds(θ))
     dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
@@ -130,10 +138,14 @@ function MAP_joint(
     Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
 
     tr = []
-    which = (quasi_sample==false) ? :wf : :sample# if doing a quasi-sample, we get a sample instead of the WF
+    argmaxf_lnP_kwargs = (
+        which = (quasi_sample==false) ? :wf : :sample,
+        preconditioner = preconditioner,
+        conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...),
+    )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
 
-    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; which=which)
+    f, = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; argmaxf_lnP_kwargs...)
     f°, = mix(f, ϕ, dsθ)
     ϕ, = optimize(
         ϕ -> (
@@ -154,9 +166,9 @@ function MAP_joint(
             (f, hist) = argmaxf_lnP(
                 ϕ, θ, dsθ;
                 guess = f, 
-                conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...),
-                which = which
+                argmaxf_lnP_kwargs...
             )
+            aggressive_gc && gc()
             f°, = mix(f, ϕ, dsθ)
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
             χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
@@ -168,7 +180,7 @@ function MAP_joint(
         precondition = (_,η)->Map(Hϕ⁻¹*η)
     )
 
-    f = argmaxf_lnP(ϕ, θ, dsθ; guess=f, which=which)
+    f, = argmaxf_lnP(ϕ, θ, dsθ; guess=f, argmaxf_lnP_kwargs...)
 
     f,ϕ,tr
 

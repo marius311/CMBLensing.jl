@@ -111,7 +111,7 @@ plot(ds.d, title = "data " .* ["E" "B"]);
 Now we compute the maximum of the joint posterior, $\mathcal{P}\big(f, \phi \,\big|\,d\big)$
 
 ```julia
-fbf, ϕbf, tr = MAP_joint(ds, nsteps=30, progress=true, αmax=0.1);
+fbf, ϕbf, tr = MAP_joint(ds, nsteps=30, progress=true);
 ```
 
 # Examine results

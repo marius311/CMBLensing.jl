@@ -167,7 +167,7 @@ function sample_joint(
     preconditioner = :diag,
     nhmc = 1,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
-    MAP_kwargs = (αmax=0.3, nsteps=40),
+    MAP_kwargs = (nsteps=40,),
     metadata = nothing,
     progress = false,
     interruptable = false,
