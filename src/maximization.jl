@@ -133,7 +133,7 @@ function MAP_joint(
     which = (quasi_sample==false) ? :wf : :sample# if doing a quasi-sample, we get a sample instead of the WF
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
 
-    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; which)
+    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; which=which)
     f°, = mix(f, ϕ, dsθ)
     ϕ, = optimize(
         ϕ -> (
@@ -155,7 +155,7 @@ function MAP_joint(
                 ϕ, θ, dsθ;
                 guess = f, 
                 conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...),
-                which
+                which = which
             )
             f°, = mix(f, ϕ, dsθ)
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
@@ -168,7 +168,7 @@ function MAP_joint(
         precondition = (_,η)->Map(Hϕ⁻¹*η)
     )
 
-    f = argmaxf_lnP(ϕ, θ, dsθ; guess=f, which)
+    f = argmaxf_lnP(ϕ, θ, dsθ; guess=f, which=which)
 
     f,ϕ,tr
 
