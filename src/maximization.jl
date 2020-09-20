@@ -103,7 +103,7 @@ Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
 `ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
-MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
+MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
 function MAP_joint(
     θ :: NamedTuple, 
     ds :: DataSet; 
@@ -161,7 +161,7 @@ function MAP_joint(
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
             χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
             next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
-            push!(tr, (;f,ϕ,lnP=-χ²/2))
+            push!(tr, @namedtuple(f,ϕ,lnP=-χ²/2))
             ϕ, χ², g
         end;
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
