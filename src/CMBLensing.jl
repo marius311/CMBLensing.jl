@@ -25,6 +25,7 @@ using Match
 using Markdown
 using Measurements
 using Memoization
+using OptimKit
 using Pkg
 using Printf
 using ProgressMeter

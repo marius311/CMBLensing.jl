@@ -16,7 +16,7 @@ Keyword arguments:
   $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
   fluctuation on top of the mean.
 * `guess` — starting guess for `f` for the conjugate gradient solver
-* `kwargs...` — all other arguments are passed to [`conjugate_gradient`](@ref)
+* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`][@ref]
 
 """
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
@@ -82,7 +82,7 @@ end
 @doc doc"""
 
     MAP_joint(ds::DataSet; kwargs...)
-    
+
 Compute the maximum a posteriori (i.e. "MAP") estimate of the joint posterior,
 $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample. 
 
@@ -90,126 +90,95 @@ $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample.
 Keyword arguments:
 
 * `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*
-* `Nϕ` — Noise to use in the approximate hessian matrix. Can also give
-    `Nϕ=:qe` to use the EB quadratic estimate noise *(default:* `:qe`*)*
-* `quasi_sample` — `true` to iterate quasi-samples, or an integer to compute
-    a specific quasi-sample.
-* `nsteps` — The number of iterations for the maximizer
-* `Ncg` — Maximum number of conjugate gradient steps during the $f$ update
-* `cgtol` — Conjugrate gradient tolerance (will stop at `cgtol` or `Ncg`,
-    whichever is first)
-* `αtol` — Absolute tolerance on $\alpha$ in the linesearch in the $\phi$
-    quasi-Newton-Rhapson step, $x^\prime = x - \alpha H^{-1} g$.  
-* `αmax` — Maximum value for $\alpha$ in the linesearch
-* `αiters` — Number of Brent's method steps actually used in the $\alpha$ linesearch 
+* `nsteps` — The number of iterations for the maximizer.
+* `lbfgs_rank` — The maximum rank of the LBFGS approximation to the
+   Hessian *(default: 5)*
+* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`][@ref]
 * `progress` — whether to show progress bar
+* `Nϕ` — Noise to use in the initial approximation to the Hessian. Can also
+   give `Nϕ=:qe` to use the quadratic estimate noise *(default:* `:qe`*)*
+* `quasi_sample` — `false` *(default)* to compute the MAP, `true` to iterate
+   quasi-samples, or an integer to compute a fixed-seed quasi-sample.
 
-Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample)
-field, `ϕ` is the lensing potential, and `tr` contains info about the run. 
+Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
+`ϕ` is the lensing potential, and `tr` contains info about the run. 
 
 """
-MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
+MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
 function MAP_joint(
     θ :: NamedTuple, 
-    ds :: DataSet;
-    ϕstart = nothing,
+    ds :: DataSet; 
+    nsteps = 20,
+    lbfgs_rank = 5, 
     Nϕ = :qe,
-    quasi_sample = false, 
-    nsteps = 10, 
-    conjgrad_kwargs = (tol=1e-1,nsteps=500),
-    preconditioner = :diag,
-    αtol = 1e-5,
-    αmax = 0.5,
-    αiters = Int(floor(log(αmax/αtol))),
-    cache_function = nothing,
-    callback = nothing,
-    interruptable::Bool = false,
+    ϕstart = nothing,
     progress::Bool = true,
-    aggressive_gc = fieldinfo(ds.d).Nside>=1024
+    verbosity = (0,0),
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
+    quasi_sample = false,
 )
-    
-    if !(isa(quasi_sample,Bool) || isa(quasi_sample,Int))
-        throw(ArgumentError("quasi_sample should be true, false, or an Int."))
-    end
-    
+
     dsθ = copy(ds(θ))
     dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
-    @unpack d, D, Cϕ, Cf, Cf̃, Cn, Cn̂, L = dsθ
-    
-    f, f° = nothing, nothing
-    D = batchsize(d)
-    ϕ = (ϕstart==nothing) ? zero(identity.(batch(diag(Cϕ),D))) : ϕstart
-    ϕstep = nothing
-    Lϕ = cache(L(ϕ),d)
-    T = real(eltype(d))
-    α = 0
-    tr = []
-    hist = nothing
-    
+
+    ϕ = Map(ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart)
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
-    
-    try
-        pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
-        
-        for i=1:nsteps
-
-            # ==== f step ====
-                
-            # if we're doing a fixed quasi_sample, set the random seed here,
-            # which controls the sample from the posterior we get from inside
-            # `argmaxf_lnP`
-            if isa(quasi_sample,Int); seed!(quasi_sample); end
-                
-            # recache Lϕ for new ϕ
-            if i!=1; cache!(Lϕ,ϕ); end
-            
-            # run wiener filter
-            (f, hist) = argmaxf_lnP(
-                (i==1 && ϕstart==nothing) ? 1 : Lϕ, 
-                θ,
-                dsθ, 
-                which = (quasi_sample==false) ? :wf : :sample, # if doing a quasi-sample, we get a sample instead of the WF
-                guess = (i==1 ? nothing : f), # after first iteration, use the previous f as starting point
-                conjgrad_kwargs=(hist=(:i,:res), progress=(progress==:verbose), conjgrad_kwargs...),
-                preconditioner=preconditioner
-            )
-            aggressive_gc && gc()
-                    
-            f°, = mix(f,ϕ,dsθ)
-            lnPcur = lnP(:mix,f°,ϕ,dsθ)
-            
-            # ==== show progress ====
-            next!(pbar, showvalues=[("step",i), ("χ²",-2lnPcur), ("Ncg",length(hist)), ("α",α)])
-            push!(tr,@namedtuple(i,lnPcur,hist,ϕ,f,α,ϕstep))
-            if callback != nothing
-                callback(f, ϕ, tr)
-            end
-            
-            # ==== ϕ step =====
-            if (i!=nsteps)
-                ϕstep = Hϕ⁻¹ * gradient(ϕ->lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-                neg_lnP(α) = -lnP(:mix, f°, ϕ + α*ϕstep, dsθ)
-                α = optimize(batch(neg_lnP,D), T(0), T(αmax), abs_tol=0, rel_tol=0, iterations=αiters)
-                ϕ = ϕ + α*ϕstep
-            end
-
-        end
-    catch err
-        if (err isa InterruptException) && interruptable
-            println()
-            @warn("Maximization interrupted. Returning current progress.")
-        else
-            rethrow(err)
-        end
+    if (Nϕ == :qe)
+        Nϕ = quadratic_estimate(dsθ).Nϕ/2
     end
+    Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
 
-    return @namedtuple(f, ϕ, tr)
-    
+    tr = []
+    which = (quasi_sample==false) ? :wf : :sample# if doing a quasi-sample, we get a sample instead of the WF
+    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+
+    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; which)
+    f°, = mix(f, ϕ, dsθ)
+    ϕ, = optimize(
+        ϕ -> (
+            sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ))), 
+            gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+        ),
+        Map(ϕ),
+        OptimKit.LBFGS(
+            lbfgs_rank; 
+            maxiter = nsteps, 
+            verbosity = verbosity[1], 
+            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
+        ), 
+        finalize! = function (ϕ,χ²,g,i)
+            if isa(quasi_sample,Int) 
+                seed!(global_rng_for(f),quasi_sample)
+            end
+            (f, hist) = argmaxf_lnP(
+                ϕ, θ, dsθ;
+                guess = f, 
+                conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...),
+                which
+            )
+            f°, = mix(f, ϕ, dsθ)
+            g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+            χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
+            next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
+            push!(tr, (;f,ϕ,lnP=-χ²/2))
+            ϕ, χ², g
+        end;
+        inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
+        precondition = (_,η)->Map(Hϕ⁻¹*η)
+    )
+
+    f = argmaxf_lnP(ϕ, θ, dsθ; guess=f, which)
+
+    f,ϕ,tr
+
 end
+
+OptimKit._scale!(η::Field, β) = η .*= β
+OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
+
+
 
 
 @doc doc"""
@@ -273,99 +242,3 @@ function MAP_marg(
     return ϕ, tr
 
 end
-
-
-"""
-    optimize(f::Function, args...; kwargs...)
-    optimize(f::BatchedFunction, args...; kwargs...)
-
-Tiny wrapper around `Optim.optimize` but if the target function is a batched
-function, takes care of making the call asynchronous and batching the result.
-E.g.:
-
-    optimize(batch(x -> x.^[2,4,6], 3), -1, 1)
-
-simultaneously optimizes `x^2`, `x^4`, and `x^6`, but results in only a single
-call to `x -> x.^[2,4,6]` per iteration of the Optim algorithm. Note: unlike
-Optim.optimize, this just returns the minimizer point. 
-"""
-optimize(f::Function, args...; kwargs...) = @ondemand(Optim.optimize)(f, args...; kwargs...).minimizer
-function optimize(f::BatchedFunction, args...; kwargs...)
-    results = asyncmap(1:batchsize(f)) do _
-        optimize(f.f, args...; kwargs...)
-    end
-    batch(results...)
-end
-
-
-### OptimKit
-
-import OptimKit
-
-export MAP_joint_optimkit
-
-OptimKit._scale!(η::Field, β) = η .*= β
-OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
-
-function MAP_joint_optimkit(
-    θ :: NamedTuple, 
-    ds :: DataSet; 
-    nsteps = 20, 
-    Nϕ = :qe,
-    m = 5, 
-    ϕstart = nothing,
-    progress = false,
-    verbosity = (0,0),
-    conjgrad_kwargs = (tol=1e-1,nsteps=500),
-)
-
-    dsθ = copy(ds(θ))
-    dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
-
-    ϕ = Map(ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart)
-    
-    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
-    # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
-
-    
-    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
-
-    f = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ)
-    f°, = mix(f, ϕ, dsθ)
-    ϕ, = OptimKit.optimize(
-        ϕ -> (
-            sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ))), 
-            gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-        ),
-        Map(ϕ),
-        OptimKit.LBFGS(
-            m; 
-            maxiter = nsteps, 
-            verbosity = verbosity[1], 
-            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
-        ), 
-        finalize! = function (ϕ,χ²,g,i)
-            (f, hist) = argmaxf_lnP(
-                ϕ, θ, dsθ, 
-                guess = f, 
-                conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...)
-            )
-            f°, = mix(f, ϕ, dsθ)
-            g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-            χ² = sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))
-            next!(pbar, showvalues=[("step",i), ("χ²",χ²), ("Ncg",length(hist))])
-            ϕ, χ², g
-        end;
-        inner = (x,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
-        precondition = (_,η)->Map(Hϕ⁻¹*η)
-    )
-
-    f = argmaxf_lnP(ϕ, dsθ, guess=f)
-
-    f,ϕ
-
-end
-
-MAP_joint_optimkit(ds::DataSet; kwargs...) = MAP_joint_optimkit((;), ds; kwargs...)
