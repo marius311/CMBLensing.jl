@@ -1,8 +1,9 @@
 
 using CUDA
-using CUDA: cufunc, curand_rng
+using CUDA: cufunc, curand_rng, @retry_reclaim
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, mv!, switch2csr
 using CUDA.CUSOLVER: CuQR
+using CUDA.CURAND: CURANDError
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
@@ -14,7 +15,18 @@ function cuda(f, args...; threads=256)
 end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
-global_rng_for(::Type{<:CuArray}) = curand_rng()
+function global_rng_for(::Type{<:CuArray})
+    # retry_reclaim is a workaround for https://github.com/JuliaGPU/CUDA.jl/issues/340
+    # https://github.com/JuliaGPU/CUDA.jl/pull/436 should fix it in CUDA, so can
+    # remove this after a while
+    @retry_reclaim rng->(rng===nothing) begin
+        try
+            curand_rng()
+        catch err
+            err isa CURANDError ? nothing : rethrow(err)
+        end
+    end
+end
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
     Random.seed!(global_rng_for(CuArray), seed)
 
