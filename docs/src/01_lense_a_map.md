@@ -8,9 +8,9 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.4.0
+    display_name: Julia 1.5.1
     language: julia
-    name: julia-1.4
+    name: julia-1.5
 ---
 
 # Lensing a flat-sky map

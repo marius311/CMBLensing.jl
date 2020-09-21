@@ -174,7 +174,7 @@ function MAP_joint(
             χ²s = -2lnP(:mix,f°,ϕ,dsθ)
             χ² = sum(unbatch(χ²s))
             next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist))])
-            push!(tr, @namedtuple(f,ϕ,lnP=-χ²/2))
+            push!(tr, @namedtuple(f,ϕ,lnPcur=-χ²/2))
             ϕ, χ², g
         end;
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
