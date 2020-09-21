@@ -52,7 +52,8 @@ getϕ(L::CachedLenseFlow) = L.ϕ[]
 τ(t) = Float16(t)
 cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
-cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
+cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = 
+    (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(batch_promote!(cL.memÐϕ,Ð(ϕ))),cL.memŁf)
 (cL::CachedLenseFlow)(ϕ) = cache!(cL,ϕ)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = range(t₀,t₁,length=2N+1)
