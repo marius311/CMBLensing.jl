@@ -1,9 +1,8 @@
 
 using CUDA
-using CUDA: cufunc, curand_rng, @retry_reclaim
+using CUDA: cufunc, curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, mv!, switch2csr
 using CUDA.CUSOLVER: CuQR
-using CUDA.CURAND: CURANDError
 
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
@@ -15,18 +14,7 @@ function cuda(f, args...; threads=256)
 end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
-function global_rng_for(::Type{<:CuArray})
-    # retry_reclaim is a workaround for https://github.com/JuliaGPU/CUDA.jl/issues/340
-    # https://github.com/JuliaGPU/CUDA.jl/pull/436 should fix it in CUDA, so can
-    # remove this after a while
-    @retry_reclaim rng->(rng===nothing) begin
-        try
-            curand_rng()
-        catch err
-            err isa CURANDError ? nothing : rethrow(err)
-        end
-    end
-end
+global_rng_for(::Type{<:CuArray}) = curand_rng()
 seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
     Random.seed!(global_rng_for(CuArray), seed)
 
@@ -109,5 +97,26 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
     @assert plan.xtype == CUFFT_C2R
     cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuDefaultStream()), y)
 end
+
+# monkey-patched version of https://github.com/JuliaGPU/CUDA.jl/pull/436
+# until it hits a release
+using CUDA.CURAND: curandSetPseudoRandomGeneratorSeed, curandSetGeneratorOffset, 
+    CURAND_STATUS_ALLOCATION_FAILED, CURAND_STATUS_PREEXISTING_FAILURE, CURAND_STATUS_SUCCESS,
+    unsafe_curandGenerateSeeds, throw_api_error, @retry_reclaim, RNG
+
+function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
+    curandSetPseudoRandomGeneratorSeed(rng, seed)
+    curandSetGeneratorOffset(rng, offset)
+    res = @retry_reclaim err->isequal(err, CURAND_STATUS_ALLOCATION_FAILED) ||
+                              isequal(err, CURAND_STATUS_PREEXISTING_FAILURE) begin
+        unsafe_curandGenerateSeeds(rng)
+    end
+    if res != CURAND_STATUS_SUCCESS
+        throw_api_error(res)
+    end
+    return
+end
+
+
 
 gc = () -> (GC.gc(true); CUDA.reclaim())
