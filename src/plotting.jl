@@ -230,7 +230,7 @@ end
 ### convenience
 # for plotting in environments that only show a plot if its the last thing returned
 
-function figure(plotfn, args...; kwargs...)
+function figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()
