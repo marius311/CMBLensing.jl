@@ -114,6 +114,7 @@ function getindex(L::FlatIEBCov, k::Symbol)
         :E => L.ΣTE[2,2]
         :B => L.ΣB
         :P => Diagonal(FlatEBFourier(L[:E].diag, L[:B].diag))
+        (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
         _ => throw(ArgumentError("Invalid FlatIEBCov index: $k"))
     end
 end

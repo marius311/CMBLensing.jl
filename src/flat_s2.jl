@@ -74,6 +74,18 @@ function getindex(f::FlatS2, k::Symbol)
     getproperty(B(f),k)
 end
 
+function Base.getindex(D::DiagOp{<:FlatEBFourier}, s::Symbol)
+    @unpack El, Bl = diag(D);
+    @unpack sin2ϕ, cos2ϕ, P = fieldinfo(diag(D))
+    f = @match s begin
+        :QQ          => FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2)
+        (:QU || :UQ) => FlatFourier{P}(@. (El - Bl) * sin2ϕ * cos2ϕ)
+        :UU          => FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2)
+        _            => getproperty(D.diag, s)
+    end
+    Diagonal(f)
+end
+
 ### basis conversion
 
 QUFourier(f::FlatQUMap) = FlatQUFourier(map(Fourier,f.fs))
