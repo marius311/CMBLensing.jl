@@ -232,6 +232,12 @@ end
 
 ##
 
+@testset "FlatS2" begin
+    C = Diagonal(EBFourier(FlatEBMap(rand(3,3), rand(3,3))))
+    f = FlatQUMap(rand(3,3), rand(3,3))
+    @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
+end
+
 @testset "FlatS02" begin
     
     ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(FlatMap(rand(3,3)))) for i=1:4]

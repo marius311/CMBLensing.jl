@@ -77,22 +77,14 @@ end
 function Base.getindex(D::DiagOp{<:FlatEBFourier}, s::Symbol)
     @unpack El, Bl = diag(D);
     @unpack sin2ϕ, cos2ϕ, P = fieldinfo(diag(D))
-    if   s === :QQ
-        return Diagonal(FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2))
-    elseif s === :UU
-        return Diagonal(FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2))
-    elseif s === :QU
-        return Diagonal(FlatFourier{P}(@. (El - Bl) * sin2ϕ * cos2ϕ))
-    else
-        Diagonal(getproperty(D.diag,s))
+    f = @match s begin
+        :QQ          => FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2)
+        (:QU || :UQ) => FlatFourier{P}(@. (El - Bl) * sin2ϕ * cos2ϕ)
+        :UU          => FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2)
+        _            => getproperty(D.diag, s)
     end
-    
+    Diagonal(f)
 end
-
-function Base.getindex(C::ParamDependentOp{EBFourier, S, P, <:DiagOp}, s::Symbol) where {S, P}
-    ParamDependentOp(C.op[s], C.recompute_function, C.parameters)
-end
-
 
 ### basis conversion
 
