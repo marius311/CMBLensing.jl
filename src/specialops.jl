@@ -229,6 +229,7 @@ end
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
+getindex(L::ParamDependentOp, x) = getindex(L.op, x)
 simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
 depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
 depends_on(L::ParamDependentOp, θ::Tuple) = isempty(L.parameters) || any(L.parameters .∈ Ref(θ))

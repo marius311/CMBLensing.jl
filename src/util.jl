@@ -373,26 +373,28 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
     seed_for_storage!.(storages, seed)
 
 
-### parallel utility function
-
 
 @init @require MPIClusterManagers="e7922434-ae4b-11e9-05c5-9780451d2c66" begin
 
-    using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL
+    using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL, MPI_TRANSPORT_ALL
 
-    @doc doc"""
-
-        init_MPI_workers()
-        
-    Initialize MPI processes as Julia workers that can be used in a 
-    parallel chain run. 
-
-    If CUDA is loaded and functional in the Main module, 
-    additionally bind each MPI process to one GPU. 
-
-    This call only returns on the master process.
     """
-    function init_MPI_workers(;stdout_to_master=false, stderr_to_master=false)
+    init_MPI_workers()
+
+    Initialize MPI processes as Julia workers. Should be called from all MPI
+    processes, and will only return on the master process. 
+
+    `transport` should be `"MPI"` or `"TCP"`, which is by default read from the
+    environment variable `JULIA_MPI_TRANSPORT`, and otherwise defaults to `"TCP"`.
+
+    If CUDA is loaded and functional in the Main module, additionally calls
+    [`assign_GPU_workers()`](@ref)
+    """
+    function init_MPI_workers(;
+        stdout_to_master = false, 
+        stderr_to_master = false,
+        transport = get(ENV,"JULIA_MPI_TRANSPORT","TCP")
+    )
         
         if !MPI.Initialized()
             MPI.Init()
@@ -401,18 +403,25 @@ seed_for_storage!(storages::Tuple, seed=nothing) =
         rank = MPI.Comm_rank(MPI.COMM_WORLD)
 
         if size>1
-            if isdefined(Main, :CUDA) && CUDA.functional()
-                # cant use @eval because of https://github.com/JuliaPackaging/Requires.jl/issues/86
-                Main.eval(:(CUDA.device!(mod($rank,$size-1))))
-                device_string = @eval Main CUDA.device()
-            else
-                device_string = "CPU"
+            # workers don't return from this call:
+            start_main_loop(
+                Dict("TCP"=>TCP_TRANSPORT_ALL,"MPI"=>MPI_TRANSPORT_ALL)[transport],
+                stdout_to_master=stdout_to_master,
+                stderr_to_master=stderr_to_master
+            )
+            
+            if @isdefined(CUDA) && CUDA.functional()
+                assign_GPU_workers()
             end
-            @info "MPI process $rank $(rank==0 ? "(master)" : "(worker)") is using $device_string"
-            start_main_loop(TCP_TRANSPORT_ALL, stdout_to_master=stdout_to_master, stderr_to_master=stderr_to_master)
+            @everywhere begin
+                typ = (myid()==1) ? "(master)" : "(worker)"
+                dev = (@isdefined(CUDA) && CUDA.functional()) ? device() : "CPU"
+                @info "MPI process $(myid()) $typ is running on $(gethostname())::$dev"
+            end
         end
 
     end
+
     
 end
 
