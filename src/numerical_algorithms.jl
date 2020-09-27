@@ -118,7 +118,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         # number of steps
         if progress
             progress_nsteps = round(Int,100*(i-1)/(nsteps-1))
-            progress_tol = round(Int,100^min(1, (log10(res/res₀)) / log10(tol/res₀)))
+            progress_tol = res isa AbstractFloat ? round(Int,100^min(1, (log10(res/res₀)) / log10(tol/res₀))) : 0
             ProgressMeter.update!(prog, max(progress_nsteps,progress_tol))
         end
     end
