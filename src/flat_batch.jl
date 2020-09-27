@@ -95,7 +95,7 @@ BroadcastStyle(::FlatS0Style{F,M}, ::BatchedRealStyle{D′}) where {D′,N,θ,�
     (D==1 || D′==1 || D==D′) ? FlatS0Style{basetype(F){Flat{N,θ,∂m,max(D,D′)}},M}() : Broadcast.Unknown
 BroadcastStyle(::FieldTupleStyle{B,Names,FS}, S2::BatchedRealStyle) where {B,Names,FS} = 
     FieldTupleStyle{B,Names,Tuple{map_tupleargs(S1->typeof(Broadcast.result_style(S1(),S2)), FS)...}}()
-for op in [:+, :-, :*, :/, :<, :<=, :&, :|]
+for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==)]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
         ($op)(a::BatchedReal, b::Real)        = batch(broadcast(($op), a.vals, b))
