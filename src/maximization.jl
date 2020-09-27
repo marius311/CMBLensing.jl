@@ -45,7 +45,7 @@ function argmaxf_lnP(
     end
     
     A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
-    A_zeroϕ = pinv(Cf) +     B'*P'*M'*pinv(Cn)*M*P*B
+    A_zeroϕ = pinv(Cf) +     B'*P'*M'*pinv(Cn̂)*M*P*B
     A       = pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ
     
     A_preconditioner = @match preconditioner begin

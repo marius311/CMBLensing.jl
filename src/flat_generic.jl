@@ -12,7 +12,7 @@ for F in (:FlatMap, :FlatFourier,
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
 function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
-    print(io, "$(N^2)", (D==1 ? "" : "(×$D)"), "-element ")
+    print(io, "$(length(f))", (D==1 ? "" : "(×$D)"), "-element ")
     showarg(io, f, true)
 end
 
@@ -106,6 +106,7 @@ logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(nan2zero.(lo
 tr(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(unfold(L.diag.Il),dims=(1,2))))
 tr(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(complex(L.diag.Ix),dims=(1,2))))
 tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatQUFourier}) = batch(real(sum_kbn(unfold(L.diag.Ql),dims=(1,2)) + sum_kbn(unfold(L.diag.Ul),dims=(1,2))))
 
 
 ### misc
@@ -117,3 +118,14 @@ function pixwin(f::FlatField)
 end
 
 global_rng_for(::Type{<:FlatField{<:Any,<:Any,M}}) where {M} = global_rng_for(M)
+
+"""
+    fixed_white_noise(rng, F)
+
+Like white noise but the amplitudes are fixed to unity, only the phases are
+random. Currently only implemented when F is a Fourier basis. Note that unlike
+[`white_noise`](@ref), fixed white-noise generated in EB and QU Fourier bases
+are not statistically the same.
+"""
+fixed_white_noise(rng, F::Type{<:FlatFieldFourier}) =
+     exp.(im .* angle.(basis(F)(white_noise(rng,F)))) .* fieldinfo(F).Nside
