@@ -32,6 +32,7 @@ using ProgressMeter
 using Random
 using Random: seed!, AbstractRNG
 using Roots
+using RecipesBase
 using Requires
 using Setfield
 using SparseArrays
@@ -111,6 +112,8 @@ include("bilinearlens.jl")
 # plotting
 function animate end
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+include("plots.jl")
+
 
 # sampling and maximizing the posteriors
 include("dataset.jl")
