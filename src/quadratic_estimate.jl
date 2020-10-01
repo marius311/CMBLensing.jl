@@ -141,13 +141,13 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     if AL == nothing
         AL = @subst begin
             A1(i,j) = -4 * sum( ϵ(m,p,3) * ϵ(n,q,3) * (
-                  term($(@. TF² * CE^2 / ΣEtot), [i], [j], k, l, m, n) * term($(@. TF²      / ΣEtot),      k, l, p, q)
-                + term($(@. TF² * CE   / ΣEtot), [i],      k, l, m, n) * term($(@. TF² * CE / ΣEtot), [j], k, l, p, q))
+                  term($(@. TF² * CE^2 / ΣEtot), [i], [j], k, l, m, n) .* term($(@. TF²      / ΣEtot),      k, l, p, q)
+                + term($(@. TF² * CE   / ΣEtot), [i],      k, l, m, n) .* term($(@. TF² * CE / ΣEtot), [j], k, l, p, q))
                 for (k,l,m,n,p,q) in inds(6)
             )
             A2(i,j) = (
-                  term($(@. TF² * CE^2 / ΣEtot), [i], [j]) * term($(@. TF²      / ΣEtot)     )
-                + term($(@. TF² * CE   / ΣEtot), [i]     ) * term($(@. TF² * CE / ΣEtot), [j])
+                  term($(@. TF² * CE^2 / ΣEtot), [i], [j]) .* term($(@. TF²      / ΣEtot)     )
+                + term($(@. TF² * CE   / ΣEtot), [i]     ) .* term($(@. TF² * CE / ΣEtot), [j])
             )
             pinv(Diagonal(sum(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j)) for i=1:2,j=1:2)))
         end
