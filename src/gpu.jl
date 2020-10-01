@@ -131,7 +131,7 @@ Assumes the SLURM variables `SLURM_STEP_GPUS` and `GPU_DEVICE_ORDINAL` are
 defined on the workers.
 """
 function assign_GPU_workers()
-    topo = pmap(workers()) do i
+    topo = @eval Main pmap(workers()) do i
         hostname = gethostname()
         virtgpus = parse.(Int,split(ENV["GPU_DEVICE_ORDINAL"],","))
         if "SLURM_STEP_GPUS" in keys(ENV)
@@ -152,5 +152,6 @@ function assign_GPU_workers()
             end
         end
     end)
+    @everywhere @eval using CUDA, Distributed
     @everywhere workers() device!($assignments[myid()])
 end
