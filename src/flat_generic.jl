@@ -5,7 +5,7 @@ const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fo
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
-    print(io, "$(pretty_type_name(F)){$(N)×$(N)$(D==1 ? "" : "(×$D)") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
+print(io, "$(pretty_type_name(F)){$( typeof(N) <: Tuple ? N[2] : N )×$(  typeof(N) <: Tuple ? N[1] : N )$(D==1 ? "" : "(×$D)") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
 for F in (:FlatMap, :FlatFourier, 
           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
@@ -55,11 +55,11 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 # without the @generated it triggers an order-dependenant compilation bug which
 # e.g. slows down LenseFlow by a factor of ~4 so we gotta keep it for now ¯\_(ツ)_/¯
 @generated broadcastable(::Type{F}, ::∇diag{1,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}} = 
-    basetype(M)(@. prefactor * im * $fieldinfo(F).k')
+    basetype(M)(@. prefactor * im * $fieldinfo(F).kx')
 @generated broadcastable(::Type{F}, ::∇diag{2,<:Any,prefactor}) where {N,P<:Flat{N},T,M,prefactor,F<:FlatFourier{P,T,M}} = 
-    basetype(M)(@. prefactor * im * $fieldinfo(F).k[1:N÷2+1])
+    basetype(M)(@. prefactor * im * $fieldinfo(F).ky[1:$fieldinfo(F).Ny÷2+1])
 @generated broadcastable(::Type{F}, ::∇²diag) where {N,P<:Flat{N},T,M,F<:FlatFourier{P,T,M}} =
-    basetype(M)(@. $fieldinfo(F).k'^2 + $fieldinfo(F).k[1:N÷2+1]^2)
+    basetype(M)(@. $fieldinfo(F).kx'^2 + $fieldinfo(F).ky[1:$fieldinfo(F).Ny÷2+1]^2)
 
 ## Map-space
 function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,D,F<:FlatMap{Flat{N,θ,map∂,D},T}}
@@ -99,14 +99,14 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
     
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il))),dims=(1,2))))
+logdet(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))),dims=(1,2))))
 logdet(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(nan2zero.(log.(complex(L.diag.Ix))),dims=(1,2))))
-logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.El))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl))),dims=(1,2))))
+logdet(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(nan2zero.(log.(unfold(L.diag.El, fieldinfo(L.diag).Ny))),dims=(1,2)) + sum_kbn(nan2zero.(log.(unfold(L.diag.Bl, fieldinfo(L.diag).Ny))),dims=(1,2))))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(unfold(L.diag.Il),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatFourier})   = batch(real(sum_kbn(unfold(L.diag.Il, fieldinfo(L.diag).Ny ),dims=(1,2))))
 tr(L::Diagonal{<:Real,<:FlatMap})          = batch(real(sum_kbn(complex(L.diag.Ix),dims=(1,2))))
-tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl),dims=(1,2))))
-tr(L::Diagonal{<:Complex,<:FlatQUFourier}) = batch(real(sum_kbn(unfold(L.diag.Ql),dims=(1,2)) + sum_kbn(unfold(L.diag.Ul),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatEBFourier}) = batch(real(sum_kbn(unfold(L.diag.El, fieldinfo(L.diag).Ny),dims=(1,2)) + sum_kbn(unfold(L.diag.Bl, fieldinfo(L.diag).Ny ),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatQUFourier}) = batch(real(sum_kbn(unfold(L.diag.Ql, fieldinfo(L.diag).Ny),dims=(1,2)) + sum_kbn(unfold(L.diag.Ul, fieldinfo(L.diag).Ny),dims=(1,2))))
 
 
 ### misc

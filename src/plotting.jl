@@ -29,7 +29,7 @@ pretty_name(::Val{:l}) = "Fourier"
 
 function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, ticklabels=true, axeslabels=false, kwargs...)
     
-	@unpack Nside, θpix = fieldinfo(f)
+	@unpack Nx, Ny, θpix = fieldinfo(f)
 	ismap = endswith(string(k), "x")
 	
 	# default values
@@ -39,7 +39,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		else
 			title = pretty_name(k)
 		end
-		title *= " ($(Nside)x$(Nside) @ $(θpix)')"
+		title *= " ($(Ny)x$(Nx) @ $(θpix)')"
 	end
 	if vlim == nothing 
 		vlim = ismap ? :sym : :asym
@@ -60,7 +60,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		arr = Array(f[k])
 	else
-		arr = abs.(ifftshift(unfold(Array(f[k]))))
+		arr = abs.(ifftshift(unfold(Array(f[k]), Ny)))
 	end
 	if vscale == :log
 		arr[arr .== 0] .= NaN
@@ -81,7 +81,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# make the plot
 	if ismap
-		extent = [-1,1,-1,1] .* θpix*Nside/Dict(:deg=>60,:arcmin=>1)[units]/2
+		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyq
 	end

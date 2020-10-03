@@ -38,8 +38,8 @@ end
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
-_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N,N) : (N,N,D)
-_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N÷2+1,N) : (N÷2+1,N,D)
+_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (typeof(N)<:Tuple ? (N[2],N[1]) : (N,N)) : (typeof(N)<:Tuple ? (N[2],N[1],D) : (N,N,D))
+_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (typeof(N)<:Tuple ? (N[2]÷2+1, N[1]) : (N÷2+1,N)) : (typeof(N)<:Tuple ? (N[2]÷2+1, N[1], D) : (N÷2+1,N,D))
 _ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
@@ -125,17 +125,17 @@ end
 
 function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
     ii = sortperm(fieldinfo(L.diag).kmag[:])
-    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii] * units, concrete=false)
+    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))[ii] * units, concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
-    @unpack Nside,Δx,kmag = fieldinfo(f)
-    α = (Nside/Δx)^2
+    @unpack Nx, Ny ,Δx,kmag = fieldinfo(f)
+    α = Nx*Ny/Δx^2
 
     # faster to excise unused parts:
     kmask = (kmag .> minimum(ℓedges)) .&  (kmag .< maximum(ℓedges)) 
     L = Float64.(kmag[kmask])
-    CLobs = real.(dot.(unfold(Float64(f)[:Il])[kmask],unfold(Float64(f2)[:Il])[kmask])) ./ α
+    CLobs = real.(dot.(unfold(Float64(f)[:Il], Ny)[kmask],unfold(Float64(f2)[:Il], Ny)[kmask])) ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights

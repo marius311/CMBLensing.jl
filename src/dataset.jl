@@ -232,7 +232,7 @@ function load_sim(;
     if (M == nothing)
         Mfourier = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside.÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
         else
             Mpix = 1
         end

@@ -42,25 +42,29 @@ function FlatInfo(T, Arr, θpix, Nside, D)
 
     FFTW.set_num_threads(FFTW_NUM_THREADS)
 
+    typeof(Nside) <: Tuple ? (Nx, Ny)=Nside : Nx = Ny = Nside 
+
     Δx   = T(deg2rad(θpix/60))
-    FFT  = plan_rfft(Arr{T}(undef,Nside,Nside,(D==1 ? () : (D,))...), (1,2); (Arr <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
-    Δℓ   = T(2π/(Nside*Δx))
+    FFT  = plan_rfft(Arr{T}(undef,Ny,Nx,(D==1 ? () : (D,))...), (1,2); (Arr <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
+    Δℓx   = T(2π/(Nx*Δx))
+    Δℓy   = T(2π/(Ny*Δx))
     nyq  = T(2π/(2Δx))
     Ωpix = T(Δx^2)
-    x,k  = (ifftshift(-Nside÷2:(Nside-1)÷2),) .* (Δx,Δℓ)
-    kmag = @. sqrt(k'^2 + k^2)
-    ϕ    = @. angle(k' + im*k)[1:Nside÷2+1,:]
+    ky  = ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy
+    kx  = ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx
+    kmag = @. sqrt(kx'^2 + ky^2)
+    ϕ    = @. angle(kx' + im*ky)[1:Ny÷2+1,:]
     sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    if iseven(Nside)
-        sin2ϕ[end, end:-1:(Nside÷2+2)] .= sin2ϕ[end, 2:Nside÷2]
+    if iseven(Ny)
+        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
     
-    @namedtuple(T, θpix, Nside, Δx, Δℓ, nyq, Ωpix, x, k, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
+    @namedtuple(T, θpix, Nx, Ny, Δx, Δℓx, Δℓy, nyq, Ωpix, kx, ky, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
 
 end
 
 function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
-    Complex{T}.(nan2zero.(Cℓ.(fieldinfo(P,T).kmag[1:N÷2+1,:])))
+    Complex{T}.(nan2zero.(Cℓ.(fieldinfo(P,T).kmag[1:fieldinfo(P,T).Ny÷2+1,:])))
 end
 
 

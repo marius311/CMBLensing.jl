@@ -116,7 +116,7 @@ function MAP_joint(
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
-    aggressive_gc = fieldinfo(ds.d).Nside>=1024,
+    aggressive_gc = fieldinfo(ds.d).Nx>=1024 & fieldinfo(ds.d).Ny>=1024,
     αtol = nothing,
     αmax = nothing,
 )
@@ -215,7 +215,7 @@ function MAP_marg(
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
-    aggressive_gc = fieldinfo(ds.d).Nside>=512
+    aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
 )
     
     ds = (@set ds.G = 1)

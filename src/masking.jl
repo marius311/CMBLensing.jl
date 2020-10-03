@@ -5,7 +5,7 @@ function make_mask(
     edge_rounding_deg = 1,
     apodization_deg = 1,
     ptsrc_radius_arcmin = 7, # roughly similar to Story et al. 2015
-    num_ptsrcs = round(Int,((Nside*θpix)/60)^2 * 120/100) # SPT-like density of sources
+    num_ptsrcs = typeof(Nside)<:Tuple ? round(Int, Nside[1]*Nside[2]*(θpix/60)^2 * 120/100)  : round(Int,((Nside*θpix)/60)^2 * 120/100) # SPT-like density of sources
     )
      
     deg2npix(x) = round(Int, x/θpix*60)
@@ -28,7 +28,7 @@ make_mask(::FlatField{<:Flat{Nside,θpix}}; kwargs...) where {Nside,θpix} = mak
 # all padding/smoothing/etc... quantities below are in units of numbers of pixels
 
 function boundarymask(Nside, pad)
-    m = fill(true,Nside,Nside)
+    m = typeof(Nside)<:Tuple ? fill(true,Nside[2],Nside[1]) : fill(true, Nside, Nside)
     m[1:pad,:]          .= false
     m[:,1:pad]          .= false
     m[end-pad+1:end,:]  .= false
@@ -57,9 +57,10 @@ function round_edges(img, w)
 end
 
 function sim_ptsrcs(Nside,nsources)
-    m = fill(false,Nside,Nside);
+    typeof(Nside) <: Tuple ? (Nx, Ny) = Nside : Nx = Ny = Nside
+    m = fill(false,Ny,Nx);
     for i=1:nsources
-        m[rand(1:Nside),rand(1:Nside)] = true
+        m[rand(1:Ny),rand(1:Nx)] = true
     end
     m
 end
