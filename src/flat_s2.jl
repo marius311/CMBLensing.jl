@@ -90,7 +90,7 @@ function getindex(D::DiagOp{<:FlatEBFourier}, k::Symbol)
         (:QQ)        => FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2)
         (:QU || :UQ) => FlatFourier{P}(@. (El - Bl) * sin2ϕ * cos2ϕ)
         (:UU)        => FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2)
-        _            => getproperty(D.diag, s)
+        _            => getproperty(D.diag, k)
     end
     Diagonal(f)
 end
