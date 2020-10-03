@@ -58,13 +58,13 @@ getproperty(f::FlatIQU, s::Union{Val{:Q},Val{:U}}) = getproperty(getfield(f,:fs)
 getproperty(f::FlatIEB, s::Union{Val{:E},Val{:B}}) = getproperty(getfield(f,:fs).P,s)
 getproperty(f::FlatS02, s::Union{Val{:Qx},Val{:Ux},Val{:Ex},Val{:Bx},Val{:Ql},Val{:Ul},Val{:El},Val{:Bl}}) = getproperty(getfield(f,:fs).P,s)
 getproperty(f::FlatS02, s::Union{Val{:Ix},Val{:Il}}) = getproperty(getfield(f,:fs).I,s)
-function getindex(f::FlatS02, k::Symbol)
+function getindex(f::FlatS02, k::Symbol; kwargs...)
     @match k begin
         (:IP) => f
         (:I || :P) => getfield(f.fs,k)
-        (:Q || :U || :E || :B) => getindex(f.P,k)
-        (:Ix || :Il) => getindex(f.I,k)
-        (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k)
+        (:Q || :U || :E || :B) => getindex(f.P,k; kwargs...)
+        (:Ix || :Il) => getindex(f.I,k; kwargs...)
+        (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k; kwargs...)
         _ => throw(ArgumentError("Invalid FlatS02 index: $k"))
     end
 end

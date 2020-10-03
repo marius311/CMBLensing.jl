@@ -27,7 +27,7 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X)
+        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[[2,1]],D=size($X,3);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
@@ -38,8 +38,8 @@ end
 ### array interface 
 size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
-_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (typeof(N)<:Tuple ? (N[2],N[1]) : (N,N)) : (typeof(N)<:Tuple ? (N[2],N[1],D) : (N,N,D))
-_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (typeof(N)<:Tuple ? (N[2]÷2+1, N[1]) : (N÷2+1,N)) : (typeof(N)<:Tuple ? (N[2]÷2+1, N[1], D) : (N÷2+1,N,D))
+_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = ((N .* (1,1)         )..., (D==1 ? () : (D,))...)
+_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = ((N .÷ (2,1) .+ (1,0))..., (D==1 ? () : (D,))...)
 _ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
@@ -97,9 +97,14 @@ Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, maybe
 getproperty(f::FlatS0, s::Symbol) = getproperty(f,Val(s))
 getproperty(f::FlatS0, ::Val{s}) where {s} = getfield(f,s)
 getproperty(f::FlatS0, ::Val{:I}) = f
-function getindex(f::FlatS0, k::Symbol)
-    k in [:I, :Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
-    k == :I ? f : getproperty((k == :Ix ? Map : Fourier)(f),k)
+function getindex(f::FlatS0, k::Symbol; full_plane=false)
+    maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
+    @match k begin
+        :I  => f
+        :Ix => Map(f).Ix
+        :Il => maybe_unfold(Fourier(f).Il)
+        _   => throw(ArgumentError("Invalid FlatS0 index: $k"))
+    end
 end
 
 ### dot products
