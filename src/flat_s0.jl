@@ -41,7 +41,7 @@ size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
 # content_size and content_ndims refer to the actual array holding the field content:
 content_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (reverse(N .* (1,1)         )..., (D==1 ? () : (D,))...)
-content_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (reverse(N .÷ (2,1) .+ (1,0))..., (D==1 ? () : (D,))...)
+content_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (reverse(N .÷ (1,2) .+ (0,1))..., (D==1 ? () : (D,))...)
 content_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
