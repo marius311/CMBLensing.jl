@@ -36,11 +36,13 @@ end
 
 
 ### array interface 
+# Base.size and Base.lastindex refer to the splayed-out vector representation of the field:
 size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
-_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = ((N .* (1,1)         )..., (D==1 ? () : (D,))...)
-_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = ((N .÷ (2,1) .+ (1,0))..., (D==1 ? () : (D,))...)
-_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
+# content_size and content_ndims refer to the actual array holding the field content:
+content_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (reverse(N .* (1,1)         )..., (D==1 ? () : (D,))...)
+content_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (reverse(N .÷ (2,1) .+ (1,0))..., (D==1 ? () : (D,))...)
+content_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
@@ -66,9 +68,9 @@ BroadcastStyle(S1::FlatS0Style{<:Field{B1}}, S2::FlatS0Style{<:Field{B2}}) where
 instantiate(bc::Broadcasted{<:FlatS0Style}) = bc
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
 similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = 
-    F(basetype(M){eltype(F{real(T)})}(undef,_size(F)))
+    F(basetype(M){eltype(F{real(T)})}(undef,content_size(F)))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = 
-    Broadcasted{DefaultArrayStyle{_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,_size(F)))
+    Broadcasted{DefaultArrayStyle{content_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0}, f::FlatS0) = firstfield(f)
 broadcastable(::Type{<:FlatS0{<:Flat,T}}, r::Real) where {T} = convert(T,r)
@@ -116,7 +118,7 @@ dot(a::FlatS0{<:Flat{N,θ}}, b::FlatS0{<:Flat{N,θ}}) where {N,θ} = batch(sum_k
 
 ### simulation and power spectra
 function white_noise(rng::AbstractRNG, ::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-    FlatMap{P}(randn!(rng, basetype(M){T}(undef, _size(FlatMap{P}))))
+    FlatMap{P}(randn!(rng, basetype(M){T}(undef, content_size(FlatMap{P}))))
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
