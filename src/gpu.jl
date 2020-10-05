@@ -137,6 +137,7 @@ function assign_GPU_workers()
         if "SLURM_STEP_GPUS" in keys(ENV)
             physgpus = parse.(Int,split(ENV["SLURM_STEP_GPUS"],","))
         else
+            @warn "SLURM_STEP_GPUS not defined, assign_GPU_workers may fail."
             # SLURM_STEP_GPUS seems not correctly set on all systems. this
             # will work if you requested a full node's worth of GPUs at least
             physgpus = virtgpus
@@ -144,8 +145,8 @@ function assign_GPU_workers()
         (i=i, hostname=hostname, virtgpus=virtgpus, physgpus=physgpus)
     end
     claimed = Set()
-    assignments = Dict(map(topo) do (i,hostname,physgpus,virtgpus)
-        for (physgpu,virtgpu) in zip(physgpus,virtgpus)
+    assignments = Dict(map(topo) do (i,hostname,virtgpus,physgpus)
+        for (virtgpu,physgpu) in zip(virtgpus,physgpus)
             if !((hostname,physgpu) in claimed)
                 push!(claimed,(hostname,physgpu))
                 return i => virtgpu
