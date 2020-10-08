@@ -148,7 +148,6 @@ function plot(
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
-	tight_layout(w_pad=-10)
 	
 	if return_all
 		(fig, axs, which)
