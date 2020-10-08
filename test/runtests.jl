@@ -478,6 +478,8 @@ end
 
     for nside = [128, (128, 64), (64, 128)]
 
+      @testset  "nside = $nside" begin
+
         for T in (Float32, Float64)
             
             @testset "T :: $T" begin
@@ -514,6 +516,8 @@ end
             end
             
         end
+      end
+
     end
         
 end
@@ -527,7 +531,9 @@ end
     T = Float64
     
 
-    for nside = [128, (128, 64), (64, 128)]
+    for nside = [128, (128, 192), (192, 128)]
+
+      @testset "nside = $nside" begin
 
         for pol in (:I,:P)
             
@@ -564,7 +570,7 @@ end
             end
             
         end
-        
+      end   
     end
 end
 
