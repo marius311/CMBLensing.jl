@@ -7,7 +7,7 @@ struct fourier∂ <: ∂modes end
 struct map∂ <: ∂modes end
 promote_rule(::Type{map∂}, ::Type{fourier∂}) = fourier∂
 
-# Flat{Nside,θpix,∂mode} is a flat sky pixelization with `Nside` pixels per side
+# Flat{Nside,θpix,∂mode} is a flat sky pixelization with `Nside` pixels per side for (Ny, Nx)
 # and pixels of width `θpix` arcmins, where derivatives are done according to ∂mode
 abstract type Flat{Nside,θpix,∂mode<:∂modes,D} <: Pix end
 
@@ -42,7 +42,7 @@ function FlatInfo(T, Arr, θpix, Nside, D)
 
     FFTW.set_num_threads(FFTW_NUM_THREADS)
 
-    Nx, Ny = Nside .* (1,1)
+    Ny, Nx = Nside .* (1,1)
     Δx   = T(deg2rad(θpix/60))
     FFT  = plan_rfft(Arr{T}(undef,Ny,Nx,(D==1 ? () : (D,))...), (1,2); (Arr <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
     Δℓx  = T(2π/(Nx*Δx))

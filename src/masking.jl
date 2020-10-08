@@ -37,9 +37,9 @@ function boundarymask(Nside, pad)
 end
 
 function bleed(img, w)
-    Nx,Ny = size(img)
+    Ny,Nx = size(img)
     nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(img),:I)
-    [norm(nearest[i,j] .- [i,j]) < w for i=1:Nx,j=1:Ny]
+    [norm(nearest[i,j] .- [i,j]) < w for i=1:Ny,j=1:Nx]
 end
 
 function cos_apod(img, w, smooth_distance=false)
@@ -57,7 +57,7 @@ function round_edges(img, w)
 end
 
 function sim_ptsrcs(Nside,nsources)
-    typeof(Nside) <: Tuple ? (Nx, Ny) = Nside : Nx = Ny = Nside
+    Ny, Nx = Nside .* (1,1)
     m = fill(false,Ny,Nx);
     for i=1:nsources
         m[rand(1:Ny),rand(1:Nx)] = true

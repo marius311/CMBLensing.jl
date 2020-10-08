@@ -93,7 +93,7 @@ end
     Nx = 6
     Ny = 10
     θpix = 3
-    kwargs = (Nside=(Nx, Ny), θpix=θpix)
+    kwargs = (Nside=(Ny, Nx), θpix=θpix)
     P = Flat(;kwargs...)
     Ix = rand(Ny,Nx)
     Il = rand(Ny÷2+1,Nx) + im*rand(Ny÷2+1,Nx)
