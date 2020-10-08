@@ -43,9 +43,9 @@ function bleed(img, w)
 end
 
 function cos_apod(img, w, smooth_distance=false)
-    Nside,Nside = size(img)
+    Ny,Nx = size(img)
     nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(.!img),:I)
-    distance = [norm(nearest[i,j] .- [i,j]) for i=1:Nside,j=1:Nside]
+    distance = [norm(nearest[i,j] .- [i,j]) for i=1:Ny,j=1:Nx]
     if smooth_distance!=false
         distance = @ondemand(ImageFiltering.imfilter)(distance, @ondemand(ImageFiltering.Kernel.gaussian)(smooth_distance))
     end
