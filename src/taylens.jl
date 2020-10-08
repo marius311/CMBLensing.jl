@@ -19,8 +19,7 @@ end
 
 function Taylens(ϕ::FlatS0{P,T}, N) where {P,T}
 
-    g = fieldinfo(ϕ)
-    Nside = g.Nside
+    @unpack kx,ky,Nx,Ny,Δx = fieldinfo(ϕ)
     
     # total displacement
     d = ∇*ϕ
@@ -28,18 +27,18 @@ function Taylens(ϕ::FlatS0{P,T}, N) where {P,T}
 
     # nearest pixel displacement
     indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
-    di, dj = (round.(Int,d/g.Δx) for d=(dx,dy))
-    i = indexwrap.(di .+ (1:Nside)', Nside)
-    j = indexwrap.(dj .+ (1:Nside) , Nside)
+    di, dj = (round.(Int,d/Δx) for d=(dx,dy))
+    i = indexwrap.(di .+ (1:Nx)', Nx)
+    j = indexwrap.(dj .+ (1:Ny) , Ny)
 
     # residual displacement
-    rx, ry = ((d - i.*g.Δx) for (d,i)=[(dx,di),(dy,dj)])
+    rx, ry = ((d - i.*Δx) for (d,i)=[(dx,di),(dy,dj)])
 
     # precomputation
     kα = Dict{Any,Matrix{Complex{T}}}()
     xα = Dict{Any,Matrix{T}}()
     for n in 1:N, α₁ in 0:n
-        kα[n,α₁] = im ^ n .* g.k' .^ α₁ .* g.k[1:Nside÷2+1] .^ (n - α₁)
+        kα[n,α₁] = im ^ n .* kx' .^ α₁ .* ky[1:Ny÷2+1] .^ (n - α₁)
         xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
     end
 
