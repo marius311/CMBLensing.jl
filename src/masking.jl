@@ -5,9 +5,9 @@ function make_mask(
     edge_rounding_deg = 1,
     apodization_deg = 1,
     ptsrc_radius_arcmin = 7, # roughly similar to Story et al. 2015
-    num_ptsrcs = round(Int, prod(Nside .* (1,1))*(θpix/60)^2 * 120/100)  # SPT-like density of sources
-    )
-     
+    num_ptsrcs = round(Int, prod(Nside .* (1,1)) * (θpix/60)^2 * 120/100)  # SPT-like density of sources
+)
+
     deg2npix(x) = round(Int, x/θpix*60)
     arcmin2npix(x) = round(Int, x/θpix)
     
