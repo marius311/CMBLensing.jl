@@ -27,7 +27,7 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[[2,1]],D=size($X,3);kwargs...)}($X)
+        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
