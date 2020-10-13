@@ -125,7 +125,8 @@ and simulated truths. E.g.
     T     = Float32
 );
 ```
-
+For rectangular maps, Nside expects (Ny, Nx), i.e. (Nrow, Ncol). 
+If Nside isa Int, the code interprets it as a square map.
 """
 function load_sim(;
     
@@ -211,7 +212,7 @@ function load_sim(;
         Pix_data = Pix
         P = 1
     else
-        Pix_data = Flat(Nside=Nside÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
+        Pix_data = Flat(Nside=Nside.÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
         P = FuncOp(
             op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
             opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
@@ -232,7 +233,7 @@ function load_sim(;
     if (M == nothing)
         Mfourier = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside.÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
         else
             Mpix = 1
         end

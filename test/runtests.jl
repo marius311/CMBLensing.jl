@@ -90,12 +90,13 @@ end
 
 @testset "Flat Constructors" begin
     
-    N = 2
+    Nx = 6
+    Ny = 10
     θpix = 3
-    kwargs = (Nside=N, θpix=θpix)
+    kwargs = (Nside=(Ny, Nx), θpix=θpix)
     P = Flat(;kwargs...)
-    Ix = rand(N,N)
-    Il = rand(N÷2+1,N) + im*rand(N÷2+1,N)
+    Ix = rand(Ny,Nx)
+    Il = rand(Ny÷2+1,Nx) + im*rand(Ny÷2+1,Nx)
     
     for (F,args) in [
             (FlatMap,        (Ix,)),
@@ -467,52 +468,58 @@ end;
 end
 
 ##
-
 @testset "Lensing" begin
     
     local f,ϕ
     
     Cℓ = camb().unlensed_total
-    nside = 128
     seed!(0)
     
-    for T in (Float32, Float64)
-        
-        @testset "T :: $T" begin
-                
-            ε = sqrt(eps(T))
-            Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
-            @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
-            Lϕ = LenseFlow(ϕ)
-            
-            ## S0
-            Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.TT)
-            @test (f = @inferred simulate(Cf)) isa FlatS0
-            @test (@inferred Lϕ*f) isa FlatS0
-            # adjoints
-            f,g = simulate(Cf),simulate(Cf)
-            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-            # gradients
-            δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
 
-            # S2 lensing
-            Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
-            @test (f = @inferred simulate(Cf)) isa FlatS2
-            @test (@inferred Lϕ*f) isa FlatS2
-            # adjoints
-            f,g = simulate(Cf),simulate(Cf)
-            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-            # gradients
-            δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
-        
+    for nside = [128, (128, 64), (64, 128)]
+
+      @testset  "nside = $nside" begin
+
+        for T in (Float32, Float64)
+            
+            @testset "T :: $T" begin
+                    
+                ε = sqrt(eps(T))
+                Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
+                @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
+                Lϕ = LenseFlow(ϕ)
+                
+                ## S0
+                Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.TT)
+                @test (f = @inferred simulate(Cf)) isa FlatS0
+                @test (@inferred Lϕ*f) isa FlatS0
+                # adjoints
+                f,g = simulate(Cf),simulate(Cf)
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # gradients
+                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                    (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
+
+                # S2 lensing
+                Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
+                @test (f = @inferred simulate(Cf)) isa FlatS2
+                @test (@inferred Lϕ*f) isa FlatS2
+                # adjoints
+                f,g = simulate(Cf),simulate(Cf)
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # gradients
+                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                    (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
+            
+            end
+            
         end
-        
+      end
+
     end
-    
+        
 end
 
 ##
@@ -523,42 +530,48 @@ end
     L = LenseFlow{RK4Solver{7}}
     T = Float64
     
-    for pol in (:I,:P)
-        
-        @testset "pol = $pol" begin
-            
-            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
-                seed  = 0,
-                Cℓ    = Cℓ,
-                θpix  = 3,
-                Nside = 128,
-                T     = T,
-                beamFWHM = 3,
-                pol   = pol,
-                L     = L,
-                pixel_mask_kwargs = (edge_padding_deg=2,)
-                );
-            @unpack Cf,Cϕ,D = ds₀
-            f° = L(ϕ)*D*f
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ ,ds) rtol=1e-4
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
+    for nside = [128, (128, 192), (192, 128)]
 
-            ε = sqrt(eps(T))
-            seed!(0)
-            δf,δϕ = simulate(Cf),simulate(Cϕ)
+      @testset "nside = $nside" begin
+
+        for pol in (:I,:P)
             
-            @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
-            @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
-            @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+            @testset "pol = $pol" begin
+                
+                @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
+                    seed  = 0,
+                    Cℓ    = Cℓ,
+                    θpix  = 3,
+                    Nside = nside,
+                    T     = T,
+                    beamFWHM = 3,
+                    pol   = pol,
+                    L     = L,
+                    pixel_mask_kwargs = (edge_padding_deg=2,)
+                    );
+                @unpack Cf,Cϕ,D = ds₀
+                f° = L(ϕ)*D*f
+
+                @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ ,ds) rtol=1e-4
+                @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
+
+                ε = sqrt(eps(T))
+                seed!(0)
+                δf,δϕ = simulate(Cf),simulate(Cϕ)
+                
+                @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                    (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+                @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                    (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+                @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                    (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+                
+            end
             
         end
-        
+      end   
     end
-    
 end
 
 ##

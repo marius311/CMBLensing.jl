@@ -154,6 +154,10 @@ function ud_grade(f::FieldTuple, args...; kwargs...)
     FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))
 end
 
+# logdet & trace
+logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(logdet∘Diagonal,L.diag.fs))
+tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(tr∘Diagonal,L.diag.fs))
+
 # misc
 fieldinfo(ft::FieldTuple) = fieldinfo(only(unique(map(typeof, ft.fs)))) # todo: make even more generic
 batchsize(ft::FieldTuple) = only(unique(map(batchsize, ft.fs)))

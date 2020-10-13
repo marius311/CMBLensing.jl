@@ -37,16 +37,17 @@ function BilinearLens(ϕ::FlatS0)
         return BilinearLens(ϕ,I,I)
     end
     
-    @unpack Nside,Δx,T = fieldinfo(ϕ)
+    @unpack Nx,Ny,Nside,Δx,T = fieldinfo(ϕ)
     
     # the (i,j)-th pixel is deflected to (ĩs[i],j̃s[j])
     j̃s,ĩs = getindex.((∇*ϕ)./Δx, :Ix)
-    ĩs .=  ĩs  .+ (1:Nside)
-    j̃s .= (j̃s' .+ (1:Nside))'
+    ĩs .=  ĩs  .+ (1:Ny)
+    j̃s .= (j̃s' .+ (1:Nx))'
     
     # sub2ind converts a 2D index to 1D index, including wrapping at edges
-    indexwrap(i) = mod(i - 1, Nside) + 1
-    sub2ind(i,j) = Base._sub2ind((Nside,Nside),indexwrap(i),indexwrap(j))
+    indexwrapi(i) = mod(i - 1, Ny) + 1
+    indexwrapj(i) = mod(i - 1, Nx) + 1
+    sub2ind(i,j) = Base._sub2ind((Ny,Nx),indexwrapi(i),indexwrapj(j))
 
     # compute the 4 non-zero entries in L[I,:] (ie the Ith row of the sparse
     # lensing representation, L) and add these to the sparse constructor
@@ -75,22 +76,22 @@ function BilinearLens(ϕ::FlatS0)
     end
     
     # a surprisingly large fraction of the computation for large Nside, so memoize it:
-    @memoize getK(Nside) = Int32.((4:4Nside^2+3) .÷ 4)
+    @memoize getK(Nx,Ny) = Int32.((4:4*Nx*Ny+3) .÷ 4)
 
     # CPU
     function compute_sparse_repr(is_gpu_backed::Val{false})
-        K = Vector{Int32}(getK(Nside))
+        K = Vector{Int32}(getK(Nx,Ny))
         M = similar(K)
         V = similar(K,T)
         for I in 1:length(ĩs)
             compute_row!(I, ĩs[I], j̃s[I], M, V)
         end
-        sparse(K,M,V,Nside^2,Nside^2)
+        sparse(K,M,V,Nx*Ny,Nx*Ny)
     end
 
     # GPU
     function compute_sparse_repr(is_gpu_backed::Val{true})
-        K = CuVector{Cint}(getK(Nside))
+        K = CuVector{Cint}(getK(Nx,Ny))
         M = similar(K)
         V = similar(K,T)
         cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
@@ -104,7 +105,7 @@ function BilinearLens(ϕ::FlatS0)
         if !Base.isdefined(CUSPARSE,:CuSparseMatrixCOO)
             error("To use BilinearLens on GPU, run `using Pkg; pkg\"add https://github.com/marius311/CUDA.jl#coo\"` and restart Julia.")
         end
-        switch2csr(CUSPARSE.CuSparseMatrixCOO{T}(K,M,V,(Nside^2,Nside^2)))
+        switch2csr(CUSPARSE.CuSparseMatrixCOO{T}(K,M,V,(Nx*Ny,Nx*Ny)))
     end
     
     

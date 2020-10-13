@@ -27,7 +27,7 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X)
+        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
@@ -36,11 +36,13 @@ end
 
 
 ### array interface 
+# Base.size and Base.lastindex refer to the splayed-out vector representation of the field:
 size(f::FlatS0) = (length(firstfield(f)),)
 lastindex(f::FlatS0, i::Int) = lastindex(f.Ix, i)
-_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N,N) : (N,N,D)
-_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = D==1 ? (N÷2+1,N) : (N÷2+1,N,D)
-_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
+# content_size and content_ndims refer to the actual array holding the field content:
+content_size(::Type{<:FlatMap{    <:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (N .* (1,1)         ..., (D==1 ? () : (D,))...)
+content_size(::Type{<:FlatFourier{<:Flat{N,<:Any,<:Any,D}}}) where {N,D} = (N .÷ (2,1) .+ (1,0)..., (D==1 ? () : (D,))...)
+content_ndims(::Type{<:FlatS0{<:Flat{<:Any,<:Any,<:Any,D}}}) where {D} = D==1 ? 3 : 2
 @propagate_inbounds @inline getindex(f::FlatS0, I...) = getindex(firstfield(f), I...)
 @propagate_inbounds @inline setindex!(f::FlatS0, X, I...) = (setindex!(firstfield(f), X, I...); f)
 adapt_structure(to, f::F) where {P,F<:FlatS0{P}} = basetype(F){P}(adapt(to,firstfield(f)))
@@ -66,9 +68,9 @@ BroadcastStyle(S1::FlatS0Style{<:Field{B1}}, S2::FlatS0Style{<:Field{B2}}) where
 instantiate(bc::Broadcasted{<:FlatS0Style}) = bc
 similar(::Broadcasted{FS}, ::Type{T}) where {T<:Number,FS<:FlatS0Style} = similar(FS,T)
 similar(::Type{FlatS0Style{F,M}}, ::Type{T}) where {F<:FlatS0,M,T<:Number} = 
-    F(basetype(M){eltype(F{real(T)})}(undef,_size(F)))
+    F(basetype(M){eltype(F{real(T)})}(undef,content_size(F)))
 @inline preprocess(dest::F, bc::Broadcasted) where {F<:FlatS0} = 
-    Broadcasted{DefaultArrayStyle{_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,_size(F)))
+    Broadcasted{DefaultArrayStyle{content_ndims(F)}}(bc.f, preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
 preprocess(dest::F, arg) where {F<:FlatS0} = broadcastable(F, arg)
 broadcastable(::Type{<:FlatS0}, f::FlatS0) = firstfield(f)
 broadcastable(::Type{<:FlatS0{<:Flat,T}}, r::Real) where {T} = convert(T,r)
@@ -97,9 +99,14 @@ Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, maybe
 getproperty(f::FlatS0, s::Symbol) = getproperty(f,Val(s))
 getproperty(f::FlatS0, ::Val{s}) where {s} = getfield(f,s)
 getproperty(f::FlatS0, ::Val{:I}) = f
-function getindex(f::FlatS0, k::Symbol)
-    k in [:I, :Ix,:Il] || throw(ArgumentError("Invalid FlatS0 index: $k"))
-    k == :I ? f : getproperty((k == :Ix ? Map : Fourier)(f),k)
+function getindex(f::FlatS0, k::Symbol; full_plane=false)
+    maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
+    @match k begin
+        :I  => f
+        :Ix => Map(f).Ix
+        :Il => maybe_unfold(Fourier(f).Il)
+        _   => throw(ArgumentError("Invalid FlatS0 index: $k"))
+    end
 end
 
 ### dot products
@@ -111,7 +118,7 @@ dot(a::FlatS0{<:Flat{N,θ}}, b::FlatS0{<:Flat{N,θ}}) where {N,θ} = batch(sum_k
 
 ### simulation and power spectra
 function white_noise(rng::AbstractRNG, ::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-    FlatMap{P}(randn!(rng, basetype(M){T}(undef, _size(FlatMap{P}))))
+    FlatMap{P}(randn!(rng, basetype(M){T}(undef, content_size(FlatMap{P}))))
 end
 function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
@@ -125,17 +132,17 @@ end
 
 function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
     ii = sortperm(fieldinfo(L.diag).kmag[:])
-    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il))[ii] * units, concrete=false)
+    InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))[ii] * units, concrete=false)
 end
 
 function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false) where {P}
-    @unpack Nside,Δx,kmag = fieldinfo(f)
-    α = (Nside/Δx)^2
+    @unpack Nx, Ny ,Δx,kmag = fieldinfo(f)
+    α = Nx*Ny/Δx^2
 
     # faster to excise unused parts:
     kmask = (kmag .> minimum(ℓedges)) .&  (kmag .< maximum(ℓedges)) 
     L = Float64.(kmag[kmask])
-    CLobs = real.(dot.(unfold(Float64(f)[:Il])[kmask],unfold(Float64(f2)[:Il])[kmask])) ./ α
+    CLobs = real.(dot.(unfold(Float64(f)[:Il], Ny)[kmask],unfold(Float64(f2)[:Il], Ny)[kmask])) ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights

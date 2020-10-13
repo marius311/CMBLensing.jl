@@ -36,7 +36,7 @@ for (F,F0,(X,Y),T) in [
     @eval begin
         @doc $doc $F
         $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array; kwargs...) =
-            $F{Flat(Nside=size($X,2),D=size($X,3);kwargs...)}($X, $Y)
+            $F{Flat(Nside=size($X)[[2,1]],D=size($X,3);kwargs...)}($X, $Y)
         $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P} =
             $F{P}(($F0{P}($X), $F0{P}($Y)))
         $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P,T} =
@@ -60,28 +60,37 @@ getproperty(f::FlatEBMap,     ::Val{:Bx}) = getfield(f,:fs).B.Ix
 getproperty(f::FlatEBFourier, ::Val{:El}) = getfield(f,:fs).E.Il
 getproperty(f::FlatEBFourier, ::Val{:Bl}) = getfield(f,:fs).B.Il
 getproperty(f::FlatS2,        ::Val{:P})  = f
-function getindex(f::FlatS2, k::Symbol)
+function getindex(f::FlatS2, k::Symbol; full_plane=false)
+    maybe_unfold = (full_plane && k in [:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
     B = @match k begin
-        (:P)         => Basis
-        (:E  || :B)  => f isa FlatQUMap ? EBMap : f isa FlatQUFourier ? EBFourier : Basis
-        (:Q  || :U)  => f isa FlatEBMap ? QUMap : f isa FlatEBFourier ? QUFourier : Basis
+        (:P)         => identity
+        (:E  || :B)  => @match f begin
+            _ :: FlatQUMap     => EBMap
+            _ :: FlatQUFourier => EBFourier
+            _                  => identity
+        end
+        (:Q  || :U)  => @match f begin
+            _ :: FlatEBMap     => QUMap
+            _ :: FlatEBFourier => QUFourier
+            _                  => identity
+        end
         (:Ex || :Bx) => EBMap
         (:El || :Bl) => EBFourier
         (:Qx || :Ux) => QUMap
         (:Ql || :Ul) => QUFourier
         _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
     end
-    getproperty(B(f),k)
+    maybe_unfold(getproperty(B(f),k))
 end
 
-function Base.getindex(D::DiagOp{<:FlatEBFourier}, s::Symbol)
-    @unpack El, Bl = diag(D);
+function getindex(D::DiagOp{<:FlatEBFourier}, k::Symbol)
+    @unpack El, Bl = diag(D)
     @unpack sin2ϕ, cos2ϕ, P = fieldinfo(diag(D))
-    f = @match s begin
-        :QQ          => FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2)
+    f = @match k begin
+        (:QQ)        => FlatFourier{P}(@. Bl*sin2ϕ^2 + El*cos2ϕ^2)
         (:QU || :UQ) => FlatFourier{P}(@. (El - Bl) * sin2ϕ * cos2ϕ)
-        :UU          => FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2)
-        _            => getproperty(D.diag, s)
+        (:UU)        => FlatFourier{P}(@. Bl*cos2ϕ^2 + El*sin2ϕ^2)
+        _            => getproperty(D.diag, k)
     end
     Diagonal(f)
 end
