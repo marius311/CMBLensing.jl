@@ -36,7 +36,7 @@ for (F,F0,(X,Y),T) in [
     @eval begin
         @doc $doc $F
         $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array; kwargs...) =
-            $F{Flat(Nside=size($X)[[2,1]],D=size($X,3);kwargs...)}($X, $Y)
+            $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X, $Y)
         $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P} =
             $F{P}(($F0{P}($X), $F0{P}($Y)))
         $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P,T} =
