@@ -45,9 +45,10 @@ end
 pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
-dot(a::CuFlatS0{<:Flat{N,θ}}, b::CuFlatS0{<:Flat{N,θ}}) where {N,θ} = dot(adapt(Array,Map(a)), adapt(Array,Map(b)))
-≈(a::CuFlatS0, b::CuFlatS0) = (firstfield(a) ≈ firstfield(b))
-sum(f::CuFlatS0; dims=:) = ((dims == :) || (1 in dims)) ? sum(firstfield(f)) : f
+==(a::CuFlatS0, b::CuFlatS0) = (==)(firstfield.(promote(a,b))...)
+≈(a::CuFlatS0, b::CuFlatS0) = (≈)(firstfield.(promote(a,b))...)
+≈(a::Diagonal{<:Any,<:CuFlatS0}, b::Diagonal{<:Any,<:CuFlatS0}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
+sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 
 # these only work for Reals in CUDA

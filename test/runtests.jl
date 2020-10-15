@@ -1,3 +1,18 @@
+
+if get(ENV, "CMBLENSING_TEST_CUDA", false) == "1"
+    using Adapt, CUDA
+    CUDA.allowscalar(false)
+    maybegpu(x) = adapt(CuArray,x)
+    storage = CuArray
+    @info "Running tests on $(repr("text/plain", CUDA.device()))"
+else
+    maybegpu(x) = x
+    storage = Array
+    @info "Running tests on CPU"
+end
+
+##
+
 using CMBLensing
 using CMBLensing: 
     @SMatrix, @SVector, AbstractCℓs, basis, Basis, BasisTuple,
@@ -9,6 +24,12 @@ using Test
 using SparseArrays
 using LinearAlgebra
 using Zygote
+using AbstractFFTs
+
+##
+
+Nsides  = [(8,  (8,8)),     ((8,8),    (8,8)),     ((4,8),    (4,8))]
+Nsides′ = [(128,(128,128)), ((128,128),(128,128)), ((196,128),(196,128))]
 
 ##
 
@@ -22,7 +43,7 @@ using Zygote
 @testset "Printing" begin
 
     # concrete types:
-    for f in [FlatMap(rand(4,4)), FlatQUMap(rand(4,4),rand(4,4))]
+    for f in [maybegpu(FlatMap(rand(4,4))), maybegpu(FlatQUMap(rand(4,4),rand(4,4)))]
         @test occursin("pixels",sprint(show, MIME("text/plain"), f))
         @test occursin("pixels",sprint(show, MIME("text/plain"), [f,f]))
     end
@@ -40,7 +61,7 @@ end
 
 @testset "FieldTuples" begin 
 
-    f = FlatMap(rand(4,4))
+    f = maybegpu(FlatMap(rand(4,4)))
 
     @testset "Constructors" begin
 
@@ -48,19 +69,17 @@ end
         # * 1) no basis or names specified, 2) only basis specified, 3) only names specified, 4) basis and names specified
         # * 1) args/kwargs form 2) single Tuple/NamedTuple argument form
 
-        for F in [
+        @testset "F :: $F" for F in [
             FieldTuple,
             FieldTuple{QUMap},
             FieldTuple{QUMap,<:NamedTuple{(:Q,:U)}},
             FieldTuple{<:Basis,<:NamedTuple{(:Q,:U)}}
-            ]
+        ]
 
-            @testset "F :: $F" begin
-                @test (@inferred F(;Q=f, U=f)) isa F
-                @test (@inferred F((Q=f, U=f))) isa F
-                @test (@inferred F(f,f)) isa F
-                @test (@inferred F((f,f))) isa F
-            end
+            @test (@inferred F(;Q=f, U=f)) isa F
+            @test (@inferred F((Q=f, U=f))) isa F
+            @test (@inferred F(f,f)) isa F
+            @test (@inferred F((f,f))) isa F
             
         end
 
@@ -90,15 +109,15 @@ end
 
 @testset "Flat Constructors" begin
     
-    Nx = 6
-    Ny = 10
-    θpix = 3
-    kwargs = (Nside=(Ny, Nx), θpix=θpix)
-    P = Flat(;kwargs...)
-    Ix = rand(Ny,Nx)
-    Il = rand(Ny÷2+1,Nx) + im*rand(Ny÷2+1,Nx)
-    
-    for (F,args) in [
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+
+        θpix = 3
+        kwargs = (Nside=Nside, θpix=θpix)
+        P = Flat(;kwargs...)
+        Ix = maybegpu(rand(Nside2D...))
+        Il = rfft(Ix)
+        
+        @testset "f :: $F" for (F,args) in [
             (FlatMap,        (Ix,)),
             (FlatFourier,    (Il,)),
             (FlatQUMap,      (Ix,Ix)),
@@ -110,7 +129,7 @@ end
             (FlatIEBMap,     (Ix,Ix,Ix)),
             (FlatIEBFourier, (Il,Il,Il))
         ]
-        @testset "f::$F" begin
+            
             # the four basic construtor types with no type changing
             @test F(args...; kwargs...) isa F{P}
             @test (@inferred F{P}(args...)) isa F{P}
@@ -125,6 +144,7 @@ end
             if eltype(args[1]) <: Complex
                 @test (@inferred F{P}(map(real,args)...)) isa F{P}
             end
+
         end
     end
 
@@ -135,19 +155,19 @@ end
 
 @testset "Algebra" begin
     
-    fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
-        (Fourier,   FlatMap(rand(4,4))), 
-        (EBFourier, FlatQUMap(rand(4,4),rand(4,4))), # named FieldTuple
-        (Fourier,   FieldTuple(FlatMap(rand(4,4)),FlatMap(rand(4,4)))), # unnamed FieldTuple
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FlatIQUMap(rand(4,4),rand(4,4),rand(4,4))), # named nested FieldTuple
-        (BasisTuple{Tuple{Fourier,EBFourier}}, FieldTuple(FlatMap(rand(4,4)),FlatQUMap(rand(4,4),rand(4,4)))), # unnamed nested FieldTuple
-        (Fourier,   FlatMap(rand(4,4,2))), # batched S0 
-        (EBFourier, FlatQUMap(rand(4,4,2),rand(4,4,2))), # batched S2
-    ]
-    
-    for (B,f) in fs
-        
-        @testset "f::$(typeof(f))" begin
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+
+        fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
+            (Fourier,   maybegpu(FlatMap(rand(Nside2D...)))), 
+            (EBFourier, maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...)))), # named FieldTuple
+            (Fourier,   maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatMap(rand(Nside2D...))))), # unnamed FieldTuple
+            (BasisTuple{Tuple{Fourier,EBFourier}}, maybegpu(FlatIQUMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...)))), # named nested FieldTuple
+            (BasisTuple{Tuple{Fourier,EBFourier}}, maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatQUMap(rand(Nside2D...),rand(Nside2D...))))), # unnamed nested FieldTuple
+            (Fourier,   maybegpu(FlatMap(rand(Nside2D...,2)))), # batched S0 
+            (EBFourier, maybegpu(FlatQUMap(rand(Nside2D...,2),rand(Nside2D...,2)))), # batched S2
+        ]
+            
+        @testset "f :: $(typeof(f))" for (B,f) in fs
             
             local Ðf, Ðv, g, H
             
@@ -214,69 +234,84 @@ end
             @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
         
             # tuple adjoints
-            v = similar.(@SVector[f0,f0])
-            @test (@inferred mul!(f0, tuple_adjoint(f), f)) isa Field{<:Any,S0}
+            f0b = identity.(batch(f0,batchsize(f)))
+            v = similar.(@SVector[f0b,f0b])
+            @test (@inferred mul!(f0b, tuple_adjoint(f), f)) isa Field{<:Any,S0}
             @test (@inferred mul!(v, tuple_adjoint(f), @SVector[f,f])) isa FieldVector{<:Field{<:Any,S0}}
 
         end
+            
+        # mixed-spin
+        @test (@inferred f0 .* f2) isa typeof(f2)
+        @test (@inferred f0 .* ft) isa typeof(ft)
+        
+        # matrix type promotion
+        @test_broken (@inferred FlatMap(rand(Float32,2,2)) + FlatMap(spzeros(Float64,2,2))) isa FlatMap{<:Any,Float64,<:Matrix}
         
     end
-    
-    # mixed-spin
-    @test (@inferred f0 .* f2) isa typeof(f2)
-    @test (@inferred f0 .* ft) isa typeof(ft)
-    
-    # matrix type promotion
-    @test_broken (@inferred FlatMap(rand(Float32,2,2)) + FlatMap(spzeros(Float64,2,2))) isa FlatMap{<:Any,Float64,<:Matrix}
-    
+
 end
 
 ##
 
 @testset "FlatS2" begin
-    C = Diagonal(EBFourier(FlatEBMap(rand(3,3), rand(3,3))))
-    f = FlatQUMap(rand(3,3), rand(3,3))
-    @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+        C = maybegpu(Diagonal(EBFourier(FlatEBMap(rand(Nside2D...), rand(Nside2D...)))))
+        f = maybegpu(FlatQUMap(rand(Nside2D...), rand(Nside2D...)))
+        @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
+    end
 end
+
+##
 
 @testset "FlatS02" begin
     
-    ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(FlatMap(rand(3,3)))) for i=1:4]
-    L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
-    f = IEBFourier(FlatIEBMap(rand(3,3),rand(3,3),rand(3,3)))
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
 
-    @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
-    @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
-    @test @inferred(L * L) isa FlatIEBCov
-    @test @inferred(L + L) isa FlatIEBCov
-    @test L * Diagonal(f) isa FlatIEBCov
-    @test Diagonal(f) * L isa FlatIEBCov
-    @test_broken @inferred L * Diagonal(f)
-    @test @inferred(diag(L)) isa FlatIEBFourier
-    @test @inferred(L + I) isa FlatIEBCov
-    @test @inferred(2 * L) isa FlatIEBCov
-    @test @inferred(similar(L)) isa FlatIEBCov
-    @test (L .= 2L) isa FlatIEBCov
+        ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(maybegpu(FlatMap(rand(Nside2D...))))) for i=1:4]
+        L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
+        f = maybegpu(IEBFourier(FlatIEBMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...))))
+
+        @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
+        @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
+        @test @inferred(L * L) isa FlatIEBCov
+        @test @inferred(L + L) isa FlatIEBCov
+        @test L * Diagonal(f) isa FlatIEBCov
+        @test Diagonal(f) * L isa FlatIEBCov
+        @test_broken @inferred L * Diagonal(f)
+        @test @inferred(diag(L)) isa FlatIEBFourier
+        @test @inferred(L + I) isa FlatIEBCov
+        @test @inferred(2 * L) isa FlatIEBCov
+        @test @inferred(similar(L)) isa FlatIEBCov
+        @test (L .= 2L) isa FlatIEBCov
+
+    end
 
 end
 
 ##
 
 @testset "BatchedReal" begin
-    
-    r  = 1.
-    rb = batch([1.,2])
-    
-    for (f,fb) in [
-        (  FlatMap(rand(8,8)),           FlatMap(rand(8,8,2))),
-        (FlatQUMap(rand(8,8),rand(8,8)), FlatQUMap(rand(8,8,2),rand(8,8,2)))
-    ]
-        @testset "f :: $(typeof(f))" begin
+
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+
+        Nside2D = Nside .* (1,1)
+
+        r  = 1.
+        rb = batch([1.,2])
+        
+        @testset "f :: $(typeof(f))" for (f,fb) in [
+            (maybegpu(FlatMap(rand(Nside2D...))),                    maybegpu(FlatMap(rand(Nside2D...,2)))),
+            (maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...))), maybegpu(FlatQUMap(rand(Nside2D...,2),rand(Nside2D...,2))))
+        ]
+
             @test @inferred(r * f)  == f
             @test @inferred(r * fb) == fb
             @test unbatch(@inferred(rb * f)) == [f, 2f]
             @test unbatch(@inferred(rb * fb)) == [batchindex(fb,1), 2batchindex(fb,2)]
+
         end
+
     end
     
 end
@@ -284,14 +319,18 @@ end
 ## 
 
 @testset "Gradients" begin
+
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
     
-    @test (@inferred ∇[1] * FlatMap(rand(3,3), ∂mode=fourier∂)) isa FlatFourier
-    @test (@inferred ∇[1] * FlatQUMap(rand(3,3), rand(3,3), ∂mode=fourier∂)) isa FlatQUFourier
-    @test (@inferred ∇[1] * FlatIQUMap(rand(3,3), rand(3,3), rand(3,3), ∂mode=fourier∂)) isa FlatIQUFourier
-    
-    @test (@inferred ∇[1] * Fourier(FlatMap(rand(3,3), ∂mode=map∂))) isa FlatMap
-    @test (@inferred ∇[1] * QUFourier(FlatQUMap(rand(3,3), rand(3,3), ∂mode=map∂))) isa FlatQUMap
-    @test (@inferred ∇[1] * BasisTuple{Tuple{Fourier,QUFourier}}(FlatIQUMap(rand(3,3), rand(3,3), rand(3,3), ∂mode=map∂))) isa FlatIQUMap
+        @test (@inferred ∇[1] * maybegpu(FlatMap(rand(Nside2D...), ∂mode=fourier∂))) isa FlatFourier
+        @test (@inferred ∇[1] * maybegpu(FlatQUMap(rand(Nside2D...), rand(Nside2D...), ∂mode=fourier∂))) isa FlatQUFourier
+        @test (@inferred ∇[1] * maybegpu(FlatIQUMap(rand(Nside2D...), rand(Nside2D...), rand(Nside2D...), ∂mode=fourier∂))) isa FlatIQUFourier
+        
+        @test (@inferred ∇[1] * Fourier(FlatMap(rand(Nside2D...), ∂mode=map∂))) isa FlatMap
+        @test (@inferred ∇[1] * QUFourier(FlatQUMap(rand(Nside2D...), rand(Nside2D...), ∂mode=map∂))) isa FlatQUMap
+        @test (@inferred ∇[1] * BasisTuple{Tuple{Fourier,QUFourier}}(FlatIQUMap(rand(Nside2D...), rand(Nside2D...), rand(Nside2D...), ∂mode=map∂))) isa FlatIQUMap
+
+    end
     
 end
 
@@ -299,10 +338,14 @@ end
 
 @testset "Misc" begin
     
-    f = FlatMap(rand(4,4))
-    
-    @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
-    @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+
+        f = maybegpu(FlatMap(rand(Nside2D...)))
+        
+        @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
+        @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
+
+    end
     
 end
 
@@ -320,7 +363,7 @@ end
 
 @testset "ParamDependentOp" begin
     
-    D = Diagonal(FlatMap(rand(4,4)))
+    D = Diagonal(maybegpu(FlatMap(rand(4,4))))
     
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
@@ -362,12 +405,12 @@ end;
 
 @testset "Zygote" begin
 
-    for (f,g,h) in [
-        @repeated(FlatMap(rand(2,2)),3), 
-        @repeated(FlatQUMap(rand(2,2),rand(2,2)),3)
-    ]
-    
-        @testset "$(typeof(f))" begin
+    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+
+        @testset "$(typeof(f))" for (f,g,h) in [
+            @repeated(maybegpu(FlatMap(rand(Nside2D...))),3), 
+            @repeated(maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...))),3)
+        ]
         
             v = @SVector[f,f]
             D = Diagonal(f)
@@ -379,19 +422,23 @@ end;
                     @test ((δ = gradient(f -> sum(Map(f)), Fourier(f))[1]); basis(δ)==basis(Fourier(f)) && δ ≈ Fourier(one(Map(f))))
                 end
                 
-                for B1=[Map,Fourier], B2=[Map,Fourier], B3=[Map,Fourier]
-                    @testset "B1=$B1, B2=$B2, B3=$B3" begin
-                        @test gradient(f -> dot(B1(f),B2(f)), B3(f))[1] ≈ 2f
-                        @test gradient(f -> norm(B1(f)), B3(f))[1] ≈ f/norm(f)
-                        @test gradient(f -> B1(f)' * B2(g), B3(f))[1] ≈ g
-                        @test gradient(f -> sum(Diagonal(Map(f)) * B2(g)), B3(f))[1] ≈ g
-                        @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * B2(g)), B3(f))[1] ≈ ∇[1]'*g
-                        @test gradient(f -> B1(f)'*(D\B2(f)), B3(f))[1] ≈ D\f + D'\f
-                        @test gradient(f -> (B1(f)'/D)*B2(f), B3(f))[1] ≈ D\f + D'\f
-                        @test gradient(f -> B1(f)'*(D*B2(f)), B3(f))[1] ≈ D*f + D'*f
-                        @test gradient(f -> (B1(f)'*D)*B2(f), B3(f))[1] ≈ D*f + D'*f
+                @testset "B1=$B1, B2=$B2, B3=$B3" for B1=[Map,Fourier], B2=[Map,Fourier], B3=[Map,Fourier]
+                    
+                    @test gradient(f -> dot(B1(f),B2(f)), B3(f))[1] ≈ 2f
+                    @test gradient(f -> norm(B1(f)), B3(f))[1] ≈ f/norm(f)
+                    @test gradient(f -> B1(f)' * B2(g), B3(f))[1] ≈ g
+                    @test gradient(f -> sum(Diagonal(Map(f)) * B2(g)), B3(f))[1] ≈ g
+                    @test gradient(f -> sum(Diagonal(Map(∇[1]*f)) * B2(g)), B3(f))[1] ≈ ∇[1]'*g
+                    @test gradient(f -> B1(f)'*(D\B2(f)), B3(f))[1] ≈ D\f + D'\f
+                    @test gradient(f -> (B1(f)'/D)*B2(f), B3(f))[1] ≈ D\f + D'\f
+                    @test gradient(f -> B1(f)'*(D*B2(f)), B3(f))[1] ≈ D*f + D'*f
+                    @test gradient(f -> (B1(f)'*D)*B2(f), B3(f))[1] ≈ D*f + D'*f
+                    if B2==Map
                         @test gradient(f -> B1(f)'*Diagonal(B2(f))*f, B3(f))[1] ≈ @. 3*$B2(f)^2
+                    else
+                        @test_broken gradient(f -> B1(f)'*Diagonal(B2(f))*f, B3(f))[1] ≈ @. 3*$B2(f)^2
                     end
+                    
                 end
 
                 @testset "Broadcasting" begin
@@ -456,70 +503,63 @@ end;
         
         end
         
+        
     end
-    
+
     @testset "LinearInterpolation" begin
         @test gradient(x->LinearInterpolation([1,2,3],[1,2,3])(x), 2)[1] == 1
         @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
         @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
     end
-    
-    
+        
 end
 
 ##
+
 @testset "Lensing" begin
     
     local f,ϕ
     
     Cℓ = camb().unlensed_total
     seed!(0)
-    
 
-    for nside = [128, (128, 64), (64, 128)]
+    @testset "Nside = $Nside" for (Nside,) in Nsides′
 
-      @testset  "nside = $nside" begin
-
-        for T in (Float32, Float64)
+        @testset "T :: $T" for T in (Float32, Float64)
             
-            @testset "T :: $T" begin
-                    
-                ε = sqrt(eps(T))
-                Cϕ = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.ϕϕ)
-                @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
-                Lϕ = LenseFlow(ϕ)
-                
-                ## S0
-                Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S0, Cℓ.TT)
-                @test (f = @inferred simulate(Cf)) isa FlatS0
-                @test (@inferred Lϕ*f) isa FlatS0
-                # adjoints
-                f,g = simulate(Cf),simulate(Cf)
-                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-                # gradients
-                δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
-
-                # S2 lensing
-                Cf = Cℓ_to_Cov(Flat(Nside=nside), T, S2, Cℓ.EE, Cℓ.BB)
-                @test (f = @inferred simulate(Cf)) isa FlatS2
-                @test (@inferred Lϕ*f) isa FlatS2
-                # adjoints
-                f,g = simulate(Cf),simulate(Cf)
-                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-                # gradients
-                δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
+            ε = sqrt(eps(T))
+            Cϕ = maybegpu(Cℓ_to_Cov(Flat(Nside=Nside), T, S0, Cℓ.ϕϕ))
+            @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
+            Lϕ = LenseFlow(ϕ)
             
-            end
+            ## S0
+            Cf = maybegpu(Cℓ_to_Cov(Flat(Nside=Nside), T, S0, Cℓ.TT))
+            @test (f = @inferred simulate(Cf)) isa FlatS0
+            @test (@inferred Lϕ*f) isa FlatS0
+            # adjoints
+            f,g = simulate(Cf),simulate(Cf)
+            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+            # gradients
+            δf, δϕ = simulate(Cf), simulate(Cϕ)
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
+
+            # S2 lensing
+            Cf = maybegpu(Cℓ_to_Cov(Flat(Nside=Nside), T, S2, Cℓ.EE, Cℓ.BB))
+            @test (f = @inferred simulate(Cf)) isa FlatS2
+            @test (@inferred Lϕ*f) isa FlatS2
+            # adjoints
+            f,g = simulate(Cf),simulate(Cf)
+            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+            # gradients
+            δf, δϕ = simulate(Cf), simulate(Cϕ)
+            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
             
         end
-      end
 
     end
-        
+
 end
 
 ##
@@ -529,49 +569,44 @@ end
     Cℓ = camb()
     L = LenseFlow{RK4Solver{7}}
     T = Float64
-    
 
-    for nside = [128, (128, 192), (192, 128)]
+    @testset "Nside = $Nside" for (Nside,) in Nsides′
 
-      @testset "nside = $nside" begin
-
-        for pol in (:I,:P)
+        @testset "pol = $pol" for pol in (:I,:P)
             
-            @testset "pol = $pol" begin
-                
-                @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
-                    seed  = 0,
-                    Cℓ    = Cℓ,
-                    θpix  = 3,
-                    Nside = nside,
-                    T     = T,
-                    beamFWHM = 3,
-                    pol   = pol,
-                    L     = L,
-                    pixel_mask_kwargs = (edge_padding_deg=2,)
-                    );
-                @unpack Cf,Cϕ,D = ds₀
-                f° = L(ϕ)*D*f
+            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
+                seed     = 0,
+                Cℓ       = Cℓ,
+                θpix     = 3,
+                Nside    = Nside,
+                T        = T,
+                beamFWHM = 3,
+                pol      = pol,
+                L        = L,
+                storage  = storage,
+                pixel_mask_kwargs = (edge_padding_deg=2,)
+            )
+            @unpack Cf,Cϕ,D = ds₀
+            f° = L(ϕ)*D*f
 
-                @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ ,ds) rtol=1e-4
-                @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ ,ds) rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
 
-                ε = sqrt(eps(T))
-                seed!(0)
-                δf,δϕ = simulate(Cf),simulate(Cϕ)
-                
-                @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                    (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
-                @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                    (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
-                @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                    (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
-                
-            end
+            ε = sqrt(eps(T))
+            seed!(0)
+            δf,δϕ = simulate(Cf),simulate(Cϕ)
+            
+            @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+            @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
+            @test FieldTuple(gradient((f°,ϕ)->lnP(:mix,f°,ϕ,ds),f°,ϕ))'*FieldTuple(δf,δϕ) ≈ 
+                (lnP(:mix,f°+ε*δf,ϕ+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=3e-2
             
         end
-      end   
+        
     end
+
 end
 
 ##

@@ -430,11 +430,11 @@ firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
 
-function sum_kbn(A::Array{T,N}; dims=:) where {T,N}
+function sum_kbn(A::AbstractArray{T,N}; dims=:) where {T,N}
     if (dims == (:)) || (N == length(dims))
-        KahanSummation.sum_kbn(A)
+        KahanSummation.sum_kbn(adapt(Array,A))
     else
-        dropdims(mapslices(sum_kbn, A, dims=dims), dims=dims) :: Array{T,N-length(dims)}
+        dropdims(mapslices(sum_kbn, adapt(Array,A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
     end
 end
 @adjoint sum_kbn(A) = sum_kbn(A), Δ -> (fill!(similar(A),Δ),)
