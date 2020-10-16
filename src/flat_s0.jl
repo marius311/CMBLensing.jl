@@ -193,33 +193,37 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
-    Nnew = round(Int, N * θ ÷ θnew)
-    Pnew = Flat(Nside=Nnew,θpix=θnew,∂mode=∂mode)
+    Nnew = @. round(Int, N * θ ÷ θnew)
+    Pnew = Flat(Nside=Nnew, θpix=θnew, ∂mode=∂mode)
+    @unpack Δx,kx,ky,Nx,Ny,nyq = fieldinfo(Pnew,T,M)
 
     if deconv_pixwin
-        @unpack Δx,k = fieldinfo(Pnew,T,M)
-        Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
+        PWF = @. T((pixwin(θnew,ky[1:end÷2+1])*pixwin(θnew,kx)')/(pixwin(θ,ky[1:end÷2+1])*pixwin(θ,kx)'))
+    else
+        PWF = 1
     end
 
     if θnew>θ
         # downgrade
         if anti_aliasing
-            kmask = ifelse.(abs.(fieldinfo(P,T,M).k) .> fieldinfo(Pnew,T,M).nyq, 0, 1)
-            AA = Diagonal(FlatFourier{P}(kmask[1:N÷2+1] .* kmask'))
+            AA = Diagonal(FlatFourier{P}(
+                ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .> nyq) .| (abs.(fieldinfo(P,T,M).kx') .> nyq), 0, 1)
+            ))
         else
             AA = 1
         end
         if mode==:map
-            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Nnew,fac,Nnew)),dims=(1,3))[1,:,1,:])
-            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
+            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Ny,fac,Nx)),dims=(1,3))[1,:,1,:])
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ PWF) : fnew
         else
             FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
         end
     else
         # upgrade
+        @assert fieldinfo(f).Nside isa Int "Upgrading resolution only implemented for maps where `Nside isa Int`"
         if mode==:map
             fnew = FlatMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
-            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* PWF' .* PWF[1:Nnew÷2+1]) : fnew
         else
             fnew = FlatFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
             setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
