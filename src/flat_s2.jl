@@ -23,12 +23,16 @@ for (F,F0,(X,Y),T) in [
     ]
     doc = """
         # main constructor:
-        $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
-        
+        $F(
+            $X::AbstractArray, $Y::AbstractArray; $(F0==:FlatFourier ? "\n        Nside, # required, size of the map in pixels" : "")
+            θpix,  # optional, resolution in arcmin (default: 1)
+            ∂mode, # optional, fourier∂ or map∂ (default: fourier∂)
+        )
+
         # more low-level:
-        $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) # specify pixelization P explicilty
-        $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) # additionally, convert elements to type $T
-        $F{P,T,M<:AbstractRank2or3Array{$T}}($X::M, $Y::M) # specify everything explicilty
+        $F{P}($X::AbstractArray, $Y::AbstractArray) # specify pixelization P explicilty
+        $F{P,T}($X::AbstractArray, $Y::AbstractArray) # additionally, convert elements to type $T
+        $F{P,T,M<:AbstractArray{$T}}($X::M, $Y::M) # specify everything explicilty
         
     Construct a `$F` object. The top form of the constructor is most convenient
     for interactive work, while the others may be more useful for low-level code.
@@ -36,7 +40,7 @@ for (F,F0,(X,Y),T) in [
     @eval begin
         @doc $doc $F
         $F($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array; kwargs...) =
-            $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X, $Y)
+            $F(($F0($X; kwargs...), $F0($Y; kwargs...)))
         $F{P}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P} =
             $F{P}(($F0{P}($X), $F0{P}($Y)))
         $F{P,T}($X::AbstractRank2or3Array, $Y::AbstractRank2or3Array) where {P,T} =

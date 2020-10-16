@@ -10,12 +10,16 @@ const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
 ### convenience constructors
 for (F, X, T) in [
-        (:FlatMap,     :Ix, :T),
-        (:FlatFourier, :Il, :(Complex{T})),
-    ]
+    (:FlatMap,     :Ix, :T),
+    (:FlatFourier, :Il, :(Complex{T})),
+]
     doc = """
         # main constructor:
-        $F($X::AbstractArray[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        $F(
+            $X::AbstractArray; $(F==:FlatFourier ? "\n        Nside, # required, size of the map in pixels" : "")
+            θpix,  # optional, resolution in arcmin (default: 1)
+            ∂mode, # optional, fourier∂ or map∂ (default: fourier∂)
+        )
         
         # more low-level:
         $F{P}($X::AbstractArray) # specify pixelization P explicilty
@@ -27,12 +31,13 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
     T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{T}} = $F{P,T}($X)
 end
+FlatMap(Ix::AbstractRank2or3Array; kwargs...) = FlatMap{Flat(Nside=size(Ix)[1:2],D=size(Ix,3);kwargs...)}(Ix)
+FlatFourier(Il::AbstractRank2or3Array; Nside, kwargs...) = FlatFourier{Flat(Nside=Nside,D=size(Il,3);kwargs...)}(Il)
 
 
 ### array interface 
