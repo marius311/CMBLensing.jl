@@ -36,8 +36,10 @@ for (F, X, T) in [
     end
     T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{T}} = $F{P,T}($X)
 end
-FlatMap(Ix::AbstractRank2or3Array; kwargs...) = FlatMap{Flat(Nside=size(Ix)[1:2],D=size(Ix,3);kwargs...)}(Ix)
-FlatFourier(Il::AbstractRank2or3Array; Nside, kwargs...) = FlatFourier{Flat(Nside=Nside,D=size(Il,3);kwargs...)}(Il)
+FlatMap(Ix::AbstractRank2or3Array; kwargs...) = 
+    FlatMap{Flat(Nside=(size(Ix,1)==size(Ix,2) ? size(Ix,1) : size(Ix)[1:2]), D=size(Ix,3); kwargs...)}(Ix)
+FlatFourier(Il::AbstractRank2or3Array; Nside, kwargs...) = 
+    FlatFourier{Flat(Nside=Nside, D=size(Il,3); kwargs...)}(Il)
 
 
 ### array interface 
@@ -147,7 +149,7 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     # faster to excise unused parts:
     kmask = (kmag .> minimum(ℓedges)) .&  (kmag .< maximum(ℓedges)) 
     L = Float64.(kmag[kmask])
-    CLobs = real.(dot.(unfold(Float64(f)[:Il], Ny)[kmask],unfold(Float64(f2)[:Il], Ny)[kmask])) ./ α
+    CLobs = real.(dot.(unfold(Float64(f)[:Il],Ny)[kmask], unfold(Float64(f2)[:Il],Ny)[kmask])) ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
