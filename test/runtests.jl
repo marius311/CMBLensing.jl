@@ -584,7 +584,7 @@ end
                 pol      = pol,
                 L        = L,
                 storage  = storage,
-                pixel_mask_kwargs = (edge_padding_deg=2,)
+                pixel_mask_kwargs = (edge_padding_deg=1,)
             )
             @unpack Cf,Cϕ,D = ds₀
             f° = L(ϕ)*D*f
@@ -593,7 +593,7 @@ end
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ, ds) rtol=1e-4
 
             ε = sqrt(eps(T))
-            seed!(0)
+            seed!(1)
             δf,δϕ = simulate(Cf),simulate(Cϕ)
             
             @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
