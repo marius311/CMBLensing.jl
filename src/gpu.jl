@@ -132,7 +132,8 @@ Assumes the SLURM variables `SLURM_STEP_GPUS` and `GPU_DEVICE_ORDINAL` are
 defined on the workers.
 """
 function assign_GPU_workers()
-    topo = @eval Main pmap(workers()) do i
+    @everywhere @eval using CUDA, Distributed
+    topo = @eval Main pmap(workers()) do _
         hostname = gethostname()
         virtgpus = parse.(Int,split(ENV["GPU_DEVICE_ORDINAL"],","))
         if "SLURM_STEP_GPUS" in keys(ENV)
@@ -143,7 +144,11 @@ function assign_GPU_workers()
             # will work if you requested a full node's worth of GPUs at least
             physgpus = virtgpus
         end
-        (i=i, hostname=hostname, virtgpus=virtgpus, physgpus=physgpus)
+        if Set(virtgpus)!=Set(deviceid.(devices()))
+            @warn "Virtual GPUs not same as CUDA.devices(), using latter"
+            virtgpus = deviceid.(devices())
+        end
+        (i=myid(), hostname=hostname, virtgpus=virtgpus, physgpus=physgpus)
     end
     claimed = Set()
     assignments = Dict(map(topo) do (i,hostname,virtgpus,physgpus)
@@ -154,6 +159,6 @@ function assign_GPU_workers()
             end
         end
     end)
-    @everywhere @eval using CUDA, Distributed
     @everywhere workers() device!($assignments[myid()])
+    return topo, claimed, assignments
 end
