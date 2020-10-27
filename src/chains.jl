@@ -167,7 +167,7 @@ Get the mean and standard deviation of a set of correlated `samples` from a
 chain where the error on the mean and standard deviation is estimated with
 bootstrap resampling using the calculated "effective sample size" of the chain.
 """
-function mean_std_and_errors(samples; N_bootstrap=10000)
+function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2)
     
     Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples)[1])
     
@@ -177,7 +177,7 @@ function mean_std_and_errors(samples; N_bootstrap=10000)
     SEμ = std([mean(samples[rand(1:end, Neff)]) for i=1:N_bootstrap])
     SEσ = std([ std(samples[rand(1:end, Neff)]) for i=1:N_bootstrap])
     
-    "$(paren_errors(μ, SEμ)) ± $(paren_errors(σ, SEσ))"
+    "$(paren_errors(μ, SEμ; N_in_paren=N_in_paren)) ± $(paren_errors(σ, SEσ; N_in_paren=N_in_paren))"
     
 end
 
