@@ -127,28 +127,19 @@ gc = () -> (GC.gc(true); CUDA.reclaim())
 
 Assuming you submitted a SLURM job and got several GPUs, possibly across several
 nodes, this assigns each Julia worker process a unique GPU using `CUDA.device!`.
-Assumes the SLURM variables `SLURM_STEP_GPUS` and `GPU_DEVICE_ORDINAL` are
-defined on the workers.
 """
 function assign_GPU_workers()
-    topo = pmap(workers()) do i
-        hostname = gethostname()
-        virtgpus = parse.(Int,split(ENV["GPU_DEVICE_ORDINAL"],","))
-        if "SLURM_STEP_GPUS" in keys(ENV)
-            physgpus = parse.(Int,split(ENV["SLURM_STEP_GPUS"],","))
-        else
-            # SLURM_STEP_GPUS seems not correctly set on all systems. this
-            # will work if you requested a full node's worth of GPUs at least
-            physgpus = virtgpus
-        end
-        (i=i, hostname=hostname, virtgpus=virtgpus, physgpus=physgpus)
-    end
+    @everywhere @eval Main using CUDA, Distributed
+    accessible_gpus = @eval Main Dict(pmap(workers()) do _
+        ds = CUDA.devices()
+        myid() => Dict(CUDA.deviceid.(ds) .=> CUDA.uuid.(ds))
+    end)
     claimed = Set()
-    assignments = Dict(map(topo) do (i,hostname,physgpus,virtgpus)
-        for (physgpu,virtgpu) in zip(physgpus,virtgpus)
-            if !((hostname,physgpu) in claimed)
-                push!(claimed,(hostname,physgpu))
-                return i => virtgpu
+    assignments = Dict(map(workers()) do myid
+        for (gpu_id, gpu_uuid) in accessible_gpus[myid]
+            if !(gpu_uuid in claimed)
+                push!(claimed, gpu_uuid)
+                return myid => gpu_id
             end
         end
     end)
