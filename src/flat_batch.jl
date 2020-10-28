@@ -102,7 +102,7 @@ for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==)]
         ($op)(a::Real,        b::BatchedReal) = batch(broadcast(($op), a,      b.vals))
     end
 end
-for op in [:-, :sqrt, :one, :zero, :isfinite, :eps]
+for op in [:-, :!, :sqrt, :one, :zero, :isfinite, :eps]
     @eval ($op)(br::BatchedReal) = batch(broadcast(($op),br.vals))
 end
 for op in [:any, :all]
