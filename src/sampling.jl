@@ -100,8 +100,7 @@ function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamp
     # normalize the PDF. note the smoothing is done of the log PDF.
     cdf(x) = @ondemand(QuadGK.quadgk)(nan2zero∘exp∘ilnP,xmin,x,rtol=1e-5)[1]
     logA = nan2zero(log(cdf(xmax)))
-    lnPs .-= logA
-    ilnP.ys .-= logA
+    lnPs = (ilnP.ys .-= logA)
     ilnP.bs[:,1] .-= logA
     
     # draw samples via inverse transform sampling
