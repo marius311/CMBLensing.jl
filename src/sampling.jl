@@ -85,12 +85,18 @@ function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs
     ((batch(getindex.(batches,i)) for i=1:3)...,)
 end
 
-function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25)
+function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, require_convex=false)
     
     # trim leading/trailing zero-probability regions
     support = findnext(isfinite,lnPs,1):findprev(isfinite,lnPs,length(lnPs))
     xs = xs[support]
     lnPs = lnPs[support]
+    
+    if require_convex
+        support = longest_run_of_trues(finite_second_derivative(lnPs) .< 0)
+        xs = xs[support]
+        lnPs = lnPs[support]
+    end
 
     # interpolate PDF
     xmin, xmax = first(xs), last(xs)
@@ -222,8 +228,10 @@ function sample_joint(
         
         θstarts = if θstart == :prior
             [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
-        elseif (θstart isa NamedTuple)
+        elseif θstart isa NamedTuple
             fill(θstart, nchains)
+        elseif θstart isa Vector{<:NamedTuple}
+            θstart
         else
             error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
         end
@@ -236,6 +244,8 @@ function sample_joint(
             fill(batch(zero(diag(ds().Cϕ)), D), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
+        elseif ϕstart isa Vector{<:Field}
+            ϕstart
         elseif ϕstart in [:quasi_sample, :best_fit]
             pmap(θstarts) do θstart
                 MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
@@ -277,9 +287,11 @@ function sample_joint(
 
         for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
             
+            println("starting")
             last_chunks = pmap(last.(last_chunks)) do state
                 
                 @unpack i,ϕ°,f,θ = state
+                @show i
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 dsθ = ds(θ)
                 ϕ = dsθ.G\ϕ°

@@ -205,3 +205,32 @@ function gmres(A, b; Pl=I, maxiter)
     view(K, :, 1:n) * α
     
 end
+
+"""
+    finite_second_derivative(x)
+
+Second derivative of a vector `x` via finite differences, including at end points.
+"""
+function finite_second_derivative(x)
+    map(eachindex(x)) do i
+        if i==1
+            x[3]-2x[2]+x[1]
+        elseif i==length(x)
+            x[end]-2x[end-1]+x[end-2]
+        else
+            x[i+1]-2x[i]+x[i-1]
+        end
+    end
+end
+
+"""
+    longest_run_of_trues(x)
+
+The slice corresponding to the longest run of `true`s in the vector `x`. 
+"""
+function longest_run_of_trues(x)
+    next_true = findnext.(Ref(.!x), eachindex(x))
+    next_true[isnothing.(next_true)] .= 0
+    (len,start) = findmax(next_true .- eachindex(x))
+    start:start+len
+end
