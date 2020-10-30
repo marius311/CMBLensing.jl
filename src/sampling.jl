@@ -287,11 +287,9 @@ function sample_joint(
 
         for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
             
-            println("starting")
             last_chunks = pmap(last.(last_chunks)) do state
                 
                 @unpack i,ϕ°,f,θ = state
-                @show i
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 dsθ = ds(θ)
                 ϕ = dsθ.G\ϕ°
