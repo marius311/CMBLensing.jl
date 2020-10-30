@@ -2,47 +2,52 @@ import Base: getindex, lastindex
 
 
 @doc doc"""
-    load_chains(filename; burnin=0, thin=1, join=false)
-    
-Load a single chain or multiple parallel chains which were written to a file by
-[`sample_joint`](@ref). 
+    load_chains(filename; burnin=0, burnin_chunks=0, thin=1, join=false, unbatch=true)
+
+Load a single chain or multiple parallel chains which were written to
+a file by [`sample_joint`](@ref). 
 
 Keyword arguments: 
 
-* `burnin` — Remove this many samples from the start of each chain.
+* `burnin` — Remove this many samples from the start of each chain, or
+  if negative, keep only this many samples at the end of each chain.
+* `burnin_chunks` — Same as burnin, but in terms of chain "chunks"
+  stored in the chain file, rather than in terms of samples.
 * `thin` — If `thin` is an integer, thin the chain by this factor. If
-  `thin == :hasmaps`, return only samples which have maps saved. If thin is a
-  `Function`, filter the chain by this function (e.g. `thin=haskey(:g)` on Julia 1.5+)
-* `unbatch` — If true, [unbatch](@ref) the chains if they are batched. 
+  `thin == :hasmaps`, return only samples which have maps saved. If
+  thin is a `Function`, filter the chain by this function (e.g.
+  `thin=haskey(:g)` on Julia 1.5+)
+* `unbatch` — If true, [unbatch](@ref) the chains if they are batched.
 * `join` — If true, concatenate all the chains together.
 * `skip_missing_chunks` — Skip missing chunks in the chain instead of
   terminating the chain there. 
 
 
-The object returned by this function is a `Chain` or `Chains` object, which
-simply wraps an `Array` of `Dicts` or an `Array` of `Array` of `Dicts`,
-respectively (each sample is a `Dict`). The wrapper object has some extra
-indexing properties for convenience: 
+The object returned by this function is a `Chain` or `Chains` object,
+which simply wraps an `Array` of `Dicts` or an `Array` of `Array` of
+`Dicts`, respectively (each sample is a `Dict`). The wrapper object
+has some extra indexing properties for convenience: 
 
-* It can be indexed as if it were a single multidimensional object, e.g.
-  `chains[1,:,:accept]` would return the `:accept` key of all samples in the
-  first chain.
-* Leading colons can be dropped, i.e. `chains[:,:,:accept]` is the same as
-  `chains[:accept]`. 
-* If some samples are missing a particular key, `missing` is returned for those
-  samples insted of an error.
-* The recursion goes arbitrarily deep into the objects it finds. E.g., since
-  sampled parameters are stored in a `NamedTuple` like `(Aϕ=1.3,)` in the `θ`
-  key of each sample `Dict`, you can do `chain[:θ,:Aϕ]` to get all `Aϕ` samples
-  as a vector. 
+* It can be indexed as if it were a single multidimensional object,
+  e.g. `chains[1,:,:accept]` would return the `:accept` key of all
+  samples in the first chain.
+* Leading colons can be dropped, i.e. `chains[:,:,:accept]` is the
+  same as `chains[:accept]`. 
+* If some samples are missing a particular key, `missing` is returned
+  for those samples insted of an error.
+* The recursion goes arbitrarily deep into the objects it finds. E.g.,
+  since sampled parameters are stored in a `NamedTuple` like
+  `(Aϕ=1.3,)` in the `θ` key of each sample `Dict`, you can do
+  `chain[:θ,:Aϕ]` to get all `Aϕ` samples as a vector. 
 
 
 """
-function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropmaps=false)
+function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropmaps=false, burnin_chunks=0)
     chains = jldopen(filename) do io
         ks = keys(io)
-        chunk_ks = [k for k in ks if startswith(k,"chunks_")]
-        for (isfirst,k) in flagfirst(sort(chunk_ks, by=k->parse(Int,k[8:end])))
+        chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
+        chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
+        for (isfirst,k) in flagfirst(chunk_ks)
             if isfirst
                 chains = read(io,k)
             else
@@ -55,13 +60,13 @@ function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropm
         chains
     end
     if thin isa Int
-        chains = [chain[(1+burnin):thin:end] for chain in chains]
+        chains = [chain[burnin>=0 ? ((1+burnin):thin:end) : (end+(1+burnin):thin:end)] for chain in chains]
     elseif thin == :hasmaps
         chains = [[samp for samp in chain[(1+burnin):end] if :ϕ in keys(samp)] for chain in chains]
     elseif thin isa Function
         chains = [filter(thin,chain) for chain in chains]
     else
-        error("`thin` should be an Int or :hasmaps")
+        error("`thin` should be an Int, :hasmaps, or a filter function")
     end
     chains = wrap_chains(chains)
     if unbatch
@@ -121,8 +126,8 @@ _getindex(x::Union{Dict,NamedTuple}, k::Symbol) = haskey(x,k) ? getindex(x, k) :
 _getindex(x,                         k) = getindex(x, k)
 
 
-wrap_chains(chains::Vector{<:Vector{<:Dict}}) = Chains(Chain.(chains))
-wrap_chains(chain::Vector{<:Dict}) = Chain(chain)
+wrap_chains(chains::Vector{<:Vector}) = Chains(Chain.(chains))
+wrap_chains(chain::Vector) = Chain(chain)
 
 
 # batching

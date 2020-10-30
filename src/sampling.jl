@@ -85,23 +85,38 @@ function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs
     ((batch(getindex.(batches,i)) for i=1:3)...,)
 end
 
-function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, rtol=1e-5)
+function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, require_convex=false)
     
+    # trim leading/trailing zero-probability regions
+    support = findnext(isfinite,lnPs,1):findprev(isfinite,lnPs,length(lnPs))
+    xs = xs[support]
+    lnPs = lnPs[support]
+    
+    if require_convex
+        support = longest_run_of_trues(finite_second_derivative(lnPs) .< 0)
+        xs = xs[support]
+        lnPs = lnPs[support]
+    end
+
+    # interpolate PDF
     xmin, xmax = first(xs), last(xs)
     lnPs = lnPs .- maximum(lnPs)
     ilnP = loess(xs, lnPs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
-    A = @ondemand(QuadGK.quadgk)(exp∘ilnP, xmin, xmax)[1]
-    lnPs .-= log(A)
-    ilnP = loess(xs, lnPs, span=span)
+    cdf(x) = @ondemand(QuadGK.quadgk)(nan2zero∘exp∘ilnP,xmin,x,rtol=1e-5)[1]
+    logA = nan2zero(log(cdf(xmax)))
+    lnPs = (ilnP.ys .-= logA)
+    ilnP.bs[:,1] .-= logA
     
     # draw samples via inverse transform sampling
-    # (the `+ eps()`` is a workaround since Loess.predict seems to NaN sometimes when
-    # evaluated right at the lower bound)
     θsamples = @showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
-        fzero((x->@ondemand(QuadGK.quadgk)(exp∘ilnP,xmin+sqrt(eps()),x,rtol=rtol)[1]-r),xmin+sqrt(eps()),xmax,rtol=rtol)
+        if (cdf(xmin)-r)*(cdf(xmax)-r) >= 0
+            first(lnPs) > last(lnPs) ? xmin : xmax
+        else
+            fzero(x->cdf(x)-r, xmin, xmax, xatol=(xmax-xmin)*1e-3)
+        end
     end
     
     (nsamples==1 ? θsamples[1] : θsamples), ilnP, lnPs
@@ -213,8 +228,10 @@ function sample_joint(
         
         θstarts = if θstart == :prior
             [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
-        elseif (θstart isa NamedTuple)
+        elseif θstart isa NamedTuple
             fill(θstart, nchains)
+        elseif θstart isa Vector{<:NamedTuple}
+            θstart
         else
             error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
         end
@@ -227,6 +244,8 @@ function sample_joint(
             fill(batch(zero(diag(ds().Cϕ)), D), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
+        elseif ϕstart isa Vector{<:Field}
+            ϕstart
         elseif ϕstart in [:quasi_sample, :best_fit]
             pmap(θstarts) do θstart
                 MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
@@ -268,9 +287,11 @@ function sample_joint(
 
         for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
             
+            println("starting")
             last_chunks = pmap(last.(last_chunks)) do state
                 
                 @unpack i,ϕ°,f,θ = state
+                @show i
                 f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
                 dsθ = ds(θ)
                 ϕ = dsθ.G\ϕ°
