@@ -145,5 +145,4 @@ function assign_GPU_workers()
         end
     end)
     @everywhere workers() device!($assignments[myid()])
-    return topo, claimed, assignments
 end
