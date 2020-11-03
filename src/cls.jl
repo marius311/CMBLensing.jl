@@ -117,7 +117,7 @@ end
     ℓmax = 6000, 
     r = 0.2, ωb = 0.0224567, ωc = 0.118489, τ = 0.055, Σmν = 0.06,
     θs = 0.0104098, H0 = nothing, logA = 3.043, nₛ = 0.968602, nₜ = -r/8,
-    Aϕ = 1,
+    AL = 1,
     k_pivot = 0.002)
     
     params = Base.@locals
@@ -141,6 +141,7 @@ end
             pivot_tensor = k_pivot,
             lmax = ℓmax′,
             r = r,
+            Alens = AL,
         )
         cp.max_l_tensor = ℓmax′
         cp.max_eta_k_tensor = 2ℓmax′
@@ -157,7 +158,7 @@ end
         α = (10^6*cp.TCMB)^2
         toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
     
-        Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,Aϕ*2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
+        Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
     
         return (;
             map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
