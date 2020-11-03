@@ -229,8 +229,8 @@ end
 The slice corresponding to the longest run of `true`s in the vector `x`. 
 """
 function longest_run_of_trues(x)
-    next_true = findnext.(Ref(.!x), eachindex(x))
-    next_true[isnothing.(next_true)] .= 0
+    nothing2length(y) = isnothing(y) ? length(x) : y
+    next_true = nothing2length.(findnext.(Ref(.!x), eachindex(x)))
     (len,start) = findmax(next_true .- eachindex(x))
     start:start+len
 end
