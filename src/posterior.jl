@@ -134,7 +134,7 @@ function δlnP_δϕ(
     end
 
     # gQD for the real data
-    gQD = get_gQD(Lϕ, ds, f_wf_guess)
+    gQD_future = @spawnat :any get_gQD(Lϕ, ds, f_wf_guess)
 
     # gQD for several simulated datasets
     if use_previous_MF
@@ -149,6 +149,7 @@ function δlnP_δϕ(
     end
     
     # final total posterior gradient, including gradient of the prior
+    gQD = fetch(gQD_future)
     g = gQD.g - ḡ - Cϕ\ϕ
 
     if return_state
