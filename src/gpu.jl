@@ -38,10 +38,6 @@ BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:Fla
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
 
-function copyto!(dst::F, src::F) where {F<:CuFlatS0}
-    copyto!(firstfield(dst),firstfield(src))
-    dst
-end
 pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)

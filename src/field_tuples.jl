@@ -42,7 +42,7 @@ getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diag
 
 ### array interface
 size(f::FieldTuple) = (sum(map(length, f.fs)),)
-copyto!(dest::FT, src::FT) where {FT<:FieldTuple} = (map(copyto!,dest.fs,src.fs); dest)
+copyto!(dest::FieldTuple{B}, src::FieldTuple{B}) where {B} = (map(copyto!,dest.fs,src.fs); dest)
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)

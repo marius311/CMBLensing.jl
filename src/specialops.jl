@@ -218,7 +218,17 @@ function (L::ParamDependentOp)(θ::NamedTuple)
         # filtering out non-dependent parameters disabled until I can find a fix to:
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-        L.recompute_function(;θ...)
+        Lθ = L.recompute_function(;θ...)
+        if Lθ isa typeof(L.op)
+            Lθ
+        else
+            # if L got adapt'ed to CuArray since this op was created,
+            # L.op will be GPU-backed, but depending on how
+            # recompute_function is written, recompute_function may
+            # still return something CPU-backed. in that case, copy it
+            # to GPU here
+            copyto!(similar(L.op), Lθ)
+        end
     else
         L.op
     end 

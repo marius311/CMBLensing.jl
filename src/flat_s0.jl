@@ -58,6 +58,7 @@ function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
     @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
     basetype(F){P}(similar(firstfield(f),T))
 end
+copyto!(dst::Field{B,S0,P}, src::Field{B,S0,P}) where {B,P} = (copyto!(firstfield(dst),firstfield(src)); dst)
 
 
 ### broadcasting
