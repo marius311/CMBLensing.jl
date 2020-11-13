@@ -65,9 +65,9 @@ RUN pip install --no-cache-dir \
 
 ## install CAMB
 RUN mkdir -p $HOME/src/camb \
-    && curl -L https://github.com/cmbant/camb/tarball/6fc83ba | tar zxf - -C $HOME/src/camb --strip=1 \
-    && cd $HOME/src/camb/pycamb \
-    && python setup.py install
+    && curl -L https://github.com/cmbant/camb/tarball/21a56ef | tar zxf - -C $HOME/src/camb --strip=1 \
+    && cd $HOME/src/camb \
+    && python setup.py make install
 
 
 ## build args

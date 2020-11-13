@@ -159,5 +159,6 @@ end
 
 deploydocs(
     repo = "github.com/marius311/CMBLensing.jl.git",
-    push_preview = true
+    push_preview = true,
+    forcepush = true
 )
