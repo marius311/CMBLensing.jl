@@ -47,7 +47,7 @@ function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropm
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
-        for (isfirst,k) in flagfirst(chunk_ks)
+        @showprogress for (isfirst,k) in flagfirst(chunk_ks)
             if isfirst
                 chains = read(io,k)
             else
