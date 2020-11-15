@@ -22,6 +22,8 @@ end
 @memoize fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
     (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
 fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
+fieldinfo(::DiagOp{F}) where {F<:FlatField} = fieldinfo(F)
+get_storage(f::F) where {F<:FlatField} = basetype(fieldinfo(F).M)
 
 ### promotion & conversion
 # note: we don't need to promote the eltype T here since that will be
