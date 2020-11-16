@@ -1,6 +1,8 @@
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
