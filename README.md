@@ -36,11 +36,11 @@ You can also clone the repostiory and open the notebooks in [docs/src](https://g
 
 ### Requirements
 
-* Julia 1.3 or higher
-* _(recommended)_ Intel MKL FFT library for faster CPU FFTs 
-* _(optional)_ Python 3 + matplotlib (used for plotting)
-* _(optional)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
-* _(optional)_ An Nvidia GPU and [CuArrays](https://github.com/JuliaGPU/CuArrays.jl) for GPU support
+* Julia 1.5
+* _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
+* _(recommended)_ FFTW.jl built with [`JULIA_FFTW_PROVIDER=MKL`](https://juliamath.github.io/FFTW.jl/stable/#Installation-1) for faster CPU FFTs 
+* _(recommended)_ Python 3 + matplotlib (used for plotting)
+* _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
 * _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
 ### Native installation
