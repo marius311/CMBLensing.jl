@@ -133,3 +133,4 @@ end
 
 
 getindex(f::Union{Field,BatchedVals}, ::typeof(!), I) = batchindex(f, I)
+getindex(f::FlatS0, ::typeof(!), I) = batchindex(f, I) # for ambiguity
