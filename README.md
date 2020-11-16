@@ -1,7 +1,10 @@
 # CMBLensing.jl
 
-[![](https://img.shields.io/badge/source-github-blue)](https://github.com/marius311/CMBLensing.jl) [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://cosmicmar.com/CMBLensing.jl/stable) [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab) 
-[![](https://github.com/marius311/CMBLensing.jl/workflows/runtests/badge.svg)](https://github.com/marius311/CMBLensing.jl/actions?query=workflow%3Aruntests+branch%3Amaster) [![](https://github.com/marius311/CMBLensing.jl/workflows/docbuild/badge.svg)](https://github.com/marius311/CMBLensing.jl/actions?query=workflow%3Adocbuild+branch%3Amaster)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://cosmicmar.com/CMBLensing.jl/stable) [![Gitter](https://badges.gitter.im/CMBLensing-jl/community.svg)](https://gitter.im/CMBLensing-jl/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
+[![](https://img.shields.io/badge/source-github-blue)](https://github.com/marius311/CMBLensing.jl)  [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab) 
+[![](https://github.com/marius311/CMBLensing.jl/workflows/runtests/badge.svg)](https://github.com/marius311/CMBLensing.jl/actions?query=workflow%3Aruntests+branch%3Amaster) [![](https://github.com/marius311/CMBLensing.jl/workflows/docbuild/badge.svg)](https://github.com/marius311/CMBLensing.jl/actions?query=workflow%3Adocbuild+branch%3Amaster) 
+
 
 CMBLensing.jl is a next-generation tool for analysis of the lensed Cosmic Microwave Background. It is written in [Julia](https://julialang.org/) and transparently callable from Python.
 

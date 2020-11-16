@@ -33,7 +33,7 @@ end
 Convert an M×N matrix (with M=N÷2+1) which is the output a real FFT to a full
 N×N one via symmetries.
 """
-unfold(Tls::AbstractArray{<:Complex,3}) = mapslices(X -> unfold(X, Ny), Tls, dims=(1,2))
+unfold(Tls::AbstractArray{<:Complex,3}, Ny) = mapslices(X -> unfold(X, Ny), Array(Tls), dims=(1,2))
 unfold(Tl::AbstractMatrix{<:Complex}, Ny) = unfold(Array(Tl), Ny)
 function unfold(Tl::Matrix{<:Complex}, Ny::Int)
     m,n = size(Tl)

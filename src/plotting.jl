@@ -1,7 +1,7 @@
 
 using .PyPlot
 using .PyPlot.PyCall
-import .PyPlot: loglog, plot, semilogx, semilogy, figure
+import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 
 
 ### plotting Cℓs
@@ -15,6 +15,14 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 		($plot) in [:loglog,:semilogx] && xscale("log")
 		($plot) in [:loglog,:semilogy] && yscale("log")
 	end
+end
+
+function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
+	fill_between(
+		ic.ℓ, 
+		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,
+		args...; kwargs...
+	)
 end
 
 

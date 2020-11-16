@@ -10,12 +10,16 @@ const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
 ### convenience constructors
 for (F, X, T) in [
-        (:FlatMap,     :Ix, :T),
-        (:FlatFourier, :Il, :(Complex{T})),
-    ]
+    (:FlatMap,     :Ix, :T),
+    (:FlatFourier, :Il, :(Complex{T})),
+]
     doc = """
         # main constructor:
-        $F($X::AbstractArray[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        $F(
+            $X::AbstractArray; $(F==:FlatFourier ? "\n        Nside, # required, size of the map in pixels" : "")
+            θpix,  # optional, resolution in arcmin (default: 1)
+            ∂mode, # optional, fourier∂ or map∂ (default: fourier∂)
+        )
         
         # more low-level:
         $F{P}($X::AbstractArray) # specify pixelization P explicilty
@@ -27,12 +31,15 @@ for (F, X, T) in [
     """
     @eval begin
         @doc $doc $F
-        $F($X::AbstractRank2or3Array; kwargs...) = $F{Flat(Nside=size($X)[1:2],D=size($X,3);kwargs...)}($X)
         $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{$T}} = $F{P,T,M}($X)
         $F{P,T}($X::AbstractRank2or3Array) where {P,T} = $F{P}($T.($X))
     end
     T!=:T && @eval $F{P}($X::M) where {P,T,M<:AbstractRank2or3Array{T}} = $F{P,T}($X)
 end
+FlatMap(Ix::AbstractRank2or3Array; kwargs...) = 
+    FlatMap{Flat(Nside=(size(Ix,1)==size(Ix,2) ? size(Ix,1) : size(Ix)[1:2]), D=size(Ix,3); kwargs...)}(Ix)
+FlatFourier(Il::AbstractRank2or3Array; Nside, kwargs...) = 
+    FlatFourier{Flat(Nside=Nside, D=size(Il,3); kwargs...)}(Il)
 
 
 ### array interface 
@@ -51,6 +58,7 @@ function similar(f::F,::Type{T},dims::Dims) where {P,F<:FlatS0{P},T<:Number}
     @assert size(f)==dims "Tried to make a field similar to $F but dims should have been $(size(f)), not $dims."
     basetype(F){P}(similar(firstfield(f),T))
 end
+copyto!(dst::Field{B,S0,P}, src::Field{B,S0,P}) where {B,P} = (copyto!(firstfield(dst),firstfield(src)); dst)
 
 
 ### broadcasting
@@ -142,7 +150,7 @@ function get_Cℓ(f::FlatS0{P}, f2::FlatS0{P}=f; Δℓ=50, ℓedges=0:Δℓ:1600
     # faster to excise unused parts:
     kmask = (kmag .> minimum(ℓedges)) .&  (kmag .< maximum(ℓedges)) 
     L = Float64.(kmag[kmask])
-    CLobs = real.(dot.(unfold(Float64(f)[:Il], Ny)[kmask],unfold(Float64(f2)[:Il], Ny)[kmask])) ./ α
+    CLobs = real.(dot.(unfold(Float64(f)[:Il],Ny)[kmask], unfold(Float64(f2)[:Il],Ny)[kmask])) ./ α
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
     sum_in_ℓbins(x) = fit(Histogram, L, Weights(x), ℓedges).weights
@@ -188,33 +196,38 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
-    Nnew = round(Int, N * θ ÷ θnew)
-    Pnew = Flat(Nside=Nnew,θpix=θnew,∂mode=∂mode)
+    Nnew = @. round(Int, N * θ ÷ θnew)
+    Pnew = Flat(Nside=Nnew, θpix=θnew, ∂mode=∂mode)
+    @unpack Δx,kx,ky,Nx,Ny,nyq = fieldinfo(Pnew,T,M)
 
     if deconv_pixwin
-        @unpack Δx,k = fieldinfo(Pnew,T,M)
-        Wk =  @. T(pixwin(θnew, k) / pixwin(θ, k))
+        PWF = @. T((pixwin(θnew,ky[1:end÷2+1])*pixwin(θnew,kx)')/(pixwin(θ,ky[1:end÷2+1])*pixwin(θ,kx)'))
+    else
+        PWF = 1
     end
 
     if θnew>θ
         # downgrade
         if anti_aliasing
-            kmask = ifelse.(abs.(fieldinfo(P,T,M).k) .> fieldinfo(Pnew,T,M).nyq, 0, 1)
-            AA = Diagonal(FlatFourier{P}(kmask[1:N÷2+1] .* kmask'))
+            AA = Diagonal(FlatFourier{P}(
+                ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .> nyq) .| (abs.(fieldinfo(P,T,M).kx') .> nyq), 0, 1)
+            ))
         else
             AA = 1
         end
         if mode==:map
-            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Nnew,fac,Nnew)),dims=(1,3))[1,:,1,:])
-            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ Wk' ./ Wk[1:Nnew÷2+1]) : fnew
+            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Ny,fac,Nx)),dims=(1,3))[1,:,1,:])
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ PWF) : fnew
         else
+            @assert fieldinfo(f).Nside isa Int "Downgrading resolution with `mode=:fourier` only implemented for maps where `Nside isa Int`"
             FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
         end
     else
         # upgrade
+        @assert fieldinfo(f).Nside isa Int "Upgrading resolution only implemented for maps where `Nside isa Int`"
         if mode==:map
             fnew = FlatMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
-            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* Wk' .* Wk[1:Nnew÷2+1]) : fnew
+            deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] .* PWF' .* PWF[1:Nnew÷2+1]) : fnew
         else
             fnew = FlatFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
             setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')

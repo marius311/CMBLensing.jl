@@ -456,3 +456,17 @@ Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) =
 
 
 expnorm(x) = exp.(x .- maximum(x))
+
+if VERSION<v"1.4"
+    Base.@propagate_inbounds function only(x)
+        i = iterate(x)
+        @boundscheck if i === nothing
+            throw(ArgumentError("Collection is empty, must contain exactly 1 element"))
+        end
+        (ret, state) = i
+        @boundscheck if iterate(x, state) !== nothing
+            throw(ArgumentError("Collection has multiple elements, must contain exactly 1 element"))
+        end
+        return ret
+    end
+end

@@ -40,6 +40,8 @@ axes(::DiagOp{<:ImplicitField}, I) = OneTo(0)
 # the generic version of this is prohibitively slow so we need this
 hash(D::DiagOp, h::UInt64) = hash(D.diag, h)
 
+get_storage(L::DiagOp) = get_storage(diag(L))
+
 
 ### Derivative ops
 
@@ -213,12 +215,20 @@ function ParamDependentOp(recompute_function::Function)
     end
     ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, kwarg_names)
 end
-function (L::ParamDependentOp)(θ::NamedTuple) 
+function (L::ParamDependentOp)(θ::NamedTuple)
     if depends_on(L,θ)
         # filtering out non-dependent parameters disabled until I can find a fix to:
         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-        L.recompute_function(;θ...)
+        
+        # if L got adapt'ed to CuArray since this op was created,
+        # L.op will be GPU-backed, but depending on how
+        # recompute_function is written, recompute_function may
+        # still return something CPU-backed. in that case, copy it
+        # to GPU here
+        storage = get_storage(L.op)
+        Lθ = L.recompute_function(;θ...)
+        storage == get_storage(Lθ) ? Lθ : adapt(storage, Lθ)
     else
         L.op
     end 

@@ -14,8 +14,8 @@ For the inverse operation, see [`unbatch`](@ref).
 batch(f::F) where {N,θ,∂m,F<:FlatS0{<:Flat{N,θ,∂m}}} = f
 batch(fs::F...) where {N,θ,∂m,F<:FlatS0{<:Flat{N,θ,∂m}}} = 
     basetype(F){Flat{N,θ,∂m,length(fs)}}(cat(map(firstfield,fs)..., dims=3))
-batch(fs::F...) where {F<:Union{FlatS2,FlatS02}} =
-    FieldTuple{basis(F)}(map(batch, map(firstfield,fs)...))
+batch(fs::FieldTuple{B}...) where {B} =
+    FieldTuple{B}(map(batch, map(firstfield,fs)...))
 batch(fs::Union{Vector{<:FlatField},Tuple{<:FlatField}}) = batch(fs...)
 
 """
@@ -27,9 +27,9 @@ copies of the data in `f`)
 """    
 batch(f::F, D::Int) where {N,θ,∂m,D′,F<:FlatS0{Flat{N,θ,∂m,D′}}} = 
     (D′==D || D′==1) ? basetype(F){Flat{N,θ,∂m,D}}(firstfield(f)) : error("Can't change batch-length from $(D′) to $D.")
-batch(f::F, D::Int) where {F<:Union{FlatS2,FlatS02}} = FieldTuple{basis(F)}(map(f->batch(f,D), f.fs))
-batch(x::T, D::Int) where {T} = D==1 ? x : error("batching $T not implemented.")
+batch(f::FieldTuple{B}, D::Int) where {B} = FieldTuple{B}(map(f->batch(f,D), f.fs))
 batch(x, ::Nothing) = x
+batch(x) = x
 
 """
     batch_promote!(to, f)
@@ -57,13 +57,13 @@ Get the `I`th indexed batch (`I` can be a slice).
 """
 batchindex(f::F, I) where {N,θ,∂mode,P<:Flat{N,θ,∂mode},F<:FlatS0{P}} = 
     basetype(F){Flat{N,θ,∂mode,length(I)}}(f[:,:,I])
-batchindex(f::FlatField, I) = 
-    FieldTuple{basis(f)}(map(f->batchindex(f, I), f.fs))
+batchindex(f::FieldTuple{B}, I) where {B} = 
+    FieldTuple{B}(map(f->batchindex(f, I), f.fs))
 
 """
     batchsize(f::FlatField)
     
-The number of batches of in this object.
+The size of the batch dimension of this object.
 """
 batchsize(::FlatField{<:Flat{<:Any,<:Any,<:Any,D}}) where {D} = D
 batchsize(x) = 1
@@ -84,9 +84,9 @@ as well as broadcasting with batched `FlatField`s, but is itself a `Real`.
 const BatchedReal{D,V,T<:Real} = BatchedVals{T,D,V}
 
 batch(r::Real) = r
+batch(rs::Real...) = BatchedVals(collect(rs))
 batch(r::Real, D::Int) = batch(collect(repeated(r,D)))
 batch(v::AbstractVector) = BatchedVals(v)
-batch(rs::Real...) = BatchedVals(collect(rs))
 batchindex(br::BatchedVals, I) = getindex(br.vals,I)
 batchsize(::BatchedVals{<:Any,D}) where {D} = D
 struct BatchedRealStyle{D} <: AbstractArrayStyle{0} end
@@ -102,7 +102,7 @@ for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==)]
         ($op)(a::Real,        b::BatchedReal) = batch(broadcast(($op), a,      b.vals))
     end
 end
-for op in [:-, :sqrt, :one, :zero, :isfinite, :eps]
+for op in [:-, :!, :sqrt, :one, :zero, :isfinite, :eps]
     @eval ($op)(br::BatchedReal) = batch(broadcast(($op),br.vals))
 end
 for op in [:any, :all]
@@ -117,8 +117,8 @@ Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 convert(::Type{<:BatchedVals{T,N}}, v::Bool) where {T,N} = batch(T(v),N)
 Base.hash(bv::BatchedVals, h::UInt) = hash(bv.vals,hash(typeof(bv),h))
 
-batch(L::Diagonal{<:Any,<:FlatField}, D::Int) = Diagonal(batch(diag(L), D))
-
+batch(L::Diagonal{<:Any,<:Field}, D::Int) = Diagonal(batch(diag(L), D))
+batch(Ls::Vector{<:Diagonal{<:Any,<:Field}}) = Diagonal(batch(map(diag,Ls)))
 
 """
     batchmap(f, args...)
@@ -128,5 +128,9 @@ then batching the result.
 """
 function batchmap(f, args...)
     _unbatch(x) = batchsize(x)==1 ? Ref(x) : unbatch(x)
-    batch(broadcast(f, map(_unbatch, args)...)...)
+    batch(broadcast(f, map(_unbatch, args)...))
 end
+
+
+getindex(f::Union{Field,BatchedVals}, ::typeof(!), I) = batchindex(f, I)
+getindex(f::FlatS0, ::typeof(!), I) = batchindex(f, I) # for ambiguity

@@ -25,7 +25,11 @@ for (F,F2,F0,(X,Y,Z),(X′,Y′,Z′),T) in [
     
     doc = """
         # main constructors:
-        $F($X::AbstractMatrix, $Y::AbstractMatrix, $Z::AbstractMatrix[, θpix={resolution in arcmin}, ∂mode={fourier∂ or map∂})
+        $F(
+            $X::AbstractMatrix, $Y::AbstractMatrix, $Z::AbstractMatrix; $(F0==:FlatFourier ? "\n        Nside, # required, size of the map in pixels" : "")
+            θpix,  # optional, resolution in arcmin (default: 1)
+            ∂mode, # optional, fourier∂ or map∂ (default: fourier∂)
+        )
         $F($X′::$F0, $Y′::$F0, $Z′::$F0)
         
         # more low-level:
