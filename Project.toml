@@ -51,7 +51,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [compat]
 AbstractFFTs = "0.5"
 Adapt = "1.0.1, 2"
-CUDA = "2.1"
+CUDA = "2.1, 2.2"
 Combinatorics = "1"
 DataStructures = "0.17.9, 0.18"
 FFTW = "1.2"
