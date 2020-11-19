@@ -15,8 +15,8 @@ struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,
     ϕ :: Ref{Any}
     
     # p and M⁻¹ quantities precomputed at every time step
-    p   :: Dict{Float16,FieldOrOpVector{Diagonal{T,ŁΦ}}}
-    M⁻¹ :: Dict{Float16,FieldOrOpMatrix{Diagonal{T,ŁΦ}}}
+    p   :: Dict{Float16,SVector{2,Diagonal{T,ŁΦ}}}
+    M⁻¹ :: Dict{Float16,SMatrix{2,2,Diagonal{T,ŁΦ},4}}
     
     # f type memory
     memŁf  :: ŁF

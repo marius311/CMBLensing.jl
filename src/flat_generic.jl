@@ -12,7 +12,7 @@ for F in (:FlatMap, :FlatFourier,
     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 end
 function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
-    print(io, "$(length(f))", (D==1 ? "" : "(×$D)"), "-element ")
+    print(io, "$(length(f)÷D)", (D==1 ? "" : "(×$D)"), "-element ")
     showarg(io, f, true)
 end
 
