@@ -19,7 +19,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
     h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in range(t₀,t₁,length=nsteps+1)[1:end-1]
+    @no_prealloc for t in range(t₀,t₁,length=nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
@@ -75,21 +75,31 @@ Info from the iterations of the solver can be returned if `hist` is specified.
 
 `histmod` can be used to include every N-th iteration only in `hist`. 
 """
-function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+function conjugate_gradient(
+    M, A, b, x=zero(b); 
+    nsteps   = length(b),
+    tol      = sqrt(eps(real(eltype(b)))),
+    progress = false,
+    callback = nothing,
+    hist     = nothing,
+    histmod  = 1,
+    prealloc = false
+)
+
     gethist() = hist == nothing ? nothing : NamedTuple{hist}(getindex.(Ref(@dict(i,x,p,r,res,t)),hist))
     t₀ = time()
     i = 1
     r = b - A*x
     z = M \ r
     p = z
-    bestres = res = res₀ = dot(r,z)
+    res = res₀ = dot(r,z)
     @assert !isnan(res)
-    bestx = x
     t    = time() - t₀
     _hist = [gethist()]
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
-    for outer i = 2:nsteps
+    
+    function cg_iteration()
         Ap   = A * p
         α    = res / dot(p,Ap)
         x    = x + α * p
@@ -99,20 +109,16 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         p    = z + (res′ / res) * p
         res  = res′
         t    = time() - t₀
-        
-        if all(res<bestres)
-            bestres,bestx = res,x
-        end
-        if callback!=nothing
-            callback(i,x,res)
-        end
-        if hist!=nothing && (i%histmod)==0
-            push!(_hist, gethist())
-        end
-        if all(res<tol)
-            break
-        end
-        
+    end
+    if prealloc
+        cg_iteration = preallocate(cg_iteration)[2]
+    end
+    
+    for outer i = 2:nsteps
+        cg_iteration()
+        (callback!=nothing) && callback(i,x,res)
+        (hist!=nothing && (i%histmod)==0) && push!(_hist, gethist())
+        all(res<tol) && break
         # update progress bar to whichever we've made the most progress on,
         # logarithmically reaching the toleranace limit or doing the maximum
         # number of steps
@@ -123,7 +129,7 @@ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), p
         end
     end
     ProgressMeter.finish!(prog)
-    hist == nothing ? bestx : (bestx, _hist)
+    hist == nothing ? x : (x, _hist)
 end
 
 

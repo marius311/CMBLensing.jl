@@ -1,12 +1,14 @@
 module CMBLensing
 
 using Adapt
+using AutoPreallocation
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat
+using Cassette
 using Combinatorics
 using DataStructures
 using DelimitedFiles
