@@ -29,6 +29,7 @@ using OptimKit
 using Pkg
 using Printf
 using ProgressMeter
+using QuadGK
 using Random
 using Random: seed!, AbstractRNG
 using Roots

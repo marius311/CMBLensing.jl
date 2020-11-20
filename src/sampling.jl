@@ -104,7 +104,7 @@ function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamp
     ilnP = loess(xs, lnPs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
-    cdf(x) = @ondemand(QuadGK.quadgk)(nan2zero∘exp∘ilnP,xmin,x,rtol=1e-5)[1]
+    cdf(x) = quadgk(nan2zero∘exp∘ilnP,xmin,x,rtol=1e-3)[1]
     logA = nan2zero(log(cdf(xmax)))
     lnPs = (ilnP.ys .-= logA)
     ilnP.bs[:,1] .-= logA
