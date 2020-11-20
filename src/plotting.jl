@@ -10,6 +10,9 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
     @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
 		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 	end
+	@eval function ($plot)(ic::NamedTuple{<:Any,<:NTuple{<:Any,<:InterpolatedCℓs}}, args...; kwargs...)
+		($plot).(values(ic), args...; kwargs...)
+	end
 	@eval function ($plot)(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
 		($plot) in [:loglog,:semilogx] && xscale("log")
