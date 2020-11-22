@@ -470,3 +470,23 @@ if VERSION<v"1.4"
         return ret
     end
 end
+
+"""
+
+    pmap_save(f, c...; filename, savekey="pmap_results")
+
+Like `Distributed.pmap` but save results as they come in using
+`FileIO.save` to a file `filename` in a key `savekey` (ensures partial
+results are saved even if the `pmap` errors or Julia is killed before
+the full operation completes).
+"""
+function pmap_save(f, c...; filename, savekey="pmap_results", progress=true)
+    results = []
+    prog = Progress(length(zip(c...)))
+    for result in pgenerate(f, c...)
+        push!(results, result)
+        save(filename, savekey, map(identity,results))
+        ProgressMeter.next!(prog)
+    end
+    map(identity,results)
+end

@@ -10,7 +10,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate
 using FileIO
 using FFTW
 using InteractiveUtils
@@ -77,7 +77,7 @@ export
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
-    OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap, resimulate!,
+    OuterProdOp, ParamDependentOp, pixwin, pmap_save, PowerLens, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, S0, S02, S2, sample_joint, seed_for_storage!, shiftℓ,
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     tuple_adjoint, ud_grade, unbatch, unmix, Ð, Ł, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ,
