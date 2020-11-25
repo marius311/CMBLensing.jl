@@ -465,7 +465,6 @@ end;
                 @test gradient(f -> sum(sum(@SMatrix[f f; f f] .+ @SMatrix[f f; f f])), f)[1] ≈ 8*one(f)
                 
                 @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
-                @test_broken gradient(f -> sum(sum(@SMatrix[f f] * @SMatrix[f f; f f])), f)[1] ≈ 8*f
 
             end
             
