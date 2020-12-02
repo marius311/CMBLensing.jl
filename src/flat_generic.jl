@@ -134,3 +134,28 @@ are not statistically the same.
 """
 fixed_white_noise(rng, F::Type{<:FlatFieldFourier}) =
      exp.(im .* angle.(basis(F)(white_noise(rng,F)))) .* fieldinfo(F).Nside
+
+
+
+# optimization needed for AutoPreallocation, which otherwise really
+# barfs trying to go through these `similar` calls down to the
+# underlying `Array` or `CuArray` call
+@inline function Cassette.overdub(
+    ctx :: AutoPreallocation.RecordingCtx, 
+        :: typeof(similar), 
+    bc  :: Broadcasted{<:Union{FlatS0Style,FieldTupleStyle}}, 
+    args...
+)
+    ret = similar(bc, args...)
+    AutoPreallocation.record_alloc!(ctx, ret)
+    return ret
+end
+@inline function Cassette.overdub(
+    ctx :: AutoPreallocation.ReplayCtx, 
+        :: typeof(similar), 
+    bc  :: Broadcasted{<:Union{FlatS0Style,FieldTupleStyle}}, 
+    args...
+)
+    scheduled = AutoPreallocation.next_scheduled_alloc!(ctx)
+    return scheduled
+end
