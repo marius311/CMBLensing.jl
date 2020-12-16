@@ -141,4 +141,17 @@ function assign_GPU_workers()
         end
     end)
     @everywhere workers() device!($assignments[myid()])
+    @info GPU_worker_info()
+end
+
+"""
+    GPU_worker_info()
+
+Returns string showing info about assigned GPU workers. 
+"""
+function GPU_worker_info()
+    lines = @eval Main pmap(procs()) do id
+        "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
+    end
+    join(["GPU_worker_info:"; lines], "\n")
 end
