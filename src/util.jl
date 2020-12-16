@@ -490,3 +490,44 @@ function pmap_save(f, c...; filename, savekey="pmap_results", progress=true)
     end
     map(identity,results)
 end
+
+"""
+
+    @⌛ code ...
+    @⌛ function_definition() = .... 
+
+Label a section of code to be timed. The first form uses the code
+itselfs as a label, the second uses the function name, and its the
+body of the function which is timed. 
+
+To run the timer and print output, returning the result of the
+calculation, use
+
+    @show⌛ run_code()
+
+Timing uses `TimerOutputs.get_defaulttimer()`. 
+"""
+macro ⌛(ex)
+    if isdef(ex)
+        sdef = splitdef(ex)
+        sdef[:body] = quote
+            @timeit $(string(sdef[:name])*"(…)") $(sdef[:body])
+        end
+        esc(combinedef(sdef))
+    else
+        :(@timeit $(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26)) $(esc(ex)))
+    end
+end
+
+
+"""
+See [`@⌛`](@ref)
+"""
+macro show⌛(ex)
+    quote
+        reset_timer!(get_defaulttimer())
+        result = $(esc(ex))
+        show(get_defaulttimer())
+        result
+    end
+end

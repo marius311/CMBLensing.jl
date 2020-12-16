@@ -147,36 +147,47 @@ function MAP_joint(
 
     f, = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; argmaxf_lnP_kwargs...)
     f°, = mix(f, ϕ, dsθ)
-    ϕ, = optimize(
-        ϕ -> (
-            sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ))), 
-            gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-        ),
+
+    # objective function (with gradient) to maximize
+    @⌛ function objective(ϕ) 
+        @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1])
+    end
+    # function to compute after each optimization iteration, which
+    # recomputes the best-fit f given the current ϕ
+    @⌛ function finalize!(ϕ,χ²,g,i)
+        if isa(quasi_sample,Int) 
+            if isa(quasi_sample,Int) 
+        if isa(quasi_sample,Int) 
+            seed!(global_rng_for(f),quasi_sample)
+        end
+        (f, hist) = @⌛ argmaxf_lnP(
+            cache(L_wf(ϕ),f), θ, dsθ;
+            guess = f, 
+                guess = f, 
+            guess = f, 
+            argmaxf_lnP_kwargs...
+        )
+        aggressive_gc && gc()
+        f°, = mix(f, ϕ, dsθ)
+        g .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+        χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
+        χ² = sum(unbatch(χ²s))
+        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist))])
+        push!(tr, @namedtuple(f,ϕ,lnPcur=-χ²/2))
+        ϕ, χ², g
+    end
+
+    # run optimization
+    ϕ, = @⌛ optimize(
+        objective,
         Map(ϕ),
         OptimKit.LBFGS(
             lbfgs_rank; 
             maxiter = nsteps, 
             verbosity = verbosity[1], 
             linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
-        ), 
-        finalize! = function (ϕ,χ²,g,i)
-            if isa(quasi_sample,Int) 
-                seed!(global_rng_for(f),quasi_sample)
-            end
-            (f, hist) = argmaxf_lnP(
-                ϕ, θ, dsθ;
-                guess = f, 
-                argmaxf_lnP_kwargs...
-            )
-            aggressive_gc && gc()
-            f°, = mix(f, ϕ, dsθ)
-            g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
-            χ²s = -2lnP(:mix,f°,ϕ,dsθ)
-            χ² = sum(unbatch(χ²s))
-            next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist))])
-            push!(tr, @namedtuple(f,ϕ,lnPcur=-χ²/2))
-            ϕ, χ², g
-        end;
+        ); 
+        finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
         precondition = (_,η)->Map(Hϕ⁻¹*η)
     )

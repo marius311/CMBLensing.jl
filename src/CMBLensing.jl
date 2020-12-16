@@ -20,7 +20,7 @@ import KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op
-using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
+using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, prewalk, rmlines, splitdef
 using Match
 using Markdown
 using Measurements
@@ -40,6 +40,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray, SizedArray
 using Statistics
 using StatsBase
+using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd
@@ -62,7 +63,7 @@ import Statistics: std
 
 
 export
-    @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
+    @⌛, @show⌛, @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batchindex, batchsize, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,

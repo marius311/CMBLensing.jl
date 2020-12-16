@@ -75,7 +75,7 @@ Info from the iterations of the solver can be returned if `hist` is specified.
 
 `histmod` can be used to include every N-th iteration only in `hist`. 
 """
-function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+@⌛ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
     gethist() = hist == nothing ? nothing : NamedTuple{hist}(getindex.(Ref(@dict(i,x,p,r,res,t)),hist))
     t₀ = time()
     i = 1
