@@ -130,7 +130,7 @@ function δlnP_δϕ(
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
         g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]
-        @namedtuple(g, f_wf, hist)
+        (;g, f_wf, hist)
     end
 
     # gQD for the real data
@@ -153,7 +153,7 @@ function δlnP_δϕ(
     g = gQD.g - ḡ - Cϕ\ϕ
 
     if return_state
-        g, @namedtuple(g, f_sims, n_sims, Nsims, ḡ, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
+        g, (;g, f_sims, n_sims, Nsims, ḡ, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
     else
         g
     end

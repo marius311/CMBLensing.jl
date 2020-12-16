@@ -58,7 +58,7 @@ function FlatInfo(T, Arr, θpix, Nside, D)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
     
-    @namedtuple(T, θpix, Nx, Ny, Nside, Δx, Δℓx, Δℓy, nyq, Ωpix, kx, ky, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
+    (;T, θpix, Nx, Ny, Nside, Δx, Δℓx, Δℓy, nyq, Ωpix, kx, ky, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
 
 end
 

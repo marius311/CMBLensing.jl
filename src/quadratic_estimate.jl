@@ -116,7 +116,7 @@ function quadratic_estimate_TT((d1,d2)::NTuple{2,FlatS0}, Cf, Cf̃, Cn, Cϕ, TF,
     Memoization.empty_cache!(term)
 
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
-    @namedtuple ϕqe AL Nϕ
+    (;ϕqe, AL, Nϕ)
 
 end
 
@@ -157,7 +157,7 @@ function quadratic_estimate_EE((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     Memoization.empty_cache!(term)
 
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL*ϕqe_unnormalized)
-    @namedtuple ϕqe AL Nϕ
+    (;ϕqe, AL, Nϕ)
 
 end
 
@@ -200,6 +200,6 @@ function quadratic_estimate_EB((d1,d2)::NTuple{2,FlatS2}, Cf, Cf̃, Cn, Cϕ, TF,
     Memoization.empty_cache!(term)
 
     ϕqe = (wiener_filtered ? (Cϕ*pinv(Cϕ+Nϕ)) : 1) * (AL * ϕqe_unnormalized)
-    @namedtuple ϕqe AL Nϕ
+    (;ϕqe, AL, Nϕ)
 
 end

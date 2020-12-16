@@ -106,7 +106,7 @@ function resimulate!(
 
     ds.d = d = M*P*B*f̃ + n
     
-    @namedtuple(ds,f,ϕ,n,f̃,d)
+    (;ds,f,ϕ,n,f̃,d)
     
 end
 
@@ -262,7 +262,7 @@ function load_sim(;
     Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
 
     # put everything in DataSet
-    ds = BaseDataSet(;@namedtuple(d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)...)
+    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)
     
     # simulate data
     @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)
@@ -289,7 +289,7 @@ function load_sim(;
         ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
     end
     
-    return adapt(storage, @namedtuple(f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
+    return adapt(storage, (;f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
     
 end
 

@@ -1,7 +1,4 @@
 
-import Base: ==
-==(x,y,z,ws...) = x==y && ==(y,z,ws...)
-
 
 """ 
 Return the type's fields as a tuple
@@ -9,7 +6,6 @@ Return the type's fields as a tuple
 @generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
 @generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
 firstfield(x) = first(fieldvalues(x))
-
 
 
 """
@@ -70,6 +66,7 @@ Pack some variables into a NamedTuple. E.g.:
 ```
 """
 macro namedtuple(exs...)
+    Base.depwarn("@namedtuple(x,y) is deprecated and will be removed soon, just use the built-in Julia (;x,y) now.", nothing)
     if length(exs)==1 && isexpr(exs[1],:tuple)
         exs = exs[1].args
     end
@@ -231,33 +228,6 @@ end
 
 
 """
-    @invokelatest expr...
-    
-Rewrites all non-broadcasted function calls anywhere within an expression to use
-`Base.invokelatest`. This means functions can be called that have a newer world
-age, at the price of making things non-inferrable.
-"""
-macro invokelatest(ex)
-    function walk(x)
-        if isdef(x)
-            x.args[2:end] .= map(walk, x.args[2:end])
-            x
-        elseif @capture(x, f_(args__; kwargs__)) && !startswith(string(f),'.')
-            :(Base.invokelatest($f, $(map(walk,args)...); $(map(walk,kwargs)...)))
-        elseif @capture(x, f_(args__)) && !startswith(string(f),'.')
-            :(Base.invokelatest($f, $(map(walk,args)...)))
-        elseif isexpr(x)
-            x.args .= map(walk, x.args)
-            x
-        else
-            x
-        end
-    end
-    esc(walk(ex))
-end
-
-
-"""
     @ondemand(Package.function)(args...; kwargs...)
     @ondemand(Package.Submodule.function)(args...; kwargs...)
 
@@ -273,17 +243,9 @@ macro ondemand(ex)
     end
 end
 
-function tmap(f, args...)
-    @static if nthreads()==1 || VERSION<v"1.3"
-        map(f, args...)
-    else
-        map(fetch,map((args...)->Threads.@spawn(f(args...)),args...))
-    end
-end
 
 
-get_kwarg_names(func::Function) = Vector{Symbol}(kwarg_decl(first(methods(func)), typeof(methods(func).mt.kwsorter)))
-kwarg_decl(m::Method,kw::DataType) = VERSION<=v"1.3.999" ? Base.kwarg_decl(m,kw) : Base.kwarg_decl(m)
+get_kwarg_names(func::Function) = Vector{Symbol}(Base.kwarg_decl(first(methods(func))))
 
 # maps a function recursively across all arguments of a Broadcasted expression,
 # using the function `broadcasted` to reconstruct the `Broadcasted` object at
@@ -441,14 +403,7 @@ end
 
 
 # courtesy of Takafumi Arakaki
-versionof(pkg::Module) = versionof(Base.PkgId(pkg))
-if isdefined(Pkg, :dependencies)
-    # can drop this branch once I drop support for 1.3
-    versionof(pkg::Base.PkgId) = Pkg.dependencies()[pkg.uuid].version
-else
-    versionof(pkg::Base.PkgId) = Pkg.installed()[pkg.name]
-end
-
+versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
 # for mixed eltype, which Loess stupidly does not support
 Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
@@ -457,39 +412,6 @@ Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) =
 
 expnorm(x) = exp.(x .- maximum(x))
 
-if VERSION<v"1.4"
-    Base.@propagate_inbounds function only(x)
-        i = iterate(x)
-        @boundscheck if i === nothing
-            throw(ArgumentError("Collection is empty, must contain exactly 1 element"))
-        end
-        (ret, state) = i
-        @boundscheck if iterate(x, state) !== nothing
-            throw(ArgumentError("Collection has multiple elements, must contain exactly 1 element"))
-        end
-        return ret
-    end
-end
-
-"""
-
-    pmap_save(f, c...; filename, savekey="pmap_results")
-
-Like `Distributed.pmap` but save results as they come in using
-`FileIO.save` to a file `filename` in a key `savekey` (ensures partial
-results are saved even if the `pmap` errors or Julia is killed before
-the full operation completes).
-"""
-function pmap_save(f, c...; filename, savekey="pmap_results", progress=true)
-    results = []
-    prog = Progress(length(zip(c...)))
-    for result in pgenerate(f, c...)
-        push!(results, result)
-        save(filename, savekey, map(identity,results))
-        ProgressMeter.next!(prog)
-    end
-    map(identity,results)
-end
 
 """
 
