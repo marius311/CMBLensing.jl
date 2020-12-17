@@ -15,7 +15,7 @@ Keyword arguments:
   i.e. the best-fit of $\mathcal{P}(f\,|\,\phi,d)$, 2) a sample from
   $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
   fluctuation on top of the mean.
-* `guess` — starting guess for `f` for the conjugate gradient solver
+* `fstart` — starting guess for `f` for the conjugate gradient solver
 * `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
 
 """
@@ -27,7 +27,7 @@ function argmaxf_lnP(
     θ::NamedTuple,
     ds::DataSet; 
     which = :wf, 
-    guess = nothing, 
+    fstart = nothing, 
     preconditioner = :diag, 
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
@@ -54,7 +54,7 @@ function argmaxf_lnP(
         _      => error("Unrecognized preconditioner='$preconditioner'")
     end
     
-    conjugate_gradient(A_preconditioner, A, b, (guess==nothing ? 0*b : guess); conjgrad_kwargs...)
+    conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero(b) : fstart); conjgrad_kwargs...)
     
 end
 
@@ -122,6 +122,7 @@ function MAP_joint(
     lbfgs_rank = 5, 
     Nϕ = :qe,
     ϕstart = nothing,
+    fstart = nothing,
     ϕtol = nothing,
     progress::Bool = true,
     verbosity = (0,0),
@@ -152,7 +153,10 @@ function MAP_joint(
     )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
 
-    f, = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; argmaxf_lnP_kwargs...)
+    f, = argmaxf_lnP(
+        (ϕstart==nothing ? 1 : ϕ), θ, dsθ; 
+        fstart, argmaxf_lnP_kwargs...
+    )
     f°, = mix(f, ϕ, dsθ)
     lastϕ = nothing
 
@@ -168,7 +172,7 @@ function MAP_joint(
         end
         (f, hist′) = @⌛ argmaxf_lnP(
             ϕ, θ, dsθ;
-            guess = f, 
+            fstart = f, 
             argmaxf_lnP_kwargs...
         )
         aggressive_gc && cuda_gc()

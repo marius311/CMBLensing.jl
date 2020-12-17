@@ -305,10 +305,10 @@ function sample_joint(
                     t_f = @elapsed begin
                         f = argmaxf_lnP(
                             ϕ, θ, dsθ;
-                            which=:sample, 
-                            guess=f, 
-                            preconditioner=preconditioner, 
-                            conjgrad_kwargs=(progress=(progress==:verbose), conjgrad_kwargs...)
+                            which           = :sample, 
+                            fstart          = f, 
+                            preconditioner  = preconditioner, 
+                            conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
                         )
                         f°, = mix(f,ϕ,dsθ)
                     end
