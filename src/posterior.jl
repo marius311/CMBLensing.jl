@@ -126,7 +126,7 @@ function δlnP_δϕ(
             guess = (f_wf_guess==nothing ? 0d : f_wf_guess),
             conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
         )
-        aggressive_gc && gc()
+        aggressive_gc && cuda_gc()
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
         g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]

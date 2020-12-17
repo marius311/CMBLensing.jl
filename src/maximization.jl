@@ -168,7 +168,7 @@ function MAP_joint(
                 guess = f, 
                 argmaxf_lnP_kwargs...
             )
-            aggressive_gc && gc()
+            aggressive_gc && cuda_gc()
             f°, = mix(f, ϕ, dsθ)
             g .= gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
             χ²s = -2lnP(:mix,f°,ϕ,dsθ)
@@ -233,7 +233,7 @@ function MAP_marg(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     
     for i=1:nsteps
-        aggressive_gc && gc()
+        aggressive_gc && cuda_gc()
         g, state = δlnP_δϕ(
             ϕ, θ, ds,
             use_previous_MF = i>nsteps_with_meanfield_update,
