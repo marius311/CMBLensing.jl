@@ -120,17 +120,17 @@ function δlnP_δϕ(
 
     # gradient of the quadratic (in ϕ) piece of the likelihood
     function get_gQD(Lϕ, ds, f_wf_guess)
-        f_wf, hist = argmaxf_lnP(
+        f_wf, history = argmaxf_lnP(
             Lϕ, θ, ds;
             which = :wf,
             guess = (f_wf_guess==nothing ? 0d : f_wf_guess),
-            conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
+            conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
         )
-        aggressive_gc && gc()
+        aggressive_gc && cuda_gc()
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
         g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]
-        (;g, f_wf, hist)
+        (;g, f_wf, history)
     end
 
     # gQD for the real data

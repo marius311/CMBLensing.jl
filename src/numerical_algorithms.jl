@@ -56,27 +56,50 @@ odesolve(::Type{OutOfPlaceRK4Solver{N}},F,y₀,t₀,t₁) where {N} = OutOfPlace
 
 
 @doc doc"""
-    conjugate_gradient(M, A, b, x=M\b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
+    conjugate_gradient(
+        M, A, b, x=M\b; 
+        nsteps       = length(b), 
+        tol          = sqrt(eps()), 
+        progress     = false, 
+        callback     = nothing, 
+        history_keys = nothing, 
+        history_mod  = 1
+    )
 
-Compute `x=A\b` (where `A` is positive definite) by conjugate gradient. `M` is the
-preconditioner and should be `M≈A`, and `M\x` should be fast.
+Compute `x=A\b` (where `A` is positive definite) by conjugate
+gradient. `M` is the preconditioner and should be `M≈A`, and `M\x`
+should be fast.
 
-The solver will stop either after `nsteps` iterations or when `dot(r,r)<tol`
-(where `r=A*x-b` is the residual  at that step), whichever occurs first.
+The solver will stop either after `nsteps` iterations or when
+`dot(r,r)<tol` (where `r=A*x-b` is the residual  at that step),
+whichever occurs first.
 
-Info from the iterations of the solver can be returned if `hist` is specified.
-`hist` can be one or a tuple of:
+Info from the iterations of the solver can be returned if
+`history_keys` is specified. `history_keys` can be one or a tuple of:
 
 * `:i` — current iteration number
 * `:x` — current solution
 * `:r` — current residual `r=A*x-b`
 * `:res` — the norm of `r`
-* `:t` — the time elapsed (in seconds) since the start of the algorithm
+* `:t` — the time elapsed (in seconds) since the start of the
+  algorithm
 
-`histmod` can be used to include every N-th iteration only in `hist`. 
+`history_mod` can be used to include every N-th iteration only in
+`history_keys`. 
 """
-@⌛ function conjugate_gradient(M, A, b, x=0*b; nsteps=length(b), tol=sqrt(eps()), progress=false, callback=nothing, hist=nothing, histmod=1)
-    gethist() = hist == nothing ? nothing : NamedTuple{hist}(getindex.(Ref(@dict(i,x,p,r,res,t)),hist))
+@⌛ function conjugate_gradient(
+    M,
+    A,
+    b,
+    x = zero(b);
+    nsteps       = length(b),
+    tol          = sqrt(eps()),
+    progress     = false,
+    callback     = nothing,
+    history_keys = nothing,
+    history_mod  = 1
+)
+    get_history() = isnothing(history_keys) ? nothing : select((;i,x,p,r,res,t),history_keys)
     t₀ = time()
     i = 1
     r = b - A*x
@@ -86,7 +109,7 @@ Info from the iterations of the solver can be returned if `hist` is specified.
     @assert !isnan(res)
     bestx = x
     t    = time() - t₀
-    _hist = [gethist()]
+    history = [get_history()]
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
     for outer i = 2:nsteps
@@ -103,11 +126,11 @@ Info from the iterations of the solver can be returned if `hist` is specified.
         if all(res<bestres)
             bestres,bestx = res,x
         end
-        if callback!=nothing
+        if !isnothing(callback)
             callback(i,x,res)
         end
-        if hist!=nothing && (i%histmod)==0
-            push!(_hist, gethist())
+        if (i%history_mod) == 0
+            push!(history, get_history())
         end
         if all(res<tol)
             break
@@ -123,7 +146,7 @@ Info from the iterations of the solver can be returned if `hist` is specified.
         end
     end
     ProgressMeter.finish!(prog)
-    hist == nothing ? bestx : (bestx, _hist)
+    isnothing(history_keys) ? bestx : (bestx, history)
 end
 
 

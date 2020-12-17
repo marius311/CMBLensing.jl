@@ -16,7 +16,7 @@ Keyword arguments:
   $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
   fluctuation on top of the mean.
 * `guess` — starting guess for `f` for the conjugate gradient solver
-* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`][@ref]
+* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
 
 """
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
@@ -82,25 +82,36 @@ end
 
     MAP_joint(ds::DataSet; kwargs...)
 
-Compute the maximum a posteriori (i.e. "MAP") estimate of the joint posterior,
-$\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a quasi-sample. 
+Compute the maximum a posteriori (i.e. "MAP") estimate of the joint
+posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a
+quasi-sample. 
 
 
 Keyword arguments:
 
-* `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*
-* `nsteps` — The number of iterations for the maximizer.
+* `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*.
+* `nsteps` — The maximum number of iterations for the maximizer
+* `ϕtol` — If given, stop when $\phi$ updates reach this tolerance.
+  `ϕtol` is roughly the relative per-pixel standard deviation between
+  changes to $\phi$ and draws from the $\phi$ prior. Values in the
+  range $10^{-2}-10^{-4}$ are reasonable. 
 * `lbfgs_rank` — The maximum rank of the LBFGS approximation to the
-   Hessian *(default: 5)*
-* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`][@ref]
-* `progress` — whether to show progress bar
-* `Nϕ` — Noise to use in the initial approximation to the Hessian. Can also
-   give `Nϕ=:qe` to use the quadratic estimate noise *(default:* `:qe`*)*
-* `quasi_sample` — `false` *(default)* to compute the MAP, `true` to iterate
-   quasi-samples, or an integer to compute a fixed-seed quasi-sample.
+   Hessian *(default: 5).
+* `conjgrad_kwargs` — Passed to the inner call to
+  [`conjugate_gradient`](@ref).
+* `progress` — Whether to show the progress bar.
+* `Nϕ` — Noise to use in the initial approximation to the Hessian. Can
+   also give `Nϕ=:qe` to use the quadratic estimate noise *(default:*
+   `:qe`*)*.
+* `quasi_sample` — `false` *(default)* to compute the MAP, `true` to
+   iterate quasi-samples, or an integer to compute a fixed-seed
+   quasi-sample.
+* `history_keys` — What quantities to include in the returned
+  `history`. Can be any subset of `(:f, :f°, :ϕ, :∇ϕ_lnP, :χ², :lnP)`.
 
-Returns a tuple `(f, ϕ, tr)` where `f` is the best-fit (or quasi-sample) field,
-`ϕ` is the lensing potential, and `tr` contains info about the run. 
+Returns a tuple `(f, ϕ, history)` where `f` is the best-fit (or
+quasi-sample) field, `ϕ` is the lensing potential, and `history`
+contains the history of steps during the run. 
 
 """
 MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
@@ -111,19 +122,15 @@ function MAP_joint(
     lbfgs_rank = 5, 
     Nϕ = :qe,
     ϕstart = nothing,
+    ϕtol = nothing,
     progress::Bool = true,
     verbosity = (0,0),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
+    history_keys = (:lnP,),
     aggressive_gc = fieldinfo(ds.d).Nx>=1024 & fieldinfo(ds.d).Ny>=1024,
-    αtol = nothing,
-    αmax = nothing,
 )
-
-    if αtol!=nothing || αmax!=nothing
-        @warn "αtol and αmax are deprecated and will be removed in the future. This is now handled automatically."
-    end
 
     dsθ = copy(ds(θ))
     dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
@@ -137,40 +144,50 @@ function MAP_joint(
     end
     Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
 
-    tr = []
+    history = []
     argmaxf_lnP_kwargs = (
         which = (quasi_sample==false) ? :wf : :sample,
         preconditioner = preconditioner,
-        conjgrad_kwargs = (hist=(:i,:res), progress=false, conjgrad_kwargs...),
+        conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...),
     )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
 
     f, = argmaxf_lnP((ϕstart==nothing ? 1 : ϕ), θ, dsθ; argmaxf_lnP_kwargs...)
     f°, = mix(f, ϕ, dsθ)
+    lastϕ = nothing
 
     # objective function (with gradient) to maximize
-    @⌛ function objective(ϕ) 
+    @⌛ function objective(ϕ)
         @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1])
     end
     # function to compute after each optimization iteration, which
     # recomputes the best-fit f given the current ϕ
-    @⌛ function finalize!(ϕ,χ²,g,i)
+    @⌛ function finalize!(ϕ,χ²,∇ϕ_lnP,i)
         if isa(quasi_sample,Int) 
             seed!(global_rng_for(f),quasi_sample)
         end
-        (f, hist) = @⌛ argmaxf_lnP(
-            cache(L_wf(ϕ),f), θ, dsθ;
+        (f, hist′) = @⌛ argmaxf_lnP(
+            ϕ, θ, dsθ;
             guess = f, 
             argmaxf_lnP_kwargs...
         )
-        aggressive_gc && gc()
+        aggressive_gc && cuda_gc()
         f°, = mix(f, ϕ, dsθ)
-        g .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
+        ∇ϕ_lnP .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist))])
-        push!(tr, (;f,ϕ,lnPcur=-χ²/2))
-        ϕ, χ², g
+        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist′))])
+        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2), history_keys))
+        if (
+            !isnothing(ϕtol) &&
+            !isnothing(lastϕ) && 
+            norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - lastϕ))) / sqrt(2length(ϕ)) < ϕtol
+        )
+            ∇ϕ_lnP = zero(∇ϕ_lnP) # this stops the solver here
+        else
+            lastϕ = ϕ
+        end
+        ϕ, χ², ∇ϕ_lnP
     end
 
     # run optimization
@@ -185,12 +202,12 @@ function MAP_joint(
         ); 
         finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
-        precondition = (_,η)->Map(Hϕ⁻¹*η)
+        precondition = (_,η)->Map(Hϕ⁻¹*η),
     )
 
-    f, = argmaxf_lnP(ϕ, θ, dsθ; guess=f, argmaxf_lnP_kwargs...)
+    ProgressMeter.finish!(pbar)
 
-    f,ϕ,tr
+    f, ϕ, history
 
 end
 
@@ -240,7 +257,7 @@ function MAP_marg(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     
     for i=1:nsteps
-        aggressive_gc && gc()
+        aggressive_gc && cuda_gc()
         g, state = δlnP_δϕ(
             ϕ, θ, ds,
             use_previous_MF = i>nsteps_with_meanfield_update,
@@ -252,8 +269,8 @@ function MAP_marg(
         push!(tr, @dict(i,g,ϕ))
         next!(pbar, showvalues=[
             ("step",i), 
-            ("Ncg", length(state.gQD.hist)), 
-            ("Ncg_sims", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].hist) : "(MF not updated)"),
+            ("Ncg", length(state.gQD.history)), 
+            ("Ncg_sims", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].history) : "(MF not updated)"),
             ("α",α)
         ])
     end

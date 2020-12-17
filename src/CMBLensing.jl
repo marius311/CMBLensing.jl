@@ -25,6 +25,7 @@ using Match
 using Markdown
 using Measurements
 using Memoization
+using NamedTupleTools: select
 using OptimKit
 using Pkg
 using Printf
@@ -81,8 +82,8 @@ export
     OuterProdOp, ParamDependentOp, pixwin, pmap_save, PowerLens, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, S0, S02, S2, sample_joint, seed_for_storage!, shiftℓ,
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, unbatch, unmix, Ð, Ł, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ,
-    ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    tuple_adjoint, ud_grade, unbatch, unmix, white_noise, Ð, Ł, δfϕ_δf̃ϕ, 
+    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")
