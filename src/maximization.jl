@@ -170,7 +170,7 @@ function MAP_joint(
         if isa(quasi_sample,Int) 
             seed!(global_rng_for(f),quasi_sample)
         end
-        (f, hist′) = @⌛ argmaxf_lnP(
+        (f, argmaxf_lnP_history) = @⌛ argmaxf_lnP(
             ϕ, θ, dsθ;
             fstart = f, 
             argmaxf_lnP_kwargs...
@@ -180,12 +180,12 @@ function MAP_joint(
         ∇ϕ_lnP .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(hist′))])
-        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2), history_keys))
+        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))])
+        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
-            !isnothing(lastϕ) && 
-            norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - lastϕ))) / sqrt(2length(ϕ)) < ϕtol
+            !isnothing(lastϕ) &&
+            sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - lastϕ))) / sqrt(2length(ϕ)))) < ϕtol
         )
             ∇ϕ_lnP = zero(∇ϕ_lnP) # this stops the solver here
         else
