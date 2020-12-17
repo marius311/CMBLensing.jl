@@ -99,7 +99,7 @@ Compute the gradient $g^i = \nabla^i f$, and the hessian, $H_j^{\,i} = \nabla_j 
 function gradhess(f)
     g = ∇ⁱ*f
     H = @SMatrix[∇ᵢ[1]*g[1] ∇ᵢ[2]*g[1]; ∇ᵢ[1]*g[2] ∇ᵢ[2]*g[2]]
-    @namedtuple(g,H)
+    (;g,H)
 end
 
 # this is not strictly true (∇[1] is generically a gradient w.r.t. the first

@@ -1,24 +1,25 @@
 """
     symplectic_integrate(x₀, p₀, Λ, U, δUδx, N=50, ϵ=0.1, progress=false)
-    
-Do a symplectic integration of the potential energy `U` (with gradient `δUδx`)
-starting from point `x₀` with momentum `p₀` and mass matrix `Λ`. The number of
-steps is `N` and the step size `ϵ`. 
 
-Returns `ΔH, xᵢ, pᵢ` corresponding to change in Hamiltonian, and final position
-and momenta. If `hist` is specified a trace of requested variables throughout
-each step is also returned. 
+Do a symplectic integration of the potential energy `U` (with gradient
+`δUδx`) starting from point `x₀` with momentum `p₀` and mass matrix
+`Λ`. The number of steps is `N` and the step size `ϵ`. 
+
+Returns `ΔH, xᵢ, pᵢ` corresponding to change in Hamiltonian, and final
+position and momenta. If `history_keys` is specified a history of
+requested variables throughout each step is also returned. 
 
 """
 function symplectic_integrate(
     x₀::AbstractVector{T}, p₀, Λ, U, δUδx=x->gradient(U,x)[1]; 
-    N=50, ϵ=T(0.1), progress=false, hist=nothing) where {T}
+    N=50, ϵ=T(0.1), progress=false, history_keys=nothing
+) where {T}
     
     xᵢ, pᵢ = x₀, p₀
     δUδxᵢ = δUδx(xᵢ)
     H(x,p) = U(x) - p⋅(Λ\p)/2
     
-    _hist = []
+    history = []
 
     @showprogress (progress ? 1 : Inf) "Symplectic Integration: " for i=1:N
         xᵢ₊₁    = xᵢ - T(ϵ) * (Λ \ (pᵢ - T(ϵ)/2 * δUδxᵢ))
@@ -26,19 +27,19 @@ function symplectic_integrate(
         pᵢ₊₁    = pᵢ - T(ϵ)/2 * (δUδxᵢ₊₁ + δUδxᵢ)
         xᵢ, pᵢ, δUδxᵢ = xᵢ₊₁, pᵢ₊₁, δUδxᵢ₊₁
         
-        if hist!=nothing
-            histᵢ = (i=i, x=xᵢ, p=pᵢ, δUδx=δUδxᵢ₊₁, H=(((:H in hist) ? H(xᵢ,pᵢ) : nothing)))
-            push!(_hist, getfield.(Ref(histᵢ),hist))
+        if !isnothing(history_keys)
+            historyᵢ = (;i, x=xᵢ, p=pᵢ, δUδx=δUδxᵢ₊₁, H=(haskey(history_keys,:H) ? H(xᵢ,pᵢ) : nothing))
+            push!(history, select(historyᵢ, history_keys))
         end
 
     end
 
     ΔH = H(xᵢ,pᵢ) - H(x₀,p₀)
     
-    if hist == nothing
+    if isnothing(history)
         return ΔH, xᵢ, pᵢ
     else
-        return ΔH, xᵢ, pᵢ, _hist
+        return ΔH, xᵢ, pᵢ, history
     end
     
 end
@@ -184,7 +185,7 @@ function sample_joint(
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
-    progress = false,
+    progress = :summary,
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
     postprocess = nothing,
@@ -304,10 +305,10 @@ function sample_joint(
                     t_f = @elapsed begin
                         f = argmaxf_lnP(
                             ϕ, θ, dsθ;
-                            which=:sample, 
-                            guess=f, 
-                            preconditioner=preconditioner, 
-                            conjgrad_kwargs=(progress=(progress==:verbose), conjgrad_kwargs...)
+                            which           = :sample, 
+                            fstart          = f, 
+                            preconditioner  = preconditioner, 
+                            conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
                         )
                         f°, = mix(f,ϕ,dsθ)
                     end

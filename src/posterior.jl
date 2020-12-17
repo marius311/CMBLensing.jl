@@ -105,10 +105,10 @@ function δlnP_δϕ(
     if (previous_state == nothing)
         f_sims = [simulate(batch(Cf,Nbatch)) for i=1:Nsims÷Nbatch]
         n_sims = [simulate(batch(Cn,Nbatch)) for i=1:Nsims÷Nbatch]
-        f_wf_sims_guesses = fill(nothing, Nsims÷Nbatch)
-        f_wf_guess = nothing
+        f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
+        f_wf_prev = nothing
     else
-        @unpack f_sims, n_sims, f_wf_sims_guesses, f_wf_guess = previous_state
+        @unpack f_sims, n_sims, f_wf_sims_prev, f_wf_prev = previous_state
     end
 
     # generate simulated datasets for the current ϕ
@@ -118,30 +118,30 @@ function δlnP_δϕ(
 
     W = (weights == :unlensed) ? 1 : (Cf̃ * pinv(Cf))
 
-    # gradient of the quadratic (in ϕ) piece of the likelihood
-    function get_gQD(Lϕ, ds, f_wf_guess)
-        f_wf, hist = argmaxf_lnP(
+    # gradient of the quadratic (in d) piece of the likelihood
+    function get_gQD(Lϕ, ds, f_wf_prev)
+        f_wf, history = argmaxf_lnP(
             Lϕ, θ, ds;
             which = :wf,
-            guess = (f_wf_guess==nothing ? 0d : f_wf_guess),
-            conjgrad_kwargs = (hist=(:i,:res), conjgrad_kwargs...)
+            fstart = (f_wf_prev==nothing ? 0d : f_wf_prev),
+            conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
         )
         aggressive_gc && cuda_gc()
         v = Lϕ' \ (Cf \ f_wf)
         w = W * f_wf
         g = gradient(ϕ -> v' * (Lϕ(ϕ) * w), getϕ(Lϕ))[1]
-        @namedtuple(g, f_wf, hist)
+        (;g, f_wf, history)
     end
 
     # gQD for the real data
-    gQD_future = @spawnat :any get_gQD(Lϕ, ds, f_wf_guess)
+    gQD_future = @spawnat :any get_gQD(Lϕ, ds, f_wf_prev)
 
     # gQD for several simulated datasets
     if use_previous_MF
         @unpack gQD_sims, ḡ = previous_state
     else
-        gQD_sims = pmap(ds_sims, f_wf_sims_guesses) do ds_sim, f_wf_guess
-            get_gQD(Lϕ_batch, ds_sim, f_wf_guess)
+        gQD_sims = pmap(ds_sims, f_wf_sims_prev) do ds_sim, f_wf_prev
+            get_gQD(Lϕ_batch, ds_sim, f_wf_prev)
         end
         ḡ = mean(mapreduce(vcat, gQD_sims) do gQD
             [batchindex(gQD.g,i) for i=1:batchsize(gQD.g)]
@@ -153,7 +153,7 @@ function δlnP_δϕ(
     g = gQD.g - ḡ - Cϕ\ϕ
 
     if return_state
-        g, @namedtuple(g, f_sims, n_sims, Nsims, ḡ, gQD, gQD_sims, f_wf_guess=gQD.f_wf, f_wf_sims_guesses=getindex.(gQD_sims,:f_wf))
+        g, (;g, f_sims, n_sims, Nsims, ḡ, gQD, gQD_sims, f_wf_prev=gQD.f_wf, f_wf_sims_prev=getindex.(gQD_sims,:f_wf))
     else
         g
     end
