@@ -136,7 +136,7 @@ function MAP_joint(
     dsθ = copy(ds(θ))
     dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
 
-    ϕ = Map(ϕstart==nothing ? zero(diag(ds.Cϕ)) : ϕstart)
+    ϕ = Map(isnothing(ϕstart) ? zero(diag(ds.Cϕ)) : ϕstart)
     
     # compute approximate inverse ϕ Hessian used in gradient descent, possibly
     # from quadratic estimate
@@ -153,12 +153,13 @@ function MAP_joint(
     )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
 
-    f, = argmaxf_lnP(
-        (ϕstart==nothing ? 1 : ϕ), θ, dsθ; 
+    (f, argmaxf_lnP_history) = argmaxf_lnP(
+        (isnothing(ϕstart) ? 1 : ϕ), θ, dsθ; 
         fstart, argmaxf_lnP_kwargs...
     )
     f°, = mix(f, ϕ, dsθ)
     lastϕ = nothing
+    push!(history, select((;f,f°,ϕ,∇ϕ_lnP=nothing,χ²=nothing,lnP=nothing,argmaxf_lnP_history), history_keys))
 
     # objective function (with gradient) to maximize
     @⌛ function objective(ϕ)
@@ -167,7 +168,7 @@ function MAP_joint(
     # function to compute after each optimization iteration, which
     # recomputes the best-fit f given the current ϕ
     @⌛ function finalize!(ϕ,χ²,∇ϕ_lnP,i)
-        if isa(quasi_sample,Int) 
+        if isa(quasi_sample,Int)
             seed!(global_rng_for(f),quasi_sample)
         end
         (f, argmaxf_lnP_history) = @⌛ argmaxf_lnP(
