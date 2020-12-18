@@ -79,7 +79,7 @@ export
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
-    OuterProdOp, ParamDependentOp, pixwin, pmap_save, PowerLens, QUFourier, QUMap, resimulate!,
+    OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, S0, S02, S2, sample_joint, seed_for_storage!, shiftℓ,
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     tuple_adjoint, ud_grade, unbatch, unmix, white_noise, Ð, Ł, δfϕ_δf̃ϕ, 
