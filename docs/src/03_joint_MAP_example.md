@@ -111,7 +111,7 @@ plot(ds.d, title = "data " .* ["E" "B"]);
 Now we compute the maximum of the joint posterior, $\mathcal{P}\big(f, \phi \,\big|\,d\big)$
 
 ```julia
-fbf, ϕbf, tr = MAP_joint(ds, nsteps=30, progress=true);
+fbf, ϕbf, history = MAP_joint(ds, nsteps=30, progress=true);
 ```
 
 # Examine results
@@ -120,7 +120,7 @@ fbf, ϕbf, tr = MAP_joint(ds, nsteps=30, progress=true);
 The expected value of the final best-fit $\chi^2 (=-2\log \mathcal{P}$) is given by the number degrees of freedom in the data, i.e. the total number of pixels in T and/or EB.
 
 ```julia
-χ² = -2tr[end][:lnPcur]
+χ² = -2history[end][:lnP]
 ```
 
 ```julia
