@@ -430,14 +430,15 @@ calculation, use
 Timing uses `TimerOutputs.get_defaulttimer()`. 
 """
 macro ⌛(ex)
+    source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
     if isdef(ex)
         sdef = splitdef(ex)
         sdef[:body] = quote
-            @timeit $(string(sdef[:name])*"(…)") $(sdef[:body])
+            CMBLensing.@timeit $("$(string(sdef[:name]))(…)  ($source_str)") $(sdef[:body])
         end
         esc(combinedef(sdef))
     else
-        :(@timeit $(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26)) $(esc(ex)))
+        :(@timeit $("$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)") $(esc(ex)))
     end
 end
 
