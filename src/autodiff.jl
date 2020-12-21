@@ -1,4 +1,7 @@
-    
+
+# adjoint constructors (todo: add other cases)
+@adjoint FlatEBFourier(El, Bl; kwargs...) where {P} = FlatEBFourier(El, Bl; kwargs...), Δ -> (Δ.El, Δ.Bl)
+
 # lazy outer products of Fields, which comes up alot in automatic differentiation
 *(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x, y.parent)
 
