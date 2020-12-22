@@ -157,7 +157,7 @@ function MAP_joint(
             lbfgs_rank; 
             maxiter = nsteps, 
             verbosity = verbosity[1], 
-            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
+            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5)
         ), 
         finalize! = function (ϕ,χ²,g,i)
             if isa(quasi_sample,Int) 
