@@ -77,3 +77,11 @@ Returns a tuple of (ireal, iimag, negks) where these are
     inegks[.!k_in_ks.(negk.(ks))] .= Ref((0,0))
     ireal,iimag,inegks#,ks,negk.(ks)#,k_in_ks.(negk.(ks)),map(k->k_in_ks(negk(k)),ks)
 end
+
+function rfft_degeneracy_fac(n)
+    if iseven(n)
+        [1; fill(2,n÷2-1); 1]
+    else
+        [1; fill(2,n÷2)]
+    end
+end

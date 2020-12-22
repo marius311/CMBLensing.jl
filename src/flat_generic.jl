@@ -110,8 +110,8 @@ broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to
 logdet(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])),dims=(1,2))))
 logdet(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))),dims=(1,2))))
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
-tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
+tr(L::Diagonal{<:Complex,<:FlatFourier{<:Flat{N}}}) where {N} = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2)))) / prod(N .* (1,1))
+tr(L::Diagonal{<:Real,   <:FlatMap})                          = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
 
 
 ### misc

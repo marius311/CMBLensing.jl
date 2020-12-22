@@ -288,7 +288,7 @@ ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,
 adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))
 function diag(lz::LazyBinaryOp{*}) 
     _diag(x) = diag(x)
-    _diag(x::Int) = x
+    _diag(x::Number) = x
     da, db = _diag(lz.a), _diag(lz.b)
     # if basis(da)!=basis(db)
     #     error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
