@@ -1,7 +1,7 @@
 const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M},FlatS02{P,T,M}}
 
 const FlatFieldMap{P,T,M} = Union{FlatMap{P,T,M},FlatS2Map{P,T,M},FlatS02Map{P,T,M}}
-const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
+const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2Fourier{P,T,M},FlatS02Fourier{P,T,M}}
 
 ### pretty printing
 @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =

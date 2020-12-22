@@ -490,35 +490,41 @@ end;
             
             
         end
-        
+
         @testset "Array Bailout" begin
 
-            A = 2
-            Ix = rand(Nside2D...)
-            Il = rfft(Ix)
-            f = FlatMap(Ix; Nside)
+            @testset "$FMap" for (FMap, FFourier, Ixs) in [
+                (FlatMap,   FlatFourier,   (rand(Nside2D...),)),
+                (FlatEBMap, FlatEBFourier, (rand(Nside2D...),rand(Nside2D...)))
+            ]
+            
+                A = 2
+                Ils = rfft.(Ixs)
+                f = FMap(Ixs...; Nside)
 
-            @test_real_gradient(A -> logdet(Diagonal(FlatFourier(A*Il; Nside))), A)
-            @test_real_gradient(A -> logdet(Diagonal(A*FlatFourier(Il; Nside))), A)
-            @test_real_gradient(A -> logdet(A*Diagonal(FlatFourier(Il; Nside))), A)
-            ##
-            @test_real_gradient(A -> f' * (Diagonal(FlatFourier(A*Il; Nside))) * f, A)
-            @test_real_gradient(A -> f' * (Diagonal(A*FlatFourier(Il; Nside))) * f, A)
-            @test_real_gradient(A -> f' * (A*Diagonal(FlatFourier(Il; Nside))) * f, A)
-            ##
-            @test_real_gradient(A -> logdet(Diagonal(FlatMap(A*Ix; Nside))), A)
-            @test_real_gradient(A -> logdet(Diagonal(A*FlatMap(Ix; Nside))), A)
-            @test_real_gradient(A -> logdet(A*Diagonal(FlatMap(Ix; Nside))), A)
-            ##
-            @test_real_gradient(A -> f' * (Diagonal(FlatMap(A*Ix; Nside))) * f, A)
-            @test_real_gradient(A -> f' * (Diagonal(A*FlatMap(Ix; Nside))) * f, A)
-            @test_real_gradient(A -> f' * (A*Diagonal(FlatMap(Ix; Nside))) * f, A)
-            ##
-            @test_real_gradient(A -> norm(FlatFourier(A*Il; Nside)), A)
-            @test_real_gradient(A -> norm(A*FlatFourier(Il; Nside)), A)
-            ##
-            @test_real_gradient(A -> norm(FlatMap(A*Ix; Nside)), A)
-            @test_real_gradient(A -> norm(A*FlatMap(Ix; Nside)), A)
+                @test_real_gradient(A -> logdet(Diagonal(FFourier((A.*Ils)...; Nside))), A)
+                @test_real_gradient(A -> logdet(Diagonal(A*FFourier(Ils...; Nside))), A)
+                @test_real_gradient(A -> logdet(A*Diagonal(FFourier(Ils...; Nside))), A)
+                
+                @test_real_gradient(A -> f' * (Diagonal(FFourier((A.*Ils)...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (Diagonal(A*FFourier(Ils...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (A*Diagonal(FFourier(Ils...; Nside))) * f, A)
+                
+                @test_real_gradient(A -> logdet(Diagonal(FMap((A.*Ixs)...; Nside))), A)
+                @test_real_gradient(A -> logdet(Diagonal(A*FMap(Ixs...; Nside))), A)
+                @test_real_gradient(A -> logdet(A*Diagonal(FMap(Ixs...; Nside))), A)
+                
+                @test_real_gradient(A -> f' * (Diagonal(FMap((A.*Ixs)...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (Diagonal(A*FMap(Ixs...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (A*Diagonal(FMap(Ixs...; Nside))) * f, A)
+                
+                @test_real_gradient(A -> norm(FFourier((A.*Ils)...; Nside)), A)
+                @test_real_gradient(A -> norm(A*FFourier(Ils...; Nside)), A)
+                
+                @test_real_gradient(A -> norm(FMap((A.*Ixs)...; Nside)), A)
+                @test_real_gradient(A -> norm(A*FMap(Ixs...; Nside)), A)
+                
+            end
 
         end
         
