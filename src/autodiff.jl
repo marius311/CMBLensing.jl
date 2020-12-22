@@ -5,7 +5,8 @@
 
 @adjoint function FlatFourier{P}(Il) where {Nside, P<:Flat{Nside}}
     function back(Δ::FlatFourier)
-        (Δ.Il .* rfft_degeneracy_fac(Nside[1]) ./ prod(Nside .* (1,1)),)
+        fac = adapt(fieldinfo(Δ).M, rfft_degeneracy_fac(Nside[1]) ./ prod(Nside .* (1,1)))
+        (Δ.Il .* fac,)
     end
     FlatFourier{P}(Il), back
 end
