@@ -29,9 +29,8 @@ macro !(ex)
 end
 
 
-nan2zero(x::T) where {T} = !isfinite(x) ? zero(T) : x
-nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
-nan2inf(x::T) where {T} = !isfinite(x) ? T(Inf) : x
+nan2zero(x::T) where {T} = isfinite(x) ? x : zero(T)
+@adjoint nan2zero(x::T) where {T} = nan2zero(x), Δ -> (isfinite(x) ? Δ : zero(T),)
 
 
 """ Return a tuple with the expression repeated n times """
