@@ -10,7 +10,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs
 using FileIO
 using FFTW
 using InteractiveUtils
@@ -20,11 +20,12 @@ import KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op
-using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, splitdef
+using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, prewalk, rmlines, splitdef
 using Match
 using Markdown
 using Measurements
 using Memoization
+using NamedTupleTools: select
 using OptimKit
 using Pkg
 using Printf
@@ -40,6 +41,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray, SizedArray
 using Statistics
 using StatsBase
+using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd
@@ -62,7 +64,7 @@ import Statistics: std
 
 
 export
-    @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
+    @⌛, @show⌛, @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batchindex, batchsize, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
@@ -77,11 +79,11 @@ export
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, LinOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
-    OuterProdOp, ParamDependentOp, pixwin, pmap_save, PowerLens, QUFourier, QUMap, resimulate!,
+    OuterProdOp, ParamDependentOp, pixwin, PowerLens, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, S0, S02, S2, sample_joint, seed_for_storage!, shiftℓ,
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, unbatch, unmix, Ð, Ł, δfϕ_δf̃ϕ, ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ,
-    ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    tuple_adjoint, ud_grade, unbatch, unmix, white_noise, Ð, Ł, δfϕ_δf̃ϕ, 
+    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
     
 # generic stuff
 include("util.jl")

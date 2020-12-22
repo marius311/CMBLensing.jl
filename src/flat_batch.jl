@@ -110,8 +110,8 @@ for op in [:any, :all]
 end
 eltype(::BatchedVals{T}) where {T} = T
 broadcastable(::Type{<:FlatS0{<:Flat,T}}, br::BatchedReal) where {T} = reshape(T.(br.vals),1,1,length(br.vals))
-unbatch(br::BatchedVals) = br.vals
-unbatch(r::Real) = r
+unbatch(br::BatchedVals; dims=1) = reshape(br.vals, ones(Int,dims-1)..., :)
+unbatch(r::Real; dims=1) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
 convert(::Type{<:BatchedVals{T,N}}, v::Bool) where {T,N} = batch(T(v),N)

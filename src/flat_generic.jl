@@ -20,7 +20,7 @@ end
 @memoize fieldinfo(::Type{P},::Type{T}=Float32,::Type{M}=Matrix) where {Nside,θpix,∂mode,D,P<:Flat{Nside,θpix,∂mode,D},T,M} = 
     (;FlatInfo(T,basetype(M),θpix,Nside,D)..., ∂mode=∂mode)
 @memoize fieldinfo(::Type{F}) where {P<:Flat,T,M,F<:FlatField{P,T,M}} = 
-    (;fieldinfo(P,T,M)..., @namedtuple(P,M,B=basis(F),S=spin(F))...)
+    (;fieldinfo(P,T,M)..., P, M, B=basis(F), S=spin(F))
 fieldinfo(::F) where {F<:FlatField} = fieldinfo(F)
 fieldinfo(::DiagOp{F}) where {F<:FlatField} = fieldinfo(F)
 get_storage(f::F) where {F<:FlatField} = basetype(fieldinfo(F).M)

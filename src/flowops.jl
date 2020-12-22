@@ -10,10 +10,10 @@ function negδvelocityᴴ end
 
 
 # define integrations for L*f, L'*f, L\f, and L'\f
-*(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁)
-*(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₁, t₀)
-\(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = odesolve(I,  velocity(cache(Lϕ, f),f)..., t₁, t₀)
-\(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₀, t₁)
+*(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = @⌛ odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁)
+*(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = @⌛ odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₁, t₀)
+\(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = @⌛ odesolve(I,  velocity(cache(Lϕ, f),f)..., t₁, t₀)
+\(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = @⌛ odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₀, t₁)
 
 
 @adjoint (::Type{L})(ϕ) where {L<:FlowOp} = L(ϕ), Δ -> (Δ,)
@@ -22,10 +22,10 @@ function negδvelocityᴴ end
 # for FlowOps (without adjoint), use Zygote to take a gradient through the ODE solver
 
 @adjoint *(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
-    Zygote.pullback((Lϕ,f)->odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁), Lϕ, f)
+    Zygote.pullback((Lϕ,f)->odesolve(I, velocity(cache(Lϕ, f),f)..., t₀, t₁), Lϕ, f)
     
 @adjoint \(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
-    Zygote.pullback((Lϕ,f)->odesolve(I,  velocity(cache(Lϕ, f),f)..., t₁, t₀), Lϕ, f)
+    Zygote.pullback((Lϕ,f)->odesolve(I, velocity(cache(Lϕ, f),f)..., t₁, t₀), Lϕ, f)
 
 
 # FlowOpWithAdjoint provide their own velocity for computing the gradient
@@ -34,7 +34,7 @@ function negδvelocityᴴ end
     cLϕ = cache(Lϕ,f)
     f̃ = cLϕ * f
     function back(Δ)
-        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
+        (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
         δϕ, B(δf)
     end
     f̃, back
@@ -44,7 +44,7 @@ end
     cLϕ = cache(Lϕ,f̃)
     f = cLϕ \ f̃
     function back(Δ)
-        (_,δf,δϕ) = odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
+        (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
         δϕ, B(δf)
     end
     f, back

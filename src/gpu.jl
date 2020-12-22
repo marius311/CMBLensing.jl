@@ -4,6 +4,8 @@ using CUDA: cufunc, curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
+export cuda_gc
+
 const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
 
 # a function version of @cuda which can be referenced before CUDA is
@@ -115,8 +117,16 @@ function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
 end
 
 
+"""
+    cuda_gc()
 
-gc = () -> (GC.gc(true); CUDA.reclaim())
+Gargbage collect and reclaim GPU memory (technically should never be
+needed to do this by hand, but sometimes helps with GPU OOM errors)
+"""
+function cuda_gc()
+    GC.gc(true)
+    CUDA.reclaim()
+end
 
 
 """
@@ -141,4 +151,17 @@ function assign_GPU_workers()
         end
     end)
     @everywhere workers() device!($assignments[myid()])
+    @info GPU_worker_info()
+end
+
+"""
+    GPU_worker_info()
+
+Returns string showing info about assigned GPU workers. 
+"""
+function GPU_worker_info()
+    lines = @eval Main pmap(procs()) do id
+        "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
+    end
+    join(["GPU_worker_info:"; lines], "\n")
 end

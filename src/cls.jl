@@ -245,7 +245,7 @@ function load_camb_Cℓs(;
     unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
     total          = (;(k=>lensed_scalar[k]+tensor[k]   for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
     
-    @namedtuple(unlensed_scalar,tensor,lensed_scalar,unlensed_total,total)
+    (;unlensed_scalar,tensor,lensed_scalar,unlensed_total,total)
     
 end
 
