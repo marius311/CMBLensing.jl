@@ -77,3 +77,21 @@ Returns a tuple of (ireal, iimag, negks) where these are
     inegks[.!k_in_ks.(negk.(ks))] .= Ref((0,0))
     ireal,iimag,inegks#,ks,negk.(ks)#,k_in_ks.(negk.(ks)),map(k->k_in_ks(negk(k)),ks)
 end
+
+"""
+    rfft_degeneracy_fac(n)
+
+Returns an Array which is 2 if the complex conjugate of the
+corresponding entry in the half-plane real FFT appears in the
+full-plane FFT, and is 1 othewise. `n` is the length of the first
+dimension of the full-plane FFT. The following identity holds:
+
+    sum(abs2.(fft(x)) = sum(rfft_degeneracy_fac(size(x,1)) .* abs2.(rfft(x))
+"""
+function rfft_degeneracy_fac(n)
+    if iseven(n)
+        [1; fill(2,n÷2-1); 1]
+    else
+        [1; fill(2,n÷2)]
+    end
+end

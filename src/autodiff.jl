@@ -1,13 +1,23 @@
 
-# adjoint constructors (todo: add other cases)
-@adjoint FlatEBFourier(El, Bl; kwargs...) where {P} = FlatEBFourier(El, Bl; kwargs...), Δ -> (Δ.El, Δ.Bl)
+# adjoint constructors
+@adjoint (::Type{F})(args...; kwargs...) where {F<:FlatMap} = F(args...; kwargs...), Δ->fieldvalues(Δ)
+@adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
+
+@adjoint function FlatFourier{P}(Il) where {Nside, P<:Flat{Nside}}
+    function back(Δ::FlatFourier)
+        fac = adapt(fieldinfo(Δ).M, rfft_degeneracy_fac(Nside[1]) ./ prod(Nside .* (1,1)))
+        (Δ.Il .* fac,)
+    end
+    FlatFourier{P}(Il), back
+end
+
 
 # lazy outer products of Fields, which comes up alot in automatic differentiation
 *(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x, y.parent)
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
-# this may create a LazyBinaryOp, unlike Zygote's
+# this can create a LazyBinaryOp, unlike Zygote's
 Zygote.accum(a::LinOp, b::LinOp) = a+b
 
 ## Fields
@@ -24,8 +34,8 @@ Zygote.accum(a::LinOp, b::LinOp) = a+b
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
-@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
+@adjoint logdet(L::DiagOp{<:FlatFieldFourier{<:Flat{N}}}) where {N} = logdet(L), Δ -> (prod(N .* (1,1)) * Δ * pinv(L)',)
 
 
 # basis conversion

@@ -25,6 +25,13 @@ using SparseArrays
 using LinearAlgebra
 using Zygote
 using AbstractFFTs
+using FiniteDifferences
+
+##
+
+macro test_real_gradient(f,x)
+    esc(:(@test real(gradient($f,$x)[1]) ≈ central_fdm(5,1)($f,$x)))
+end
 
 ##
 
@@ -200,6 +207,11 @@ end
             @test (@inferred pinv(Diagonal(f))) isa Diagonal{<:Any,<:typeof(f)}
             @test_throws SingularException inv(Diagonal(0*f))
             
+            # trace
+            @test all(tr(Diagonal(f)' * Diagonal(f)) ≈ f'f)
+            @test all(tr(Diagonal(f) * Diagonal(f)') ≈ f'f)
+            @test all(tr(f*f') ≈ f'f)
+
             # Field dot products
             D = Diagonal(f)
             if f isa FlatField && batchsize(f)>1 # batched fields not inferred
@@ -294,8 +306,6 @@ end
 @testset "BatchedReal" begin
 
     @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
-
-        Nside2D = Nside .* (1,1)
 
         r  = 1.
         rb = batch([1.,2])
@@ -478,30 +488,45 @@ end;
                 
             end
             
-            if f isa FlatS0
-                
-                @testset "logdet" begin
-                    @test gradient(x->logdet(x*Diagonal(Map(f))),     1)[1] ≈ size(Map(f))[1]
-                    @test gradient(x->logdet(x*Diagonal(Fourier(f))), 1)[1] ≈ size(Map(f))[1]
-                    L = ParamDependentOp((;x=1)->x*Diagonal(Fourier(f)))
-                    @test gradient(x->logdet(L(x=x)), 1)[1] ≈ size(Map(f))[1]
-                end
-                
-                @test gradient(x -> norm(x*Fourier(f)), 1)[1] ≈ norm(f)
-                @test gradient(x -> norm(x*Map(f)), 1)[1] ≈ norm(f)
-
-                L₀ = Diagonal(Map(f))
-                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
-                L₀ = Diagonal(Fourier(f))
-                @test gradient(x -> norm((x*L₀)*f), 1)[1] ≈ norm(L₀*f)
-
-                @test gradient(x -> norm((x*Diagonal(Map(f)))*f), 1)[1] ≈ norm(Diagonal(Map(f))*f)
-                @test gradient(x -> norm((x*Diagonal(Fourier(f)))*f), 1)[1] ≈ norm(Diagonal(Fourier(f))*f)
-
-            end
-        
+            
         end
-        
+
+        @testset "Array Bailout" begin
+
+            @testset "$FMap" for (FMap, FFourier, Ixs) in [
+                (FlatMap,   FlatFourier,   (rand(Nside2D...),)),
+                (FlatEBMap, FlatEBFourier, (rand(Nside2D...),rand(Nside2D...)))
+            ]
+            
+                A = 2
+                Ils = rfft.(Ixs)
+                f = FMap(Ixs...; Nside)
+
+                @test_real_gradient(A -> logdet(Diagonal(FFourier((A.*Ils)...; Nside))), A)
+                @test_real_gradient(A -> logdet(Diagonal(A*FFourier(Ils...; Nside))), A)
+                @test_real_gradient(A -> logdet(A*Diagonal(FFourier(Ils...; Nside))), A)
+                
+                @test_real_gradient(A -> f' * (Diagonal(FFourier((A.*Ils)...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (Diagonal(A*FFourier(Ils...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (A*Diagonal(FFourier(Ils...; Nside))) * f, A)
+                
+                @test_real_gradient(A -> logdet(Diagonal(FMap((A.*Ixs)...; Nside))), A)
+                @test_real_gradient(A -> logdet(Diagonal(A*FMap(Ixs...; Nside))), A)
+                @test_real_gradient(A -> logdet(A*Diagonal(FMap(Ixs...; Nside))), A)
+                
+                @test_real_gradient(A -> f' * (Diagonal(FMap((A.*Ixs)...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (Diagonal(A*FMap(Ixs...; Nside))) * f, A)
+                @test_real_gradient(A -> f' * (A*Diagonal(FMap(Ixs...; Nside))) * f, A)
+                
+                @test_real_gradient(A -> norm(FFourier((A.*Ils)...; Nside)), A)
+                @test_real_gradient(A -> norm(A*FFourier(Ils...; Nside)), A)
+                
+                @test_real_gradient(A -> norm(FMap((A.*Ixs)...; Nside)), A)
+                @test_real_gradient(A -> norm(A*FMap(Ixs...; Nside)), A)
+                
+            end
+
+        end
         
     end
 
