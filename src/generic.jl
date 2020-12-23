@@ -122,6 +122,8 @@ const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 
 # assume no dependence on parameters θ unless otherwise specified
 (L::Union{LinOrAdjOp,UniformScaling})(θ::NamedTuple) = L
+# allow using I as a lensing (no-)op
+(L::UniformScaling)(ϕ::Field) = L
 
 
 ### Scalars
