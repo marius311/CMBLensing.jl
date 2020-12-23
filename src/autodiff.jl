@@ -1,7 +1,6 @@
 
 # adjoint constructors
-@adjoint (::Type{F})(args...; kwargs...) where {F<:FlatMap} = F(args...; kwargs...), Δ->fieldvalues(Δ)
-@adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
+@adjoint FlatMap{P}(Ix) where {P} = FlatMap{P}(Ix), Δ->(Δ.Ix,)
 
 @adjoint function FlatFourier{P}(Il) where {Nside, P<:Flat{Nside}}
     function back(Δ::FlatFourier)
@@ -10,6 +9,8 @@
     end
     FlatFourier{P}(Il), back
 end
+
+@adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
 
 
 # lazy outer products of Fields, which comes up alot in automatic differentiation
