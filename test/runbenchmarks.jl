@@ -27,12 +27,12 @@ end
 args = parse_args(ARGS, s)
 
 if args["storage"]=="CuArray"
-    using CuArrays
+    using CUDA
 end
 storage = eval(Symbol(args["storage"]))
 macro belapsed(ex)
     if args["storage"] == "CuArray" 
-        esc(:(BenchmarkTools.@belapsed CuArrays.@sync $ex))
+        esc(:(BenchmarkTools.@belapsed CUDA.@sync $ex))
     else
         esc(:(BenchmarkTools.@belapsed $ex))
     end
@@ -57,6 +57,7 @@ using PrettyTables
 using Printf
 using Test
 using Zygote
+using Match
 
 
 ##
@@ -151,18 +152,20 @@ pretty_table(Dict(meta), crop=:none)
 pretty_table(
     vcat(([k v reference_timing[k]*1e-3] for (k,v) in timing)...),
     ["Operation","Time","Reference"],
-    formatter = Dict(
-        1 => (v,_) -> v,
-        2 => (v,_) -> @sprintf("%.1f ms",1000v),
-        3 => (v,_) -> @sprintf("%.0f ms",1000v)
-    ),
+    formatters = function (v,i,j)
+        @match j begin
+            2 => @sprintf("%.1f ms",1000v)
+            3 => @sprintf("%.0f ms",1000v)
+            _ => v
+        end
+    end,
     highlighters = (
         Highlighter((data, i, j) -> j==2 && data[i,j] > (1+rtol) * data[i,j+1], foreground=:red),
         Highlighter((data, i, j) -> j==2 && data[i,j] < (1-rtol) * data[i,j+1], foreground=:green)
     ),
     crop=:none,
     alignment=[:l,:r,:r],
-    hlines=[6]
+    hlines=[0,1,7,:end]
 )
 
 # save benchmarks
