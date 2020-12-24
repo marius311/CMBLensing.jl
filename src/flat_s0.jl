@@ -210,13 +210,13 @@ function ud_grade(f::FlatS0{P,T,M}, θnew; mode=:map, deconv_pixwin=(mode==:map)
         # downgrade
         if anti_aliasing
             AA = Diagonal(FlatFourier{P}(
-                ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .> nyq) .| (abs.(fieldinfo(P,T,M).kx') .> nyq), 0, 1)
+                ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .>= nyq) .| (abs.(fieldinfo(P,T,M).kx') .>= nyq), 0, 1)
             ))
         else
             AA = 1
         end
         if mode==:map
-            fnew = FlatMap{Pnew}(mapslices(mean,reshape((AA*f)[:Ix],(fac,Ny,fac,Nx)),dims=(1,3))[1,:,1,:])
+            fnew = FlatMap{Pnew}(mean(reshape((AA*f)[:Ix],(fac,Ny,fac,Nx)),dims=(1,3))[1,:,1,:])
             deconv_pixwin ? FlatFourier{Pnew}(fnew[:Il] ./ PWF) : fnew
         else
             @assert fieldinfo(f).Nside isa Int "Downgrading resolution with `mode=:fourier` only implemented for maps where `Nside isa Int`"

@@ -113,7 +113,7 @@ Info from the iterations of the solver can be returned if
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
     for outer i = 2:nsteps
-        Ap   = A * p
+        Ap   = @⌛ A * p
         α    = res / dot(p,Ap)
         x    = x + α * p
         r    = r - α * Ap
