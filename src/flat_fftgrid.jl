@@ -49,8 +49,8 @@ function FlatInfo(T, Arr, θpix, Nside, D)
     Δℓy  = T(2π/(Ny*Δx))
     nyq  = T(2π/(2Δx))
     Ωpix = T(Δx^2)
-    ky   = ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy
-    kx   = ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx
+    ky   = adapt(Arr, ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy)
+    kx   = adapt(Arr, ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx)
     kmag = @. sqrt(kx'^2 + ky^2)
     ϕ    = @. angle(kx' + im*ky)[1:Ny÷2+1,:]
     sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
@@ -58,7 +58,7 @@ function FlatInfo(T, Arr, θpix, Nside, D)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
     
-    (;T, θpix, Nx, Ny, Nside, Δx, Δℓx, Δℓy, nyq, Ωpix, kx, ky, kmag, sin2ϕ=Arr(sin2ϕ), cos2ϕ=Arr(cos2ϕ), FFT)
+    (;T, θpix, Nx, Ny, Nside, Δx, Δℓx, Δℓy, nyq, Ωpix, kx, ky, kmag, sin2ϕ, cos2ϕ, FFT)
 
 end
 

@@ -56,17 +56,17 @@ DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 # these are only 1-d arrays, that's a completely unnecessary optimization, but
 # without the @generated it triggers an order-dependenant compilation bug which
 # e.g. slows down LenseFlow by a factor of ~4 so we gotta keep it for now ¯\_(ツ)_/¯
-@generated function broadcastable(::Type{F}, ::∇diag{1,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}}
+@memoize function broadcastable(::Type{F}, ::∇diag{1,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}}
     @unpack kx = fieldinfo(F)
-    basetype(M)(@. prefactor * im * kx')
+    @. prefactor * im * kx'
 end
-@generated function broadcastable(::Type{F}, ::∇diag{2,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}}
+@memoize function broadcastable(::Type{F}, ::∇diag{2,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}}
     @unpack ky, Ny = fieldinfo(F)
-    basetype(M)(@. prefactor * im * ky[1:Ny÷2+1])
+    @. prefactor * im * ky[1:Ny÷2+1]
 end
-@generated function broadcastable(::Type{F}, ::∇²diag) where {P,T,M,F<:FlatFourier{P,T,M}}
+@memoize function broadcastable(::Type{F}, ::∇²diag) where {P,T,M,F<:FlatFourier{P,T,M}}
     @unpack kx, ky, Ny = fieldinfo(F)
-    basetype(M)(@. kx'^2 + ky[1:Ny÷2+1]^2)
+    @. kx'^2 + ky[1:Ny÷2+1]^2
 end
 
 ## Map-space
@@ -134,3 +134,13 @@ are not statistically the same.
 """
 fixed_white_noise(rng, F::Type{<:FlatFieldFourier}) =
      exp.(im .* angle.(basis(F)(white_noise(rng,F)))) .* fieldinfo(F).Nside
+
+
+
+### UDGradeOp
+function (L::UDGradeOp * f::FlatField)
+    ud_grade(f, L.θout, mode=:map, deconv_pixwin=false, anti_aliasing=false)
+end
+function (L::Adjoint{<:Any,UDGradeOp} * f::FlatField{<:Any,T}) where {T}
+    ud_grade(f, parent(L).θin, mode=:map, deconv_pixwin=false, anti_aliasing=false) / T(parent(L).θout/parent(L).θin)^2
+end

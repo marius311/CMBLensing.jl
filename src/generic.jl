@@ -124,7 +124,8 @@ const LinOrAdjOp{B,S,P} = Union{ImplicitOrAdjOp{B,S,P},DiagOp{<:Field{B,S,P}}}
 (L::Union{LinOrAdjOp,UniformScaling})(θ::NamedTuple) = L
 # allow using I as a lensing (no-)op
 (L::UniformScaling)(ϕ::Field) = L
-
+# make no-copy
+*(::UniformScaling{Bool}, f::Field) = f
 
 ### Scalars
 # scalars which are allowed in our expressions must be real because we

@@ -352,3 +352,12 @@ function BinRescaledOp(C₀, Cbins, θname::Symbol)
         end
     end
 end
+
+
+### UDGradeOp
+
+struct UDGradeOp <: ImplicitOp{Basis,Spin,Pix}
+    θin
+    θout
+    UDGradeOp(;θin,θout) = new(θin,θout)
+end
