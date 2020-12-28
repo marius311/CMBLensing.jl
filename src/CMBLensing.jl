@@ -17,6 +17,7 @@ using InteractiveUtils
 using IterTools: flagfirst
 using JLD2: jldopen, JLDWriteSession
 import KahanSummation
+using LaTeXStrings
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op
@@ -33,6 +34,7 @@ using ProgressMeter
 using QuadGK
 using Random
 using Random: seed!, AbstractRNG
+using RecipesBase
 using Roots
 using Requires
 using Setfield
@@ -113,7 +115,8 @@ include("bilinearlens.jl")
 
 # plotting
 function animate end
-@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("pyplot.jl")
+include("plots.jl")
 
 # sampling and maximizing the posteriors
 include("dataset.jl")

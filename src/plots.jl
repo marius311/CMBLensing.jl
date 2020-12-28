@@ -6,9 +6,7 @@
    
     # layout of subplots 
     size --> (1000, 400)
-    layout := @layout [
-        Emap    Bmap
-    ]
+    layout := (1, 2)
 
     @unpack θpix, Nx, Ny = fieldinfo(m)
 
