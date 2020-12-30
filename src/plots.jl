@@ -2,6 +2,9 @@
 # backend. How to only run if PGFPlotsX.jl is installed, and perhaps 
 # also only if the that backend is set.
 #push!(PGFPlotsX.CUSTOM_PREAMBLE, raw"\usepackage{amssymb}")
+# Same but for the \degree command. Only way of getting degree symbols
+# to work with PGFPlotsX (\circ causes a tricky error)
+#push!(PGFPlotsX.CUSTOM_PREAMBLE, raw"\usepackage{gensymb}")
 
 function tick_locations(Npix, θpix)
     # calculate tick locations in pixels and in degrees
@@ -12,7 +15,7 @@ function tick_locations(Npix, θpix)
     θticks = δθ:δθ:θ₊
     θticks = [-reverse(θticks); 0;  θticks]
     pixticks = (θticks .+ (θpix * Npix / 60 / 2)) .* (60 / θpix)
-    latex_θticks = [L"%$i^\circ" for i in θticks]
+    latex_θticks = [L"%$i \degree" for i in θticks]
     pixticks, latex_θticks
 end
 
