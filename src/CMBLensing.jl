@@ -1,8 +1,9 @@
+
 module CMBLensing
 
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
-    DefaultArrayStyle, preprocess_args, Style, result_style
+    DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
@@ -56,7 +57,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
-import Base.Broadcast: instantiate, preprocess
+import Base.Broadcast: materialize, instantiate, preprocess
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
@@ -90,54 +91,57 @@ include("util.jl")
 include("util_fft.jl")
 include("numerical_algorithms.jl")
 include("generic.jl")
-include("cls.jl")
-include("field_tuples.jl")
+# include("cls.jl")
+# include("field_tuples.jl")
 include("field_vectors.jl")
 include("specialops.jl")
 include("flowops.jl")
 
-# lensing
+include("basefields.jl")
+
+# # lensing
 include("lenseflow.jl")
-include("powerlens.jl")
+# include("powerlens.jl")
 
-# flat-sky maps
-include("flat_fftgrid.jl")
+# # flat-sky maps
+# include("flat_fftgrid.jl")
 include("flat_s0.jl")
-include("flat_s2.jl")
-include("flat_s0s2.jl")
-include("flat_generic.jl")
-include("flat_batch.jl")
-include("masking.jl")
-include("taylens.jl")
-include("bilinearlens.jl")
+# include("flat_s2.jl")
+# include("flat_s0s2.jl")
+# include("flat_generic.jl")
+# include("flat_batch.jl")
+# include("masking.jl")
+# include("taylens.jl")
+# include("bilinearlens.jl")
 
-# plotting
-function animate end
-@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+# # plotting
+# function animate end
+# @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
-# sampling and maximizing the posteriors
-include("dataset.jl")
-include("posterior.jl")
-include("maximization.jl")
-include("sampling.jl")
-include("chains.jl")
+# # sampling and maximizing the posteriors
+# include("dataset.jl")
+# include("posterior.jl")
+# include("maximization.jl")
+# include("sampling.jl")
+# include("chains.jl")
 
-# other estimates
-include("quadratic_estimate.jl")
+# # other estimates
+# include("quadratic_estimate.jl")
 
-# curved-sky
-include("healpix.jl")
+# # curved-sky
+# include("healpix.jl")
 
-include("autodiff.jl")
+# include("autodiff.jl")
 
-# gpu
-is_gpu_backed(x) = false
-@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
+# # gpu
+# is_gpu_backed(x) = false
+# @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
 
-# misc init
-# see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
-@init if ProgressMeter.@isdefined ijulia_behavior
-    ProgressMeter.ijulia_behavior(:clear)
+# # misc init
+# # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
+# @init if ProgressMeter.@isdefined ijulia_behavior
+#     ProgressMeter.ijulia_behavior(:clear)
+# end
+
 end
 
-end

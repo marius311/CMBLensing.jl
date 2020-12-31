@@ -24,7 +24,7 @@ struct FieldOrOpArrayStyle{N} <: AbstractArrayStyle{N} end
 (::Type{<:FieldOrOpArrayStyle})(::Val{N}) where {N} = FieldOrOpArrayStyle{N}()
 BroadcastStyle(::Type{<:FieldOrOpVector}) = FieldOrOpArrayStyle{1}()
 BroadcastStyle(::Type{<:FieldOrOpMatrix}) = FieldOrOpArrayStyle{2}()
-BroadcastStyle(S::FieldOrOpArrayStyle, ::FieldTupleStyle) = S
+# BroadcastStyle(S::FieldOrOpArrayStyle, ::FieldTupleStyle) = S
 instantiate(bc::Broadcasted{<:FieldOrOpArrayStyle}) = bc
 function copy(bc::Broadcasted{FieldOrOpArrayStyle{N}}) where {N}
     bc′ = convert(Broadcasted{StaticArrayStyle{N}}, map_bc_args(fieldvector_data,bc))
@@ -75,7 +75,7 @@ mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) =
 mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
     ((@. v[1] = x.diag * w[1].diag * f); (@. v[2] = x.diag * w[2].diag * f); v)
 # only thing needed for TupleAdjoints
-mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
+# mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
 function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
     a,b,c,d = src
