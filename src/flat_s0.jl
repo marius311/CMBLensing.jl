@@ -1,28 +1,34 @@
 
-
+## FlatS0 types
 const FlatMap{M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{Map, M, T, A}
 const FlatFourier{M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{Fourier, M, T, A}
-
+## FlatS0 unions
 const FlatS0{M,T,A} = Union{FlatMap{M,T,A}, FlatFourier{M,T,A}}
 
+## constructors
+function FlatMap(Ix::A; θpix=θpix₀) where {T, A<:AbstractArray{T}}
+    FlatMap(
+        drop_tail_singleton_dims(reshape(Ix, size(Ix,1), size(Ix,2), 1, size(Ix,3))),
+        ProjLambert(T, basetype(A), θpix, size(Ix,1), size(Ix,2))
+    )
+end
 
-getproperty(f::FlatMap, ::Val{:Ix}) = getfield(f,:arr)
+# FlatFourier(Il::A; Ny, θpix=θpix₀) where {T, A<:AbstractArray{T}} = 
+#     FlatFourier(complex(Il[:,:,:,:]), ProjLambert(real(T), basetype(A), θpix, Ny, size(Ix,2)...))
+
+## properties
+getproperty(f::FlatMap,     ::Val{:Ix}) = getfield(f,:arr)
 getproperty(f::FlatFourier, ::Val{:Il}) = getfield(f,:arr)
 
-FlatMap(Ix::A; θpix=1) where {T, A<:AbstractArray{T}} = FlatMap(Ix[:,:,:,:], ProjLambert(T, basetype(A), θpix, size(Ix)[1:2]...))
-FlatFourier(Il::A; θpix=1) where {T, A<:AbstractArray{T}} = FlatFourier(Il[:,:,:,:], ProjLambert(real(T), basetype(A), θpix, size(Ix)[1:2]...))
-
-
-# out-of-place basis conversions
-Fourier(f::FlatMap) = FlatFourier( m_rfft(f.Ix,       (1,2)), f.metadata)
-Map(f::FlatFourier) =     FlatMap(m_irfft(f.Il, f.Ny, (1,2)), f.metadata)
-# in-place conversion
+## basis conversion
+# out-of-place
+Fourier(f::FlatMap) = FlatFourier(m_rfft(f.Ix, (1,2)), f.metadata)
+Map(f::FlatFourier) = FlatMap(m_irfft(f.Il, f.Ny, (1,2)), f.metadata)
+# in-place
 Fourier(f′::FlatFourier, f::FlatMap) =  (m_rfft!(f′.Il, f.Ix, (1,2)); f′)
 Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 
-
-
-
+## promotion
 function promote_b_metadata(
     (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
     (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
@@ -62,9 +68,6 @@ end
 
 
 
-
-
-# const FlatS0{P,T,M} = Union{FlatMap{P,T,M},FlatFourier{P,T,M}}
 
 # ### convenience constructors
 # for (F, X, T) in [

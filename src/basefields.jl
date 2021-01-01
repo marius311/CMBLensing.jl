@@ -30,6 +30,8 @@ similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T)
 # BaseField will end up as ArrayStyle{BaseField}
 BroadcastStyle(::Type{F}) where {F<:BaseField} = ArrayStyle{BaseField}()
 
+# this describe how to compute the broadcast across anything that ends
+# up as ArrayStyle{BaseField}
 function materialize(bc::Broadcasted{ArrayStyle{F}}) where {F<:BaseField}
 
     # recursively go through the broadcast expression and figure out
@@ -49,7 +51,8 @@ function materialize(bc::Broadcasted{ArrayStyle{F}}) where {F<:BaseField}
     # Nspin, Nbatch)
     bc″ = @⌛ convert(Broadcasted{DefaultArrayStyle{4}}, bc′)
 
-    # compute the broadcast, and wrap in the appropriate result type
+    # run the normal array broadcast, and wrap in the appropriate
+    # result type
     @⌛ BaseField{B}(materialize(bc″), metadata)
 
 end
@@ -70,7 +73,7 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{ArrayStyle{F}}) where {
 
 end
 
-# the default preprocessing which just unwraps the underlying array.
+# the default preprocessing, which just unwraps the underlying array.
 # this doesn't use the known (B,metadata) in the first argument, but
 # custom BaseFields are free to override this and dispatch on it if
 # they need

@@ -12,6 +12,7 @@ using Combinatorics
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs
+using EllipsisNotation
 using FileIO
 using FFTW
 using InteractiveUtils
@@ -106,7 +107,7 @@ include("lenseflow.jl")
 # # flat-sky maps
 include("flat_proj.jl")
 include("flat_s0.jl")
-# include("flat_s2.jl")
+include("flat_s2.jl")
 # include("flat_s0s2.jl")
 include("flat_generic.jl")
 # include("flat_batch.jl")

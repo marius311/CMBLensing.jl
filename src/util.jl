@@ -454,3 +454,7 @@ macro show⌛(ex)
         result
     end
 end
+
+
+drop_tail_singleton_dims(x::AbstractArray{T,N}) where {T,N} = size(x,N)==1 ? drop_tail_singleton_dims(dropdims(x,dims=N)) : x
+drop_tail_singleton_dims(x::AbstractArray{T,0}) where {T} = x

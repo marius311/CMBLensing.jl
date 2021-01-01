@@ -15,8 +15,8 @@ const FlatField{B, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{B, M, T, A}
 # end
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,θpix = f
-    Nbatch = size(f.arr, 3)
-    print(io, "$(length(f))-element [$Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)") map, $(θpix)′ pixels] ")
+    Nbatch = size(f.arr, 4)
+    print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-map $(θpix)′-pixels ")
     Base.showarg(io, f, true)
 end
 
@@ -32,9 +32,10 @@ end
 # (::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
 
 ### basis-like definitions
-LenseBasis(::Type{<:FlatS0})  = Map
-DerivBasis(::Type{<:FlatS0})  = Fourier
-# LenseBasis(::Type{<:FlatS2})  =  QUMap
+LenseBasis(::Type{<:FlatS0}) = Map
+LenseBasis(::Type{<:FlatS2}) = QUMap
+DerivBasis(::Type{<:FlatS0}) = Fourier
+DerivBasis(::Type{<:FlatS2}) = QUFourier
 # LenseBasis(::Type{<:FlatS02}) = IQUMap
 # DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}})  =    Fourier
 # DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}})  =  QUFourier
