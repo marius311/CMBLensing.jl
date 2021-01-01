@@ -35,22 +35,22 @@ function materialize(bc::Broadcasted{ArrayStyle{F}}) where {F<:BaseField}
     # recursively go through the broadcast expression and figure out
     # the final `B` and `metadata` of the result, using the
     # promote_b_metadata rules
-    b, metadata = promote_fields_b_metadata(bc)
+    b, metadata = @⌛ promote_fields_b_metadata(bc)
     B = typeof(b)
 
     # "preprocess" all the arguments, which unwraps all of the
     # BaseFields in the expression to just the underlying arrays.
     # `preprocess` can dispatch on the now-known (B, metadata)
-    bc′ = preprocess((B, metadata), bc)
+    bc′ = @⌛ preprocess((B, metadata), bc)
     
     # since the arguments are all now just arrays, convert to default
     # array broadcasting style. it works below to assume
     # dimensionality of 4, which is the maximum if you had (Nx, Ny,
     # Nspin, Nbatch)
-    bc″ = convert(Broadcasted{DefaultArrayStyle{4}}, bc′)
+    bc″ = @⌛ convert(Broadcasted{DefaultArrayStyle{4}}, bc′)
 
     # compute the broadcast, and wrap in the appropriate result type
-    BaseField{B}(materialize(bc″), metadata)
+    @⌛ BaseField{B}(materialize(bc″), metadata)
 
 end
 

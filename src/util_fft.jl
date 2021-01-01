@@ -1,4 +1,36 @@
 
+@doc """
+The number of threads used by FFTW for CPU FFTs (default is the environment
+variable `FFTW_NUM_THREADS`, or if that is not specified its
+`Sys.CPU_THREADS÷2`). This must be set before creating any `FlatField` objects.
+"""
+FFTW_NUM_THREADS = nothing
+@init global FFTW_NUM_THREADS = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
+
+
+@doc """
+Time-limit for FFT planning on CPU (default: 5 seconds). This must be set before
+creating any `FlatField` objects.
+"""
+FFTW_TIMELIMIT = 5
+
+
+# a set of wrapper FFT functions which use a @memoize'd plan
+m_rfft(arr::A, dims) where {T,N,A<:AbstractArray{T,N}} = m_plan_rfft(basetype(A){T,N}, dims, size(arr)...) * arr
+m_irfft(arr::A, d, dims) where {T,N,A<:AbstractArray{Complex{T},N}} = m_plan_rfft(basetype(A){T,N}, dims, d, size(arr)[2:end]...) \ arr
+m_rfft!(dst, arr::A, dims) where {T,N,A<:AbstractArray{T,N}} = mul!(dst,  m_plan_rfft(basetype(A){T,N}, dims, size(arr)...), arr)
+m_irfft!(dst, arr::A, dims) where {T,N,A<:AbstractArray{Complex{T},N}} = ldiv!(dst, m_plan_rfft(basetype(A){T,N}, dims, size(dst)...), copy_if_fftw(arr))
+@memoize function m_plan_rfft(::Type{A}, dims::Dims, sz...) where {T, N, A<:AbstractArray{T,N}, Dims}
+    FFTW.set_num_threads(FFTW_NUM_THREADS)
+    plan_rfft(
+        A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...
+    ) :: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
+end
+# FFTW (but not MKL) destroys the input array for inplace inverse real
+# FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
+copy_if_fftw(x) = FFTW.fftw_vendor==:fftw ? copy(x) : x
+
+
 """
 Convert a matrix A which is the output of a real FFT to a real vector, keeping
 only unqiue real/imaginary entries of A

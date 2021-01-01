@@ -1,20 +1,24 @@
-# const FlatField{P,T,M} = Union{FlatS0{P,T,M},FlatS2{P,T,M},FlatS02{P,T,M}}
+
+const FlatField{B, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{B, M, T, A}
 
 # const FlatFieldMap{P,T,M} = Union{FlatMap{P,T,M},FlatS2Map{P,T,M},FlatS02Map{P,T,M}}
 # const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
 
 # ### pretty printing
-# @show_datatype show_datatype(io::IO, t::Type{F}) where {N,θ,∂mode,D,T,M,F<:FlatField{Flat{N,θ,∂mode,D},T,M}} =
-# print(io, "$(pretty_type_name(F)){$(join(N .* (1,1), "×"))$(D==1 ? "" : "(×$D)") map, $(θ)′ pixels, $(∂mode.name.name), $M}")
-# for F in (:FlatMap, :FlatFourier, 
-#           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
-#           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
+# @show_datatype Base.show_datatype(io::IO, t::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} =
+#     print(io, "$(pretty_type_name(F)){$A,$(M.name.name)}")
+# # for F in (:FlatMap, :FlatFourier, 
+# #           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
+# #           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
+# for F in (:FlatMap, :FlatFourier)
 #     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
 # end
-# function Base.summary(io::IO, f::FlatField{<:Flat{N,<:Any,<:Any,D}}) where {N,D}
-#     print(io, "$(length(f)÷D)", (D==1 ? "" : "(×$D)"), "-element ")
-#     showarg(io, f, true)
-# end
+function Base.summary(io::IO, f::FlatField)
+    @unpack Nx,Ny,θpix = f
+    Nbatch = size(f.arr, 3)
+    print(io, "$(length(f))-element [$Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)") map, $(θpix)′ pixels] ")
+    Base.showarg(io, f, true)
+end
 
 # ### promotion & conversion
 # # note: we don't need to promote the eltype T here since that will be
@@ -28,8 +32,9 @@
 # (::Type{∂mode})(f::FieldTuple{B}) where {∂mode<:∂modes,B} = FieldTuple{B}(map(∂mode,f.fs))
 
 ### basis-like definitions
-LenseBasis(::Type{<:FlatS0})  =    Map
-LenseBasis(::Type{<:FlatS2})  =  QUMap
+LenseBasis(::Type{<:FlatS0})  = Map
+DerivBasis(::Type{<:FlatS0})  = Fourier
+# LenseBasis(::Type{<:FlatS2})  =  QUMap
 # LenseBasis(::Type{<:FlatS02}) = IQUMap
 # DerivBasis(::Type{<:FlatS0{<:Flat{<:Any,<:Any,fourier∂}}})  =    Fourier
 # DerivBasis(::Type{<:FlatS2{<:Flat{<:Any,<:Any,fourier∂}}})  =  QUFourier

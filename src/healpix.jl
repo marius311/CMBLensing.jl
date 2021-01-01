@@ -1,4 +1,23 @@
 
+struct ProjHealpix
+    Nside :: Int
+end
+
+
+const HealpixMap{M<:ProjHealpix, T, A<:AbstractArray{T}} = BaseField{Map, M, T, A}
+
+HealpixMap(Ix::Vector) = HealpixMap(Ix, ProjHealpix(hp.npix2nside(length(Ix))))
+
+f = HealpixMap(rand(12*128^2))
+
+
+@. 2f + f
+
+pretty_type_name(::Type{<:HealpixMap}) = "HealpixMap"
+
+typeof(f)
+
+
 @init global hp = safe_pyimport("healpy")
 
 

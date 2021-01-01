@@ -104,11 +104,11 @@ include("lenseflow.jl")
 # include("powerlens.jl")
 
 # # flat-sky maps
-# include("flat_fftgrid.jl")
+include("flat_proj.jl")
 include("flat_s0.jl")
 # include("flat_s2.jl")
 # include("flat_s0s2.jl")
-# include("flat_generic.jl")
+include("flat_generic.jl")
 # include("flat_batch.jl")
 # include("masking.jl")
 # include("taylens.jl")

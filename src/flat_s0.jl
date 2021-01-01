@@ -1,133 +1,51 @@
 
 
-abstract type FlatProj end
-
 const FlatMap{M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{Map, M, T, A}
 const FlatFourier{M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{Fourier, M, T, A}
 
 const FlatS0{M,T,A} = Union{FlatMap{M,T,A}, FlatFourier{M,T,A}}
 
-LenseBasis(::Type{<:FlatS0}) = Map
-DerivBasis(::Type{<:FlatS0}) = Fourier
-
-
-const FlatField{G, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{G, M, T, A}
-
-
-# default angular resolution used by a number of convenience constructors
-θpix₀ = 1
-
-
-@doc """
-The number of threads used by FFTW for CPU FFTs (default is the environment
-variable `FFTW_NUM_THREADS`, or if that is not specified its
-`Sys.CPU_THREADS÷2`). This must be set before creating any `FlatField` objects.
-"""
-FFTW_NUM_THREADS = nothing
-@init global FFTW_NUM_THREADS = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
-
-
-@doc """
-Time-limit for FFT planning on CPU (default: 5 seconds). This must be set before
-creating any `FlatField` objects.
-"""
-FFTW_TIMELIMIT = 5
-
-
-@kwdef struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}, FFT} <: FlatProj
-    θpix
-    Δx       :: T
-    Ny       :: Int
-    Nx       :: Int
-    # Nbatch   :: Int
-    Ωpix     :: T
-    nyq      :: T
-    Δℓx      :: T
-    Δℓy      :: T
-    ℓy       :: V
-    ℓx       :: V
-    ℓmag     :: M
-    sin2ϕ    :: M
-    cos2ϕ    :: M
-    fft_plan :: FFT
-    units = 1
-    θϕ_center = nothing
-end
-
-
-@memoize function ProjLambert(T, ArrType, θpix, Ny, Nx, Nbatch)
-
-    FFTW.set_num_threads(FFTW_NUM_THREADS)
-
-    Δx           = T(deg2rad(θpix/60))
-    fft_plan     = plan_rfft(ArrType{T}(undef,Ny,Nx,(Nbatch==1 ? () : (Nbatch,))...), (1,2); (ArrType <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
-    Δℓx          = T(2π/(Nx*Δx))
-    Δℓy          = T(2π/(Ny*Δx))
-    nyq          = T(2π/(2Δx))
-    Ωpix         = T(Δx^2)
-    ℓy           = (ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy)[1:Ny÷2+1]
-    ℓx           = (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx)
-    ℓmag         = @. sqrt(ℓx'^2 + ℓy^2)
-    ϕ            = @. angle(ℓx' + im*ℓy)
-    sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
-    if iseven(Ny)
-        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
-    end
-    
-    ProjLambert(;θpix, Nx, Ny, Δx, Δℓx, Δℓy, nyq, Ωpix, ℓx, ℓy, ℓmag, sin2ϕ, cos2ϕ, fft_plan)
-
-end
-
 
 getproperty(f::FlatMap, ::Val{:Ix}) = getfield(f,:arr)
 getproperty(f::FlatFourier, ::Val{:Il}) = getfield(f,:arr)
 
-FlatMap(Ix::A; θpix=1) where {T, A<:Array{T}} = FlatMap(Ix, ProjLambert(T, basetype(A), θpix, size(Ix)[1:2]..., size(Ix,3)))
-FlatFourier(Il::A; θpix=1) where {T, A<:Array{T}} = FlatMap(Ix, ProjLambert(real(T), basetype(A), θpix, size(Ix)[1:2]..., size(Ix,3)))
+FlatMap(Ix::A; θpix=1) where {T, A<:AbstractArray{T}} = FlatMap(Ix[:,:,:,:], ProjLambert(T, basetype(A), θpix, size(Ix)[1:2]...))
+FlatFourier(Il::A; θpix=1) where {T, A<:AbstractArray{T}} = FlatFourier(Il[:,:,:,:], ProjLambert(real(T), basetype(A), θpix, size(Ix)[1:2]...))
 
 
 # out-of-place basis conversions
-Fourier(f::FlatMap) = FlatFourier(f.fft_plan * f.Ix, f.metadata)
-Map(f::FlatFourier) = FlatMap(f.fft_plan \ f.Il, f.metadata)
+Fourier(f::FlatMap) = FlatFourier( m_rfft(f.Ix,       (1,2)), f.metadata)
+Map(f::FlatFourier) =     FlatMap(m_irfft(f.Il, f.Ny, (1,2)), f.metadata)
 # in-place conversion
-Fourier(f′::FlatFourier, f::FlatMap) =  (mul!(f′.Il, f.fft_plan, f.Ix); f′)
-Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, f.fft_plan, maybecopy(f.Il)); f′)
-# need this for FFTW (but not MKL) see https://github.com/JuliaMath/FFTW.jl/issues/158
-@static FFTW.fftw_vendor==:fftw ? maybecopy(x) = copy(x) : maybecopy(x) = x
+Fourier(f′::FlatFourier, f::FlatMap) =  (m_rfft!(f′.Il, f.Ix, (1,2)); f′)
+Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 
 
-
-
-
-@show_datatype Base.show_datatype(io::IO, t::Type{F}) where {G,M,T,A,F<:FlatField{G,M,T,A}} =
-    print(io, "$(pretty_type_name(F)){$A,$(M.name.name)}")
-for F in (:FlatMap, :FlatFourier)
-    @eval pretty_type_name(::Type{<:$F}) = $(string(F))
-end
-function Base.summary(io::IO, f::FlatField)
-    @unpack Nx,Ny,θpix = f
-    Nbatch = size(f.arr, 3)
-    print(io, "$(length(f))-element [$Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)") map, $(θpix)′ pixels] ")
-    Base.showarg(io, f, true)
-end
 
 
 function promote_b_metadata(
-    (b, metadata) ::Tuple{B,<:ProjLambert{T}}, 
-    (b′,metadata′)::Tuple{B,<:ProjLambert{T′}}
-) where {B,T,T′}
+    (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
+    (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
+) where {B,T₁,T₂}
 
-    if metadata===metadata′
-        return (b, metadata)
-    elseif @show(metadata.θpix==metadata′.θpix && metadata.Ny==metadata′.Ny && metadata.Nx==metadata′.Nx)
-        Tres = promote_type(T,T′)
-        if Tres==T
-            return (b, metadata)
-        elseif Tres==T′
-            return (b, metadata′)
-        end
+    # even though if metadata₁ === metadata₂ we could technically
+    # return either, it helps inference if we always return the
+    # technically-"wider" one. this line is optimized away at compile
+    # time anyway so doesn't slow us down if metadata₁ === metadata₂
+    # is indeed true
+    wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
+
+    if (
+        metadata₁ === metadata₂ || (
+            metadata₁.θpix    == metadata₂.θpix    &&
+            metadata₁.Ny      == metadata₂.Ny      &&
+            metadata₁.Nx      == metadata₂.Nx      
+        )
+    )
+        (b, wider_metadata)
+    else
+        Unknown()
     end
-    return Unknown()
 
 end
 
