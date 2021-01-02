@@ -24,7 +24,7 @@ m_irfft!(dst, arr::A, dims) where {T,N,A<:AbstractArray{Complex{T},N}} = ldiv!(d
     FFTW.set_num_threads(FFTW_NUM_THREADS)
     plan_rfft(
         A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...
-    ) :: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
+    ) #:: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158

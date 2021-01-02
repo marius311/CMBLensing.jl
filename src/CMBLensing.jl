@@ -134,9 +134,9 @@ include("flat_generic.jl")
 
 # include("autodiff.jl")
 
-# # gpu
-# is_gpu_backed(x) = false
-# @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
+# gpu
+is_gpu_backed(x) = false
+@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
 
 # # misc init
 # # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

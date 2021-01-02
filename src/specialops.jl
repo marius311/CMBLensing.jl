@@ -10,7 +10,7 @@ global_rng_for(::Type{<:DiagOp{F}}) where {F} = global_rng_for(F)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
 (\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(diag(D) .\ B(f))
 
-# broadcasting
+# # broadcasting
 # struct DiagOpStyle{FS} <: AbstractArrayStyle{2} end
 # BroadcastStyle(::Type{D}) where {F<:Field,D<:DiagOp{F}} = DiagOpStyle{typeof(BroadcastStyle(F))}()
 # BroadcastStyle(::DiagOpStyle{FS1}, ::DiagOpStyle{FS2}) where {FS1,FS2} = DiagOpStyle{typeof(result_style(FS1(),FS2()))}()

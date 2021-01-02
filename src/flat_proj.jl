@@ -20,7 +20,7 @@ abstract type FlatProj end
     ℓmag     :: M
     sin2ϕ    :: M
     cos2ϕ    :: M
-    units = 1
+    units     = 1
     θϕ_center = nothing
 end
 

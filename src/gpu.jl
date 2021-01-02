@@ -6,7 +6,7 @@ using CUDA.CUSOLVER: CuQR
 
 export cuda_gc
 
-const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
+const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
 # a function version of @cuda which can be referenced before CUDA is
 # loaded as long as it exists by run-time (unlike the macro @cuda which must
@@ -23,30 +23,30 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
 
 
 ### broadcasting
-preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
-preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
-    adapt(M,broadcastable(F, arg))
-function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
-    bc′ = preprocess(dest, bc)
-    copyto!(firstfield(dest), bc′)
-    return dest
-end
-BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
-    FlatS0Style{basetype(F){P},CuArray}()
+# preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
+#     Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
+# preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
+#     adapt(M,broadcastable(F, arg))
+# function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
+#     bc′ = preprocess(dest, bc)
+#     copyto!(firstfield(dest), bc′)
+#     return dest
+# end
+# BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
+#     FlatS0Style{basetype(F){P},CuArray}()
 
 
 ### misc
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
 
-pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
-inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
-fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
-==(a::CuFlatS0, b::CuFlatS0) = (==)(firstfield.(promote(a,b))...)
-≈(a::CuFlatS0, b::CuFlatS0) = (≈)(firstfield.(promote(a,b))...)
-≈(a::Diagonal{<:Any,<:CuFlatS0}, b::Diagonal{<:Any,<:CuFlatS0}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
-sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
+pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
+inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
+fill!(f::CuBaseField, x) = (fill!(firstfield(f),x); f)
+==(a::CuBaseField, b::CuBaseField) = (==)(firstfield.(promote(a,b))...)
+≈(a::CuBaseField, b::CuBaseField) = (≈)(firstfield.(promote(a,b))...)
+≈(a::Diagonal{<:Any,<:CuBaseField}, b::Diagonal{<:Any,<:CuBaseField}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
+sum(f::CuBaseField; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 
 # these only work for Reals in CUDA

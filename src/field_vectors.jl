@@ -77,13 +77,13 @@ mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) =
 # only thing needed for TupleAdjoints
 # mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
-function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
-    a,b,c,d = src
-    det⁻¹ = pinv(@. a*d-b*c)
-    @. dst[1,1] =  det⁻¹ * d
-    @. dst[1,2] = -det⁻¹ * b
-    @. dst[2,1] = -det⁻¹ * c
-    @. dst[2,2] =  det⁻¹ * a
+function pinv!(dst::FieldOrOpMatrix{<:Diagonal}, src::FieldOrOpMatrix{<:Diagonal})
+    a,b,c,d = diag.(src)
+    det⁻¹ = diag(pinv(Diagonal(@. a*d-b*c)))
+    @. dst[1,1].diag =  det⁻¹ * d
+    @. dst[1,2].diag = -det⁻¹ * b
+    @. dst[2,1].diag = -det⁻¹ * c
+    @. dst[2,2].diag =  det⁻¹ * a
     dst
 end
 

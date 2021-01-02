@@ -22,42 +22,46 @@ lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
 @propagate_inbounds getindex(f::BaseField, I...) = getindex(f.arr, I...)
 @propagate_inbounds setindex!(f::BaseField, X, I...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
-
+copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 ## broadcasting 
 
-# the broadcast style of any expression which involves at least one
-# BaseField will end up as ArrayStyle{BaseField}
-BroadcastStyle(::Type{F}) where {F<:BaseField} = ArrayStyle{BaseField}()
+# this makes it so the broadcast style of any expression which
+# involves at least one BaseField will end up as BaseFieldStyle{S}.
+# the S carries around what the BroadcastStyle would have been for the
+# underlying arrays, and is promoted as per the usual rules by the
+# result_style call below
+struct BaseFieldStyle{S} <: AbstractArrayStyle{1} end
+BroadcastStyle(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = BaseFieldStyle{typeof(BroadcastStyle(A))}()
+BroadcastStyle(::BaseFieldStyle{S₁}, ::BaseFieldStyle{S₂}) where {S₁,S₂} = BaseFieldStyle{typeof(result_style(S₁(), S₂()))}()
+BroadcastStyle(S::BaseFieldStyle, ::DefaultArrayStyle{0})  = S
 
-# this describe how to compute the broadcast across anything that ends
-# up as ArrayStyle{BaseField}
-function materialize(bc::Broadcasted{ArrayStyle{F}}) where {F<:BaseField}
+# this describes how to compute the broadcast across anything that ends
+# up as BaseFieldStyle
+function materialize(bc::Broadcasted{BaseFieldStyle{S}}) where {S}
 
     # recursively go through the broadcast expression and figure out
     # the final `B` and `metadata` of the result, using the
     # promote_b_metadata rules
-    b, metadata = @⌛ promote_fields_b_metadata(bc)
+    b, metadata = promote_fields_b_metadata(bc)
     B = typeof(b)
 
     # "preprocess" all the arguments, which unwraps all of the
     # BaseFields in the expression to just the underlying arrays.
     # `preprocess` can dispatch on the now-known (B, metadata)
-    bc′ = @⌛ preprocess((B, metadata), bc)
+    bc′ = preprocess((B, metadata), bc)
     
-    # since the arguments are all now just arrays, convert to default
-    # array broadcasting style. it works below to assume
-    # dimensionality of 4, which is the maximum if you had (Nx, Ny,
-    # Nspin, Nbatch)
-    bc″ = @⌛ convert(Broadcasted{DefaultArrayStyle{4}}, bc′)
+    # convert the expression to style S, which is what it would have
+    # been for the equivalent broadcast over the underlying arrays
+    bc″ = convert(Broadcasted{S}, bc′)
 
     # run the normal array broadcast, and wrap in the appropriate
     # result type
-    @⌛ BaseField{B}(materialize(bc″), metadata)
+    BaseField{B}(materialize(bc″), metadata)
 
 end
 
-function materialize!(dst::BaseField{B}, bc::Broadcasted{ArrayStyle{F}}) where {B, F<:BaseField}
+function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S}}) where {B,S}
     
     # for inplace broadcasting, we don't need to compute the
     # (B,metadata) from the broadcasted object, we just take it from
@@ -65,7 +69,7 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{ArrayStyle{F}}) where {
     bc′ = preprocess((B, dst.metadata), bc)
     
     # same as before
-    bc″ = convert(Broadcasted{DefaultArrayStyle{ndims(dst.arr)}}, bc′)
+    bc″ = convert(Broadcasted{S}, bc′)
     materialize!(dst.arr, bc″)
     
     # return field itself
