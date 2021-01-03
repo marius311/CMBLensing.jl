@@ -28,46 +28,6 @@ Map(f::FlatFourier) = FlatMap(m_irfft(f.Il, f.Ny, (1,2)), f.metadata)
 Fourier(f′::FlatFourier, f::FlatMap) =  (m_rfft!(f′.Il, f.Ix, (1,2)); f′)
 Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 
-## promotion
-function promote_b_metadata(
-    (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
-    (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
-) where {B,T₁,T₂}
-
-    # even though if metadata₁ === metadata₂ we could technically
-    # return either, it helps inference if we always return the
-    # technically-"wider" one. this line is optimized away at compile
-    # time anyway so doesn't slow us down if metadata₁ === metadata₂
-    # is indeed true
-    wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
-
-    if (
-        metadata₁ === metadata₂ || (
-            metadata₁.θpix    == metadata₂.θpix    &&
-            metadata₁.Ny      == metadata₂.Ny      &&
-            metadata₁.Nx      == metadata₂.Nx      
-        )
-    )
-        (b, wider_metadata)
-    else
-        Unknown()
-    end
-
-end
-
-function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
-    if ∇d.coord == 1
-        broadcasted(*, ∇d.prefactor * im, metadata.ℓx')
-    elseif ∇d.coord == 2
-        broadcasted(*, ∇d.prefactor * im, metadata.ℓy)
-    else
-        error()
-    end
-end
-
-
-
-
 
 # ### convenience constructors
 # for (F, X, T) in [

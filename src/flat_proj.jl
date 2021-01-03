@@ -24,7 +24,6 @@ abstract type FlatProj end
     θϕ_center = nothing
 end
 
-
 @memoize function ProjLambert(T, storage, θpix, Ny, Nx)
 
     Δx           = T(deg2rad(θpix/60))
@@ -45,7 +44,69 @@ end
 
 end
 
+typealias(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 
+
+
+### promotion
+
+# used in broadcasting to decide the result of broadcasting across two
+# fields with a given `metadata` and basis, `b` (where b is an
+# instance of type-parameter B), and 
+function promote_bcast_b_metadata(
+    (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
+    (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
+) where {B,T₁,T₂}
+
+    # even though if metadata₁ === metadata₂ we could technically
+    # return either, it helps inference if we always return the
+    # technically-"wider" one. this line is optimized away at compile
+    # time anyway so doesn't slow us down if metadata₁ === metadata₂
+    # is indeed true
+    wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
+
+    if (
+        metadata₁ === metadata₂ || (
+            metadata₁.θpix    == metadata₂.θpix &&
+            metadata₁.Ny      == metadata₂.Ny   &&
+            metadata₁.Nx      == metadata₂.Nx      
+        )
+    )
+        (b, wider_metadata)
+    else
+        error("""Can't broadcast two fields with the following differing metadata:
+        1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx)))
+        2: $(select(fields(metadata₂),(:θpix,:Ny,:Nx)))
+        """)
+    end
+
+end
+
+
+# used in non-broadcasted algebra to decide the result of performing
+# some operation across two fields with a given `metadata`. this is
+# free to do more generic promotion than promote_bcast_b_metadata. the
+# result should be a common metadata which we convert both fields to
+# then do a succesful broadcast
+function promote_metadata(metadata₁::ProjLambert, metadata₂::ProjLambert)
+    if (
+        metadata₁ === metadata₂ || (
+            metadata₁.θpix         == metadata₂.θpix    &&
+            metadata₁.Ny           == metadata₂.Ny      &&
+            metadata₁.Nx           == metadata₂.Nx      &&
+            metadata₁.storage      == metadata₂.storage
+        )
+    )
+        (metadata₁, metadata₂)
+    else
+        error("""Can't promote two fields with the following differing metadata:
+        1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx,:storage)))
+        2: $(select(fields(metadata₂),(:θpix,:Ny,:Nx,:storage)))
+        """)
+    end
+    # in the future, could add rules here to allow e.g. automatically
+    # upgrading one field if they have different resolutions, etc...
+end
 
 
 

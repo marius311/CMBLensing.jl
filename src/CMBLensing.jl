@@ -2,7 +2,7 @@
 module CMBLensing
 
 using Adapt
-using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted, broadcasted,
+using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
 using Base.Threads
@@ -58,7 +58,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
-import Base.Broadcast: materialize, instantiate, preprocess
+import Base.Broadcast: materialize, preprocess, broadcasted
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±

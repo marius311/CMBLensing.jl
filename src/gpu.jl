@@ -8,6 +8,8 @@ export cuda_gc
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
+typealias(::Type{CuArray{T,N}}) where {T,N} = "CuArray{$T,$N}"
+
 # a function version of @cuda which can be referenced before CUDA is
 # loaded as long as it exists by run-time (unlike the macro @cuda which must
 # exist at compile-time)
@@ -21,32 +23,17 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
     Random.seed!(global_rng_for(CuArray), seed)
 
 
-
-### broadcasting
-# preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-#     Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
-# preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
-#     adapt(M,broadcastable(F, arg))
-# function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
-#     bc′ = preprocess(dest, bc)
-#     copyto!(firstfield(dest), bc′)
-#     return dest
-# end
-# BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
-#     FlatS0Style{basetype(F){P},CuArray}()
-
-
 ### misc
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
 
 pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
-fill!(f::CuBaseField, x) = (fill!(firstfield(f),x); f)
-==(a::CuBaseField, b::CuBaseField) = (==)(firstfield.(promote(a,b))...)
-≈(a::CuBaseField, b::CuBaseField) = (≈)(firstfield.(promote(a,b))...)
+fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
+==(a::CuBaseField, b::CuBaseField) = (==)(promote(a.arr, b.arr)...)
+≈(a::CuBaseField, b::CuBaseField) = (≈)(promote(a.arr, b.arr)...)
 ≈(a::Diagonal{<:Any,<:CuBaseField}, b::Diagonal{<:Any,<:CuBaseField}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
-sum(f::CuBaseField; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
+sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 
 # these only work for Reals in CUDA
@@ -55,6 +42,8 @@ CUDA.isfinite(x::Complex) = Base.isfinite(x)
 CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
 CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 
+# until https://github.com/JuliaGPU/CUDA.jl/pull/618
+CUDA.cufunc(::typeof(angle)) = CUDA.angle
 
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSR rather than a
 # dense CuArray

@@ -1,6 +1,7 @@
 
-# A tuple of (Pix,Spin,Basis) defines the generic behavior of our fields
 abstract type Basis end
+
+typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
 
 # All fields are a subtype of this. 
 abstract type Field{B<:Basis,T} <: AbstractVector{T} end
@@ -23,20 +24,20 @@ struct IQUMap     <: Basis end
 struct IEBMap     <: Basis end
 
 
-# basis_promotion_rules = Dict(
-#     # S0
-#     (Map,       Fourier)    => Map,
-#     # S2
-#     (QUMap,     QUFourier)  => QUMap,
-#     (EBMap,     EBFourier)  => EBFourier,
-#     (QUMap,     EBMap)      => QUMap,
-#     (QUFourier, EBFourier)  => QUFourier,
-#     (QUMap,     EBFourier)  => QUMap,
-#     (QUFourier, EBMap)      => QUFourier
-# )
-# for ((B1,B2),B′) in basis_promotion_rules
-#     @eval promote_rule(::Type{$B1}, ::Type{$B2}) = $B′
-# end
+basis_promotion_rules = Dict(
+    # S0
+    (Map,       Fourier)    => Map,
+    # S2
+    (QUMap,     QUFourier)  => QUMap,
+    (EBMap,     EBFourier)  => EBFourier,
+    (QUMap,     EBMap)      => QUMap,
+    (QUFourier, EBFourier)  => QUFourier,
+    (QUMap,     EBFourier)  => QUMap,
+    (QUFourier, EBMap)      => QUFourier
+)
+for ((B₁,B₂),B) in basis_promotion_rules
+    @eval promote_rule(::Type{$B₁}, ::Type{$B₂}) = $B
+end
 
 
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
@@ -164,33 +165,6 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 # global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 
-# # 
-# # ### Matrix conversion
-# # 
-# # # We can build explicit matrix representations of linear operators by applying
-# # # them to a set of basis vectors which form a complete basis (in practice this
-# # # is prohibitive except for fairly small maps, e.g. 16x16 pixels, but is quite
-# # # useful)
-# # 
-# # """
-# #     full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true)
-# #     full(::Type{F}, L::LinOp; progress=true)
-# # 
-# # Construct an explicit matrix representation of the linear operator `L` by
-# # applying it to a set of vectors which form a complete basis. The `Fin` and
-# # `Fout` types should be fields which specify the input and output bases for the
-# # representation (or just `F` if `L` is square and we want the same input/output
-# # bases)
-# # 
-# # The name `full` is to be consistent with Julia's SparseArrays where `full`
-# # builds a full matrix from a sparse one.
-# # """
-# # full(::Type{Fin}, ::Type{Fout}, L::LinOp; progress=true) where {Fin<:Field, Fout<:Field} =
-# #     hcat(@showprogress(progress ? 1 : Inf, [(Fout(L*(x=zeros(length(Fin)); x[i]=1; x)[Tuple{Fin}]))[:] for i=1:length(Fin)])...)
-# # full(::Type{F}, L::LinOp; kwargs...) where {F<:Field} = full(F,F,L; kwargs...)
-# # 
-# # 
-
 
 # ### Other generic stuff
 
@@ -218,39 +192,39 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 # pix(::F) where {F<:Field} = pix(F)
 
 
-# # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
-# # matrix of maps. the following definitions make it so that Fields aren't
-# # splatted into a giant matrix when doing [f f; f f] (which they would othewise
-# # be since they're Arrays)
-# hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
-# hcat(values::Field...) = hcat(([x] for x in values)...)
+# we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
+# matrix of maps. the following definitions make it so that Fields aren't
+# splatted into a giant matrix when doing [f f; f f] (which they would othewise
+# be since they're Arrays)
+hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
+hcat(values::Field...) = hcat(([x] for x in values)...)
 
-# ### printing
-# print_array(io::IO, f::Field) = print_array(io, f[:])
-# show_vector(io::IO, f::Field) = show_vector(io, f[:])
+### printing
+print_array(io::IO, f::Field) = print_array(io, f[:])
+show_vector(io::IO, f::Field) = show_vector(io, f[:])
 # show_vector(io::IO, f::ImplicitField) = print(io, "[…]")
 
 
 # addition/subtraction works between any fields and scalars, promotion is done
 # automatically if fields are in different bases
 for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
-    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote_fields(a,b) : (a,b))...)
 end
 
-# ≈(a::Field, b::Field) = ≈(promote(a,b)...)
+≈(a::Field, b::Field) = ≈(promote_fields(a,b)...)
 
-# # multiplication/division is not strictly defined for abstract vectors, but
-# # make it work anyway if the two fields are exactly the same type, in which case
-# # its clear we wanted broadcasted multiplication/division. 
-# for op in (:*, :/)
-#     @eval ($op)(a::Field{B,S,P}, b::Field{B,S,P}) where {B,S,P} = broadcast($op, a, b)
-# end
+# multiplication/division is not strictly defined for abstract vectors, but
+# make it work anyway if the two fields are exactly the same type, in which case
+# its clear we wanted broadcasted multiplication/division. 
+for op in (:*, :/)
+    @eval ($op)(a::Field{B}, b::Field{B}) where {B} = broadcast($op, a, b)
+end
 
-# # needed unless I convince them to undo the changes here:
-# # https://github.com/JuliaLang/julia/pull/35257#issuecomment-657901503
-# if VERSION>v"1.4"
-#     *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
-# end
+# needed unless I convince them to undo the changes here:
+# https://github.com/JuliaLang/julia/pull/35257#issuecomment-657901503
+if VERSION>v"1.4"
+    *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
+end
 
 # (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
 # (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)

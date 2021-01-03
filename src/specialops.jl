@@ -10,20 +10,6 @@ global_rng_for(::Type{<:DiagOp{F}}) where {F} = global_rng_for(F)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
 (\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(diag(D) .\ B(f))
 
-# # broadcasting
-# struct DiagOpStyle{FS} <: AbstractArrayStyle{2} end
-# BroadcastStyle(::Type{D}) where {F<:Field,D<:DiagOp{F}} = DiagOpStyle{typeof(BroadcastStyle(F))}()
-# BroadcastStyle(::DiagOpStyle{FS1}, ::DiagOpStyle{FS2}) where {FS1,FS2} = DiagOpStyle{typeof(result_style(FS1(),FS2()))}()
-# BroadcastStyle(S::DiagOpStyle, ::DefaultArrayStyle{0}) = S
-# similar(bc::Broadcasted{DiagOpStyle{FS}}, ::Type{T}) where {FS,T} = Diagonal(similar(FS,T))
-# instantiate(bc::Broadcasted{<:DiagOpStyle}) = bc
-# diag_data(D::Diagonal) = D.diag
-# diag_data(x) = x
-# function copyto!(dest::DiagOp, bc::Broadcasted{Nothing})
-#     copyto!(dest.diag, map_bc_args(diag_data, bc))
-#     dest
-# end
-
 # the generic versions of these kind of suck so we need these specializized
 # versions:
 (*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
@@ -73,7 +59,6 @@ get_storage(L::DiagOp) = get_storage(diag(L))
 # familiar ∇ = (d/dθ, 1/sinθ d/dϕ), (but whose components are neither covariant
 # nor contravariant). 
 
-
 Base.@enum Covariance COVARIANT CONTRAVARIANT
 
 struct ∇diag <: Field{DerivBasis,Bottom}
@@ -87,7 +72,7 @@ struct ∇²diag <: Field{DerivBasis,Bottom} end
 
 get_g_metadata(::∇diag) = nothing
 
-Base.require_one_based_indexing(::∇diag) = nothing # allows Diagonal(::∇ᵢdiag)
+Base.require_one_based_indexing(::∇diag) = nothing # this make Diagonal(::∇ᵢdiag) work
 
 
 

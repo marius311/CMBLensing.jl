@@ -4,15 +4,10 @@ const FlatField{B, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{B, M, T, A}
 # const FlatFieldMap{P,T,M} = Union{FlatMap{P,T,M},FlatS2Map{P,T,M},FlatS02Map{P,T,M}}
 # const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
 
-# ### pretty printing
-# @show_datatype Base.show_datatype(io::IO, t::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} =
-#     print(io, "$(pretty_type_name(F)){$A,$(M.name.name)}")
-# # for F in (:FlatMap, :FlatFourier, 
-# #           :FlatQUMap, :FlatQUFourier, :FlatEBMap, :FlatEBFourier, 
-# #           :FlatIQUMap, :FlatIQUFourier, :FlatIEBMap, :FlatIEBFourier)
-# for F in (:FlatMap, :FlatFourier)
-#     @eval pretty_type_name(::Type{<:$F}) = $(string(F))
-# end
+### pretty printing
+Base.show_datatype(io::IO, t::Type{<:Field}) = print(io, typealias(t))
+typealias(T) = string(T)
+typealias(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(B.name.name){$(typealias(A)),$(typealias(M))}"
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,θpix = f
     Nbatch = size(f.arr, 4)
@@ -45,25 +40,18 @@ DerivBasis(::Type{<:FlatS2}) = QUFourier
 # DerivBasis(::Type{<:FlatS02{<:Flat{<:Any,<:Any,map∂}}})     = IQUMap
 
 
-# ### derivatives
+### derivatives
 
-# ## Fourier-space
-# # the use of @generated here is for memoization so that we don't have do the
-# # `prefactor * im * ...` each time. actually, since for the first two cases
-# # these are only 1-d arrays, that's a completely unnecessary optimization, but
-# # without the @generated it triggers an order-dependenant compilation bug which
-# # e.g. slows down LenseFlow by a factor of ~4 so we gotta keep it for now ¯\_(ツ)_/¯
-# function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
-#     @. ∇d.prefactor * im * metadata.ℓx'
-# end
-# @generated function broadcastable(::Type{F}, ::∇diag{2,<:Any,prefactor}) where {P,T,M,prefactor,F<:FlatFourier{P,T,M}}
-#     @unpack ky, Ny = fieldinfo(F)
-#     basetype(M)(@. prefactor * im * ky[1:Ny÷2+1])
-# end
-# @generated function broadcastable(::Type{F}, ::∇²diag) where {P,T,M,F<:FlatFourier{P,T,M}}
-#     @unpack kx, ky, Ny = fieldinfo(F)
-#     basetype(M)(@. kx'^2 + ky[1:Ny÷2+1]^2)
-# end
+function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+    if ∇d.coord == 1
+        broadcasted(*, ∇d.prefactor * im, metadata.ℓx')
+    elseif ∇d.coord == 2
+        broadcasted(*, ∇d.prefactor * im, metadata.ℓy)
+    else
+        error()
+    end
+end
+
 
 # ## Map-space
 # function copyto!(f′::F, bc::Broadcasted{<:Any,<:Any,typeof(*),Tuple{∇diag{coord,covariant,prefactor},F}}) where {coord,covariant,prefactor,T,θ,N,D,F<:FlatMap{Flat{N,θ,map∂,D},T}}
