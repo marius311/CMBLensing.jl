@@ -27,7 +27,7 @@ copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 
 ## promotion
-function promote_fields(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
+function promote(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
     metadata, = promote_metadata(f₁.metadata, f₂.metadata)
     B = promote_type(B₁,B₂)
     B(convert_metadata(metadata,f₁)), B(convert_metadata(metadata,f₂))

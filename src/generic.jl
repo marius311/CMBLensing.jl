@@ -179,17 +179,11 @@ const FieldOpScal = Union{Field,LinOp,Scalar}
 # cache(L::Adjoint, f) = cache(L',f)'
 # cache!(L::Adjoint, f) = cache!(L',f)'
 
-# # convenience "getter" functions for the Basis/Spin/Pix
-# # basis of UnionAlls like basis(Field) will return Basis (which means any Basis)
-# basis(::Type{<:Field}) = Basis
-# basis(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = B
-# basis(::F) where {F<:Field} = basis(F)
-# spin(::Type{<:Field}) = Spin
-# spin(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = S
-# spin(::F) where {F<:Field} = spin(F)
-# pix(::Type{<:Field}) = Pix
-# pix(::Type{<:Field{B,S,P}}) where {B<:Basis,S<:Spin,P<:Pix} = P
-# pix(::F) where {F<:Field} = pix(F)
+
+# convenience "getter" functions for the B basis type parameter
+basis(f::F) where {F<:Field} = basis(F)
+basis(::Type{<:Field{B}}) where {B<:Basis} = B
+basis(::Type{<:Field}) = Basis
 
 
 # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
@@ -208,10 +202,10 @@ show_vector(io::IO, f::Field) = show_vector(io, f[:])
 # addition/subtraction works between any fields and scalars, promotion is done
 # automatically if fields are in different bases
 for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
-    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote_fields(a,b) : (a,b))...)
+    @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
 end
 
-≈(a::Field, b::Field) = ≈(promote_fields(a,b)...)
+≈(a::Field, b::Field) = ≈(promote(a,b)...)
 
 # multiplication/division is not strictly defined for abstract vectors, but
 # make it work anyway if the two fields are exactly the same type, in which case

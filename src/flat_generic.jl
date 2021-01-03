@@ -6,8 +6,8 @@ const FlatField{B, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{B, M, T, A}
 
 ### pretty printing
 Base.show_datatype(io::IO, t::Type{<:Field}) = print(io, typealias(t))
-typealias(T) = string(T)
-typealias(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(B.name.name){$(typealias(A)),$(typealias(M))}"
+typealias(t) = sprint(io -> invoke(Base.show_datatype, Tuple{IO,DataType}, io, t))
+typealias(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,θpix = f
     Nbatch = size(f.arr, 4)
