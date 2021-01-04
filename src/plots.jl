@@ -52,9 +52,9 @@ end
     colorbar_title --> L"\mu \mathrm{K~amin}"
 
     arr = Array(m[:Ix]) .* data_scale
-    #clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
-    #clims := (-clim, clim)
-    #title := L"Map~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
+    clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
+    clims := (-clim, clim)
+    #title := L"\mathrm{Map}~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
     arr
 end
 
@@ -78,10 +78,6 @@ end
     yticks := tick_locations(Ny, θpix)
     tick_direction := :out
 
-    # choices about axes
-    axis --> true
-    axisstyle --> :box 
-
     # labeling
     xguide --> L"x"
     yguide --> L"y"
@@ -94,6 +90,7 @@ end
         arr = Array(m[:Ex])
         clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
         clims := (-clim, clim)
+        framestyle --> :box 
         #title := L"E~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
         arr
     end
@@ -103,6 +100,7 @@ end
         arr = Array(m[:Bx])
         clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
         clims := (-clim, clim)
+        framestyle --> :box 
         #title := L"B~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
         arr
     end
