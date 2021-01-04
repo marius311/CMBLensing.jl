@@ -99,7 +99,7 @@ function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ł∇f = Ł(Ð∇f)
         @! v   = p' * Ł∇f
     end
-    return (v!, L.memŁf .= Ł(f₀))
+    return (v!, copyto!(L.memŁf,Ł(f₀)))
 end
 
 function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
@@ -112,48 +112,48 @@ function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ð_Łf_p = Ð(Łf_p)
         @! v = -∇ᵢ' * Ð_Łf_p
     end
-    return (v!, L.memÐf .= Ð(f₀))
+    return (v!, copyto!(L.memÐf,Ð(f₀)))
 end
 
-# function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)
+function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)
     
-#     function v!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, t::Real, (f, δf, δϕ)::FieldTuple)
+    function v!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, t::Real, (f, δf, δϕ)::FieldTuple)
     
-#         p   = L.p[τ(t)]
-#         M⁻¹ = L.M⁻¹[τ(t)]
+        p   = L.p[τ(t)]
+        M⁻¹ = L.M⁻¹[τ(t)]
         
-#         # dδf/dt
-#         Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
-#         @! Łδf     = Ł(δf)
-#         @! Łδf_p   = p * Łδf
-#         @! Ð_Łδf_p = Ð(Łδf_p)
-#         @! dδf_dt  = -∇ᵢ' * Ð_Łδf_p
+        # dδf/dt
+        Łδf, Łδf_p, Ð_Łδf_p = L.memŁf, L.memŁvf, L.memÐvf
+        @! Łδf     = Ł(δf)
+        @! Łδf_p   = p * Łδf
+        @! Ð_Łδf_p = Ð(Łδf_p)
+        @! dδf_dt  = -∇ᵢ' * Ð_Łδf_p
         
-#         # df/dt
-#         Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
-#         @! Ðf     = Ð(f)
-#         @! Ð∇f    = ∇ᵢ * Ðf
-#         @! Ł∇f    = Ł(Ð∇f)
-#         @! df_dt  = p' * Ł∇f
+        # df/dt
+        Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
+        @! Ðf     = Ð(f)
+        @! Ð∇f    = ∇ᵢ * Ðf
+        @! Ł∇f    = Ł(Ð∇f)
+        @! df_dt  = p' * Ł∇f
 
-#         # dδϕ/dt
-#         δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
-#         @! δfᵀ_∇f       = tuple_adjoint(Łδf) * Ł∇f
-#         @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
-#         @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
-#         @! dδϕ_dt       = -∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
-#         memÐϕ = L.memÐϕ
-#         for i=1:2, j=1:2
-#             dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j].diag * M⁻¹_δfᵀ_∇f[i]))))
-#         end
+        # dδϕ/dt
+        δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
+        @! δfᵀ_∇f       = spin_adjoint(Łδf) * Ł∇f
+        @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
+        @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
+        @! dδϕ_dt       = -∇ⁱ' * Ð_M⁻¹_δfᵀ_∇f
+        memÐϕ = L.memÐϕ
+        for i=1:2, j=1:2
+            dδϕ_dt .+= (@! memÐϕ = ∇ⁱ[i]' * (@! memÐϕ = ∇ᵢ[j]' * (@! memÐϕ = Ð(@. L.memŁϕ = t * p[j].diag * M⁻¹_δfᵀ_∇f[i]))))
+        end
         
-#         FieldTuple(df_dt, dδf_dt, dδϕ_dt)
+        FieldTuple(df_dt, dδf_dt, dδϕ_dt)
     
-#     end
+    end
     
-#     return (v!, FieldTuple(Ł(f₀), Ð(δf₀), batch_promote!(L.memÐϕ,Ð(zero(getϕ(L))))))
+    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), copyto!(L.memÐϕ,Ð(zero(getϕ(L))))))
     
-# end
+end
 
 # adapting storage
 adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))

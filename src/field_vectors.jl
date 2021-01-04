@@ -74,8 +74,8 @@ mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) =
     ((@. v[1] = w[1].diag * f); (@. v[2] = w[2].diag * f); v)
 mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
     ((@. v[1] = x.diag * w[1].diag * f); (@. v[2] = x.diag * w[2].diag * f); v)
-# only thing needed for TupleAdjoints
-# mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
+# only thing needed for SpinAdjoints
+mul!(v::FieldVector, f::SpinAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
 function pinv!(dst::FieldOrOpMatrix{<:Diagonal}, src::FieldOrOpMatrix{<:Diagonal})
     a,b,c,d = diag.(src)

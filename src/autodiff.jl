@@ -5,7 +5,7 @@
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
 # this may create a LazyBinaryOp, unlike Zygote's
-Zygote.accum(a::LinOp, b::LinOp) = a+b
+Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 
 ## Fields
 
@@ -73,12 +73,12 @@ end
 end
 
 # don't know why Zygote's default adjoint for this breaks in various ways but this is simple enough
-@adjoint +(I::UniformScaling, L::Union{LinOp, FieldOrOpMatrix}) = I+L, Δ->(nothing, Δ)
+@adjoint +(I::UniformScaling, L::Union{FieldOp, FieldOrOpMatrix}) = I+L, Δ->(nothing, Δ)
 
 # Zygote/lib/array.jl:311 would suggest this should be:
 #    M⁻¹, Δ->(-M⁻¹' * Δ * M⁻¹' + (- M * M⁻¹ * Δ' * M⁻¹ * M⁻¹' + Δ' * M⁻¹ * M⁻¹') + (M⁻¹' * M⁻¹ * Δ' - M⁻¹' * M⁻¹ * Δ' * M⁻¹ * M),)
 # I haven't derived their version, but numerically the one gives the right answer where as their doesn't...
-@adjoint function pinv(L::Union{LinOp, FieldOrOpMatrix})
+@adjoint function pinv(L::Union{FieldOp, FieldOrOpMatrix})
     L⁻¹ = pinv(L)
     L⁻¹, Δ->(-L⁻¹' * Δ * L⁻¹',)
 end

@@ -155,6 +155,20 @@ global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 
 
+### Spin adjoints
+# represents a field which is adjoint over just the "spin" indices.
+# multiplying such a field by a non-adjointed one should be the inner
+# product over just the spin indices, hence return a spin-0 field,
+# rather than a scalar. note: these are really only lightly used in
+# one place in LenseFlow, so they have almost no real functionality
+# for now.
+struct SpinAdjoint{F<:Field}
+    f :: F
+end
+spin_adjoint(f::Field) = SpinAdjoint(f)
+
+
+
 # ### Other generic stuff
 
 # # allows one to pass `1` to something which expect a LenseFlow-like operator

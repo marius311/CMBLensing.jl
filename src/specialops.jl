@@ -116,7 +116,7 @@ end
 
 # An op which applies some bandpass, like a high or low-pass filter. This object
 # stores the bandpass weights, Wℓ, and each Field type F should implement
-# broadcast_data(::Type{F}, ::BandPassOp) to describe how this is actually
+# preprocess((b,metadata), ::BandPassOp) to describe how this is actually
 # applied. 
 
 abstract type HarmonicBasis <: Basislike end
@@ -284,26 +284,26 @@ adapt_structure(to, L::ParamDependentOp) =
 # end
 
 
-# ### OuterProdOp
+### OuterProdOp
 
-# # an operator L which represents L = V*W'
-# # this could also be represented by a LazyBinaryOp, but this allows us to 
-# # define a few extra functions like simulate or diag, which get used in various places 
-# struct OuterProdOp{TV,TW} <: ImplicitOp{Basis,Spin,Pix}
-#     V::TV
-#     W::TW
-# end
-# OuterProdOp(V) = OuterProdOp(V,V)
-# _check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
+# an operator L which represents L = V*W'
+# this could also be represented by a LazyBinaryOp, but this allows us to 
+# define a few extra functions like simulate or diag, which get used in various places 
+struct OuterProdOp{TV,TW} <: ImplicitOp{Bottom}
+    V::TV
+    W::TW
+end
+OuterProdOp(V) = OuterProdOp(V,V)
+_check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
 # pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
-# *(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
-# \(L::OuterProdOp{<:FieldOp,<:FieldOp}, f::Field) = L.W' \ (L.V \ f)
-# adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
-# adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
-# diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
-# *(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D) .* L.V, L.W)
-# *(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W .* diag(D))
-# tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
+*(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
+\(L::OuterProdOp{<:FieldOp,<:FieldOp}, f::Field) = L.W' \ (L.V \ f)
+adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
+adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
+diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
+*(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D) .* L.V, L.W)
+*(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W .* diag(D))
+tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
 
 
 

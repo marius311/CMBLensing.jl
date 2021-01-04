@@ -294,6 +294,9 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::InterpolatedCℓs, C�
 end
 
 
+### spin adjoints
+mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField} = (copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3)); dst)
+
 
 ### batching
 

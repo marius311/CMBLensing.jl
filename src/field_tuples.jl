@@ -61,6 +61,12 @@ preprocess(::FieldTupleComponent{i}, ft::FieldTuple) where {i} = ft.fs[i]
     end
     :(FieldTuple($(exprs...)))
 end
+@generated function materialize!(dst::FieldTuple, bc::Broadcasted{FieldTupleStyle{S}}) where {S}
+    exprs = map_tupleargs(S, tuple(1:tuple_type_len(S)...)) do Sᵢ, i
+        :(materialize!(dst.fs[$i], convert(Broadcasted{$Sᵢ}, preprocess(FieldTupleComponent{$i}(), bc))))
+    end
+    :(begin $(exprs...) end; dst)
+end
 
 
 ### promotion

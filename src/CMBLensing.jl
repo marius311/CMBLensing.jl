@@ -97,6 +97,7 @@ include("field_tuples.jl")
 include("field_vectors.jl")
 include("specialops.jl")
 include("flowops.jl")
+include("batched_reals.jl")
 include("base_fields.jl")
 
 # # lensing
@@ -127,7 +128,7 @@ include("posterior.jl")
 # # curved-sky
 # include("healpix.jl")
 
-# include("autodiff.jl")
+include("autodiff.jl")
 
 # gpu
 is_gpu_backed(x) = false
