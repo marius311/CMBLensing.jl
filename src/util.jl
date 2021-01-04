@@ -272,13 +272,25 @@ end
 
 adapt_structure(to, d::Dict) = Dict(k => adapt(to, v) for (k,v) in d)
 
+
 @doc doc"""
 
-    cpu(xs)
+    cpu(x)
 
-Recursively move an object to CPU memory (i.e. the opposite of `cu`)
+Recursively move an object to CPU memory. See also [`gpu`](@ref).
 """
-cpu(xs) = adapt_structure(Array, xs)
+cpu(x) = adapt_structure(Array, x)
+
+@doc doc"""
+
+    gpu(x)
+
+Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
+this does not change the `eltype` of any underlying arrays. See also
+[`cpu`](@ref).
+"""
+function gpu end # defined in gpu.jl only when CUDA.jl is loaded
+
 
 
 function corrify(H)
@@ -397,9 +409,9 @@ lasthalf(x) = x[end÷2:end]
 
 function sum_kbn(A::AbstractArray{T,N}; dims=:) where {T,N}
     if (dims == (:)) || (N == length(dims))
-        KahanSummation.sum_kbn(adapt(Array,A))
+        KahanSummation.sum_kbn(cpu(A))
     else
-        dropdims(mapslices(sum_kbn, adapt(Array,A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
+        dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
     end
 end
 @adjoint sum_kbn(A) = sum_kbn(A), Δ -> (fill!(similar(A),Δ),)

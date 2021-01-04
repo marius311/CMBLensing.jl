@@ -7,7 +7,7 @@ using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
 using Base.Iterators: flatten, product, repeated, cycle, countfrom
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
-    show_default, show_vector, typed_vcat
+    show_default, show_vector, typed_vcat, typename
 using Combinatorics
 using DataStructures
 using DelimitedFiles
@@ -117,7 +117,7 @@ function animate end
 
 # # sampling and maximizing the posteriors
 include("dataset.jl")
-# include("posterior.jl")
+include("posterior.jl")
 # include("maximization.jl")
 # include("sampling.jl")
 # include("chains.jl")

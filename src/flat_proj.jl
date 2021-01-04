@@ -115,18 +115,18 @@ end
 
 ### preprocessing
 
-function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
     if ∇d.coord == 1
-        broadcasted(*, ∇d.prefactor * im, metadata.ℓx')
+        broadcasted(*, ∇d.prefactor * im, proj.ℓx')
     elseif ∇d.coord == 2
-        broadcasted(*, ∇d.prefactor * im, metadata.ℓy)
+        broadcasted(*, ∇d.prefactor * im, proj.ℓy)
     else
         error()
     end
 end
 
-function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
-    Cℓ_to_2D(bp.Wℓ, metadata)
+function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
+    Cℓ_to_2D(bp.Wℓ, proj)
 end
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}

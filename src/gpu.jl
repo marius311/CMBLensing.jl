@@ -23,6 +23,16 @@ seed_for_storage!(::Type{<:CuArray}, seed=nothing) =
     Random.seed!(global_rng_for(CuArray), seed)
 
 
+gpu(x) = adapt_structure(CuArray, x)
+
+
+
+function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
+    # todo: remove needing to go through cpu here:
+    gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
+end
+
+
 ### misc
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
@@ -56,7 +66,7 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
-    adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+    cpu(randn!(rng, CuVector{T}(undef,1)))[1]
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator

@@ -207,7 +207,7 @@ function load_sim(;
     end
     
     # covariances
-    Cϕ₀ = Cℓ_to_Cov(pol, proj, (Cℓ.total.ϕϕ))
+    Cϕ₀ = Cℓ_to_Cov(:I,  proj, (Cℓ.total.ϕϕ))
     Cfs = Cℓ_to_Cov(pol, proj, (Cℓ.unlensed_scalar[k] for k in ks)...)
     Cft = Cℓ_to_Cov(pol, proj, (Cℓ.tensor[k]          for k in ks)...)
     Cf̃  = Cℓ_to_Cov(pol, proj, (Cℓ.total[k]           for k in ks)...)

@@ -65,22 +65,21 @@ end
 
     @testset "Constructors" begin
 
-        # Enumerate the combinations of
-        # * 1) no basis or names specified, 2) only basis specified, 3) only names specified, 4) basis and names specified
-        # * 1) args/kwargs form 2) single Tuple/NamedTuple argument form
-
-        @testset "F :: $F" for F in [
-            FieldTuple,
-            FieldTuple{QUMap},
-            FieldTuple{QUMap,<:NamedTuple{(:Q,:U)}},
-            FieldTuple{<:Basis,<:NamedTuple{(:Q,:U)}}
+        @testset "$F" for (F,ks,args,kwargs) in [
+            (FlatMap,        (:Ix,),        (Ix,),      ()),
+            (FlatFourier,    (:Il,),        (Il,),      (Ny=N,)),
+            (FlatQUMap,      (:Qx,:Qx),     (Ix,Ix),    ()),
+            (FlatQUFourier,  (:Ql,:Ql),     (Il,Il),    (Ny=N,)),
+            (FlatEBMap,      (:Ex,:Bx),     (Ix,Ix),    ()),
+            (FlatEBFourier,  (:El,:Bl),     (Il,Il),    (Ny=N,)),
+            (FlatIQUMap,     (:Ix,:Qx,:Qx), (Ix,Ix,Ix), ()),
+            (FlatIQUFourier, (:Il,:Ql,:Ql), (Il,Il,Il), (Ny=N,)),
+            (FlatIEBMap,     (:Ix,:Ex,:Bx), (Ix,Ix,Ix), ()),
+            (FlatIEBFourier, (:Il,:El,:Bl), (Il,Il,Il), (Ny=N,)),
         ]
-
-            @test (@inferred F(;Q=f, U=f)) isa F
-            @test (@inferred F((Q=f, U=f))) isa F
-            @test (@inferred F(f,f)) isa F
-            @test (@inferred F((f,f))) isa F
-            
+            local f
+            @test (f = F(args...; kwargs...)) isa F
+            @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
         end
 
     end

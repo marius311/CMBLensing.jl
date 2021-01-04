@@ -21,21 +21,21 @@ const FlatIEBFourier{ M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{IEBFouri
 
 ## FlatField unions
 # spin-0
-const FlatS0{         B<:Union{Map,Fourier},                       M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS0{         B<:Union{Map,Fourier},                         M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 # spin-2
-const FlatQU{         B<:Union{QUMap,QUFourier},                   M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatEB{         B<:Union{EBMap,EBFourier},                   M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS2Map{      B<:Union{QUMap,EBMap},                       M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS2Fourier{  B<:Union{QUFourier,QUFourier},               M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS2{         B<:Union{QUMap,QUFourier,EBMap,EBFourier},   M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatQU{         B<:Union{QUMap,QUFourier},                     M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatEB{         B<:Union{EBMap,EBFourier},                     M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS2Map{      B<:Union{QUMap,EBMap},                         M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS2Fourier{  B<:Union{QUFourier,QUFourier},                 M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS2{         B<:Union{QUMap,QUFourier,EBMap,EBFourier},     M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 # spin-(0,2)
-const FlatIQU{        B<:Union{IQUMap,IQUFourier},                 M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatIEB{        B<:Union{IEBMap,IEBFourier},                 M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS02Map{     B<:Union{IQUMap,IEBMap},                     M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS02Fourier{ B<:Union{IQUFourier,IQUFourier},             M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const FlatS02{        B<:Union{IQUMap,IQUFourier,EBMap,EBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatIQU{        B<:Union{IQUMap,IQUFourier},                   M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatIEB{        B<:Union{IEBMap,IEBFourier},                   M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS02Map{     B<:Union{IQUMap,IEBMap},                       M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS02Fourier{ B<:Union{IQUFourier,IQUFourier},               M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatS02{        B<:Union{IQUMap,IQUFourier,IEBMap,IEBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 # any flat projection
-const FlatField{      B,                                           M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const FlatField{      B,                                             M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 
 ### basis-like definitions
 LenseBasis(::Type{<:FlatS0})    = Map
@@ -51,28 +51,50 @@ HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 
 
 ### constructors
+
+_reshape_batch(arr::AbstractArray{T,3}) where {T} = reshape(arr, size(arr,1), size(arr,2), 1, size(arr,3))
+_reshape_batch(arr) = arr
+
 function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
     FlatMap(
-        drop_tail_singleton_dims(reshape(Ix, size(Ix,1), size(Ix,2), 1, size(Ix,3))),
+        _reshape_batch(Ix),
         ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), T, storage=basetype(A), kwargs...)
     )
 end
 function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
     FlatFourier(
-        drop_tail_singleton_dims(reshape(Il, size(Il,1), size(Il,2), 1, size(Il,3))),
-        ProjLambert(;Ny, Nx=size(Il,2), θpix, T, storage=basetype(A), kwargs...)
+        _reshape_batch(Ix),
+        ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...)
     )
 end
-function FlatQUMap(Qx::A, Ux::A; kwargs...) where {T, A<:AbstractArray{T}}
-    FlatQUMap(
-        drop_tail_singleton_dims(cat(
-            reshape(Qx, size(Qx,1), size(Qx,2), 1, size(Qx,3)),
-            reshape(Ux, size(Ux,1), size(Ux,2), 1, size(Ux,3)),
-            dims = 3
-        )),
-        ProjLambert(;Ny=size(Qx,1), Nx=size(Qx,2), T, storage=basetype(A), kwargs...)
-    )
+
+
+for (F,Xs,Ny) in [
+    (:FlatQUMap,      (:Qx,:Ux),      false),
+    (:FlatQUFourier,  (:Ql,:Ul),      true),
+    (:FlatEBMap,      (:Ex,:Bx),      false),
+    (:FlatEBFourier,  (:El,:Bl),      true),
+    (:FlatIQUMap,     (:Ix, :Qx,:Ux), false),
+    (:FlatIQUFourier, (:Il, :Ql,:Ul), true),
+    (:FlatIEBMap,     (:Ix, :Ex,:Bx), false),
+    (:FlatIEBFourier, (:Il, :El,:Bl), true),
+]
+    @eval begin
+        function $F($((:($X::A) for X in Xs)...), metadata) where {T,A<:AbstractArray{T}}
+            $F(
+                cat($((:(_reshape_batch($X)) for X in Xs)...), dims=Val(3)),
+                metadata
+            )
+        end
+        function $F($((:($X::A) for X in Xs)...); $((Ny ? (:Ny,) : ())...), kwargs...) where {T,A<:AbstractArray{T}}
+            $F(
+                $(Xs...),
+                ProjLambert(;Ny=$(Ny ? :Ny : :(size($(Xs[1]),1))), Nx=size($(Xs[1]),2), T, storage=basetype(A), kwargs...)
+            )
+        end
+    end
 end
+
 # todo: enumerate rest and add doc strings
 
 
@@ -194,7 +216,7 @@ EBFourier(f::FlatQUFourier) = begin
     FlatEBFourier(El, Bl, f.metadata)
 end
 
-EBMap(f::FlatQUFourier) = FlatEBMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
+EBMap(f::FlatEBFourier) = FlatEBMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
@@ -226,11 +248,11 @@ end
 
 ### dot products
 
-nonbatch_dims(f::Field) = ntuple(identity,min(3,ndims(f.arr)))
+nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 
-# do in Map space for simplicity, and use sum_kbn to reduce roundoff error
+# do in Map space (the LenseBasis, Ł) for simplicity, and use sum_kbn to reduce roundoff error
 function dot(a::FlatField, b::FlatField)
-    z = Map(a) .* Map(b)
+    z = Ł(a) .* Ł(b)
     sum_kbn(z.arr, dims=nonbatch_dims(z))
 end
 
@@ -260,7 +282,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; unit
     Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
 end
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; units=proj.Ωpix)
-    Diagonal(FlatFourier(Cℓ_to_2D(CℓEE,proj), Cℓ_to_2D(CℓBB,proj), proj) / units)
+    Diagonal(FlatEBFourier(cat(Cℓ_to_2D(CℓEE,proj),Cℓ_to_2D(CℓBB,proj), dims=3), proj) / units)
 end
 
 
