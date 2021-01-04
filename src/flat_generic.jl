@@ -5,9 +5,7 @@ const FlatField{B, M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{B, M, T, A}
 # const FlatFieldFourier{P,T,M} = Union{FlatFourier{P,T,M},FlatS2{P,T,M},FlatS02Fourier{P,T,M}}
 
 ### pretty printing
-Base.show_datatype(io::IO, t::Type{<:Field}) = print(io, typealias(t))
-typealias(t) = sprint(io -> invoke(Base.show_datatype, Tuple{IO,DataType}, io, t))
-typealias(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
+typealias_def(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,θpix = f
     Nbatch = size(f.arr, 4)
@@ -90,9 +88,9 @@ end
 # broadcastable(::Type{F}, bp::BandPass) where {P,T,F<:FlatFourier{P,T}} = Cℓ_to_2D(P,T,bp.Wℓ)
     
 
-# ### logdets
-# logdet(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])),dims=(1,2))))
-# logdet(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))),dims=(1,2))))
+### logdets
+logdet(L::Diagonal{<:Complex,<:FlatFourier}) = real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])),dims=(1,2)))
+logdet(L::Diagonal{<:Real,   <:FlatMap})     = real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))),dims=(1,2)))
 # ### traces
 # tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
 # tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))

@@ -5,14 +5,14 @@ abstract type FlatProj end
 θpix₀ = 1
 
 
-@kwdef struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
+struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     θpix
     storage
     Δx       :: T
     Ny       :: Int
     Nx       :: Int
     Ωpix     :: T
-    nyq      :: T
+    nyquist  :: T
     Δℓx      :: T
     Δℓy      :: T
     ℓy       :: V
@@ -20,16 +20,16 @@ abstract type FlatProj end
     ℓmag     :: M
     sin2ϕ    :: M
     cos2ϕ    :: M
-    units     = 1
-    θϕ_center = nothing
+    units
+    θϕ_center
 end
 
-@memoize function ProjLambert(T, storage, θpix, Ny, Nx)
+@memoize function ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array)
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))
     Δℓy          = T(2π/(Ny*Δx))
-    nyq          = T(2π/(2Δx))
+    nyquist      = T(2π/(2Δx))
     Ωpix         = T(Δx^2)
     ℓy           = adapt(storage, (ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy)[1:Ny÷2+1])
     ℓx           = adapt(storage, (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx))
@@ -39,12 +39,15 @@ end
     if iseven(Ny)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
-    
-    ProjLambert(;θpix, Ny, Nx, storage, Δx, Δℓx, Δℓy, nyq, Ωpix, ℓx, ℓy, ℓmag, sin2ϕ, cos2ϕ)
 
+    units     = 1
+    θϕ_center = nothing
+    
+    ProjLambert(θpix,storage,Δx,Ny,Nx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ,units,θϕ_center)
+    
 end
 
-typealias(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
+typealias_def(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 
 
 
@@ -52,7 +55,7 @@ typealias(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 
 # used in broadcasting to decide the result of broadcasting across two
 # fields with a given `metadata` and basis, `b` (where b is an
-# instance of type-parameter B), and 
+# instance of type-parameter B) 
 function promote_bcast_b_metadata(
     (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
     (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
@@ -86,8 +89,8 @@ end
 # used in non-broadcasted algebra to decide the result of performing
 # some operation across two fields with a given `metadata`. this is
 # free to do more generic promotion than promote_bcast_b_metadata. the
-# result should be a common metadata which we convert both fields to
-# then do a succesful broadcast
+# result should be a common metadata which we can convert both fields
+# to then do a succesful broadcast
 function promote_metadata(metadata₁::ProjLambert, metadata₂::ProjLambert)
     if (
         metadata₁ === metadata₂ || (
@@ -109,14 +112,9 @@ function promote_metadata(metadata₁::ProjLambert, metadata₂::ProjLambert)
 end
 
 
-
-
-
-
-
-# function Cℓ_to_2D(::Type{P}, ::Type{T}, Cℓ) where {T,N,P<:Flat{N}}
-#     Complex{T}.(nan2zero.(Cℓ.(fieldinfo(P,T).kmag[1:fieldinfo(P,T).Ny÷2+1,:])))
-# end
+function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
+    Complex{T}.(nan2zero.(Cℓ.(proj.ℓmag)))
+end
 
 
 # @doc doc"""

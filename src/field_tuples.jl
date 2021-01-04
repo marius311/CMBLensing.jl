@@ -18,9 +18,9 @@ end
 ### printing
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
-typealias(::Type{<:FieldTuple{NamedTuple{Names,FS},T}}) where {Names,FS<:Tuple,T} =
+typealias_def(::Type{<:FieldTuple{NamedTuple{Names,FS},T}}) where {Names,FS<:Tuple,T} =
     "Field-($(join(map(string,Names),",")))-$FS"
-typealias(::Type{<:FieldTuple{FS,T}}) where {FS<:Tuple,T} =
+typealias_def(::Type{<:FieldTuple{FS,T}}) where {FS<:Tuple,T} =
     "Field-$(tuple_type_len(FS))-$FS"
 
 ### array interface

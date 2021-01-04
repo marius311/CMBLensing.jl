@@ -136,17 +136,20 @@ ensure1d(x::Union{Tuple,AbstractArray}) = x
 ensure1d(x) = (x,)
 
 
-# see https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
-# for why we need this
-# to use, just decorate the custom show_datatype with it, and make sure the args
-# are named `io` and `t`.
-macro show_datatype(ex)
-    def = splitdef(ex)
-    def[:body] = quote
-        isconcretetype(t) ? $(def[:body]) : invoke(Base.show_datatype, Tuple{IO,DataType}, io, t)
+# see
+# https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+# for why we need this to use, just decorate the custom show_datatype
+# with it, and make sure the arg is named `t`
+function typealias(t)
+    if isconcretetype(t)
+        ta = typealias_def(t)
+        if !isnothing(ta)
+            return ta
+        end
     end
-    esc(combinedef(def))
+    sprint(io -> invoke(Base.show_datatype, Tuple{IO,DataType}, io, t))
 end
+typealias_def(t) = nothing
 
 
 

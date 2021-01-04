@@ -86,25 +86,24 @@ function resimulate!(
     rng=global_rng_for(ds.d), seed=nothing
 )
 
-    @unpack M,P,B,L,Cϕ,Cf,Cn,d = ds()
-    D = batchsize(d)
+    @unpack M,B,L,Cϕ,Cf,Cn,d = ds()
     
-    if (f̃ == nothing)
-        if (ϕ == nothing)
-            ϕ = simulate(batch(Cϕ,D), rng=rng, seed=seed)
+    if isnothing(f̃)
+        if isnothing(ϕ)
+            ϕ = simulate(Cϕ, d; rng, seed)
         end
-        if (f == nothing)
-            f = simulate(batch(Cf,D), rng=rng, seed=(seed==nothing ? nothing : seed+1))
+        if isnothing(f)
+            f = simulate(Cf, d; rng, seed=(seed==nothing ? nothing : seed+1))
         end
         f̃ = L(ϕ)*f
     else
         f = ϕ = nothing
     end
-    if (n == nothing)
-        n = simulate(batch(Cn,D), rng=rng, seed=(seed==nothing ? nothing : seed+2))
+    if isnothing(n)
+        n = simulate(Cn, d; rng, seed=(seed==nothing ? nothing : seed+2))
     end
 
-    ds.d = d = M*P*B*f̃ + n
+    ds.d = d = M*B*f̃ + n
     
     (;ds,f,ϕ,n,f̃,d)
     
@@ -132,7 +131,6 @@ function load_sim(;
     
     # basic configuration
     θpix,
-    θpix_data = θpix,
     Nside,
     pol,
     T = Float32,
@@ -166,13 +164,15 @@ function load_sim(;
     G = nothing,
     Nϕ_fac = 2,
     L = LenseFlow,
-    ∂mode = fourier∂
 
 )
     
+    # projection
+    Ny, Nx = Nside .* (1,1)
+    proj = ProjLambert(;Ny, Nx, θpix, T, storage)
 
     # the biggest ℓ on the 2D fourier grid
-    ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
+    ℓmax = round(Int,ceil(√2*proj.nyquist)+1)
     
     # CMB Cℓs
     if (rfid != nothing)
@@ -199,39 +199,26 @@ function load_sim(;
     
     # some things which depend on whether we chose :I, :P, or :IP
     pol = Symbol(pol)
-    S,ks,F,F̂,nF = @match pol begin
-        :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
-        :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
+    ks,F,F̂,nF = @match pol begin
+        :I  => ((:TT,),            FlatMap,    FlatFourier,    1)
+        :P  => ((:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
+        :IP => ((:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
         _   => throw(ArgumentError("`pol` should be one of :I, :P, or :IP"))
     end
     
-    # pixelization
-    Pix = Flat(Nside=Nside, θpix=θpix, ∂mode=∂mode)
-    if (θpix_data == θpix)
-        Pix_data = Pix
-        P = 1
-    else
-        Pix_data = Flat(Nside=Nside.÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
-        P = FuncOp(
-            op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
-            opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
-        )
-    end
-    
     # covariances
-    Cϕ₀ = adapt(storage, Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ)))
-    Cfs = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k in ks)...))
-    Cft = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k in ks)...))
-    Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
-    Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
+    Cϕ₀ = Cℓ_to_Cov(pol, proj, (Cℓ.total.ϕϕ))
+    Cfs = Cℓ_to_Cov(pol, proj, (Cℓ.unlensed_scalar[k] for k in ks)...)
+    Cft = Cℓ_to_Cov(pol, proj, (Cℓ.tensor[k]          for k in ks)...)
+    Cf̃  = Cℓ_to_Cov(pol, proj, (Cℓ.total[k]           for k in ks)...)
+    Cn̂  = Cℓ_to_Cov(pol, proj, (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
     if (M == nothing)
-        Mfourier = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
+        Mfourier = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
             Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside.÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
         else
@@ -252,7 +239,7 @@ function load_sim(;
     
     # beam
     if (B == nothing)
-        B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
+        B = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1)
     end
     if (B̂ == nothing)
         B̂ = B
@@ -262,10 +249,10 @@ function load_sim(;
     Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
 
     # put everything in DataSet
-    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)
+    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
     
     # simulate data
-    @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)
+    @unpack ds,f,f̃,ϕ,n = resimulate(ds; rng, seed)
 
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
@@ -289,7 +276,7 @@ function load_sim(;
         ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
     end
     
-    return adapt(storage, (;f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
+    return (;f, f̃, ϕ, n, ds, ds₀=ds(), T, Cℓ, L)
     
 end
 

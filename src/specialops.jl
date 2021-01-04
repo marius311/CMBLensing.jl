@@ -3,8 +3,8 @@
 # we use Base.Diagonal(f) for diagonal operators so very little specific code is
 # actually needed here. 
 
-simulate(rng::AbstractRNG, D::DiagOp{F}) where {F<:Field} = sqrt(D) * white_noise(rng, F)
-global_rng_for(::Type{<:DiagOp{F}}) where {F} = global_rng_for(F)
+simulate(rng::AbstractRNG, D::DiagOp, z=nothing) = sqrt(D) * white_noise(rng, isnothing(z) ? diag(D) : z)
+global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 
 # automatic basis conversion (and NaN-zeroing)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
@@ -18,10 +18,6 @@ diag(L::DiagOp) = L.diag
 
 # use getproperty here to ensure no basis conversion is done
 getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
-
-# # for printing
-# size(::DiagOp{<:Field}) = ()
-# axes(::DiagOp{<:Field}, I) = OneTo(0)
 
 # the generic version of this is prohibitively slow so we need this
 hash(D::DiagOp, h::UInt64) = hash(D.diag, h)
@@ -61,18 +57,15 @@ get_storage(L::DiagOp) = get_storage(diag(L))
 
 Base.@enum Covariance COVARIANT CONTRAVARIANT
 
-struct ∇diag <: Field{DerivBasis,Bottom}
+struct ∇diag <: ImplicitField{DerivBasis,Bottom}
     coord :: Int
     covariance :: Covariance
     prefactor :: Int
 end
-size(::∇diag) = ()
 
 struct ∇²diag <: Field{DerivBasis,Bottom} end
 
 get_g_metadata(::∇diag) = nothing
-
-Base.require_one_based_indexing(::∇diag) = nothing # this make Diagonal(::∇ᵢdiag) work
 
 
 
@@ -127,121 +120,128 @@ end
 # adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
 
 
-# ### BandPassOp
+### BandPassOp
 
-# # An op which applies some bandpass, like a high or low-pass filter. This object
-# # stores the bandpass weights, Wℓ, and each Field type F should implement
-# # broadcast_data(::Type{F}, ::BandPassOp) to describe how this is actually
-# # applied. 
+# An op which applies some bandpass, like a high or low-pass filter. This object
+# stores the bandpass weights, Wℓ, and each Field type F should implement
+# broadcast_data(::Type{F}, ::BandPassOp) to describe how this is actually
+# applied. 
 
-# abstract type HarmonicBasis <: Basislike end
+abstract type HarmonicBasis <: Basislike end
 
-# struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Spin,Pix}
-#     Wℓ::W
-# end
-# BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
-# BandPassOp(Wℓ::InterpolatedCℓs) = Diagonal(BandPass(Wℓ))
-# cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
-# cos_ramp_down(length) = 1 .- cos_ramp_up(length)
-# HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])
-# LowPass(ℓ; Δℓ=50) = BandPassOp(0:ℓ, [ones(ℓ-Δℓ+1); cos_ramp_down(Δℓ)])
-# MidPass(ℓmin, ℓmax; Δℓ=50) = BandPassOp(ℓmin:ℓmax, [cos_ramp_up(Δℓ); ones(ℓmax-ℓmin-2Δℓ+1); cos_ramp_down(Δℓ)])
-# MidPasses(ℓedges; Δℓ=10) = [MidPass(ℓmin-Δℓ÷2,ℓmax+Δℓ÷2; Δℓ=Δℓ) for (ℓmin,ℓmax) in zip(ℓedges[1:end-1],ℓedges[2:end])]
-
-
-# ### ParamDependentOp
-
-# # A LinOp which depends on some parameters, θ. 
-# # L(;θ...) recomputes the operator at a given set of parameters, but the
-# # operator can also be used as-is in which case it is evaluated at a fiducial θ
-# # (which is stored inside the operator when it is first constructed). 
+struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Bottom}
+    Wℓ::W
+end
+BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
+BandPassOp(Wℓ::InterpolatedCℓs) = Diagonal(BandPass(Wℓ))
+cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
+cos_ramp_down(length) = 1 .- cos_ramp_up(length)
+HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])
+LowPass(ℓ; Δℓ=50) = BandPassOp(0:ℓ, [ones(ℓ-Δℓ+1); cos_ramp_down(Δℓ)])
+MidPass(ℓmin, ℓmax; Δℓ=50) = BandPassOp(ℓmin:ℓmax, [cos_ramp_up(Δℓ); ones(ℓmax-ℓmin-2Δℓ+1); cos_ramp_down(Δℓ)])
+MidPasses(ℓedges; Δℓ=10) = [MidPass(ℓmin-Δℓ÷2,ℓmax+Δℓ÷2; Δℓ=Δℓ) for (ℓmin,ℓmax) in zip(ℓedges[1:end-1],ℓedges[2:end])]
 
 
-# @doc doc"""
-#     ParamDependentOp(recompute_function::Function)
+### ParamDependentOp
+
+# A FieldOp which depends on some parameters, θ. 
+# L(;θ...) recomputes the operator at a given set of parameters, but the
+# operator can also be used as-is in which case it is evaluated at a fiducial θ
+# (which is stored inside the operator when it is first constructed). 
+
+
+@doc doc"""
+    ParamDependentOp(recompute_function::Function)
     
-# Creates an operator which depends on some parameters $\theta$ and can be
-# evaluated at various values of these parameters. 
+Creates an operator which depends on some parameters $\theta$ and can be
+evaluated at various values of these parameters. 
 
-# `recompute_function` should be a function which accepts keyword arguments for
-# $\theta$ and returns the operator. Each keyword must have a default value; the
-# operator will act as if evaluated at these defaults unless it is explicitly
-# evaluated at other parameters. 
+`recompute_function` should be a function which accepts keyword arguments for
+$\theta$ and returns the operator. Each keyword must have a default value; the
+operator will act as if evaluated at these defaults unless it is explicitly
+evaluated at other parameters. 
 
-# Example:
+Example:
 
-# ```julia
-# Cϕ₀ = Diagonal(...) # some fixed Diagonal operator
-# Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
+```julia
+Cϕ₀ = Diagonal(...) # some fixed Diagonal operator
+Cϕ = ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀) # create ParamDependentOp
 
-# Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
-# Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
-# ```
+Cϕ(Aϕ=1.1) * ϕ   # Cϕ(Aϕ=1.1) is equal to 1.1*Cϕ₀
+Cϕ * ϕ           # Cϕ alone will act like Cϕ(Aϕ=1) because that was the default above
+```
 
-# Note: if you are doing parallel work, global variables referred to in the
-# `recompute_function` need to be distributed to all workers. A more robust
-# solution is to avoid globals entirely and instead ensure all variables are
-# "closed" over (and hence will automatically get distributed). This will happen
-# by default if defining the `ParamDependentOp` inside any function, or can be
-# forced at the global scope by wrapping everything in a `let`-block, e.g.:
+Note: if you are doing parallel work, global variables referred to in the
+`recompute_function` need to be distributed to all workers. A more robust
+solution is to avoid globals entirely and instead ensure all variables are
+"closed" over (and hence will automatically get distributed). This will happen
+by default if defining the `ParamDependentOp` inside any function, or can be
+forced at the global scope by wrapping everything in a `let`-block, e.g.:
 
-# ```julia
-# Cϕ = let Cϕ₀=Cϕ₀
-#     ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀)
-# end
-# ```
+```julia
+Cϕ = let Cϕ₀=Cϕ₀
+    ParamDependentOp((;Aϕ=1)->Aϕ*Cϕ₀)
+end
+```
 
-# After executing the code above, `Cϕ` is now ready to be (auto-)shipped to any workers
-# and will work regardless of what global variables are defined on these workers. 
-# """
-# struct ParamDependentOp{B, S, P, L<:LinOp{B,S,P}, F<:Function} <: ImplicitOp{B,S,P}
-#     op::L
-#     recompute_function::F
-#     parameters::Vector{Symbol}
-# end
-# function ParamDependentOp(recompute_function::Function)
-#     # invokelatest here allows creating a ParamDependent op which calls a
-#     # BinRescaledOp (eg this is the case for the mixing matrix G which depends
-#     # on Cϕ) from inside function. this would otherwise fail due to
-#     # BinRescaledOp eval'ed function being too new
-#     kwarg_names = get_kwarg_names(recompute_function)
-#     if endswith(string(kwarg_names[end]), "...") && !startswith(string(kwarg_names[end]),"_")
-#         kwarg_decl = empty!(kwarg_names) # to indicate it depends on anything
-#     end
-#     ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, kwarg_names)
-# end
-# function (L::ParamDependentOp)(θ::NamedTuple)
-#     if depends_on(L,θ)
-#         # filtering out non-dependent parameters disabled until I can find a fix to:
-#         # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
-#         # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
+After executing the code above, `Cϕ` is now ready to be (auto-)shipped to any workers
+and will work regardless of what global variables are defined on these workers. 
+"""
+struct ParamDependentOp{T, L<:FieldOp{T}, F<:Function} <: ImplicitOp{T}
+    op::L
+    recompute_function::F
+    parameters::Vector{Symbol}
+end
+function ParamDependentOp(recompute_function::Function)
+    # invokelatest here allows creating a ParamDependent op which calls a
+    # BinRescaledOp (eg this is the case for the mixing matrix G which depends
+    # on Cϕ) from inside function. this would otherwise fail due to
+    # BinRescaledOp eval'ed function being too new
+    kwarg_names = filter(!=(Symbol("_...")), get_kwarg_names(recompute_function))
+    if endswith(string(kwarg_names[end]), "...")
+        kwarg_decl = empty!(kwarg_names) # to indicate it depends on anything
+    end
+    ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, kwarg_names)
+end
+function (L::ParamDependentOp)(θ::NamedTuple)
+    if depends_on(L,θ)
+        # filtering out non-dependent parameters disabled until I can find a fix to:
+        # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
+        # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
         
-#         # if L got adapt'ed to CuArray since this op was created,
-#         # L.op will be GPU-backed, but depending on how
-#         # recompute_function is written, recompute_function may
-#         # still return something CPU-backed. in that case, copy it
-#         # to GPU here
-#         storage = get_storage(L.op)
-#         Lθ = L.recompute_function(;θ...)
-#         storage == get_storage(Lθ) ? Lθ : adapt(storage, Lθ)
-#     else
-#         L.op
-#     end 
-# end
-# (L::ParamDependentOp)(;θ...) = L((;θ...))
-# *(L::ParamDependentOp, f::Field) = L.op * f
-# \(L::ParamDependentOp, f::Field) = L.op \ f
-# for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
-#     @eval $F(L::ParamDependentOp) = $F(L.op)
-# end
-# getindex(L::ParamDependentOp, x) = getindex(L.op, x)
-# simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
-# depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
-# depends_on(L::ParamDependentOp, θ::Tuple) = isempty(L.parameters) || any(L.parameters .∈ Ref(θ))
-# depends_on(L,                   θ) = false
+        # if L got adapt'ed to CuArray since this op was created,
+        # L.op will be GPU-backed, but depending on how
+        # recompute_function is written, recompute_function may
+        # still return something CPU-backed. in that case, copy it
+        # to GPU here
+        storage = get_storage(L.op)
+        Lθ = L.recompute_function(;θ...)
+        storage == get_storage(Lθ) ? Lθ : adapt(storage, Lθ)
+    else
+        L.op
+    end 
+end
+(L::ParamDependentOp)(;θ...) = L((;θ...))
+*(L::ParamDependentOp, f::Field) = L.op * f
+\(L::ParamDependentOp, f::Field) = L.op \ f
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
+    @eval $F(L::ParamDependentOp) = $F(L.op)
+end
+getindex(L::ParamDependentOp, x) = getindex(L.op, x)
+simulate(rng::AbstractRNG, L::ParamDependentOp) = simulate(rng, L.op)
+depends_on(L::ParamDependentOp, θ) = depends_on(L, keys(θ))
+depends_on(L::ParamDependentOp, θ::Tuple) = isempty(L.parameters) || any(L.parameters .∈ Ref(θ))
+depends_on(L,                   θ) = false
 
-# adapt_structure(to, L::ParamDependentOp) = 
-#     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)
+typealias_def(::Type{<:ParamDependentOp{T,L}}) where {T,L} = "ParamDependentOp{$(typealias(L))}"
+function Base.summary(io::IO, L::ParamDependentOp)
+    print(io, join(size(L.op), "×"), " (", join(map(string, L.parameters),","), ")-dependent ")
+    Base.showarg(io, L, true)
+end
+
+
+adapt_structure(to, L::ParamDependentOp) = 
+    ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)
 
 
 # ### LazyBinaryOp
@@ -305,7 +305,7 @@ end
 # _check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
 # pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
 # *(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
-# \(L::OuterProdOp{<:LinOp,<:LinOp}, f::Field) = L.W' \ (L.V \ f)
+# \(L::OuterProdOp{<:FieldOp,<:FieldOp}, f::Field) = L.W' \ (L.V \ f)
 # adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
 # adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
 # diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
@@ -328,7 +328,7 @@ end
 
 #     ParamDependentOp( (;A=[1,1], _...) -> C₀ + (A[1]-1) * Cbin1 + (A[2]-1) * Cbin2 )
 
-# where `C₀`, `Cbin1`, and `Cbin2` should be some `LinOp`s. Note `Cbins` are
+# where `C₀`, `Cbin1`, and `Cbin2` should be some `FieldOp`s. Note `Cbins` are
 # directly the power which is added, rather than a mask. 
 
 # The resulting operator is differentiable in `θname`.

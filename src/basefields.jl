@@ -20,8 +20,8 @@ end
 # column
 size(f::BaseField) = (length(f.arr),)
 lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
-@propagate_inbounds getindex(f::BaseField, I...) = getindex(f.arr, I...)
-@propagate_inbounds setindex!(f::BaseField, X, I...) = (setindex!(f.arr, X, I...); f)
+@propagate_inbounds getindex(f::BaseField, I::Union{Int,Colon,AbstractArray}...) = getindex(f.arr, I...)
+@propagate_inbounds setindex!(f::BaseField, X, I::Union{Int,Colon,AbstractArray}...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
 copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
@@ -163,3 +163,7 @@ function getproperty(f::BaseField, ::Val{s}) where {s}
     end
 end
 propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.metadata))...)
+
+## other CMBLensing-specific
+global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
+fieldinfo(f::BaseField) = f

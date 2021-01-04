@@ -6,19 +6,31 @@ const FlatFourier{M<:FlatProj, T, A<:AbstractArray{T}} = BaseField{Fourier, M, T
 const FlatS0{M,T,A} = Union{FlatMap{M,T,A}, FlatFourier{M,T,A}}
 
 ## constructors
-function FlatMap(Ix::A; θpix=θpix₀) where {T, A<:AbstractArray{T}}
+function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
     FlatMap(
         drop_tail_singleton_dims(reshape(Ix, size(Ix,1), size(Ix,2), 1, size(Ix,3))),
-        ProjLambert(T, basetype(A), θpix, size(Ix,1), size(Ix,2))
+        ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), T, storage=basetype(A), kwargs...)
     )
 end
-
-# FlatFourier(Il::A; Ny, θpix=θpix₀) where {T, A<:AbstractArray{T}} = 
-#     FlatFourier(complex(Il[:,:,:,:]), ProjLambert(real(T), basetype(A), θpix, Ny, size(Ix,2)...))
+function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
+    FlatFourier(
+        drop_tail_singleton_dims(reshape(Il, size(Il,1), size(Il,2), 1, size(Il,3))),
+        ProjLambert(;Ny, Nx=size(Il,2), θpix, T, storage=basetype(A), kwargs...)
+    )
+end
 
 ## properties
 getproperty(f::FlatMap,     ::Val{:Ix}) = getfield(f,:arr)
 getproperty(f::FlatFourier, ::Val{:Il}) = getfield(f,:arr)
+function getindex(f::FlatS0, k::Symbol; full_plane=false)
+    maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
+    @match k begin
+        :I  => f
+        :Ix => Map(f).Ix
+        :Il => maybe_unfold(Fourier(f).Il)
+        _   => throw(ArgumentError("Invalid FlatS0 index: $k"))
+    end
+end
 
 ## basis conversion
 # out-of-place
@@ -68,26 +80,21 @@ Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 # adapt_structure(::Type{T}, f::F) where {T<:Union{Float32,Float64},P,F<:FlatS0{P}} = T(f)
 
 
-# ### inplace conversion
-# Fourier(f′::FlatFourier, f::FlatMap) =  (mul!(f′.Il, fieldinfo(f).FFT, f.Ix); f′)
-# Map(f′::FlatMap, f::FlatFourier)     = (ldiv!(f′.Ix, fieldinfo(f).FFT, maybecopy(f.Il)); f′)
-# # need this for FFTW (but not MKL) see https://github.com/JuliaMath/FFTW.jl/issues/158
-# @static FFTW.fftw_vendor==:fftw ? maybecopy(x) = copy(x) : maybecopy(x) = x
-
-# ### dot products
+### dot products
 # do in Map space for simplicity, and use sum_kbn to reduce roundoff error
-# dot(a::FlatField, b::FlatField) where {N,θ} = batch(sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2)))
+dot(a::FlatS0, b::FlatS0) where {N,θ} = sum_kbn(Map(a).Ix .* Map(b).Ix, dims=(1,2))
 
 # ### isapprox
 # ≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))
 
-# ### simulation and power spectra
-# function white_noise(rng::AbstractRNG, ::Type{F}) where {N,P<:Flat{N},T,M,F<:FlatS0{P,T,M}}
-#     FlatMap{P}(randn!(rng, basetype(M){T}(undef, content_size(FlatMap{P}))))
-# end
-# function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, Cℓ::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
-#     Diagonal(FlatFourier{P}(Cℓ_to_2D(P,T,Cℓ)) / units)
-# end
+### simulation and power spectra
+function white_noise(rng::AbstractRNG, f::FlatS0{M,T,A}) where {M,T,A}
+    FlatMap(randn!(similar(f.arr, real(T), f.Ny, size(f.arr)[2:end]...)), f.metadata)
+end
+Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
+function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; units=proj.Ωpix)
+    Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj) / units, proj))
+end
 # function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, (Cℓ, ℓedges, θname)::Tuple; units=fieldinfo(P).Ωpix) where {P,T}
 #     C₀ = Cℓ_to_Cov(P, T, S0, Cℓ, units=units)
 #     Cbins = Diagonal.(MidPasses(ℓedges) .* [diag(C₀)])
@@ -155,7 +162,7 @@ Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 #     fac = round(Int, fac)
 #     Nnew = @. round(Int, N * θ ÷ θnew)
 #     Pnew = Flat(Nside=Nnew, θpix=θnew, ∂mode=∂mode)
-#     @unpack Δx,kx,ky,Nx,Ny,nyq = fieldinfo(Pnew,T,M)
+#     @unpack Δx,kx,ky,Nx,Ny,nyquist = fieldinfo(Pnew,T,M)
 
 #     if deconv_pixwin
 #         PWF = @. T((pixwin(θnew,ky[1:end÷2+1])*pixwin(θnew,kx)')/(pixwin(θ,ky[1:end÷2+1])*pixwin(θ,kx)'))
@@ -167,7 +174,7 @@ Map(f′::FlatMap, f::FlatFourier)     = (m_irfft!(f′.Ix, f.Il, (1,2)); f′)
 #         # downgrade
 #         if anti_aliasing
 #             AA = Diagonal(FlatFourier{P}(
-#                 ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .> nyq) .| (abs.(fieldinfo(P,T,M).kx') .> nyq), 0, 1)
+#                 ifelse.((abs.(fieldinfo(P,T,M).ky[1:end÷2+1]) .> nyquist) .| (abs.(fieldinfo(P,T,M).kx') .> nyquist), 0, 1)
 #             ))
 #         else
 #             AA = 1

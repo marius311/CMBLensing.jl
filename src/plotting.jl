@@ -94,7 +94,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
 	else
-		extent = [-1,1,-1,1] .* fieldinfo(f).nyq
+		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 	end
 	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
 	cax = ax.matshow(
@@ -172,7 +172,7 @@ end
 
 default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
 default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
-default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
+# default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:Field})
     try
         ensuresame((default_which([f]) for f in fs)...)

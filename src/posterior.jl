@@ -55,17 +55,16 @@ lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ, 
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     
     @unpack Cn,Cf,Cϕ,L,M,B,d = ds
-    @unpack T = fieldinfo(d)
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
     Δ = d - M(θ)*B(θ)*f̃ - nonCMB_data_components(θ,ds)
     (
-        -T(1/2) * (
+        -(1//2) * (
             Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
             f'*pinv(Cf(θ))*f + logdet(Cf,θ) +
             ϕ'*pinv(Cϕ(θ))*ϕ + logdet(Cϕ,θ)
         ) 
-        + T(lnPriorθ(θ,ds))
+        + lnPriorθ(θ,ds)
     )
 
 end
