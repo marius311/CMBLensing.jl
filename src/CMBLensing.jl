@@ -98,7 +98,7 @@ include("field_vectors.jl")
 include("specialops.jl")
 include("flowops.jl")
 
-include("basefields.jl")
+include("base_fields.jl")
 
 # # lensing
 include("lenseflow.jl")
@@ -106,11 +106,7 @@ include("lenseflow.jl")
 
 # # flat-sky maps
 include("flat_proj.jl")
-include("flat_s0.jl")
-include("flat_s2.jl")
-# include("flat_s0s2.jl")
-include("flat_generic.jl")
-# include("flat_batch.jl")
+include("flat_fields.jl")
 # include("masking.jl")
 # include("taylens.jl")
 # include("bilinearlens.jl")

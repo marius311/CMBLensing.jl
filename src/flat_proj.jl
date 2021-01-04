@@ -112,6 +112,23 @@ function promote_metadata(metadata₁::ProjLambert, metadata₂::ProjLambert)
 end
 
 
+
+### preprocessing
+
+function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+    if ∇d.coord == 1
+        broadcasted(*, ∇d.prefactor * im, metadata.ℓx')
+    elseif ∇d.coord == 2
+        broadcasted(*, ∇d.prefactor * im, metadata.ℓy)
+    else
+        error()
+    end
+end
+
+function preprocess((g,metadata)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
+    Cℓ_to_2D(bp.Wℓ, metadata)
+end
+
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
     Complex{T}.(nan2zero.(Cℓ.(proj.ℓmag)))
 end

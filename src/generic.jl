@@ -76,38 +76,14 @@ Basis(f::Field) = f
 # on whatever size they need. The specification of Float32 as the the Array type
 # is only for inference, such that its widened to whatever its needed to be the
 # end. 
-Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
 abstract type ImplicitField{B<:Basis,T} <: Field{B,T} end
 abstract type ImplicitOp{T} <: AbstractMatrix{T} end
-Base.isempty(::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}}) = true
-Base.isempty(::ImplicitField) = true
-function Base.summary(io::IO, x::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}})
-    print(io, "⍰×⍰ ")
-    Base.showarg(io, x, true)
-end
-function Base.summary(io::IO, x::ImplicitField)
-    print(io, "⍰-element ")
-    Base.showarg(io, x, true)
-end
-
 
 # adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
 # adapt_structure(to, arr::Array{<:Field}) = map(f -> adapt(to,f), arr)
 
-
-# printing
-# show(io::IO, ::MIME"text/plain", L::ImplicitOp) = show(io,L)
-# show(io::IO, ::MIME"text/plain", L::Adjoint{<:Any,<:ImplicitOp}) = show(io,L)
-# show(io::IO, L::Adjoint{<:Any,<:ImplicitOp}) = (print(io,"Adjoint{"); show(io,parent(L)); print(io,"}"))
-# # this is the main function ImplicitOps should specialize if this default behavior isn't enough:
-# show(io::IO, L::ImplicitOp) = showarg(io, L, true)
-
-# All CMBLensing operators are then either Diagonals or ImplicitOps.
-# ImplicitOrAdjOp are things for which algebra is done lazily. This used to
-# include Diagonal{<:ImplicitField}, but that was leading so some really
-# annoying ambiguities, so its removed for now.
 const DiagOp{F<:Field,T} = Diagonal{T,F}
-const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,ImplicitOp{T}},DiagOp{<:Field{T}}}
+const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,<:ImplicitOp{T}},Diagonal{T,<:Field{<:Any,T}}}
 
 # # assume no dependence on parameters θ unless otherwise specified
 (L::Union{FieldOp,UniformScaling})(θ::NamedTuple) = L
@@ -120,6 +96,21 @@ const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,ImplicitOp{T}},DiagOp{<:Field{T
 const Scalar = Real
 const FieldOrOp = Union{Field,FieldOp}
 const FieldOpScal = Union{Field,FieldOp,Scalar}
+
+
+
+### printing
+Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
+Base.isempty(::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}}) = true
+Base.isempty(::ImplicitField) = true
+function Base.summary(io::IO, x::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}})
+    print(io, "⍰×⍰ ")
+    Base.showarg(io, x, true)
+end
+function Base.summary(io::IO, x::ImplicitField)
+    print(io, "⍰-element ")
+    Base.showarg(io, x, true)
+end
 
 
 """
