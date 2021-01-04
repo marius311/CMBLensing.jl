@@ -59,96 +59,55 @@ Nsides′ = [(128,(128,128)), ((128,128),(128,128)), ((196,128),(196,128))]
 end
 ##
 
-@testset "FieldTuples" begin 
-
-    f = maybegpu(FlatMap(rand(4,4)))
+@testset "Flat" begin 
 
     @testset "Constructors" begin
 
-        @testset "$F" for (F,ks,args,kwargs) in [
-            (FlatMap,        (:Ix,),        (Ix,),      ()),
-            (FlatFourier,    (:Il,),        (Il,),      (Ny=N,)),
-            (FlatQUMap,      (:Qx,:Qx),     (Ix,Ix),    ()),
-            (FlatQUFourier,  (:Ql,:Ql),     (Il,Il),    (Ny=N,)),
-            (FlatEBMap,      (:Ex,:Bx),     (Ix,Ix),    ()),
-            (FlatEBFourier,  (:El,:Bl),     (Il,Il),    (Ny=N,)),
-            (FlatIQUMap,     (:Ix,:Qx,:Qx), (Ix,Ix,Ix), ()),
-            (FlatIQUFourier, (:Il,:Ql,:Ql), (Il,Il,Il), (Ny=N,)),
-            (FlatIEBMap,     (:Ix,:Ex,:Bx), (Ix,Ix,Ix), ()),
-            (FlatIEBFourier, (:Il,:El,:Bl), (Il,Il,Il), (Ny=N,)),
-        ]
-            local f
-            @test (f = F(args...; kwargs...)) isa F
-            @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
-        end
+        @testset "batch=$D" for D in [(), (3,)]
 
+            N = 8
+            Ix = maybegpu(rand(N,N,D...))
+            Il = maybegpu(rand(N÷2+1,N,D...))
+
+            @testset "$(basis(F))" for (F,ks,args,kwargs) in [
+                (FlatMap,        (:Ix,),        (Ix,),      ()),
+                (FlatFourier,    (:Il,),        (Il,),      (Ny=N,)),
+                (FlatQUMap,      (:Qx,:Qx),     (Ix,Ix),    ()),
+                (FlatQUFourier,  (:Ql,:Ql),     (Il,Il),    (Ny=N,)),
+                (FlatEBMap,      (:Ex,:Bx),     (Ix,Ix),    ()),
+                (FlatEBFourier,  (:El,:Bl),     (Il,Il),    (Ny=N,)),
+                (FlatIQUMap,     (:Ix,:Qx,:Qx), (Ix,Ix,Ix), ()),
+                (FlatIQUFourier, (:Il,:Ql,:Ql), (Il,Il,Il), (Ny=N,)),
+                (FlatIEBMap,     (:Ix,:Ex,:Bx), (Ix,Ix,Ix), ()),
+                (FlatIEBFourier, (:Il,:El,:Bl), (Il,Il,Il), (Ny=N,)),
+            ]
+                local f
+                @test (f = F(args...; kwargs...)) isa F
+                @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
+            end
+        
+        end
+    
     end
 
     @testset "Basis conversions" begin
-
-        # basis conversions
-        for f_basistuple in [FieldTuple(f, f), FieldTuple(A=f, B=f)] # named and unnamed
-            @test basis(@inferred    Fourier(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-            @test basis(@inferred        Map(f_basistuple)) <: BasisTuple{Tuple{Map,Map}}
-            @test basis(@inferred DerivBasis(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-            @test basis(@inferred BasisTuple{Tuple{Fourier,Fourier}}(f_basistuple)) <: BasisTuple{Tuple{Fourier,Fourier}}
-        end
-
-        f_concretebasis = FieldTuple{QUMap, <:NamedTuple{(:Q,:U)}}(f,f)
-        @test basis(@inferred    Fourier(f_concretebasis)) <: QUFourier
-        @test basis(@inferred        Map(f_concretebasis)) <: QUMap
-        @test basis(@inferred DerivBasis(f_concretebasis)) <: QUFourier
-        
-    end
-            
-
-end
-
-##
-
-@testset "Flat Constructors" begin
-    
-    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
-
-        θpix = 3
-        kwargs = (Nside=Nside, θpix=θpix)
-        P = Flat(;kwargs...)
-        Ix = maybegpu(rand(Nside2D...))
-        Il = rfft(Ix)
-        
-        @testset "f :: $F" for (F,args) in [
-            (FlatMap,        (Ix,)),
-            (FlatFourier,    (Il,)),
-            (FlatQUMap,      (Ix,Ix)),
-            (FlatQUFourier,  (Il,Il)),
-            (FlatEBMap,      (Ix,Ix)),
-            (FlatEBFourier,  (Il,Il)),
-            (FlatIQUMap,     (Ix,Ix,Ix)),
-            (FlatIQUFourier, (Il,Il,Il)),
-            (FlatIEBMap,     (Ix,Ix,Ix)),
-            (FlatIEBFourier, (Il,Il,Il))
+        @testset "$(typealias(Bin)) → $(typealias(Bout))" for (f,Bin,Bout) in [
+            (f,Bin,Bout)
+            for (f,Bs) in [
+                (FlatMap(rand(N,N)),             (Map,Fourier)),
+                (FlatQUMap(rand(N,N),rand(N,N)), (QUMap,QUFourier,EBMap,EBFourier))
+            ]
+            for Bin in Bs
+            for Bout in Bs
         ]
-            
-            # the four basic construtor types with no type changing
-            @test F(args...; kwargs...) isa F{P}
-            @test (@inferred F{P}(args...)) isa F{P}
-            @test (@inferred F{P,Float64}(args...)) isa F{P}
-            @test (@inferred F{P,Float64,typeof(args[1])}(args...)) isa F{P}
-            
-            # forcing the eltype to something different
-            @test real(eltype(@inferred F{P,Float32}(args...))) == Float32
-            
-            # broadcasting `real` keeps the Complex{T} eltype for Fourier objects
-            @test (@inferred broadcast(real, (F{P}(args...)))) isa F{P}
-            if eltype(args[1]) <: Complex
-                @test (@inferred F{P}(map(real,args)...)) isa F{P}
-            end
+
+            @test basis(@inferred(Bout(Bin(f)))) == Bout
+            # @test Bin(Bout(Bin(f))) == f
 
         end
     end
 
 end
-
 
 ##
 
@@ -157,13 +116,13 @@ end
     @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
 
         fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
-            (Fourier,   maybegpu(FlatMap(rand(Nside2D...)))), 
-            (EBFourier, maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...)))), # named FieldTuple
-            (Fourier,   maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatMap(rand(Nside2D...))))), # unnamed FieldTuple
-            (BasisTuple{Tuple{Fourier,EBFourier}}, maybegpu(FlatIQUMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...)))), # named nested FieldTuple
-            (BasisTuple{Tuple{Fourier,EBFourier}}, maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatQUMap(rand(Nside2D...),rand(Nside2D...))))), # unnamed nested FieldTuple
-            (Fourier,   maybegpu(FlatMap(rand(Nside2D...,2)))), # batched S0 
-            (EBFourier, maybegpu(FlatQUMap(rand(Nside2D...,2),rand(Nside2D...,2)))), # batched S2
+            (Fourier,    maybegpu(FlatMap(rand(Nside2D...)))), 
+            (EBFourier,  maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...)))), # named FieldTuple
+            (Fourier,    maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatMap(rand(Nside2D...))))), # unnamed FieldTuple
+            (IEBFourier, maybegpu(FlatIQUMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...)))), # named nested FieldTuple
+            (IEBFourier, maybegpu(FieldTuple(FlatMap(rand(Nside2D...)),FlatQUMap(rand(Nside2D...),rand(Nside2D...))))), # unnamed nested FieldTuple
+            (Fourier,    maybegpu(FlatMap(rand(Nside2D...,2)))), # batched S0 
+            (EBFourier,  maybegpu(FlatQUMap(rand(Nside2D...,2),rand(Nside2D...,2)))), # batched S2
         ]
             
         @testset "f :: $(typeof(f))" for (B,f) in fs

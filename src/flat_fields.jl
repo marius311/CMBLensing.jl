@@ -63,7 +63,7 @@ function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
 end
 function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
     FlatFourier(
-        _reshape_batch(Ix),
+        _reshape_batch(Il),
         ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...)
     )
 end
@@ -132,6 +132,11 @@ end
 
 
 ### indices
+# batch
+function getindex(f::FlatField{B}, ::typeof(!), I) where {B}
+    FlatField{B}(f.arr[map(_->:, nonbatch_dims(f))..., I], f.metadata)
+end
+# sub-components
 function getindex(f::FlatS0, k::Symbol; full_plane=false)
     maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
     @match k begin
@@ -253,13 +258,15 @@ nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 # do in Map space (the LenseBasis, Ł) for simplicity, and use sum_kbn to reduce roundoff error
 function dot(a::FlatField, b::FlatField)
     z = Ł(a) .* Ł(b)
-    sum_kbn(z.arr, dims=nonbatch_dims(z))
+    batch(sum_kbn(z.arr, dims=nonbatch_dims(z)))
 end
 
 
 ### logdets
-logdet(L::Diagonal{<:Complex,<:FlatFourier}) = real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])),dims=(1,2)))
-logdet(L::Diagonal{<:Real,   <:FlatMap})     = real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))),dims=(1,2)))
+logdet(L::Diagonal{<:Complex,<:FlatFourier}) = 
+    batch(real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])), dims=nonbatch_dims(diag(L)))))
+logdet(L::Diagonal{<:Real, FlatMap}) = 
+    batch(real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))), dims=nonbatch_dims(diag(L)))))
 # ### traces
 # tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
 # tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
@@ -270,7 +277,8 @@ logdet(L::Diagonal{<:Real,   <:FlatMap})     = real(sum_kbn(nan2zero.(log.(compl
 
 
 ### simulation
-_white_noise(rng::AbstractRNG, f::FlatField) = (randn!(similar(f.arr, real(eltype(f)), f.Ny, size(f.arr)[2:end]...)), f.metadata)
+_white_noise(rng::AbstractRNG, f::FlatField) = 
+    (randn!(similar(f.arr, real(eltype(f)), f.Ny, size(f.arr)[2:end]...)), f.metadata)
 white_noise(rng::AbstractRNG, f::FlatS0)  = FlatMap(_white_noise(rng,f)...)
 white_noise(rng::AbstractRNG, f::FlatS2)  = FlatEBMap(_white_noise(rng,f)...)
 white_noise(rng::AbstractRNG, f::FlatS02) = FlatIEBMap(_white_noise(rng,f)...)
@@ -282,8 +290,36 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; unit
     Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
 end
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; units=proj.Ωpix)
-    Diagonal(FlatEBFourier(cat(Cℓ_to_2D(CℓEE,proj),Cℓ_to_2D(CℓBB,proj), dims=3), proj) / units)
+    Diagonal(FlatEBFourier(Cℓ_to_2D(CℓEE,proj), Cℓ_to_2D(CℓBB,proj), proj) / units)
 end
+
+
+
+### batching
+
+batchlength(f::FlatField) = f.Nbatch
+
+"""
+    batch(fs::FlatField...)
+    batch(fs::Vector{<:FlatField})
+    batch(fs::TUple{<:FlatField})
+
+Concatenate one of more FlatFields along the "batch" dimension
+(dimension 4 of the underlying array). For the inverse operation, see
+[`unbatch`](@ref). 
+"""
+batch(fs::FlatField{B}...) where {B} = 
+    FlatField{B}(cat(getfield.(fs,:arr)..., dims=Val(4)), only(unique(getfield.(fs,:metadata))))
+
+"""
+    unbatch(f::FlatField)
+
+Return an Array of FlatFields corresponding to each batch index. For
+the inverse operation, see [`batch`](@ref).
+"""
+unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batchlength(f)]
+
+preprocess((g,proj)::Tuple{<:Any,<:FlatProj}, br::BatchedReal) = reshape(br.vals, 1, 1, 1, :)
 
 
 # function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, (Cℓ, ℓedges, θname)::Tuple; units=fieldinfo(P).Ωpix) where {P,T}

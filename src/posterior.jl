@@ -143,7 +143,7 @@ function δlnP_δϕ(
             get_gQD(Lϕ_batch, ds_sim, f_wf_prev)
         end
         ḡ = mean(mapreduce(vcat, gQD_sims) do gQD
-            [batchindex(gQD.g,i) for i=1:batchsize(gQD.g)]
+            [batchindex(gQD.g,i) for i=1:batchlength(gQD.g)]
         end)
     end
     

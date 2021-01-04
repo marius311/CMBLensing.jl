@@ -33,7 +33,7 @@ function argmaxf_lnP(
 )
     
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
-    D = batchsize(d)
+    D = batchlength(d)
     
     Δ = d - nonCMB_data_components(θ,ds)
     b = 0

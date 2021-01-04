@@ -31,22 +31,14 @@ get_storage(L::DiagOp) = get_storage(diag(L))
 # being taken, and each Field type F implements how to actually take the
 # derivative.
 # 
-# ∇diag{coord, covariance, prefactor} is a Field which represents the diagonal
+# ∇diag(coord, covariance, prefactor) is a Field which represents the diagonal
 # entries of the Fourier representation of the gradient operation, with `coord`
 # specifiying the coordinate for the gradient direction (1 or 2), `covariance`
-# being :covariant or :contravariant, and multiplied by a `prefactor` (generally
+# being COVARIANT or CONTRAVARIANT, and multiplied by a `prefactor` (generally
 # 1 or -1 to keep track of if an adjoint has been taken). ∇[i] returns one of
 # these wrapped in a Diagonal so that multipliying by these does the necessary
 # basis conversion. ∇ (along with ∇ⁱ, and ∇ᵢ) are StaticVectors which can also
 # be used with FieldVector algebra, e.g. ∇*f. 
-# 
-# Note: we are cheating a bit, because while ∇ is diagonal when a derivative is
-# taken in Fourier space via FFT's, its tri-diagonal if taking a map-space
-# derivative, so conceptually these should not be wrapped in a Diagonal. Its a
-# bit ugly and I'd like to fix it, but since the auto-basis conversion mechanism
-# is based on Diagonal, keep things this way for now. Individual field types
-# just need to intercept the broadcast machinery at copyto! to implement the
-# map-space derivative, e.g. see: flat_generic.jl.
 # 
 # Also note: We define the components of vectors, including ∇, to be with respect to
 # the _unnormalized_ covariant or contravariant basis vectors, hence ∇ⁱ = d/dxᵢ
@@ -57,22 +49,22 @@ get_storage(L::DiagOp) = get_storage(diag(L))
 
 Base.@enum Covariance COVARIANT CONTRAVARIANT
 
-struct ∇diag <: ImplicitField{DerivBasis,Bottom}
+struct ∇diag <: ImplicitField{DerivBasis,Complex{Bottom}}
     coord :: Int
     covariance :: Covariance
     prefactor :: Int
 end
 
-struct ∇²diag <: Field{DerivBasis,Bottom} end
+struct ∇²diag <: Field{DerivBasis,Complex{Bottom}} end
 
 get_g_metadata(::∇diag) = nothing
 
 
 
-# # adjoint(D::Diagonal{<:∇diag}) calls conj(D.diag) and here lazily we keep track
-# # of that a conjugate was taken
-# conj(::∇diag{coord,covariance,prefactor}) where {coord,covariance,prefactor} = ∇diag{coord,covariance,-prefactor}()
-# -(::DiagOp{∇diag{coord,covariance,prefactor}}) where {coord,covariance,prefactor} = Diagonal(∇diag{coord,covariance,-prefactor}())
+# adjoint(D::Diagonal{<:∇diag}) calls conj(D.diag) and here we keep
+# track of that a conjugate was taken
+conj(d::∇diag) = ∇diag(d.coord, d.covariance, -d.prefactor)
+-(d::DiagOp{∇diag}) = Diagonal(conj(d))
 
 # Gradient vector which can be used with FieldVector algebra. 
 # struct ∇Op <: StaticVector{2,Diagonal{Float32,∇diag}} end
@@ -81,7 +73,7 @@ get_g_metadata(::∇diag) = nothing
 const ∇ⁱ = @SVector[Diagonal(∇diag(coord, CONTRAVARIANT, 1)) for coord=1:2]
 const ∇ᵢ = @SVector[Diagonal(∇diag(coord, COVARIANT,     1)) for coord=1:2]
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
-# const ∇² = Diagonal(∇²diag())
+const ∇² = Diagonal(∇²diag())
 
 
 @doc doc"""

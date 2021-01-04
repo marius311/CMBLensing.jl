@@ -82,7 +82,7 @@ function grid_and_sample(lnP::Function, range::AbstractVector; progress=false, k
 end
 
 function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
-    batches = [grid_and_sample(batchindex.(lnPs,i), xs; kwargs...) for i=1:batchsize(lnPs[1])]
+    batches = [grid_and_sample(batchindex.(lnPs,i), xs; kwargs...) for i=1:batchlength(lnPs[1])]
     ((batch(getindex.(batches,i)) for i=1:3)...,)
 end
 
@@ -225,7 +225,7 @@ function sample_joint(
         end
     else
 
-        D = batchsize(ds.d)
+        D = batchlength(ds.d)
         
         θstarts = if θstart == :prior
             [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]

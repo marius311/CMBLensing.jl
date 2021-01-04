@@ -137,7 +137,7 @@ wrap_chains(chain::Vector) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
-    D = batchsize(chain[end][:lnP])
+    D = batchlength(chain[end][:lnP])
     (D==1) && return chain
     Chains(map(1:D) do I
         Chain(map(chain) do samp
