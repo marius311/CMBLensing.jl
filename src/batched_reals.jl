@@ -1,7 +1,3 @@
-# functions specific to creating "batched" fields, which are fields that
-# simultaneously store and operate on several maps at a time. this is mainly
-# useful on GPUs where operating on batches of fields is sometimes no slower
-# than a single field. 
 
 """
     BatchedReal(::Vector{<:Real}) <: Real
@@ -17,8 +13,9 @@ end
 batch(r::Real) = r
 batch(rs::Real...) = BatchedReal(collect(rs))
 batch(v::AbstractVector) = BatchedReal(v)
-getindex(br::BatchedReal, ::typeof(!), I) = getindex(br.vals, I)
-batchlength(::BatchedReal) where {D} = D
+batch_index(br::BatchedReal, I) = getindex(br.vals, I)
+getindex(br::BatchedReal, ::typeof(!), I) = batch_index(br, I)
+batch_length(br::BatchedReal) = length(br.vals)
 for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==)]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
@@ -37,6 +34,5 @@ unbatch(br::BatchedReal) = br.vals
 unbatch(r::Real) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
-convert(::Type{<:BatchedReal{T,N}}, v::Bool) where {T,N} = batch(T(v),N)
 Base.hash(bv::BatchedReal, h::UInt) = hash(bv.vals,hash(typeof(bv),h))
 batch(Ls::Vector{<:Diagonal{<:Any,<:Field}}) = Diagonal(batch(map(diag,Ls)))

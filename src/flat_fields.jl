@@ -97,6 +97,14 @@ end
 
 # todo: doc strings
 
+### array interface
+# the main thing we have specify here has to do with which dimension
+# is the "batch" dimension (dimension 4), since that is not assumed in
+# BaseField
+similar(f::FlatField{B}, Nbatch::Int) where {B} = FlatField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
+batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T,4}} = (f.Nbatch,)
+batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T}} = ()
+nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 
 ### properties
 # generic
@@ -248,7 +256,6 @@ end
 
 ### dot products
 
-nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 
 # do in Map space (the LenseBasis, Ł) for simplicity, and use sum_kbn to reduce roundoff error
 function dot(a::FlatField, b::FlatField)
@@ -272,11 +279,11 @@ logdet(L::Diagonal{<:Real, FlatMap}) =
 
 
 ### simulation
-_white_noise(rng::AbstractRNG, f::FlatField) = 
-    (randn!(similar(f.arr, real(eltype(f)), f.Ny, size(f.arr)[2:end]...)), f.metadata)
-white_noise(rng::AbstractRNG, f::FlatS0)  = FlatMap(_white_noise(rng,f)...)
-white_noise(rng::AbstractRNG, f::FlatS2)  = FlatEBMap(_white_noise(rng,f)...)
-white_noise(rng::AbstractRNG, f::FlatS02) = FlatIEBMap(_white_noise(rng,f)...)
+_white_noise!(ξ::FlatField, rng::AbstractRNG) = 
+    (randn!(similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
+white_noise!(ξ::FlatS0,  rng::AbstractRNG) = FlatMap(_white_noise!(ξ,rng)...)
+white_noise!(ξ::FlatS2,  rng::AbstractRNG) = FlatEBMap(_white_noise!(ξ,rng)...)
+white_noise!(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise!(ξ,rng)...)
 
 
 ### covariance operators
@@ -295,7 +302,7 @@ mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField} = (copyto!(dst.
 
 ### batching
 
-batchlength(f::FlatField) = f.Nbatch
+batch_length(f::FlatField) = f.Nbatch
 
 """
     batch(fs::FlatField...)
@@ -315,7 +322,7 @@ batch(fs::FlatField{B}...) where {B} =
 Return an Array of FlatFields corresponding to each batch index. For
 the inverse operation, see [`batch`](@ref).
 """
-unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batchlength(f)]
+unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batch_length(f)]
 
 preprocess((g,proj)::Tuple{<:Any,<:FlatProj}, br::BatchedReal) = reshape(br.vals, 1, 1, 1, :)
 

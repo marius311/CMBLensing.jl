@@ -93,7 +93,7 @@ function δlnP_δϕ(
     aggressive_gc = fieldinfo(ϕ).Nside>=512
 )
 
-    @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
+    @unpack d,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
     Lϕ = L(ϕ)
     Lϕ_batch = Nbatch==1 ? Lϕ : cache(LenseFlow(identity.(batch(ϕ,Nbatch))),identity.(batch(d,Nbatch)))
     
@@ -102,8 +102,8 @@ function δlnP_δϕ(
     end
     
     if (previous_state == nothing)
-        f_sims = [simulate(batch(Cf,Nbatch)) for i=1:Nsims÷Nbatch]
-        n_sims = [simulate(batch(Cn,Nbatch)) for i=1:Nsims÷Nbatch]
+        f_sims = [simulate(Cf; Nbatch) for i=1:Nsims÷Nbatch]
+        n_sims = [simulate(Cn; Nbatch) for i=1:Nsims÷Nbatch]
         f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
         f_wf_prev = nothing
     else
@@ -142,8 +142,8 @@ function δlnP_δϕ(
         gQD_sims = pmap(ds_sims, f_wf_sims_prev) do ds_sim, f_wf_prev
             get_gQD(Lϕ_batch, ds_sim, f_wf_prev)
         end
-        ḡ = mean(mapreduce(vcat, gQD_sims) do gQD
-            [batchindex(gQD.g,i) for i=1:batchlength(gQD.g)]
+        ḡ = mean(map(gQD_sims) do gQD
+            mean(unbatch(gQD.g))
         end)
     end
     

@@ -82,6 +82,7 @@ Returns a named tuple of `(ds, f, ϕ, n, f̃)`
 function resimulate!(
     ds::DataSet; 
     f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
+    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
     rng=global_rng_for(ds.d), seed=nothing
 )
 
@@ -89,17 +90,17 @@ function resimulate!(
     
     if isnothing(f̃)
         if isnothing(ϕ)
-            ϕ = simulate(Cϕ, d; rng, seed)
+            ϕ = simulate(Cϕ; Nbatch, rng, seed)
         end
         if isnothing(f)
-            f = simulate(Cf, d; rng, seed=(seed==nothing ? nothing : seed+1))
+            f = simulate(Cf; Nbatch, rng, seed=(seed==nothing ? nothing : seed+1))
         end
         f̃ = L(ϕ)*f
     else
         f = ϕ = nothing
     end
     if isnothing(n)
-        n = simulate(Cn, d; rng, seed=(seed==nothing ? nothing : seed+2))
+        n = simulate(Cn; rng, seed=(seed==nothing ? nothing : seed+2))
     end
 
     ds.d = d = M*B*f̃ + n

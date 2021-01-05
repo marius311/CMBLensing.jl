@@ -149,7 +149,8 @@ logdet(L, θ) = logdet(L)
 ### Simulation
 
 @doc doc"""
-    simulate(Σ; rng=global_rng_for(Σ), seed=nothing)
+    simulate(Σ;     rng=global_rng_for(Σ), seed=nothing)
+    simulate!(ξ, Σ; rng=global_rng_for(Σ), seed=nothing)
     
 Draw a simulation from the covariance matrix `Σ`, i.e. draw a random vector
 $\xi$ such that the covariance $\langle \xi \xi^\dagger \rangle = \Sigma$. 
@@ -160,18 +161,13 @@ is by default the appropriate one depending on if `Σ` is backed by `Array` or
 
 The `seed` argument can also be used to seed the `rng`.
 """
-function simulate(Σ, args...; rng=global_rng_for(Σ), seed=nothing)
-    isnothing(seed) || Random.seed!(rng, seed)
-    simulate(rng, Σ, args...)
-end
-function white_noise(Σ; rng=global_rng_for(Σ), seed=nothing)
-    isnothing(seed) || Random.seed!(rng, seed)
-    white_noise(rng, Σ)
-end
-function fixed_white_noise(Σ; rng=global_rng_for(Σ), seed=nothing)
-    isnothing(seed) || Random.seed!(rng, seed)
-    fixed_white_noise(rng, Σ)
-end
+simulate(Σ;          rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate(rng, Σ; kwargs...))
+simulate!(ξ, Σ;      rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate!(ξ, rng, Σ; kwargs...))
+white_noise(Σ;       rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise(Σ, rng; kwargs...))
+white_noise!(ξ, Σ;   rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise!(ξ, rng, Σ; kwargs...))
+fixed_white_noise(Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); fixed_white_noise(Σ, rng; kwargs...))
+
+
 global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
 global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 

@@ -3,7 +3,10 @@
 # we use Base.Diagonal(f) for diagonal operators so very little specific code is
 # actually needed here. 
 
-simulate(rng::AbstractRNG, D::DiagOp, z=nothing) = sqrt(D) * white_noise(rng, isnothing(z) ? diag(D) : z)
+simulate(rng::AbstractRNG, D::DiagOp; Nbatch=nothing) = 
+    simulate!(similar(diag(D), (isnothing(Nbatch) ? () : (Nbatch,))...), rng, D)
+simulate!(ξ::Field, rng::AbstractRNG, D::DiagOp) = 
+    sqrt(D) * white_noise!(ξ, rng)
 global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 
 # automatic basis conversion (and NaN-zeroing)

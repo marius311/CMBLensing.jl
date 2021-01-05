@@ -40,7 +40,9 @@ function argmaxf_lnP(
         b += Lϕ'*B'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(Cf,d) + Lϕ'*B'*M'*(Cn\simulate(Cn,d))
+        ξf = simulate(Cf; d.Nbatch)
+        ξn = simulate(Cn; d.Nbatch)
+        b += Cf\ξf + Lϕ'*B'*M'*(Cn\ξn)
     end
     
     A_diag  = pinv(Cf) +     B̂'*M̂'*pinv(Cn̂)*M̂*B̂
