@@ -36,7 +36,6 @@ Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
     B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
     D  = 1           # mixing matrix for mixed parametrization
     G  = 1           # reparametrization for ϕ
-    P  = 1           # pixelization operator (if estimating field on higher res than data)
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
 end
 

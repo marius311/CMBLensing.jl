@@ -153,45 +153,6 @@ typealias_def(t) = nothing
 
 
 
-"""
-    # symmetric in any of its final arguments except for bar:
-    @sym_memo foo(bar, @sym(args...)) = <body> 
-    # symmetric in (i,j), but not baz
-    @sym_memo foo(baz, @sym(i, j)) = <body> 
-    
-The `@sym_memo` macro should be applied to a definition of a function
-which is symmetric in some of its arguments. The arguments in which its
-symmetric are specified by being wrapping them in @sym, and they must come at
-the very end. The resulting function will be memoized and permutations of the
-arguments which are equal due to symmetry will only be computed once.
-"""
-macro sym_memo(funcdef)
-    
-    
-    sfuncdef = splitdef(funcdef)
-    
-    asymargs = sfuncdef[:args][1:end-1]
-    symargs = collect(@match sfuncdef[:args][end] begin
-        Expr(:macrocall, [head, _, ex...]), if head==Symbol("@sym") end => ex
-        _ => error("final argument(s) should be marked @sym")
-    end)
-    sfuncdef[:args] = [asymargs..., symargs...]
-    
-    sfuncdef[:body] = quote
-        symargs = [$(symargs...)]
-        sorted_symargs = sort(symargs)
-        if symargs==sorted_symargs
-            $((sfuncdef[:body]))
-        else
-            $(sfuncdef[:name])($(asymargs...), sorted_symargs...)
-        end
-    end
-    
-    esc(:(@memoize $(combinedef(sfuncdef))))
-    
-end
-
-
 @doc doc"""
 ```
 @subst sum(x*$(y+1) for x=1:2)
@@ -250,15 +211,10 @@ end
 
 get_kwarg_names(func::Function) = Vector{Symbol}(Base.kwarg_decl(first(methods(func))))
 
-# maps a function recursively across all arguments of a Broadcasted expression,
-# using the function `broadcasted` to reconstruct the `Broadcasted` object at
-# each point.
-map_bc_args(f, bc::Broadcasted) = broadcasted(bc.f, map(arg->map_bc_args(f, arg), bc.args)...)
-map_bc_args(f, arg) = f(arg)
 
-
-# adapting a closure adapts the captured variables
-# this could probably be a PR into Adapt.jl
+# adapting a closure adapts the captured variables. this is textbook
+# type-piracy and prone to infinite loops if we have self-referential
+# objects... but its pretty handy
 @generated function adapt_structure(to, f::F) where {F<:Function}
     if fieldcount(F) == 0
         :f
@@ -304,26 +260,21 @@ end
 
 
 
-struct FailedPyimport
-    err
+struct LazyPyImport
+    pkg
 end
-getproperty(p::FailedPyimport, ::Symbol) = throw(getfield(p,:err))
+getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport), s)
 
 @doc doc"""
 
-    safe_pyimport(s)
+    lazy_pyimport(s)
 
-Like `pyimport`, but if `s` fails to import, instead of an error right away, the
-error will be thrown the first time the user tries to access the contents of the
-module.
+Like `pyimport(s)`, but doesn't actually load anything (not even
+PyCall) until a property of the returned module is accessed, allowing
+this to go in `__init__` and still delay loading PyCall, as well as
+preventing a Julia module load error if a Pyton module failed to load.
 """
-function safe_pyimport(s)
-    try
-        @ondemand(PyCall.pyimport)(s)
-    catch err
-        FailedPyimport(err)
-    end
-end
+lazy_pyimport(s) = LazyPyImport(s)
 
 
 @doc doc"""

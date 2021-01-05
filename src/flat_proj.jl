@@ -125,6 +125,10 @@ function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
     end
 end
 
+function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
+    broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2))
+end
+
 function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
     Cℓ_to_2D(bp.Wℓ, proj)
 end
@@ -132,6 +136,21 @@ end
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
     Complex{T}.(nan2zero.(Cℓ.(proj.ℓmag)))
 end
+
+
+### adapting
+
+# dont adapt the fields in proj, instead re-call into the memoized
+# ProjLambert so we always get back the singleton ProjLambert object
+# for the given set of parameters (helps reduce memory usage and
+# speed-up subsequent broadcasts which would otherwise not hit the
+# "===" branch of the "promote_*" methods)
+function adapt_structure(storage, proj::ProjLambert{T}) where {T}
+    @unpack Ny, Nx, θpix = proj
+    T′ = eltype(storage)
+    ProjLambert(;Ny, Nx, θpix, T=(T′==Any ? T : real(T′)), storage)
+end
+
 
 
 # @doc doc"""

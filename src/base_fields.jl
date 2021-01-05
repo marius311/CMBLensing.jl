@@ -133,10 +133,8 @@ function _select_known_rule((b₁,metadata₁), (b₂,metadata₂), ::Unknown, :
     end
 end
 
-# default promotion rules for (b, metadata). if only one argument was
-# a BaseField, then return the (b, metadata) for that one. if they're
-# identical its fine to return either. otherwise, the user needs to
-# specify a rule or its an error.
+# default rules for promoting the (b, metadata) from all the arguments
+# in the broadcasted expression. only one order needs to be defined.
 function promote_bcast_b_metadata((b,metadata)::Tuple, (b′,metadata′)::Tuple)
     if (
         b === b′ && (
@@ -146,10 +144,14 @@ function promote_bcast_b_metadata((b,metadata)::Tuple, (b′,metadata′)::Tuple
     )
         (b, metadata)
     else
+        # if the b and metadata aren't identical, the individual field
+        # types need to specify how to combine them. see e.g.
+        # flat_proj.jl
         Unknown()
     end
 end
 promote_bcast_b_metadata((b,metadata)::Tuple, ::Nothing) = (b, metadata)
+promote_bcast_b_metadata(::Nothing, ::Nothing) = nothing
 promote_bcast_b_metadata(::Any, ::Any) = Unknown()
 
 
@@ -167,3 +169,5 @@ propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.met
 ## other CMBLensing-specific
 global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
 fieldinfo(f::BaseField) = f
+get_storage(f::BaseField) = typeof(f.arr)
+adapt_structure(to, f::BaseField{B}) where {B} = BaseField{B}(adapt(to, f.arr), adapt(to, f.metadata))

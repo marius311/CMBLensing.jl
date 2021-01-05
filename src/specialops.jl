@@ -12,9 +12,11 @@ global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 
 # the generic versions of these kind of suck so we need these specializized
 # versions:
-(*)(x::Adjoint{<:Any,<:Field}, D::Diagonal) = (D*parent(x))'
-(*)(x::Adjoint{<:Any,<:Field}, D::Diagonal, y::Field) = x*(D*y)
+(*)(x::Adjoint{<:Any,<:Field}, D::DiagOp) = (D*parent(x))'
+(*)(x::Adjoint{<:Any,<:Field}, D::DiagOp, y::Field) = x*(D*y)
 diag(L::DiagOp) = L.diag
+(^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
+
 
 # use getproperty here to ensure no basis conversion is done
 getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
@@ -22,6 +24,7 @@ getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
 # the generic version of this is prohibitively slow so we need this
 hash(D::DiagOp, h::UInt64) = hash(D.diag, h)
 
+# adapting
 get_storage(L::DiagOp) = get_storage(diag(L))
 
 
@@ -180,27 +183,26 @@ After executing the code above, `Cϕ` is now ready to be (auto-)shipped to any w
 and will work regardless of what global variables are defined on these workers. 
 """
 struct ParamDependentOp{T, L<:FieldOp{T}, F<:Function} <: ImplicitOp{T}
-    op::L
-    recompute_function::F
-    parameters::Vector{Symbol}
+    op :: L
+    recompute_function :: F
+    parameters :: Vector{Symbol}
 end
 function ParamDependentOp(recompute_function::Function)
+    kwarg_names = filter(!=(Symbol("_...")), get_kwarg_names(recompute_function))
+    if endswith(string(kwarg_names[end]), "...")
+        # an "kwargs..."-like keyword argument (except for "_..."
+        # which is filtered out above) indicates this operator depends
+        # on everything, which is indicated by an empty kwarg_names
+        empty!(kwarg_names)
+    end
     # invokelatest here allows creating a ParamDependent op which calls a
     # BinRescaledOp (eg this is the case for the mixing matrix G which depends
     # on Cϕ) from inside function. this would otherwise fail due to
     # BinRescaledOp eval'ed function being too new
-    kwarg_names = filter(!=(Symbol("_...")), get_kwarg_names(recompute_function))
-    if endswith(string(kwarg_names[end]), "...")
-        kwarg_decl = empty!(kwarg_names) # to indicate it depends on anything
-    end
     ParamDependentOp(Base.invokelatest(recompute_function), recompute_function, kwarg_names)
 end
 function (L::ParamDependentOp)(θ::NamedTuple)
     if depends_on(L,θ)
-        # filtering out non-dependent parameters disabled until I can find a fix to:
-        # https://discourse.julialang.org/t/can-zygote-do-derivatives-w-r-t-keyword-arguments-which-get-captured-in-kwargs/34553/8
-        # dependent_θ = filter(((k,_),)->k in L.parameters, pairs(θ))
-        
         # if L got adapt'ed to CuArray since this op was created,
         # L.op will be GPU-backed, but depending on how
         # recompute_function is written, recompute_function may
@@ -211,7 +213,7 @@ function (L::ParamDependentOp)(θ::NamedTuple)
         storage == get_storage(Lθ) ? Lθ : adapt(storage, Lθ)
     else
         L.op
-    end 
+    end
 end
 (L::ParamDependentOp)(;θ...) = L((;θ...))
 *(L::ParamDependentOp, f::Field) = L.op * f
@@ -238,38 +240,48 @@ adapt_structure(to, L::ParamDependentOp) =
 
 # ### LazyBinaryOp
 
-# # we use LazyBinaryOps to create new operators composed from other operators
-# # which don't actually evaluate anything until they've been multiplied by a
-# # field
-# struct LazyBinaryOp{F,A<:Union{LinOrAdjOp,Scalar},B<:Union{LinOrAdjOp,Scalar}} <: ImplicitOp{Basis,Spin,Pix}
-#     a::A
-#     b::B
-#     LazyBinaryOp(op,a::A,b::B) where {A,B} = new{op,A,B}(a,b)
-# end
-# # creating LazyBinaryOps
-# for op in (:+, :-, :*)
-#     @eval ($op)(a::ImplicitOrAdjOp,          b::ImplicitOrAdjOp)          = LazyBinaryOp($op,a,b)
-#     @eval ($op)(a::Union{LinOrAdjOp,Scalar}, b::ImplicitOrAdjOp)          = LazyBinaryOp($op,a,b)
-#     @eval ($op)(a::ImplicitOrAdjOp,          b::Union{LinOrAdjOp,Scalar}) = LazyBinaryOp($op,a,b)
-#     # explicit vs. lazy binary operations on Diagonals:
-#     @eval ($op)(D1::DiagOp{<:Field{B}},  D2::DiagOp{<:Field{B}})  where {B}     = Diagonal(broadcast($op,D1.diag,D2.diag))
-#     @eval ($op)(D1::DiagOp{<:Field{B1}}, D2::DiagOp{<:Field{B2}}) where {B1,B2} = LazyBinaryOp($op,D1,D2)
-# end
-# /(op::ImplicitOrAdjOp, n::Real) = LazyBinaryOp(/,op,n)
-# ^(op::Union{ImplicitOrAdjOp,DiagOp{<:ImplicitField}}, n::Int) = LazyBinaryOp(^,op,n)
+# we use LazyBinaryOps to create new operators composed from other operators
+# which don't actually evaluate anything until they've been multiplied by a
+# field
+struct LazyBinaryOp{λ} <: ImplicitOp{Bottom}
+    a :: FieldOpScal
+    b :: FieldOpScal
+    LazyBinaryOp(λ, a::FieldOpScal, b::FieldOpScal) = new{λ}(a, b)
+end
+# creating LazyBinaryOps
+for λ in (:+, :-, :*)
+    @eval begin
+        function ($λ)(
+            a :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
+            b :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
+        ) where {B₁,B₂}
+            LazyBinaryOp($λ, a, b)
+        end
+        function ($λ)(
+            D1 :: DiagOp{<:Field{B}},
+            D2 :: DiagOp{<:Field{B}}
+        ) where {B}
+            Diagonal(broadcast($λ, diag(D1), diag(D2)))
+        end
+    end
+end
+@eval *(a::ImplicitOp, b::Scalar) = LazyBinaryOp(*,a,b)
+@eval *(a::Scalar, b::ImplicitOp) = LazyBinaryOp(*,a,b)
+/(op::ImplicitOp, n::Real)        = LazyBinaryOp(/,op,n)
+^(op::ImplicitOp, n::Integer)     = LazyBinaryOp(^,op,n)
 # inv(op::Union{ImplicitOrAdjOp,DiagOp{<:ImplicitField}}) = LazyBinaryOp(^,op,-1)
 # -(op::ImplicitOrAdjOp) = -1 * op
 # pinv(op::LazyBinaryOp{*}) = pinv(op.b) * pinv(op.a)
-# # evaluating LazyBinaryOps
-# for op in (:+, :-)
-#     @eval *(lz::LazyBinaryOp{$op}, f::Field) = ($op)(lz.a * f, lz.b * f)
-#     @eval diag(lz::LazyBinaryOp{$op}) = ($op)(diag(lz.a), diag(lz.b))
-#     @eval adjoint(lz::LazyBinaryOp{$op}) = LazyBinaryOp(($op),adjoint(lz.a),adjoint(lz.b))
-# end
-# *(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
-# *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
-# \(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
-# *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a,abs(lz.b)), init=f)
+# evaluating LazyBinaryOps
+for λ in (:+, :-)
+    @eval *(lz::LazyBinaryOp{$λ}, f::Field) = ($λ)(lz.a * f, lz.b * f)
+    @eval diag(lz::LazyBinaryOp{$λ}) = ($λ)(diag(lz.a), diag(lz.b))
+    @eval adjoint(lz::LazyBinaryOp{$λ}) = LazyBinaryOp(($λ), adjoint(lz.a), adjoint(lz.b))
+end
+*(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
+*(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
+\(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
+*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a, abs(lz.b)), init=f)
 # adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
 # ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 # adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))

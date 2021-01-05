@@ -107,7 +107,7 @@ include("lenseflow.jl")
 # # flat-sky maps
 include("flat_proj.jl")
 include("flat_fields.jl")
-# include("masking.jl")
+include("masking.jl")
 # include("taylens.jl")
 # include("bilinearlens.jl")
 
@@ -118,12 +118,12 @@ function animate end
 # # sampling and maximizing the posteriors
 include("dataset.jl")
 include("posterior.jl")
-# include("maximization.jl")
+include("maximization.jl")
 # include("sampling.jl")
 # include("chains.jl")
 
-# # other estimates
-# include("quadratic_estimate.jl")
+# other estimates
+include("quadratic_estimate.jl")
 
 # # curved-sky
 # include("healpix.jl")

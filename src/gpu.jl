@@ -4,7 +4,7 @@ using CUDA: cufunc, curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
-export cuda_gc
+export cuda_gc, gpu
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 

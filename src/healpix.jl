@@ -18,7 +18,7 @@ pretty_type_name(::Type{<:HealpixMap}) = "HealpixMap"
 typeof(f)
 
 
-@init global hp = safe_pyimport("healpy")
+@init global hp = lazy_pyimport("healpy")
 
 
 function θϕ_to_xy((θ,ϕ))

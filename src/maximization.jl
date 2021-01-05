@@ -33,7 +33,6 @@ function argmaxf_lnP(
 )
     
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
-    D = batchlength(d)
     
     Δ = d - nonCMB_data_components(θ,ds)
     b = 0
@@ -41,7 +40,7 @@ function argmaxf_lnP(
         b += Lϕ'*B'*P'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(batch(Cf,D)) + Lϕ'*B'*P'*M'*(Cn\simulate(batch(Cn,D)))
+        b += Cf\simulate(Cf,d) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn,d))
     end
     
     A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂

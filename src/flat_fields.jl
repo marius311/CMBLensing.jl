@@ -49,12 +49,13 @@ HarmonicBasis(::Type{<:FlatQU}) = QUFourier
 HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 
 
-
 ### constructors
+# the default is to use ProjLambert
 
 _reshape_batch(arr::AbstractArray{T,3}) where {T} = reshape(arr, size(arr,1), size(arr,2), 1, size(arr,3))
 _reshape_batch(arr) = arr
 
+# spin-0
 function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
     FlatMap(
         _reshape_batch(Ix),
@@ -67,8 +68,7 @@ function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
         ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...)
     )
 end
-
-
+# spin-2 and spin-(0,2)
 for (F,Xs,Ny) in [
     (:FlatQUMap,      (:Qx,:Ux),      false),
     (:FlatQUFourier,  (:Ql,:Ul),      true),
@@ -95,7 +95,7 @@ for (F,Xs,Ny) in [
     end
 end
 
-# todo: enumerate rest and add doc strings
+# todo: doc strings
 
 
 ### properties
@@ -103,32 +103,27 @@ end
 getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr),4)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
 # sub-components
-for (F,ks) in [
-    (FlatMap,        ("Ix",)),
-    (FlatFourier,    ("Il",)),
-    (FlatQUMap,      ("Qx", "Ux")),
-    (FlatQUFourier,  ("Ql", "Ul")),
-    (FlatEBMap,      ("Ex", "Bx")),
-    (FlatEBFourier,  ("El", "Bl")),
-    (FlatIQUMap,     ("Ix", "Qx", "Ux")),
-    (FlatIQUFourier, ("Il", "Ql", "Ul")),
-    (FlatIEBMap,     ("Ix", "Ex", "Bx")),
-    (FlatIEBFourier, ("Il", "El", "Bl"))
+for (F, keys) in [
+    (FlatMap,        ("Ix"=>:, "I"=>:)),
+    (FlatFourier,    ("Il"=>:, "I"=>:)),
+    (FlatQUMap,      ("Qx"=>1, "Ux"=>2, "Q"=>1,  "U"=>2, "P"=>:)),
+    (FlatQUFourier,  ("Ql"=>1, "Ul"=>2, "Q"=>1,  "U"=>2, "P"=>:)),
+    (FlatEBMap,      ("Ex"=>1, "Bx"=>2, "E"=>1,  "B"=>2, "P"=>:)),
+    (FlatEBFourier,  ("El"=>1, "Bl"=>2, "E"=>1,  "B"=>2, "P"=>:)),
+    (FlatIQUMap,     ("Ix"=>1, "Qx"=>2, "Ux"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
+    (FlatIQUFourier, ("Il"=>1, "Ql"=>2, "Ul"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
+    (FlatIEBMap,     ("Ix"=>1, "Ex"=>2, "Bx"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
+    (FlatIEBFourier, ("Il"=>1, "El"=>2, "Bl"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
 ]
-    for (i,k) in enumerate(ks)
-        F₀ = endswith(k,"x") ? FlatMap : FlatFourier
-        @eval getproperty(f::$F, ::Val{$(QuoteNode(Symbol(k)))}) = view(getfield(f,:arr), :, :, $i, ..)
-        @eval getproperty(f::$F, ::Val{$(QuoteNode(Symbol(k[1])))}) = $F₀(view(getfield(f,:arr), :, :, $i, ..), f.metadata)
+    for (k,I) in keys
+        body = if k[end] in "xl"
+            I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ..))
+        else
+            I==(:) ? :f                  : :($(BaseField{sub_basis(basis(F),k)})(view(getfield(f,:arr), :, :, $I, ..), f.metadata))
+        end
+        @eval getproperty(f::$F, ::Val{$(QuoteNode(Symbol(k)))}) = $body
     end
 end
-# not sure I really like these...
-# getproperty(f::FlatS2{B}, ::Val{:P}) where {B} = FlatS2{B}(view(getfield(f,:arr)),                f.metadata)
-# getproperty(f::FlatS02Map,     ::Val{:I})  =       FlatMap(view(getfield(f,:arr), :, :, 1,   ..), f.metadata)
-# getproperty(f::FlatS02Fourier, ::Val{:I})  =   FlatFourier(view(getfield(f,:arr), :, :, 1,   ..), f.metadata)
-# getproperty(f::FlatIQUMap,     ::Val{:P})  =     FlatQUMap(view(getfield(f,:arr), :, :, 2:3, ..), f.metadata)
-# getproperty(f::FlatIQUFourier, ::Val{:P})  = FlatQUFourier(view(getfield(f,:arr), :, :, 2:3, ..), f.metadata)
-# getproperty(f::FlatIEBMap,     ::Val{:P})  =     FlatEBMap(view(getfield(f,:arr), :, :, 2:3, ..), f.metadata)
-# getproperty(f::FlatIEBFourier, ::Val{:P})  = FlatEBFourier(view(getfield(f,:arr), :, :, 2:3, ..), f.metadata)
 
 
 ### indices
@@ -323,6 +318,13 @@ the inverse operation, see [`batch`](@ref).
 unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batchlength(f)]
 
 preprocess((g,proj)::Tuple{<:Any,<:FlatProj}, br::BatchedReal) = reshape(br.vals, 1, 1, 1, :)
+
+
+
+###
+
+make_mask(f::FlatField; kwargs...) = make_mask((f.Ny,f.Nx), f.θpix; kwargs...)
+
 
 
 # function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, (Cℓ, ℓedges, θname)::Tuple; units=fieldinfo(P).Ωpix) where {P,T}

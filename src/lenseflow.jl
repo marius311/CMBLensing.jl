@@ -6,7 +6,7 @@ abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,T} <: FlowOpWithAdjoint{I,t₀,
 # precomputed quantities and preallocated memory needed to do the lense.
 
 struct LenseFlow{I<:ODESolver,t₀,t₁,T} <: LenseFlowOp{I,t₀,t₁,T}
-    ϕ::Field
+    ϕ :: Field
 end
 LenseFlow(ϕ,n=7) = LenseFlow{RK4Solver{n}}(ϕ)
 LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
@@ -39,9 +39,13 @@ end
 
 
 ### printing
-show(io::IO, L::LenseFlow{I,t₀,t₁}) where {I,t₀,t₁} = print(io, "$(typeof(L).name.name){$t₀→$t₁, $I}(ϕ::$(typeof(L.ϕ)))")
-show(io::IO, ::L) where {N,t₀,t₁,Φ,ŁF,L<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}} = print(io, "$(L.name.name){$t₀→$t₁, $(RK4Solver{N})}(ϕ::$Φ, Łf::$ŁF)")
-string(::Type{RK4Solver{N}}) where {N} = "$N-step RK4"
+typealias_def(::Type{<:RK4Solver{N}}) where {N} = "$N-step RK4"
+typealias_def(::Type{<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}}) where {N,t₀,t₁,Φ,ŁF} = 
+    "CachedLenseFlow{$t₀→$t₁, $N-step RK4}(ϕ::$(typealias(Φ)), Łf::$(typealias(ŁF)))"
+typealias_def(::Type{<:LenseFlow{I,t₀,t₁}}) where {I,t₀,t₁} = 
+    "CachedLenseFlow{$t₀→$t₁, $(typealias(I))}(ϕ)"
+size(L::CachedLenseFlow) = length(L.memŁf) .* (1,1)
+
 
 # convenience for getting the actual ϕ map
 getϕ(L::LenseFlow) = L.ϕ
@@ -54,7 +58,7 @@ cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
 cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = 
     (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
-(cL::CachedLenseFlow)(ϕ) = cache!(cL,ϕ)
+(cL::CachedLenseFlow)(ϕ::Field) = cache!(cL,ϕ)
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = range(t₀,t₁,length=2N+1)
     ∇ϕ,Hϕ = map(Ł, gradhess(L.ϕ))

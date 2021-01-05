@@ -1,13 +1,34 @@
 
+
+### abstract type hierarchy
+
 abstract type Basis end
+abstract type Basislike <: Basis end
+abstract type DerivBasis <: Basislike end # Basis in which derivatives are sparse for a given field
+const Ð! = Ð = DerivBasis
+abstract type LenseBasis <: Basislike end # Basis in which lensing is a pixel remapping for a given field
+const Ł! = Ł = LenseBasis
 
-typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
-
-# All fields are a subtype of this. 
+## fields
 abstract type Field{B<:Basis,T} <: AbstractVector{T} end
+abstract type ImplicitField{B<:Basis,T} <: Field{B,T} end
 
+## linear operators
+abstract type ImplicitOp{T} <: AbstractMatrix{T} end
+const DiagOp{F<:Field,T} = Diagonal{T,F}
+# includes Diagonal and Adjoint wrappers, which can't be made <:ImplicitOp directly
+const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,<:ImplicitOp{T}},Diagonal{T,<:Field{<:Any,T}}}
 
-# Basis types
+# scalars which are allowed in our expressions must be real because we
+# implicitly assume our maps are real, and addi`tion/multiplication by a complex
+# number, even of the fourier transform, would break this.
+const Scalar = Real
+
+# other useful unions
+const FieldOrOp = Union{Field,FieldOp}
+const FieldOpScal = Union{Field,FieldOp,Scalar}
+
+## Basis types
 struct Map        <: Basis end
 struct Fourier    <: Basis end
 struct QUMap      <: Basis end
@@ -20,40 +41,51 @@ struct IQUMap     <: Basis end
 struct IEBMap     <: Basis end
 
 
+### basis
+
 basis_promotion_rules = Dict(
-    # S0
-    (Map,       Fourier)    => Map,
-    # S2
-    (QUMap,     QUFourier)  => QUMap,
-    (EBMap,     EBFourier)  => EBFourier,
-    (QUMap,     EBMap)      => QUMap,
-    (QUFourier, EBFourier)  => QUFourier,
-    (QUMap,     EBFourier)  => QUMap,
-    (QUFourier, EBMap)      => QUFourier
+    # spin-0
+    (Map,        Fourier)     => Map,
+    # spin-2
+    (QUMap,      QUFourier)   => QUMap,
+    (EBMap,      EBFourier)   => EBFourier,
+    (QUMap,      EBMap)       => QUMap,
+    (QUFourier,  EBFourier)   => QUFourier,
+    (QUMap,      EBFourier)   => QUMap,
+    (QUFourier,  EBMap)       => QUFourier,
+    # spin-(0,2)
+    (IQUMap,     IQUFourier)  => IQUMap,
+    (IEBMap,     IEBFourier)  => IEBFourier,
+    (IQUMap,     IEBMap)      => IQUMap,
+    (IQUFourier, IEBFourier)  => IQUFourier,
+    (IQUMap,     IEBFourier)  => IQUMap,
+    (IQUFourier, IEBMap)      => IQUFourier
 )
 for ((B₁,B₂),B) in basis_promotion_rules
     @eval promote_rule(::Type{$B₁}, ::Type{$B₂}) = $B
 end
 
+_sub_basis = Dict(
+    Map        => Dict("I"=>Map),
+    Fourier    => Dict("I"=>Fourier),
+    QUMap      => Dict("Q"=>Map,     "U"=>Map,     "P"=>QUMap),
+    EBMap      => Dict("E"=>Map,     "B"=>Map,     "P"=>EBMap),
+    QUFourier  => Dict("Q"=>Fourier, "U"=>Fourier, "P"=>QUFourier),
+    EBFourier  => Dict("E"=>Fourier, "B"=>Fourier, "P"=>EBFourier),
+    IQUMap     => Dict("I"=>Map,     "Q"=>Map,     "U"=>Map,     "P"=>QUMap,     "IP"=>IQUMap),
+    IEBMap     => Dict("I"=>Map,     "E"=>Map,     "B"=>Map,     "P"=>EBMap,     "IP"=>IEBMap),
+    IQUFourier => Dict("I"=>Fourier, "Q"=>Fourier, "U"=>Fourier, "P"=>QUFourier, "IP"=>IQUFourier),
+    IEBFourier => Dict("I"=>Fourier, "E"=>Fourier, "B"=>Fourier, "P"=>EBFourier, "IP"=>IEBFourier)
+)
+sub_basis(B,pol) = _sub_basis[B][pol]
+
 
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
 # particular types of fields, these might be different actual bases, e.g. the
 # lensing basis is Map for S0 but QUMap for S2.
-abstract type Basislike <: Basis end
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
 (::Type{B})(f′::Field, f::F) where {F<:Field,B<:Basislike} = B(F)(f′,f)
 (::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
-
-# Basis in which derivatives are sparse for a given field
-abstract type DerivBasis <: Basislike end
-const Ð = DerivBasis
-Ð!(args...) = Ð(args...)
-
-# Basis in which lensing is a pixel remapping for a given field
-abstract type LenseBasis <: Basislike end
-const Ł = LenseBasis
-Ł!(args...) = Ł(args...)
-
 
 # B(f) where B is a basis converts f to that basis. This is the fallback if the
 # field is already in the right basis.
@@ -68,50 +100,39 @@ Basis(f::Field) = f
 # construct)
 (::Type{B})(f′::Field{B}, f::Field{B}) where {B<:Basis} = f
 
-
-
-### ImplicitOp
-# ImplicitOps and ImplicitFields are operators and fields which may not be
-# explicitly stored, but can be multiplied, etc... and generally implicitly take
-# on whatever size they need. The specification of Float32 as the the Array type
-# is only for inference, such that its widened to whatever its needed to be the
-# end. 
-abstract type ImplicitField{B<:Basis,T} <: Field{B,T} end
-abstract type ImplicitOp{T} <: AbstractMatrix{T} end
-
-# adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
-# adapt_structure(to, arr::Array{<:Field}) = map(f -> adapt(to,f), arr)
-
-const DiagOp{F<:Field,T} = Diagonal{T,F}
-const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,<:ImplicitOp{T}},Diagonal{T,<:Field{<:Any,T}}}
-
-# # assume no dependence on parameters θ unless otherwise specified
-(L::Union{FieldOp,UniformScaling})(θ::NamedTuple) = L
-
-
-### Scalars
-# scalars which are allowed in our expressions must be real because we
-# implicitly assume our maps are real, and addition/multiplication by a complex
-# number, even of the fourier transform, would break this.
-const Scalar = Real
-const FieldOrOp = Union{Field,FieldOp}
-const FieldOpScal = Union{Field,FieldOp,Scalar}
-
+# convenience "getter" functions for the B basis type parameter
+basis(f::F) where {F<:Field} = basis(F)
+basis(::Type{<:Field{B}}) where {B<:Basis} = B
+basis(::Type{<:Field}) = Basis
 
 
 ### printing
+typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
 Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
-Base.isempty(::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}}) = true
+Base.isempty(::FieldOp) = true
 Base.isempty(::ImplicitField) = true
-function Base.summary(io::IO, x::Union{ImplicitOp,Diagonal{<:Any,<:ImplicitField}})
-    print(io, "⍰×⍰ ")
+function Base.summary(io::IO, x::FieldOp)
+    try
+        print(io, join(size(x), "×"), " ")
+    catch err
+        @assert err isa MethodError
+        print(io, "⍰×⍰ ")
+    end
     Base.showarg(io, x, true)
 end
 function Base.summary(io::IO, x::ImplicitField)
-    print(io, "⍰-element ")
+    try
+        print(io, size(x,1), "-element ")
+    catch err
+        @assert err isa MethodError
+        print(io, "⍰-element ")
+    end
     Base.showarg(io, x, true)
 end
 
+
+
+### logdet
 
 """
     logdet(L::FieldOp, θ)
@@ -122,6 +143,7 @@ If L depends on θ, evaluates `logdet(L(θ))` offset by its fiducial value at
 logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
 logdet(L::Int, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
 logdet(L, θ) = logdet(L)
+
 
 
 ### Simulation
@@ -155,7 +177,7 @@ global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
 
 
 
-### Spin adjoints
+### spin adjoints
 # represents a field which is adjoint over just the "spin" indices.
 # multiplying such a field by a non-adjointed one should be the inner
 # product over just the spin indices, hence return a spin-0 field,
@@ -169,24 +191,21 @@ spin_adjoint(f::Field) = SpinAdjoint(f)
 
 
 
-# ### Other generic stuff
+### misc
 
-# # allows one to pass `1` to something which expect a LenseFlow-like operator
-# (s::Scalar)(::Field) = s
+# allows L(θ) or L(ϕ) to work and be a no-op for things which don't
+# depend on parameters or a field
+(L::Union{FieldOp,UniformScaling})(::Union{Field,NamedTuple}) = L
 
-# alloc_cache(x, ::Any) = x
-# cache(x, ::Any) = x
-# cache!(x, ::Any) = x
+# allow using `I` as a lensing operator to represent no lensing
+alloc_cache(x, ::Any) = x
+cache(x, ::Any) = x
+cache!(x, ::Any) = x
 
-# # caching for adjoints
-# cache(L::Adjoint, f) = cache(L',f)'
-# cache!(L::Adjoint, f) = cache!(L',f)'
+# caching for adjoints
+cache(L::Adjoint, f) = cache(L',f)'
+cache!(L::Adjoint, f) = cache!(L',f)'
 
-
-# convenience "getter" functions for the B basis type parameter
-basis(f::F) where {F<:Field} = basis(F)
-basis(::Type{<:Field{B}}) where {B<:Basis} = B
-basis(::Type{<:Field}) = Basis
 
 
 # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
@@ -223,10 +242,11 @@ if VERSION>v"1.4"
     *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
 end
 
-# (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Real}) where {T<:Real} = T.(f)
-# (::Type{T})(f::Field{<:Any,<:Any,<:Any,<:Complex}) where {T<:Real} = Complex{T}.(f)
 
-# misc
+# adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x
+# adapt_structure(to, arr::Array{<:Field}) = map(f -> adapt(to,f), arr)
+
+
 one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f))
 # sum_kbn(f::Field) = sum_kbn(f[:])
