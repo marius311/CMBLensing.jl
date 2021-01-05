@@ -263,7 +263,7 @@ end
 struct LazyPyImport
     pkg
 end
-getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport), s)
+getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(pkg), s)
 
 @doc doc"""
 
@@ -272,7 +272,7 @@ getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)
 Like `pyimport(s)`, but doesn't actually load anything (not even
 PyCall) until a property of the returned module is accessed, allowing
 this to go in `__init__` and still delay loading PyCall, as well as
-preventing a Julia module load error if a Pyton module failed to load.
+preventing a Julia module load error if a Python module failed to load.
 """
 lazy_pyimport(s) = LazyPyImport(s)
 
@@ -420,7 +420,3 @@ macro show⌛(ex)
         result
     end
 end
-
-
-drop_tail_singleton_dims(x::AbstractArray{T,N}) where {T,N} = size(x,N)==1 ? drop_tail_singleton_dims(dropdims(x,dims=N)) : x
-drop_tail_singleton_dims(x::AbstractArray{T,0}) where {T} = x

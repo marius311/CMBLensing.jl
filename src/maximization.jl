@@ -32,20 +32,20 @@ function argmaxf_lnP(
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
     
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂ = ds(θ)
     
     Δ = d - nonCMB_data_components(θ,ds)
     b = 0
     if (which in (:wf, :sample))
-        b += Lϕ'*B'*P'*M'*(Cn\Δ)
+        b += Lϕ'*B'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(Cf,d) + Lϕ'*B'*P'*M'*(Cn\simulate(Cn,d))
+        b += Cf\simulate(Cf,d) + Lϕ'*B'*M'*(Cn\simulate(Cn,d))
     end
     
-    A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
-    A_zeroϕ = pinv(Cf) +     B'*P'*M'*pinv(Cn̂)*M*P*B
-    A       = pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ
+    A_diag  = pinv(Cf) +     B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+    A_zeroϕ = pinv(Cf) +     B'*M'*pinv(Cn̂)*M*B
+    A       = pinv(Cf) + Lϕ'*B'*M'*pinv(Cn)*M*B*Lϕ
     
     A_preconditioner = @match preconditioner begin
         :diag  => A_diag

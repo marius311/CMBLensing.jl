@@ -43,7 +43,7 @@ typealias_def(::Type{<:RK4Solver{N}}) where {N} = "$N-step RK4"
 typealias_def(::Type{<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}}) where {N,t₀,t₁,Φ,ŁF} = 
     "CachedLenseFlow{$t₀→$t₁, $N-step RK4}(ϕ::$(typealias(Φ)), Łf::$(typealias(ŁF)))"
 typealias_def(::Type{<:LenseFlow{I,t₀,t₁}}) where {I,t₀,t₁} = 
-    "CachedLenseFlow{$t₀→$t₁, $(typealias(I))}(ϕ)"
+    "LenseFlow{$t₀→$t₁, $(typealias(I))}(ϕ)"
 size(L::CachedLenseFlow) = length(L.memŁf) .* (1,1)
 
 

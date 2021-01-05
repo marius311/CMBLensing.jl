@@ -24,7 +24,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
         @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
-        @. y .+= h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+        @. y .+= h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
     return y
 end
@@ -38,7 +38,7 @@ function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
         k₂ = F(t + h½, y + h½*k₁)
         k₃ = F(t + h½, y + h½*k₂)
         k₄ = F(t + h,  y + h*k₃)
-        y += @. h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+        y += @. h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
     return y
 end

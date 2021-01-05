@@ -20,7 +20,7 @@ const DiagOp{F<:Field,T} = Diagonal{T,F}
 const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,<:ImplicitOp{T}},Diagonal{T,<:Field{<:Any,T}}}
 
 # scalars which are allowed in our expressions must be real because we
-# implicitly assume our maps are real, and addi`tion/multiplication by a complex
+# implicitly assume our maps are real, and addition/multiplication by a complex
 # number, even of the fourier transform, would break this.
 const Scalar = Real
 
@@ -35,10 +35,10 @@ struct QUMap      <: Basis end
 struct EBMap      <: Basis end
 struct QUFourier  <: Basis end
 struct EBFourier  <: Basis end
-struct IQUFourier <: Basis end
-struct IEBFourier <: Basis end
 struct IQUMap     <: Basis end
 struct IEBMap     <: Basis end
+struct IQUFourier <: Basis end
+struct IEBFourier <: Basis end
 
 
 ### basis

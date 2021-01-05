@@ -34,6 +34,9 @@ function quadratic_estimate(
     weights = :unlensed
 )
     @assert weights in (:lensed, :unlensed) "weights should be :lensed or :unlensed"
+    if isnothing(which)
+        which = ds₁.d isa FlatS0 ? :TT : :EB
+    end
     @assert (which in [:TT, :EE, :EB]) "which='$which' not implemented"
     @assert (ds₁.Cf===ds₂.Cf && ds₁.Cf̃===ds₂.Cf̃ && ds₁.Cn̂===ds₂.Cn̂ && ds₁.Cϕ===ds₂.Cϕ && ds₁.B̂===ds₂.B̂) "operators in `ds₁` and `ds₂` should be the same"
     @unpack Cf, Cf̃, Cn̂, Cϕ, B̂, M̂ = ds₁()
