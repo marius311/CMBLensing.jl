@@ -55,11 +55,11 @@ typealias_def(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 
 # used in broadcasting to decide the result of broadcasting across two
 # fields with a given `metadata` and basis, `b` (where b is an
-# instance of type-parameter B) 
-function promote_bcast_b_metadata(
-    (b,metadata₁) :: Tuple{B,<:ProjLambert{T₁}}, 
-    (_,metadata₂) :: Tuple{B,<:ProjLambert{T₂}}
-) where {B,T₁,T₂}
+# instance of the type-parameter B) 
+function promote_bcast(
+    (b₁,metadata₁) :: Tuple{B₁,<:ProjLambert{T₁}}, 
+    (b₂,metadata₂) :: Tuple{B₂,<:ProjLambert{T₂}}
+) where {B₁,B₂,T₁,T₂}
 
     # even though if metadata₁ === metadata₂ we could technically
     # return either, it helps inference if we always return the
@@ -67,19 +67,22 @@ function promote_bcast_b_metadata(
     # time anyway so doesn't slow us down if metadata₁ === metadata₂
     # is indeed true
     wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
+    b = promote_bcast(b₁,b₂)
 
     if (
-        metadata₁ === metadata₂ || (
-            metadata₁.θpix    == metadata₂.θpix &&
-            metadata₁.Ny      == metadata₂.Ny   &&
-            metadata₁.Nx      == metadata₂.Nx      
+        b isa Basis && (
+            metadata₁ === metadata₂ || (
+                metadata₁.θpix == metadata₂.θpix &&
+                metadata₁.Ny   == metadata₂.Ny   &&
+                metadata₁.Nx   == metadata₂.Nx      
+            )
         )
     )
         (b, wider_metadata)
     else
         error("""Can't broadcast two fields with the following differing metadata:
-        1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx)))
-        2: $(select(fields(metadata₂),(:θpix,:Ny,:Nx)))
+        1: $((;B₁, select(fields(metadata₁),(:θpix,:Ny,:Nx))...))
+        2: $((;B₂, select(fields(metadata₂),(:θpix,:Ny,:Nx))...))
         """)
     end
 
@@ -88,19 +91,25 @@ end
 
 # used in non-broadcasted algebra to decide the result of performing
 # some operation across two fields with a given `metadata`. this is
-# free to do more generic promotion than promote_bcast_b_metadata. the
+# free to do more generic promotion than promote_bcast_rule. the
 # result should be a common metadata which we can convert both fields
 # to then do a succesful broadcast
-function promote_metadata(metadata₁::ProjLambert, metadata₂::ProjLambert)
+function promote_generic(
+    (b₁,metadata₁) :: Tuple{B₁,<:ProjLambert{T₁}}, 
+    (b₂,metadata₂) :: Tuple{B₂,<:ProjLambert{T₂}}
+) where {B₁,B₂,T₁,T₂}
+
+    b = promote_generic(b₁, b₂)
+
     if (
         metadata₁ === metadata₂ || (
-            metadata₁.θpix         == metadata₂.θpix    &&
-            metadata₁.Ny           == metadata₂.Ny      &&
-            metadata₁.Nx           == metadata₂.Nx      &&
-            metadata₁.storage      == metadata₂.storage
+            metadata₁.θpix    == metadata₂.θpix    &&
+            metadata₁.Ny      == metadata₂.Ny      &&
+            metadata₁.Nx      == metadata₂.Nx      &&
+            metadata₁.storage == metadata₂.storage
         )
     )
-        (metadata₁, metadata₂)
+        (b, metadata₁)
     else
         error("""Can't promote two fields with the following differing metadata:
         1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx,:storage)))
@@ -115,21 +124,24 @@ end
 
 ### preprocessing
 
-function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+    # turn both vectors into 2-D matrix so this function is
+    # type-stable (note: reshape does not actually make a copy here,
+    # so this doesn't impact performance)
     if ∇d.coord == 1
-        broadcasted(*, ∇d.prefactor * im, proj.ℓx')
+        broadcasted(*, ∇d.prefactor * im, reshape(proj.ℓx, 1, :))
     elseif ∇d.coord == 2
-        broadcasted(*, ∇d.prefactor * im, proj.ℓy)
+        broadcasted(*, ∇d.prefactor * im, reshape(proj.ℓy, :, 1))
     else
         error()
     end
 end
 
-function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
     broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2))
 end
 
-function preprocess((g,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
     Cℓ_to_2D(bp.Wℓ, proj)
 end
 

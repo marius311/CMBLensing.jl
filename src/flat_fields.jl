@@ -50,50 +50,45 @@ HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 
 
 ### constructors
-# the default is to use ProjLambert
+# the default is to use ProjLambert, but the code should be such that
+# any projection works
 
 _reshape_batch(arr::AbstractArray{T,3}) where {T} = reshape(arr, size(arr,1), size(arr,2), 1, size(arr,3))
 _reshape_batch(arr) = arr
 
+## constructing from arrays
 # spin-0
 function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
-    FlatMap(
-        _reshape_batch(Ix),
-        ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), T, storage=basetype(A), kwargs...)
-    )
+    FlatMap(_reshape_batch(Ix), ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), T, storage=basetype(A), kwargs...))
 end
 function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
-    FlatFourier(
-        _reshape_batch(Il),
-        ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...)
-    )
+    FlatFourier(_reshape_batch(Il), ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...))
 end
-# spin-2 and spin-(0,2)
-for (F,Xs,Ny) in [
-    (:FlatQUMap,      (:Qx,:Ux),      false),
-    (:FlatQUFourier,  (:Ql,:Ul),      true),
-    (:FlatEBMap,      (:Ex,:Bx),      false),
-    (:FlatEBFourier,  (:El,:Bl),      true),
-    (:FlatIQUMap,     (:Ix, :Qx,:Ux), false),
-    (:FlatIQUFourier, (:Il, :Ql,:Ul), true),
-    (:FlatIEBMap,     (:Ix, :Ex,:Bx), false),
-    (:FlatIEBFourier, (:Il, :El,:Bl), true),
-]
-    @eval begin
-        function $F($((:($X::A) for X in Xs)...), metadata) where {T,A<:AbstractArray{T}}
-            $F(
-                cat($((:(_reshape_batch($X)) for X in Xs)...), dims=Val(3)),
-                metadata
-            )
-        end
-        function $F($((:($X::A) for X in Xs)...); $((Ny ? (:Ny,) : ())...), kwargs...) where {T,A<:AbstractArray{T}}
-            $F(
-                $(Xs...),
-                ProjLambert(;Ny=$(Ny ? :Ny : :(size($(Xs[1]),1))), Nx=size($(Xs[1]),2), T, storage=basetype(A), kwargs...)
-            )
-        end
-    end
+# spin-2
+function FlatField{B}(X::A, Y::A, metadata)  where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁}}}
+    FlatField{B}(cat(_reshape_batch(X), _reshape_batch(Y), dims=Val(3)), metadata)
 end
+function FlatField{B}(X::A, Y::A; kwargs...) where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁}}}
+    FlatField{B}(X, Y, ProjLambert(;Ny=size(X,1), Nx=size(X,2), T, storage=basetype(A), kwargs...))
+end
+# spin-(0,2)
+function FlatField{B}(X::A, Y::A, Z::A, metadata) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁}}}
+    FlatField{B}(cat(_reshape_batch(X), _reshape_batch(Y), _reshape_batch(Z), dims=Val(3)), metadata)
+end
+function FlatField{B}(X::A, Y::A, Z::A; kwargs...) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁}}}
+    FlatField{B}(X, Y, Z, ProjLambert(;Ny=size(X,1), Nx=size(X,2), T, storage=basetype(A), kwargs...))
+end
+## constructing from other fields
+function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},B₀}}
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+end
+function FlatField{B}(X::FlatField{B₀}, Y::FlatField{Basis2Prod{Pol,B₀}}) where {B₀<:Union{Map,Fourier}, Pol<:Union{𝐐𝐔,𝐄𝐁}, B<:Basis3Prod{𝐈,Pol,B₀}}
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+end
+function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}, Z::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}}
+    FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), last(promote_fields_bcast(X, Y, Z)))
+end
+
 
 # todo: doc strings
 
@@ -111,13 +106,14 @@ nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr),4)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
 # sub-components
+# this is a list of properties each FlatField gets:
 for (F, keys) in [
     (FlatMap,        ("Ix"=>:, "I"=>:)),
     (FlatFourier,    ("Il"=>:, "I"=>:)),
-    (FlatQUMap,      ("Qx"=>1, "Ux"=>2, "Q"=>1,  "U"=>2, "P"=>:)),
-    (FlatQUFourier,  ("Ql"=>1, "Ul"=>2, "Q"=>1,  "U"=>2, "P"=>:)),
-    (FlatEBMap,      ("Ex"=>1, "Bx"=>2, "E"=>1,  "B"=>2, "P"=>:)),
-    (FlatEBFourier,  ("El"=>1, "Bl"=>2, "E"=>1,  "B"=>2, "P"=>:)),
+    (FlatQUMap,      ("Qx"=>1, "Ux"=>2, "Q" =>1, "U"=>2, "P"=>:)),
+    (FlatQUFourier,  ("Ql"=>1, "Ul"=>2, "Q" =>1, "U"=>2, "P"=>:)),
+    (FlatEBMap,      ("Ex"=>1, "Bx"=>2, "E" =>1, "B"=>2, "P"=>:)),
+    (FlatEBFourier,  ("El"=>1, "Bl"=>2, "E" =>1, "B"=>2, "P"=>:)),
     (FlatIQUMap,     ("Ix"=>1, "Qx"=>2, "Ux"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
     (FlatIQUFourier, ("Il"=>1, "Ql"=>2, "Ul"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
     (FlatIEBMap,     ("Ix"=>1, "Ex"=>2, "Bx"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
@@ -127,7 +123,10 @@ for (F, keys) in [
         body = if k[end] in "xl"
             I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ..))
         else
-            I==(:) ? :f                  : :($(BaseField{sub_basis(basis(F),k)})(view(getfield(f,:arr), :, :, $I, ..), f.metadata))
+            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(F).parameters[end-1:end]...} : basis(F).parameters[end]})(view(getfield(f,:arr), :, :, $I, ..), f.metadata))
+        end
+        if k=="I" && F == FlatIQUFourier
+            @show body
         end
         @eval getproperty(f::$F, ::Val{$(QuoteNode(Symbol(k)))}) = $body
     end
@@ -239,6 +238,23 @@ Fourier(f::FlatEBMap) = EBFourier(f)
 Fourier(f::FlatS2Fourier) = f
 
 ## spin-(0,2)
+
+IQUFourier(f::FlatIQUMap) = FlatIQUFourier(m_rfft(f.arr, (1,2)), f.metadata)
+IQUFourier(f::FlatIEBMap) = f |> IEBFourier |> IQUFourier
+IQUFourier(f::FlatIEBFourier) = FlatIQUFourier(f.I, QUFourier(f.P))
+
+IQUMap(f::FlatIQUFourier) = FlatIQUMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
+IQUMap(f::FlatIEBMap)      = f |> IEBFourier |> IQUFourier |> IQUMap
+IQUMap(f::FlatIEBFourier)  = f |> IQUFourier |> IQUMap
+
+IEBFourier(f::FlatIEBMap) = FlatIEBFourier(m_rfft(f.arr, (1,2)), f.metadata)
+IEBFourier(f::FlatIQUMap) = f |> IQUFourier |> IEBFourier
+IEBFourier(f::FlatIQUFourier) = FlatIEBFourier(f.I, EBFourier(f.P))
+
+IEBMap(f::FlatIEBFourier) = FlatIEBMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
+IEBMap(f::FlatIQUMap)     = f |> IQUFourier |> IEBFourier |> IEBMap
+IEBMap(f::FlatIQUFourier) = f |> IEBFourier |> IEBMap
+
 # ...
 
 

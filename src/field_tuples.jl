@@ -31,10 +31,7 @@ getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple) = FieldTuple(map(f->adapt(to,f),f.fs))
 similar(ft::FieldTuple) = FieldTuple(map(similar,ft.fs))
-function similar(ft::FT, ::Type{T}, dims::Dims) where {T<:Number, B, FT<:FieldTuple{B}}
-    @assert size(ft)==dims "Tried to make a field similar to $FT but dims should have been $(size(ft)), not $dims."
-    FieldTuple{B}(map(f->similar(f,T),ft.fs))
-end
+similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar(f,T),ft.fs))
 function sum(f::FieldTuple; dims=:)
     if dims == (:)
         sum(sum,f.fs)
@@ -76,7 +73,8 @@ function promote(ft1::FieldTuple, ft2::FieldTuple)
 end
 
 ### conversion
-(::Type{B})(ft::FieldTuple) where {B<:Basis} = FieldTuple(map(B, ft.fs))
+(::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B, ft.fs))
+(::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B, ft.fs))
 
 
 

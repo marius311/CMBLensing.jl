@@ -4,10 +4,13 @@
 
 abstract type Basis end
 abstract type Basislike <: Basis end
-abstract type DerivBasis <: Basislike end # Basis in which derivatives are sparse for a given field
-const Ð! = Ð = DerivBasis
-abstract type LenseBasis <: Basislike end # Basis in which lensing is a pixel remapping for a given field
-const Ł! = Ł = LenseBasis
+
+struct DerivBasis <: Basislike end # Basis in which derivatives are sparse for a given field
+const Ð! = DerivBasis
+const Ð  = DerivBasis
+struct LenseBasis <: Basislike end # Basis in which lensing is a pixel remapping for a given field
+const Ł! = LenseBasis
+const Ł  = LenseBasis
 
 ## fields
 abstract type Field{B<:Basis,T} <: AbstractVector{T} end
@@ -28,17 +31,29 @@ const Scalar = Real
 const FieldOrOp = Union{Field,FieldOp}
 const FieldOpScal = Union{Field,FieldOp,Scalar}
 
-## Basis types
-struct Map        <: Basis end
-struct Fourier    <: Basis end
-struct QUMap      <: Basis end
-struct EBMap      <: Basis end
-struct QUFourier  <: Basis end
-struct EBFourier  <: Basis end
-struct IQUMap     <: Basis end
-struct IEBMap     <: Basis end
-struct IQUFourier <: Basis end
-struct IEBFourier <: Basis end
+## basis types
+struct Basis2Prod{B₁,B₂}    <: Basis end
+struct Basis3Prod{B₁,B₂,B₃} <: Basis end
+
+struct Map     <: Basis end
+struct Fourier <: Basis end
+struct 𝐈       <: Basis end
+struct 𝐐𝐔      <: Basis end
+struct 𝐄𝐁      <: Basis end
+
+const QUMap      = Basis2Prod{    𝐐𝐔, Map     }
+const EBMap      = Basis2Prod{    𝐄𝐁, Map     }
+const QUFourier  = Basis2Prod{    𝐐𝐔, Fourier }
+const EBFourier  = Basis2Prod{    𝐄𝐁, Fourier }
+const IQUMap     = Basis3Prod{ 𝐈, 𝐐𝐔, Map     }
+const IEBMap     = Basis3Prod{ 𝐈, 𝐄𝐁, Map     }
+const IQUFourier = Basis3Prod{ 𝐈, 𝐐𝐔, Fourier }
+const IEBFourier = Basis3Prod{ 𝐈, 𝐄𝐁, Fourier }
+
+# for printing
+for F in ["QUMap", "EBMap", "QUFourier", "EBFourier", "IQUMap", "IEBMap", "IQUFourier", "IEBFourier"]
+    @eval typealias(::Type{$(Symbol(F))}) = $F
+end
 
 
 ### basis
@@ -62,22 +77,17 @@ basis_promotion_rules = Dict(
     (IQUFourier, IEBMap)      => IQUFourier
 )
 for ((B₁,B₂),B) in basis_promotion_rules
-    @eval promote_rule(::Type{$B₁}, ::Type{$B₂}) = $B
+    @eval promote_rule_generic(::$B₁, ::$B₂) = $B()
 end
+promote_rule_generic(b::B,::B) where {B<:Basis} = b
+promote_rule_generic(::Any,::Any) = Unknown()
+promote_generic(x,y) = _select_known_rule(x, y, promote_rule_generic(x,y), promote_rule_generic(y,x))
 
-_sub_basis = Dict(
-    Map        => Dict("I"=>Map),
-    Fourier    => Dict("I"=>Fourier),
-    QUMap      => Dict("Q"=>Map,     "U"=>Map,     "P"=>QUMap),
-    EBMap      => Dict("E"=>Map,     "B"=>Map,     "P"=>EBMap),
-    QUFourier  => Dict("Q"=>Fourier, "U"=>Fourier, "P"=>QUFourier),
-    EBFourier  => Dict("E"=>Fourier, "B"=>Fourier, "P"=>EBFourier),
-    IQUMap     => Dict("I"=>Map,     "Q"=>Map,     "U"=>Map,     "P"=>QUMap,     "IP"=>IQUMap),
-    IEBMap     => Dict("I"=>Map,     "E"=>Map,     "B"=>Map,     "P"=>EBMap,     "IP"=>IEBMap),
-    IQUFourier => Dict("I"=>Fourier, "Q"=>Fourier, "U"=>Fourier, "P"=>QUFourier, "IP"=>IQUFourier),
-    IEBFourier => Dict("I"=>Fourier, "E"=>Fourier, "B"=>Fourier, "P"=>EBFourier, "IP"=>IEBFourier)
-)
-sub_basis(B,pol) = _sub_basis[B][pol]
+
+# a spin-0 can broadcast with a spin-2 or spin-(0,2) as long the Map/Fourier part is the same
+promote_bcast_rule(b::B,   ::B ) where {B <:Basis} = b
+promote_bcast_rule(b::B₂,  ::B₀) where {B₀<:Union{Map,Fourier}, B₂ <:Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
+promote_bcast_rule(b::B₀₂, ::B₀) where {B₀<:Union{Map,Fourier}, B₀₂<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
 
 
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
@@ -129,7 +139,6 @@ function Base.summary(io::IO, x::ImplicitField)
     end
     Base.showarg(io, x, true)
 end
-
 
 
 ### logdet
@@ -222,8 +231,6 @@ Base.has_offset_axes(::Field) = false # needed for Diagonal(::Field) if the Fiel
 for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
     @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
 end
-
-≈(a::Field, b::Field) = ≈(promote(a,b)...)
 
 # multiplication/division is not strictly defined for abstract vectors, but
 # make it work anyway if the two fields are exactly the same type, in which case

@@ -10,7 +10,10 @@
 struct BaseField{B, M, T, A<:AbstractArray{T}} <: Field{B, T}
     arr :: A
     metadata :: M
-    (::Type{F})(arr::A, metadata::M) where {B,M,T,A<:AbstractArray{T},F<:BaseField{B}} = new{B,M,T,A}(arr, metadata)
+    function (::Type{F})(arr::A, metadata::M) where {B,M,T,A<:AbstractArray{T},F<:BaseField{B}}
+        (metadata isa AbstractArray) && error("Array-type metadata is disallowed to avoid ambiguities.")
+        new{B,M,T,A}(arr, metadata)
+    end
 end
 
 
@@ -27,12 +30,11 @@ copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 
 ## promotion
-function promote(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
-    metadata, = promote_metadata(f₁.metadata, f₂.metadata)
-    B = promote_type(B₁,B₂)
+function promote(f₁::BaseField, f₂::BaseField)
+    b, metadata = promote_generic(get_b_metadata(f₁), get_b_metadata(f₂))
+    B = typeof(b)
     B(convert_metadata(metadata,f₁)), B(convert_metadata(metadata,f₂))
 end
-
 convert_metadata(metadata, f::BaseField) = f.metadata === metadata ? f : error("need promotion rule")
 
 
@@ -54,8 +56,8 @@ function materialize(bc::Broadcasted{BaseFieldStyle{S}}) where {S}
 
     # recursively go through the broadcast expression and figure out
     # the final `B` and `metadata` of the result, using the
-    # promote_bcast_b_metadata rules
-    b, metadata = promote_fields_b_metadata(bc)
+    # promote_bcast_rule rules
+    b, metadata = promote_fields_bcast(bc)
     B = typeof(b)
 
     # "preprocess" all the arguments, which unwraps all of the
@@ -102,47 +104,36 @@ preprocess(::Any, f::BaseField) = f.arr
 # system. more explicitly, if we returned (B, metadata), the return
 # type would be inferred as eg Tuple{DataType, M}, whereas this way
 # its Tuple{Map, M}, Tuple{Fourier, M}, etc...
-promote_fields_b_metadata(x,               rest...) = _promote_bcast_b_metadata(get_b_metadata(x),                     promote_fields_b_metadata(rest...))
-promote_fields_b_metadata(bc::Broadcasted, rest...) = _promote_bcast_b_metadata(promote_fields_b_metadata(bc.args...), promote_fields_b_metadata(rest...))
-promote_fields_b_metadata(x)                        = get_b_metadata(x)
-promote_fields_b_metadata()                         = nothing
+promote_fields_bcast(x,               rest...) = promote_bcast(get_b_metadata(x),                promote_fields_bcast(rest...))
+promote_fields_bcast(bc::Broadcasted, rest...) = promote_bcast(promote_fields_bcast(bc.args...), promote_fields_bcast(rest...))
+promote_fields_bcast(x)                        = get_b_metadata(x)
+promote_fields_bcast()                         = nothing
 
 # get the (b,metadata) out of the argument, if it has one
 get_b_metadata(::Any)                     = nothing
 get_b_metadata(x::BaseField{B}) where {B} = (B(), x.metadata)
 
-# like promote_bcast_b_metadata, but checks both argument orders, to allow
-# the user to only define one order
-_promote_bcast_b_metadata(x, y) = _select_known_rule(x, y, promote_bcast_b_metadata(x, y), promote_bcast_b_metadata(y, x))
-# if both argument orders defined, they should be the same (although
-# this is not checked for performance reasons), so just pick either 
+# like promote_bcast_rule, but checks both argument orders, to allow
+# the user to only define one order. if both argument orders defined,
+# they should be the same (although this is not checked for
+# performance reasons), so just pick either. if only one is defined,
+# pick that one. otherwise the user would need to specify a rule
+promote_bcast(x, y) = _select_known_rule(x, y, promote_bcast_rule(x, y), promote_bcast_rule(y, x))
 _select_known_rule(x, y, R::Any,      ::Any)     = R
-# if only one is defined, pick that one
 _select_known_rule(x, y, R::Any,      ::Unknown) = R
 _select_known_rule(x, y,  ::Unknown, R::Any)     = R
-# otherwise the user would need to specify a rule
-function _select_known_rule((b₁,metadata₁), (b₂,metadata₂), ::Unknown, ::Unknown)
-    if b₁ != b₂
-        error("""Can't broadcast two fields with differing bases: $(typealias(typeof(b₁))) and $(typealias(typeof(b₂))). 
-        Try without broadcasting (which does automatic basis conversion)""")
-    else
-        error("""Can't broadcast two fields with the following differing metadata:
-        1: $metadata₁
-        2: $metadata₂
-        """)
-    end
-end
+_select_known_rule(x, y,  ::Unknown,  ::Unknown) = error("need rule")
 
 # default rules for promoting the (b, metadata) from all the arguments
 # in the broadcasted expression. only one order needs to be defined.
-function promote_bcast_b_metadata((b,metadata)::Tuple, (b′,metadata′)::Tuple)
+function promote_bcast_rule((b₁,metadata₁)::Tuple, (b₂,metadata₂)::Tuple)
     if (
-        b === b′ && (
-            metadata === metadata′ || # `===` is much faster so try to short-circuit to that before checking `==`
-            metadata == metadata′
+        b₁ === b₂ && (
+            metadata₁ === metadata₂ || # `===` is much faster so try to short-circuit to that before checking `==`
+            metadata₁ == metadata₂
         )
     )
-        (b, metadata)
+        (b₁, metadata₁)
     else
         # if the b and metadata aren't identical, the individual field
         # types need to specify how to combine them. see e.g.
@@ -150,9 +141,9 @@ function promote_bcast_b_metadata((b,metadata)::Tuple, (b′,metadata′)::Tuple
         Unknown()
     end
 end
-promote_bcast_b_metadata((b,metadata)::Tuple, ::Nothing) = (b, metadata)
-promote_bcast_b_metadata(::Nothing, ::Nothing) = nothing
-promote_bcast_b_metadata(::Any, ::Any) = Unknown()
+promote_bcast_rule((b,metadata)::Tuple, ::Nothing) = (b, metadata)
+promote_bcast_rule(::Nothing,           ::Nothing) = nothing
+promote_bcast_rule(::Any,               ::Any)     = Unknown()
 
 
 ## properties
