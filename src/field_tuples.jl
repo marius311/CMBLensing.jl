@@ -32,15 +32,7 @@ fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple) = FieldTuple(map(f->adapt(to,f),f.fs))
 similar(ft::FieldTuple) = FieldTuple(map(similar,ft.fs))
 similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar(f,T),ft.fs))
-function sum(f::FieldTuple; dims=:)
-    if dims == (:)
-        sum(sum, f.fs)
-    elseif all(dims .> 1)
-        f
-    else
-        error("Invalid dims in sum(::FieldTuple, dims=$(dims)).")
-    end
-end
+sum(f::FieldTuple; dims=:) = dims == (:) ? sum(sum, f.fs) : error("sum(::FieldTuple, dims=$dims not supported")
 
 ### broadcasting
 struct FieldTupleStyle{S,Names} <: AbstractArrayStyle{1} end
@@ -109,7 +101,6 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 # end
 
 # # promote before recursing for these 
-# ≈(a::FieldTuple, b::FieldTuple) = all(map(≈, getfield.(promote(a,b),:fs)...))
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
 # hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
 

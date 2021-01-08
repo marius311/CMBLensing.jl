@@ -30,12 +30,12 @@ Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
     Cf̃ = nothing     # lensed field covariance (not always needed)
     Cn               # noise covariance
     Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  = 1           # user mask
+    M  = I           # user mask
     M̂  = M           # approximate user mask, diagonal in same basis as Cf
-    B  = 1           # beam and instrumental transfer functions
+    B  = I           # beam and instrumental transfer functions
     B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
-    D  = 1           # mixing matrix for mixed parametrization
-    G  = 1           # reparametrization for ϕ
+    D  = I           # mixing matrix for mixed parametrization
+    G  = I           # reparametrization for ϕ
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
 end
 
@@ -220,9 +220,9 @@ function load_sim(;
     if (M == nothing)
         Mfourier = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside.÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
         else
-            Mpix = 1
+            Mpix = I
         end
         M = Mfourier * Mpix
         if (M̂ == nothing)

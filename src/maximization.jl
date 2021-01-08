@@ -153,6 +153,7 @@ function MAP_joint(
         conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...),
     )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+    ProgressMeter.update!(pbar)
 
     (f, argmaxf_lnP_history) = argmaxf_lnP(
         (isnothing(ϕstart) ? 1 : ϕ), θ, dsθ; 
@@ -261,6 +262,7 @@ function MAP_marg(
     tr = []
     state = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
+    Progress.update!(pbar)
     
     for i=1:nsteps
         aggressive_gc && cuda_gc()

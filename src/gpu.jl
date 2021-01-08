@@ -41,8 +41,6 @@ pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
 ==(a::CuBaseField, b::CuBaseField) = (==)(promote(a.arr, b.arr)...)
-≈(a::CuBaseField, b::CuBaseField) = (≈)(promote(a.arr, b.arr)...)
-≈(a::Diagonal{<:Any,<:CuBaseField}, b::Diagonal{<:Any,<:CuBaseField}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
 sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 

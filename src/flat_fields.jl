@@ -50,8 +50,8 @@ HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 
 
 ### constructors
-# the default is to use ProjLambert, but the code should be such that
-# any projection works
+# the default constructor uses ProjLambert, but the code in this file
+# should be agnostic to the projection type
 
 _reshape_batch(arr::AbstractArray{T,3}) where {T} = reshape(arr, size(arr,1), size(arr,2), 1, size(arr,3))
 _reshape_batch(arr) = arr
@@ -93,9 +93,9 @@ end
 # todo: doc strings
 
 ### array interface
-# the main thing we have specify here has to do with which dimension
-# is the "batch" dimension (dimension 4), since that is not assumed in
-# BaseField
+# most is inherited from BaseField. the main thing we have specify
+# here has to do with which dimension is the "batch" dimension
+# (dimension 4), since that is not assumed in BaseField
 similar(f::FlatField{B}, Nbatch::Int) where {B} = FlatField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
 batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T,4}} = (f.Nbatch,)
 batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T}} = ()
@@ -106,7 +106,6 @@ nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr),4)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
 # sub-components
-# this is a list of properties each FlatField gets:
 for (F, keys) in [
     (FlatMap,        ("Ix"=>:, "I"=>:)),
     (FlatFourier,    ("Il"=>:, "I"=>:)),
@@ -121,21 +120,16 @@ for (F, keys) in [
 ]
     for (k,I) in keys
         body = if k[end] in "xl"
-            I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ..))
+            I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...))
         else
-            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(F).parameters[end-1:end]...} : basis(F).parameters[end]})(view(getfield(f,:arr), :, :, $I, ..), f.metadata))
+            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(F).parameters[end-1:end]...} : basis(F).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
         end
-        @eval getproperty(f::$F, ::Val{$(QuoteNode(Symbol(k)))}) = $body
+        @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M,T,N,A<:AbstractArray{T,N}} = $body
     end
 end
 
 
 ### indices
-# batch
-function getindex(f::FlatField{B}, ::typeof(!), I) where {B}
-    FlatField{B}(f.arr[map(_->:, nonbatch_dims(f))..., I], f.metadata)
-end
-# sub-components
 function getindex(f::FlatS0, k::Symbol; full_plane=false)
     maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
     @match k begin
@@ -178,12 +172,12 @@ function getindex(f::FlatS02, k::Symbol; kwargs...)
     end
 end
 function getindex(D::DiagOp{<:FlatEBFourier}, k::Symbol)
-    @unpack El, Bl = diag(D)
+    @unpack El, Bl, metadata = diag(D)
     @unpack sin2ϕ, cos2ϕ = fieldinfo(diag(D))
     f = @match k begin
-        (:QQ)        => FlatFourier((@. Bl*sin2ϕ^2 + El*cos2ϕ^2),   f.metadata)
-        (:QU || :UQ) => FlatFourier((@. (El - Bl) * sin2ϕ * cos2ϕ), f.metadata)
-        (:UU)        => FlatFourier((@. Bl*cos2ϕ^2 + El*sin2ϕ^2),   f.metadata)
+        (:QQ)        => FlatFourier((@. Bl*sin2ϕ^2 + El*cos2ϕ^2),   metadata)
+        (:QU || :UQ) => FlatFourier((@. (El - Bl) * sin2ϕ * cos2ϕ), metadata)
+        (:UU)        => FlatFourier((@. Bl*cos2ϕ^2 + El*sin2ϕ^2),   metadata)
         _            => getproperty(D.diag, k)
     end
     Diagonal(f)
@@ -262,8 +256,6 @@ end
 
 
 ### dot products
-
-
 # do in Map space (the LenseBasis, Ł) for simplicity, and use sum_kbn to reduce roundoff error
 function dot(a::FlatField, b::FlatField)
     z = Ł(a) .* Ł(b)
@@ -281,13 +273,9 @@ logdet(L::Diagonal{T,FlatEBFourier{M,T,A}}) where {M,T,A} =
     ))
 logdet(L::Diagonal{<:Real, FlatMap}) = 
     batch(real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))), dims=(1,2))))
-# ### traces
-# tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
-# tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
-
-
-# ### isapprox
-# ≈(a::F, b::F) where {P,T,F<:FlatS0{P,T}} = all(.≈(a[:], b[:], atol=sqrt(eps(T)), rtol=sqrt(eps(T))))
+### traces
+tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
+tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
 
 
 ### simulation
@@ -338,6 +326,9 @@ unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batch_length(f)]
 
 preprocess((g,proj)::Tuple{<:Any,<:FlatProj}, br::BatchedReal) = reshape(br.vals, 1, 1, 1, :)
 
+function batch_index(f::FlatField{B}, I) where {B}
+    FlatField{B}(f.arr[map(_->:, nonbatch_dims(f))..., I], f.metadata)
+end
 
 
 ###
@@ -357,29 +348,19 @@ make_mask(f::FlatField; kwargs...) = make_mask((f.Ny,f.Nx), f.θpix; kwargs...)
 #     BinRescaledOp(C₀,Cbins,θname)
 # end
 
+# function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
+#     ii = sortperm(fieldinfo(L.diag).kmag[:])
+#     InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))[ii] * units, concrete=false)
+# end
 
 
 
 ### power spectra
 
-
-
 function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)
     Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
     which isa Symbol ? Cℓ[1] : Cℓ
 end
-
-
-# function ud_grade(f::FlatS2{P}, args...; kwargs...) where {P} 
-#     f′ = FieldTuple(map(f->ud_grade(f, args...; kwargs...), f.fs))
-#     B′ = (f′[1] isa FlatMap) ? (f isa FlatQU ? QUMap : EBMap) : (f isa FlatQU ? QUFourier : EBFourier)
-#     FieldTuple{B′}(f′)
-# end
-
-# function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
-#     ii = sortperm(fieldinfo(L.diag).kmag[:])
-#     InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))[ii] * units, concrete=false)
-# end
 
 function get_Cℓ(f₁::FlatS0, f₂::FlatS0=f₁; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false)
     @unpack Nx, Ny, Δx, ℓmag = fieldinfo(f₁)

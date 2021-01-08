@@ -126,6 +126,7 @@ typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
 Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
 Base.isempty(::ImplicitOp) = true
 Base.isempty(::ImplicitField) = true
+Base.isempty(::Diagonal{<:Any,<:ImplicitField}) = true
 function Base.summary(io::IO, x::FieldOp)
     try
         print(io, join(size(x), "×"), " ")
@@ -174,13 +175,22 @@ is by default the appropriate one depending on if `Σ` is backed by `Array` or
 
 The `seed` argument can also be used to seed the `rng`.
 """
-simulate(         Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate(rng, Σ; kwargs...))
-white_noise(      ξ; rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise(ξ, rng; kwargs...))
-fixed_white_noise(ξ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); fixed_white_noise(ξ, rng; kwargs...))
+function simulate(Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...)
+    isnothing(seed) || seed!(rng, seed)
+    simulate(rng, Σ; kwargs...)
+end
+function white_noise(ξ; rng=global_rng_for(ξ), seed=nothing, kwargs...)
+    isnothing(seed) || seed!(rng, seed)
+    white_noise(ξ, rng; kwargs...)
+end
+function fixed_white_noise(ξ; rng=global_rng_for(Σ), seed=nothing, kwargs...)
+    isnothing(seed) || seed!(rng, seed)
+    fixed_white_noise(ξ, rng; kwargs...)
+end
 
 
 global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
-global_rng_for(::Type{<:Array}) = Random.GLOBAL_RNG
+global_rng_for(::Type{<:Array}) = Random.default_rng()
 
 
 
@@ -199,6 +209,11 @@ spin_adjoint(f::Field) = SpinAdjoint(f)
 
 
 ### misc
+
+function ≈(x::Field{<:Any,T}, y::Field{<:Any,S}; atol=0, rtol=Base.rtoldefault(T,S,atol)) where {T,S}
+    _norm(x) = norm(unbatch(norm(x)))
+    _norm(x - y) <= max(atol, rtol*max(_norm(x), _norm(y)))
+end
 
 # allows L(θ) or L(ϕ) to work and be a no-op for things which don't
 # depend on parameters or a field
@@ -224,8 +239,8 @@ hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in va
 hcat(values::Field...) = hcat(([x] for x in values)...)
 
 ### printing
-print_array(io::IO, f::Field) = print_array(io, f[:])
-show_vector(io::IO, f::Field) = show_vector(io, f[:])
+print_array(io::IO, f::Field) = !isempty(f) && print_array(io, f[:])
+show_vector(io::IO, f::Field) = !isempty(f) && show_vector(io, f[:])
 Base.has_offset_axes(::Field) = false # needed for Diagonal(::Field) if the Field is implicitly-sized
 
 
@@ -247,6 +262,11 @@ end
 if VERSION>v"1.4"
     *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
 end
+
+
+# package code should use batch_index(f, 1), but for interactive work its
+# convenient to be able to do f[!,1]
+getindex(x::Union{Real,Field,FieldOp}, ::typeof(!), I) = batch_index(x, I)
 
 
 # adapt_structure(to, x::Union{ImplicitOp,ImplicitField}) = x

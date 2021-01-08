@@ -282,17 +282,16 @@ end
 \(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a, abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
-# ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
 adapt_structure(to, lz::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,lz.a), adapt(to,lz.b))
-# function diag(lz::LazyBinaryOp{*}) 
-#     _diag(x) = diag(x)
-#     _diag(x::Int) = x
-#     da, db = _diag(lz.a), _diag(lz.b)
-#     # if basis(da)!=basis(db)
-#     #     error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
-#     # end
-#     da .* db
-# end
+function diag(lz::LazyBinaryOp{*}) 
+    _diag(x) = diag(x)
+    _diag(x::Int) = x
+    da, db = _diag(lz.a), _diag(lz.b)
+    # if basis(da)!=basis(db)
+    #     error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
+    # end
+    da .* db
+end
 
 
 ### OuterProdOp
