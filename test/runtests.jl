@@ -225,30 +225,30 @@ end
 
 ##
 
-@testset "FlatS02" begin
+# @testset "FlatS02" begin
     
-    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+#     @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
 
-        ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(maybegpu(FlatMap(rand(Nside2D...))))) for i=1:4]
-        L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
-        f = maybegpu(IEBFourier(FlatIEBMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...))))
+#         ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(maybegpu(FlatMap(rand(Nside2D...))))) for i=1:4]
+#         L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
+#         f = maybegpu(IEBFourier(FlatIEBMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...))))
 
-        @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
-        @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
-        @test @inferred(L * L) isa FlatIEBCov
-        @test @inferred(L + L) isa FlatIEBCov
-        @test L * Diagonal(f) isa FlatIEBCov
-        @test Diagonal(f) * L isa FlatIEBCov
-        @test_broken @inferred L * Diagonal(f)
-        @test @inferred(diag(L)) isa FlatIEBFourier
-        @test @inferred(L + I) isa FlatIEBCov
-        @test @inferred(2 * L) isa FlatIEBCov
-        @test @inferred(similar(L)) isa FlatIEBCov
-        @test (L .= 2L) isa FlatIEBCov
+#         @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
+#         @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
+#         @test @inferred(L * L) isa FlatIEBCov
+#         @test @inferred(L + L) isa FlatIEBCov
+#         @test L * Diagonal(f) isa FlatIEBCov
+#         @test Diagonal(f) * L isa FlatIEBCov
+#         @test_broken @inferred L * Diagonal(f)
+#         @test @inferred(diag(L)) isa FlatIEBFourier
+#         @test @inferred(L + I) isa FlatIEBCov
+#         @test @inferred(2 * L) isa FlatIEBCov
+#         @test @inferred(similar(L)) isa FlatIEBCov
+#         @test (L .= 2L) isa FlatIEBCov
 
-    end
+#     end
 
-end
+# end
 
 ##
 
