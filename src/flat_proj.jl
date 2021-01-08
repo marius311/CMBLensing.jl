@@ -138,7 +138,9 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
 end
 
 function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
-    broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2))
+    # need complex here to avoid problem with ^ below being Base.pow instead of CUDA.pow
+    # todo: find better solution
+    broadcasted(complex, broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2)))
 end
 
 function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
@@ -165,11 +167,12 @@ end
 
 
 
-# @doc doc"""
-#     pixwin(θpix, ℓ)
+@doc doc"""
+    pixwin(θpix, ℓ)
 
-# Returns the pixel window function for square flat-sky pixels of width `θpix` (in
-# arcmin) evaluated at some `ℓ`s. This is the scaling of k-modes, the scaling of
-# the power spectrum will be pixwin^2. 
-# """
-# pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
+Returns the pixel window function for square flat-sky pixels of width `θpix` (in
+arcmin) evaluated at some `ℓ`s. This is the scaling of k-modes, the scaling of
+the power spectrum will be pixwin^2. 
+"""
+pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
+

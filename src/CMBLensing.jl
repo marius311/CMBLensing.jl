@@ -119,14 +119,14 @@ function animate end
 include("dataset.jl")
 include("posterior.jl")
 include("maximization.jl")
-# include("sampling.jl")
-# include("chains.jl")
+include("sampling.jl")
+include("chains.jl")
 
 # other estimates
 include("quadratic_estimate.jl")
 
-# # curved-sky
-# include("healpix.jl")
+# curved-sky
+include("healpix.jl")
 
 include("autodiff.jl")
 

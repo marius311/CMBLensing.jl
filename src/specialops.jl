@@ -4,9 +4,7 @@
 # actually needed here. 
 
 simulate(rng::AbstractRNG, D::DiagOp; Nbatch=nothing) = 
-    simulate!(similar(diag(D), (isnothing(Nbatch) ? () : (Nbatch,))...), rng, D)
-simulate!(ξ::Field, rng::AbstractRNG, D::DiagOp) = 
-    sqrt(D) * white_noise!(ξ, rng)
+    sqrt(D) * white_noise(similar(diag(D), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
 global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 
 # automatic basis conversion (and NaN-zeroing)
@@ -19,6 +17,7 @@ global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 (*)(x::Adjoint{<:Any,<:Field}, D::DiagOp, y::Field) = x*(D*y)
 diag(L::DiagOp) = L.diag
 (^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
+pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
 
 
 # use getproperty here to ensure no basis conversion is done
@@ -96,26 +95,23 @@ end
 
 # ### FuncOp
 
-# # An Op which applies some arbitrary function to its argument.
-# # Transpose and/or inverse operations which are not specified will return an error.
-# @kwdef struct FuncOp <: ImplicitOp{Basis,Spin,Pix}
-#     op   = nothing
-#     opᴴ  = nothing
-#     op⁻¹ = nothing
-#     op⁻ᴴ = nothing
-# end
-# SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
-# FuncOp(op::Function) = FuncOp(op=op)
-# SymmetricFuncOp(op::Function) = SymmetricFuncOp(op=op)
-# *(L::FuncOp, f::Field) = 
-#     L.op   != nothing ? L.op(f)   : error("op*f not implemented")
-# \(L::FuncOp, f::Field) = 
-#     L.op⁻¹ != nothing ? L.op⁻¹(f) : error("op\\f not implemented")
-# *(f::Adjoint{<:Any,Field}, L::FuncOp) = 
-#     L.opᴴ  != nothing ? L.opᴴ(f)  : error("opᴴ*f not implemented")
-# adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
-# inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
-# adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
+# An Op which applies some arbitrary function to its argument.
+# Transpose and/or inverse operations which are not specified will return an error.
+@kwdef struct FuncOp <: ImplicitOp{Bottom}
+    op   = nothing
+    opᴴ  = nothing
+    op⁻¹ = nothing
+    op⁻ᴴ = nothing
+end
+SymmetricFuncOp(;op=nothing, op⁻¹=nothing) = FuncOp(op,op,op⁻¹,op⁻¹)
+FuncOp(op::Function) = FuncOp(op=op)
+SymmetricFuncOp(op::Function) = SymmetricFuncOp(op=op)
+*(L::FuncOp, f::Field) = L.op   != nothing ? L.op(f)   : error("op*f not implemented")
+\(L::FuncOp, f::Field) = L.op⁻¹ != nothing ? L.op⁻¹(f) : error("op\\f not implemented")
+*(f::Adjoint{<:Any,Field}, L::FuncOp) = L.opᴴ  != nothing ? L.opᴴ(f)  : error("opᴴ*f not implemented")
+adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
+inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
+adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
 
 
 ### BandPassOp
@@ -285,9 +281,9 @@ end
 *(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
 \(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a, abs(lz.b)), init=f)
-# adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
+adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
 # ud_grade(lz::LazyBinaryOp{op}, args...; kwargs...) where {op} = LazyBinaryOp(op,ud_grade(lz.a,args...;kwargs...),ud_grade(lz.b,args...;kwargs...))
-# adapt_structure(to, lz::LazyBinaryOp{op}) where {op} = LazyBinaryOp(op, adapt(to,lz.a), adapt(to,lz.b))
+adapt_structure(to, lz::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,lz.a), adapt(to,lz.b))
 # function diag(lz::LazyBinaryOp{*}) 
 #     _diag(x) = diag(x)
 #     _diag(x::Int) = x

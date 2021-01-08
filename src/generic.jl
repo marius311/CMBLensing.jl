@@ -28,12 +28,13 @@ const FieldOp{T} = Union{ImplicitOp{T},Adjoint{T,<:ImplicitOp{T}},Diagonal{T,<:F
 const Scalar = Real
 
 # other useful unions
-const FieldOrOp = Union{Field,FieldOp}
+const FieldOrOp   = Union{Field,FieldOp}
 const FieldOpScal = Union{Field,FieldOp,Scalar}
 
 ## basis types
-struct Basis2Prod{B₁,B₂}    <: Basis end
-struct Basis3Prod{B₁,B₂,B₃} <: Basis end
+abstract type BasisProd <: Basis end
+struct Basis2Prod{B₁,B₂}    <: BasisProd end
+struct Basis3Prod{B₁,B₂,B₃} <: BasisProd end
 
 struct Map     <: Basis end
 struct Fourier <: Basis end
@@ -89,6 +90,10 @@ promote_bcast_rule(b::B,   ::B ) where {B <:Basis} = b
 promote_bcast_rule(b::B₂,  ::B₀) where {B₀<:Union{Map,Fourier}, B₂ <:Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
 promote_bcast_rule(b::B₀₂, ::B₀) where {B₀<:Union{Map,Fourier}, B₀₂<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
 
+# Map(B) or Fourier(B) for another basis, B
+(::Type{B})(::Type{B′}) where {B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = B
+(::Type{B})(::Type{Basis2Prod{  Pol,B′}}) where {Pol, B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = Basis2Prod{  Pol,B}
+(::Type{B})(::Type{Basis3Prod{𝐈,Pol,B′}}) where {Pol, B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = Basis3Prod{𝐈,Pol,B}
 
 # A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
 # particular types of fields, these might be different actual bases, e.g. the
@@ -119,7 +124,7 @@ basis(::Type{<:Field}) = Basis
 ### printing
 typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
 Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
-Base.isempty(::FieldOp) = true
+Base.isempty(::ImplicitOp) = true
 Base.isempty(::ImplicitField) = true
 function Base.summary(io::IO, x::FieldOp)
     try
@@ -159,7 +164,6 @@ logdet(L, θ) = logdet(L)
 
 @doc doc"""
     simulate(Σ;     rng=global_rng_for(Σ), seed=nothing)
-    simulate!(ξ, Σ; rng=global_rng_for(Σ), seed=nothing)
     
 Draw a simulation from the covariance matrix `Σ`, i.e. draw a random vector
 $\xi$ such that the covariance $\langle \xi \xi^\dagger \rangle = \Sigma$. 
@@ -170,11 +174,9 @@ is by default the appropriate one depending on if `Σ` is backed by `Array` or
 
 The `seed` argument can also be used to seed the `rng`.
 """
-simulate(Σ;          rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate(rng, Σ; kwargs...))
-simulate!(ξ, Σ;      rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate!(ξ, rng, Σ; kwargs...))
-white_noise(Σ;       rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise(Σ, rng; kwargs...))
-white_noise!(ξ, Σ;   rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise!(ξ, rng, Σ; kwargs...))
-fixed_white_noise(Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); fixed_white_noise(Σ, rng; kwargs...))
+simulate(         Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); simulate(rng, Σ; kwargs...))
+white_noise(      ξ; rng=global_rng_for(ξ), seed=nothing, kwargs...) = (seed!(rng, seed); white_noise(ξ, rng; kwargs...))
+fixed_white_noise(ξ; rng=global_rng_for(Σ), seed=nothing, kwargs...) = (seed!(rng, seed); fixed_white_noise(ξ, rng; kwargs...))
 
 
 global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
@@ -211,7 +213,8 @@ cache!(x, ::Any) = x
 cache(L::Adjoint, f) = cache(L',f)'
 cache!(L::Adjoint, f) = cache!(L',f)'
 
-
+# todo: fix this
+*(::UniformScaling{Bool}, L::FieldOp) = L
 
 # we use Field cat'ing mainly for plotting, e.g. plot([f f; f f]) plots a 2×2
 # matrix of maps. the following definitions make it so that Fields aren't

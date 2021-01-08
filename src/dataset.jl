@@ -135,7 +135,7 @@ function load_sim(;
     pol,
     T = Float32,
     storage = Array,
-    Nbatch = nothing,
+    Nbatch = 1,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -271,7 +271,7 @@ function load_sim(;
         )
     end
 
-    if Nbatch != nothing
+    if Nbatch > 1
         ds.d = identity.(batch(ds.d, Nbatch))
         ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
     end
