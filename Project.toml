@@ -51,7 +51,7 @@ UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-AbstractFFTs = "0.5"
+AbstractFFTs = "0.5, 1.0"
 Adapt = "1.0.1, 2"
 CUDA = "2.1"
 Combinatorics = "1"
