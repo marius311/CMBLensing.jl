@@ -379,6 +379,10 @@ Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) =
 expnorm(x) = exp.(x .- maximum(x))
 
 
+
+# MacroTool's is broken https://github.com/FluxML/MacroTools.jl/issues/154
+_isdef(ex) = @capture(ex, function f_(arg__) body_ end)
+
 """
 
     @⌛ code ...
@@ -397,7 +401,7 @@ Timing uses `TimerOutputs.get_defaulttimer()`.
 """
 macro ⌛(ex)
     source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
-    if isdef(ex)
+    if _isdef(ex)
         sdef = splitdef(ex)
         sdef[:body] = quote
             CMBLensing.@timeit $("$(string(sdef[:name]))(…)  ($source_str)") $(sdef[:body])
