@@ -19,8 +19,6 @@ end
 
 is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
 global_rng_for(::Type{<:CuArray}) = curand_rng()
-seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
-    Random.seed!(global_rng_for(CuArray), seed)
 
 
 gpu(x) = adapt_structure(CuArray, x)

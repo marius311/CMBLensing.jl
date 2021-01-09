@@ -15,20 +15,22 @@ end
 
 using CMBLensing
 using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
-    LinearInterpolation, Measurement, RK4Solver, seed!, ±, typealias
+    LinearInterpolation, Measurement, RK4Solver, ±, typealias
 
 ##
 
-using Test
-using SparseArrays
 using LinearAlgebra
+using Random
+using SparseArrays
+using Test
 using Zygote
-using AbstractFFTs
 
 ##
 
 Nsides     = [(8,8), (4,8), (8,4)]
 Nsides_big = [(128,128), (64,128), (128,64)]
+
+Random.seed!(0)
 
 ##
 
@@ -112,7 +114,7 @@ end
 
 @testset "Algebra" begin
     
-    @testset "Nside = $Nside" for Nside in Nsides[1:1]
+    @testset "Nside = $Nside" for Nside in Nsides
 
         fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
             (Fourier,    maybegpu(FlatMap(rand(Nside...)))), 
@@ -254,16 +256,14 @@ end
 
 @testset "BatchedReal" begin
 
-    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
-
-        Nside2D = Nside .* (1,1)
+    @testset "Nside = $Nside" for Nside in Nsides
 
         r  = 1.
         rb = batch([1.,2])
         
         @testset "f :: $(typeof(f))" for (f,fb) in [
-            (maybegpu(FlatMap(rand(Nside2D...))),                    maybegpu(FlatMap(rand(Nside2D...,2)))),
-            (maybegpu(FlatQUMap(rand(Nside2D...),rand(Nside2D...))), maybegpu(FlatQUMap(rand(Nside2D...,2),rand(Nside2D...,2))))
+            (maybegpu(FlatMap(rand(Nside...))),                    maybegpu(FlatMap(rand(Nside...,2)))),
+            (maybegpu(FlatQUMap(rand(Nside...),rand(Nside...))), maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2))))
         ]
 
             @test @inferred(r * f)  == f
@@ -281,9 +281,9 @@ end
 
 @testset "Misc" begin
     
-    @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
+    @testset "Nside = $Nside" for Nside in Nsides
 
-        f = maybegpu(FlatMap(rand(Nside2D...)))
+        f = maybegpu(FlatMap(rand(Nside...)))
         
         @test_broken           @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
         @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
@@ -348,7 +348,7 @@ end;
 
 @testset "Zygote" begin
 
-    @testset "Nside = $Nside" for Nside in Nsides[1:1]
+    @testset "Nside = $Nside" for Nside in Nsides
 
         @testset "$(typeof(f))" for (f,g,h) in [
             @repeated(maybegpu(FlatMap(rand(Nside...))),3), 
@@ -463,9 +463,8 @@ end
     local f,ϕ
     
     Cℓ = camb().unlensed_total
-    seed!(0)
 
-    @testset "Nside = $Nside" for (Ny,Nx) in Nsides_big
+    @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
         @testset "T :: $T" for T in (Float32, Float64)
             
@@ -519,7 +518,6 @@ end
         @testset "pol = $pol" for pol in (:I,:P)
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
-                seed     = 6,
                 Cℓ       = Cℓ,
                 θpix     = 3,
                 Nside    = Nside,

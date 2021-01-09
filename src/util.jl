@@ -287,21 +287,6 @@ macro ismain()
 end
 
 
-@doc doc"""
-    seed_for_storage!(storage[, seed])
-    seed_for_storage!((storage1, storage2, ...)[, seed])
-    
-Set the global random seed for the RNG which controls `storage`-type. 
-"""
-seed_for_storage!(::Type{<:Array}, seed=nothing) = 
-    Random.seed!((seed == nothing ? () : (seed,))...)
-seed_for_storage!(storage::Any, seed=nothing) = 
-    error("Don't know how to set seed for storage=$storage")
-seed_for_storage!(storages::Tuple, seed=nothing) = 
-    seed_for_storage!.(storages, seed)
-
-
-
 @init @require MPIClusterManagers="e7922434-ae4b-11e9-05c5-9780451d2c66" begin
 
     using .MPIClusterManagers: MPI, start_main_loop, TCP_TRANSPORT_ALL, MPI_TRANSPORT_ALL

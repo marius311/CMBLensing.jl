@@ -33,7 +33,6 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @adjoint *(a::Real, f::Field{B}) where {B} = a*f, Δ -> (f'*Δ, B(Δ*a))
 @adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ), a*Δ) # need to use trace here since it unfolds the diagonal
 
-
 # operators
 @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D*v, Δ->(B(Δ)*B(v)', B′(D'*Δ))
 @adjoint \(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
@@ -47,6 +46,12 @@ end
 @adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
 # this makes it so we only have to define adjoints for L*f, and the f'*L adjoint just uses that
 @adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'*f')', f, D)
+
+# properties
+# these make things like gradient(f->f.arr[1], f) return a Field rather than a NamedTuple
+@adjoint Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B} = getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
+@adjoint Zygote.literal_getproperty(f::FieldTuple,   ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
+
 
 ## FieldVectors
 
