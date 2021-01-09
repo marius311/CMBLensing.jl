@@ -537,11 +537,11 @@ end
             δf,δϕ = simulate(Cf),simulate(Cϕ)
             
             @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.05
+                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.001
             @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.05
+                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.01
             @test FieldTuple(gradient((f°,ϕ°)->lnP(:mix,f°,ϕ°,ds),f°,ϕ°))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(:mix,f°+ε*δf,ϕ°+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ°-ε*δϕ,ds))/(2ε)  rtol=0.05
+                (lnP(:mix,f°+ε*δf,ϕ°+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ°-ε*δϕ,ds))/(2ε)  rtol=0.04
             
         end
         
