@@ -19,6 +19,7 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
+using FFTW
 using LinearAlgebra
 using Random
 using SparseArrays
@@ -119,12 +120,15 @@ end
         fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
             (Fourier,    maybegpu(FlatMap(rand(Nside...)))), 
             (EBFourier,  maybegpu(FlatQUMap(rand(Nside...),rand(Nside...)))), 
-            (Fourier,    maybegpu(FieldTuple(FlatMap(rand(Nside...)),FlatMap(rand(Nside...))))), 
+            (Fourier,    maybegpu(FieldTuple(FlatMap(rand(Nside...)),FlatMap(rand(Nside...)))))
             # inference currently broken for this case:
             # (IEBFourier, maybegpu(FlatIQUMap(rand(Nside...),rand(Nside...),rand(Nside...)))), 
-            (Fourier,    maybegpu(FlatMap(rand(Nside...,2)))), # batched S0 
-            # (EBFourier,  maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2)))), # batched S2
         ]
+        # MKL doesnt seem to support batched FFTs, not that theyre really useful on CPU
+        (FFTW.fftw_vendor != :mkl) && append!(fs, [
+            (Fourier,    maybegpu(FlatMap(rand(Nside...,2)))),
+            (EBFourier,  maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2)))),
+        ])
             
         @testset "f :: $(typeof(f)) " for (B,f) in fs
             
