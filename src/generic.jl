@@ -33,6 +33,7 @@ const FieldOpScal = Union{Field,FieldOp,Scalar}
 
 ## basis types
 abstract type BasisProd <: Basis end
+
 struct Basis2Prod{B₁,B₂}    <: BasisProd end
 struct Basis3Prod{B₁,B₂,B₃} <: BasisProd end
 

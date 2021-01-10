@@ -35,6 +35,8 @@ const FlatS02Map{     B<:Union{IQUMap,IEBMap},                       M<:FlatProj
 const FlatS02Fourier{ B<:Union{IQUFourier,IQUFourier},               M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 const FlatS02{        B<:Union{IQUMap,IQUFourier,IEBMap,IEBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 # any flat projection
+const AnyFlatMap{     B<:Union{Map,QUMap,EBMap,IQUMap,IEBMap},       M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
+const AnyFlatFourier{ B<:Union{Fourier,QUFourier,EBFourier,IQUFourier,IEBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 const FlatField{      B,                                             M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 
 ### basis-like definitions
@@ -262,17 +264,27 @@ function dot(a::FlatField, b::FlatField)
     batch(sum_kbn(z.arr, dims=nonbatch_dims(z)))
 end
 
-
 ### logdets
-logdet(L::Diagonal{T,FlatFourier{M,T,A}}) where {M,T,A} = 
-    batch(real(sum_kbn(nan2zero.(log.(L.diag[:Il,full_plane=true])), dims=(1,2))))
-logdet(L::Diagonal{T,FlatEBFourier{M,T,A}}) where {M,T,A} = 
-    batch(real(
-        sum_kbn(nan2zero.(log.(L.diag[:El,full_plane=true])), dims=(1,2)) +
-        sum_kbn(nan2zero.(log.(L.diag[:Bl,full_plane=true])), dims=(1,2))
-    ))
-logdet(L::Diagonal{<:Real, FlatMap}) = 
-    batch(real(sum_kbn(nan2zero.(log.(complex.(L.diag.Ix))), dims=(1,2))))
+
+function logdet(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
+    # half the Fourier plane needs to be counted twice since the real
+    # FFT only stores half of it
+    @unpack Ny, arr = L.diag
+    λ = adapt(typeof(arr), iseven(Ny) ? [1; 2ones(Ny÷2-1); 1] : [1; 2ones(Ny÷2)])
+    # note: since our maps are required to be real, the logdet of any
+    # operator which preserves this property is also guaranteed to be
+    # real, hence the `real` and `abs` below are valid
+    batch(real.(sum_kbn(log.(abs.(arr)) .* λ, dims=nonbatch_dims(L.diag))))
+end
+
+function logdet(L::Diagonal{<:Real,<:FlatField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+    batch(
+        sum_kbn(log.(abs.(L.diag.arr)), dims=nonbatch_dims(L.diag)) 
+        .+ dropdims(log.(prod(sign.(L.diag.arr), dims=nonbatch_dims(L.diag))), dims=nonbatch_dims(L.diag))
+    )
+end
+
+
 ### traces
 tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
 tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
@@ -324,11 +336,8 @@ the inverse operation, see [`batch`](@ref).
 """
 unbatch(f::FlatField{B}) where {B} = [f[!,i] for i=1:batch_length(f)]
 
-preprocess((g,proj)::Tuple{<:Any,<:FlatProj}, br::BatchedReal) = reshape(br.vals, 1, 1, 1, :)
-
-function batch_index(f::FlatField{B}, I) where {B}
-    FlatField{B}(f.arr[map(_->:, nonbatch_dims(f))..., I], f.metadata)
-end
+batch_index(f::FlatField{B}, I) where {B<:Union{Map,Fourier}} = FlatField{B}(f.arr[:,:,1,I], f.metadata)
+batch_index(f::FlatField{B}, I) where {B} = FlatField{B}(f.arr[:,:,:,I], f.metadata)
 
 
 ###

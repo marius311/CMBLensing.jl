@@ -40,30 +40,30 @@ convert_metadata(metadata, f::BaseField) = f.metadata === metadata ? f : error("
 
 ## broadcasting 
 
-# this makes it so the broadcast style of any expression which
-# involves at least one BaseField will end up as BaseFieldStyle{S}.
-# the S carries around what the BroadcastStyle would have been for the
-# underlying arrays, and is promoted as per the usual rules by the
-# result_style call below
+# the first step in broadcasting is to go through all the arguments
+# recursively and figure out the final "BroadcastStyle" according to
+# the rules below. here, we make it so anything involving at least one
+# BaseField will end up as BaseFieldStyle{S}. the S carries around
+# what the BroadcastStyle would have been for the underlying arrays,
+# and is promoted as per the usual rules by the result_style call
 struct BaseFieldStyle{S} <: AbstractArrayStyle{1} end
 BroadcastStyle(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = BaseFieldStyle{typeof(BroadcastStyle(A))}()
 BroadcastStyle(::BaseFieldStyle{S₁}, ::BaseFieldStyle{S₂}) where {S₁,S₂} = BaseFieldStyle{typeof(result_style(S₁(), S₂()))}()
 BroadcastStyle(S::BaseFieldStyle, ::DefaultArrayStyle{0}) = S
 
-# this describes how to compute the broadcast across anything that ends
-# up as BaseFieldStyle
+# now we compute the broadcast
 function materialize(bc::Broadcasted{BaseFieldStyle{S}}) where {S}
 
-    # recursively go through the broadcast expression and figure out
-    # the final `B` and `metadata` of the result, using the
+    # first, recursively go through the broadcast expression and
+    # figure out the final `B` and `metadata` of the result, using the
     # promote_bcast_rule rules
     b, metadata = promote_fields_bcast(bc)
     B = typeof(b)
 
-    # "preprocess" all the arguments, which unwraps all of the
+    # then "preprocess" all the arguments, which unwraps all of the
     # BaseFields in the expression to just the underlying arrays.
     # `preprocess` can dispatch on the now-known (B, metadata)
-    bc′ = preprocess((B, metadata), bc)
+    bc′ = preprocess((BaseFieldStyle{S}(), b, metadata), bc)
     
     # convert the expression to style S, which is what it would have
     # been for the equivalent broadcast over the underlying arrays
@@ -80,7 +80,7 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S}}) whe
     # for inplace broadcasting, we don't need to compute the
     # (B,metadata) from the broadcasted object, we just take it from
     # the destination BaseField
-    bc′ = preprocess((B, dst.metadata), bc)
+    bc′ = preprocess((S(), B(), dst.metadata), bc)
     
     # same as before
     bc″ = convert(Broadcasted{S}, bc′)
@@ -96,6 +96,11 @@ end
 # custom BaseFields are free to override this and dispatch on it if
 # they need
 preprocess(::Any, f::BaseField) = f.arr
+
+
+preprocess(dest::Tuple{BaseFieldStyle{S},B,M}, bc::Broadcasted) where {S,B,M} = 
+    broadcasted(S(), bc.f, preprocess_args(dest, bc.args)...)
+
 
 # go through some arguments and promote down to a single (B,
 # metadata), recursively going into Broadcasted objects. the thing we

@@ -18,6 +18,7 @@ global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 diag(L::DiagOp) = L.diag
 (^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
 pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
+(≈)(D₁::DiagOp, D₂::DiagOp) = diag(D₁) ≈ diag(D₂)
 
 
 # use getproperty here to ensure no basis conversion is done

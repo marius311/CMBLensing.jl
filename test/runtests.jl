@@ -15,7 +15,7 @@ end
 
 using CMBLensing
 using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
-    LinearInterpolation, Measurement, RK4Solver, ±, typealias
+    LinearInterpolation, Measurement, RK4Solver, ±, typealias, BatchedReal
 
 ##
 
@@ -221,6 +221,27 @@ end
 
 ##
 
+@testset "Log/Trace" begin
+
+    @test logdet(Diagonal(FlatMap([1 -2; 3 -4])))                                           ≈  log(24)
+    @test logdet(Diagonal(FlatQUMap([1 -2; 3 -4], [1 -2; 3 -4])))                           ≈ 2log(24)
+    @test logdet(Diagonal(FlatIQUMap([1 -2; 3 -4], [1 -2; 3 -4], [1 -2; 3 -4])))            ≈ 3log(24)
+    @test logdet(Diagonal(FieldTuple(FlatMap([1 -2; 3 -4]), FlatMap([1 -2; 3 -4]))))        ≈ 2log(24)
+    @test all(logdet(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈ log(24))
+
+    for Nside in Nsides_big
+        x = rand(Nside...)
+        @test logdet(Diagonal(Fourier(FlatMap(x))))                                             ≈ real( logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(QUFourier(FlatQUMap(x,x))))                                       ≈ real(2logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                   ≈ real(3logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))            ≈ real(2logdet(Diagonal(fft(x)[:])))
+        (FFTW.fftw_vendor != :mkl) && @test logdet(Diagonal(Fourier(FlatMap(cat(x,x,dims=3))))) ≈ real( logdet(Diagonal(fft(x)[:])))
+    end
+
+end
+
+##
+
 @testset "FlatS2" begin
     @testset "Nside = $Nside" for Nside in Nsides
         C = maybegpu(Diagonal(EBFourier(FlatEBMap(rand(Nside...), rand(Nside...)))))
@@ -266,7 +287,7 @@ end
         rb = batch([1.,2])
         
         @testset "f :: $(typeof(f))" for (f,fb) in [
-            (maybegpu(FlatMap(rand(Nside...))),                    maybegpu(FlatMap(rand(Nside...,2)))),
+            (maybegpu(FlatMap(rand(Nside...))),                  maybegpu(FlatMap(rand(Nside...,2)))),
             (maybegpu(FlatQUMap(rand(Nside...),rand(Nside...))), maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2))))
         ]
 
@@ -517,7 +538,7 @@ end
     L = LenseFlow{RK4Solver{7}}
     T = Float64
 
-    @testset "Nside = $Nside" for Nside in Nsides_big
+    @testset "Nside = $Nside" for Nside in Nsides_big[1:1]
 
         @testset "pol = $pol" for pol in (:I,:P)
             

@@ -47,6 +47,7 @@ sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Su
 CUDA.isfinite(x::Complex) = Base.isfinite(x)
 CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
 CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+CUDA.pow(x::Complex, p) = x^p
 
 # until https://github.com/JuliaGPU/CUDA.jl/pull/618
 CUDA.cufunc(::typeof(angle)) = CUDA.angle

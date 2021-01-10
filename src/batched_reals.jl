@@ -17,7 +17,7 @@ batch_length(br::BatchedReal) = length(br.vals)
 batch_length(::Real) = 1
 batch_index(br::BatchedReal, I) = getindex(br.vals, I)
 batch_index(r::Real, I) = r
-for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==)]
+for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==), :≈]
     @eval begin
         ($op)(a::BatchedReal, b::BatchedReal) = batch(broadcast(($op), a.vals, b.vals))
         ($op)(a::BatchedReal, b::Real)        = batch(broadcast(($op), a.vals, b))

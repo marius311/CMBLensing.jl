@@ -24,7 +24,10 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     θϕ_center
 end
 
-@memoize function ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array)
+# need at least a float to store these quantities
+ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array) = ProjLambert(Ny, Nx, θpix, promote_type(T, Float32), storage)
+
+@memoize function ProjLambert(Ny, Nx, θpix, T, storage)
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))
@@ -124,7 +127,11 @@ end
 
 ### preprocessing
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
+function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert{T,V}}, br::BatchedReal) where {T,V}
+    adapt(V, reshape(br.vals, 1, 1, 1, :))
+end
+
+function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, ∇d::∇diag)
     # turn both vectors into 2-D matrix so this function is
     # type-stable (note: reshape does not actually make a copy here,
     # so this doesn't impact performance)
@@ -137,13 +144,13 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
     end
 end
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
+function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, ::∇²diag)
     # need complex here to avoid problem with ^ below being Base.pow instead of CUDA.pow
     # todo: find better solution
     broadcasted(complex, broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2)))
 end
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
+function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, bp::BandPass)
     Cℓ_to_2D(bp.Wℓ, proj)
 end
 
