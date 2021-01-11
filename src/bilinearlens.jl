@@ -37,7 +37,8 @@ function BilinearLens(ϕ::FlatField)
         return BilinearLens(ϕ,I,I)
     end
     
-    @unpack Nbatch,Nx,Ny,Δx,T = ϕ
+    @unpack Nbatch,Nx,Ny,Δx = ϕ
+    T = real(ϕ.T)
     Nbatch > 1 && error("BilinearLens with batched ϕ not implemented yet.")
     
     # the (i,j)-th pixel is deflected to (ĩs[i],j̃s[j])
@@ -46,9 +47,8 @@ function BilinearLens(ϕ::FlatField)
     j̃s .= (j̃s' .+ (1:Nx))'
     
     # sub2ind converts a 2D index to 1D index, including wrapping at edges
-    indexwrapi(i) = mod(i - 1, Ny) + 1
-    indexwrapj(i) = mod(i - 1, Nx) + 1
-    sub2ind(i,j) = Base._sub2ind((Ny,Nx),indexwrapi(i),indexwrapj(j))
+    indexwrap(i,N) = mod(i - 1, N) + 1
+    sub2ind(i,j) = Base._sub2ind((Ny,Nx),indexwrap(i,Ny),indexwrap(j,Nx))
 
     # compute the 4 non-zero entries in L[I,:] (ie the Ith row of the sparse
     # lensing representation, L) and add these to the sparse constructor
@@ -122,7 +122,7 @@ end
 
 
 getϕ(Lϕ::BilinearLens) = Lϕ.ϕ
-(Lϕ::BilinearLens)(ϕ) = BilinearLens(ϕ)
+(Lϕ::BilinearLens)(ϕ::FlatField) = BilinearLens(ϕ)
 
 # applying various forms of the operator
 
@@ -147,7 +147,7 @@ function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatField)
 end
 
 function \(Lϕ::BilinearLens, f̃::FlatField)
-    Lϕ.sparse_repr===I && return f
+    Lϕ.sparse_repr===I && return f̃
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
     for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
@@ -160,12 +160,12 @@ function \(Lϕ::BilinearLens, f̃::FlatField)
 end
 
 function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatField)
-    parent(Lϕ).sparse_repr===I && return f
+    parent(Lϕ).sparse_repr===I && return f̃
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
     for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
-        @views(f.Ix[:,:,pol,batch][:]) .= gmres(
-            parent(Lϕ).sparse_repr', @views(Łf̃.Ix[:,:,pol,batch][:]),
+        @views(f.arr[:,:,pol,batch][:]) .= gmres(
+            parent(Lϕ).sparse_repr', @views(Łf̃.arr[:,:,pol,batch][:]),
             Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
         )
     end

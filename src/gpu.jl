@@ -17,7 +17,7 @@ function cuda(f, args...; threads=256)
     @cuda threads=threads f(args...)
 end
 
-is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
+is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
 global_rng_for(::Type{<:CuArray}) = curand_rng()
 
 

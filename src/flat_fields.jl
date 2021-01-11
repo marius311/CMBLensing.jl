@@ -35,8 +35,6 @@ const FlatS02Map{     B<:Union{IQUMap,IEBMap},                       M<:FlatProj
 const FlatS02Fourier{ B<:Union{IQUFourier,IQUFourier},               M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 const FlatS02{        B<:Union{IQUMap,IQUFourier,IEBMap,IEBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 # any flat projection
-const AnyFlatMap{     B<:Union{Map,QUMap,EBMap,IQUMap,IEBMap},       M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
-const AnyFlatFourier{ B<:Union{Fourier,QUFourier,EBFourier,IQUFourier,IEBFourier}, M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 const FlatField{      B,                                             M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 
 ### basis-like definitions
@@ -320,7 +318,7 @@ end
 
 ### spin adjoints
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}
-    FlatMap(sum(a.f.arr .* b.arr, dims=3), get_metadata_strict(a, b))
+    FlatMap(dropdims(sum(a.f.arr .* b.arr, dims=3), dims=(a.f.Nbatch>1 || b.Nbatch>1 ? () : 3)), get_metadata_strict(a, b))
 end
 function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
     copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3))

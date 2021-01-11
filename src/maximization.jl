@@ -262,7 +262,7 @@ function MAP_marg(
     tr = []
     state = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
-    Progress.update!(pbar)
+    ProgressMeter.update!(pbar)
     
     for i=1:nsteps
         aggressive_gc && cuda_gc()
@@ -277,8 +277,8 @@ function MAP_marg(
         push!(tr, @dict(i,g,ϕ))
         next!(pbar, showvalues=[
             ("step",i), 
-            ("Ncg", length(state.gQD.history)), 
-            ("Ncg_sims", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].history) : "(MF not updated)"),
+            ("Ncg (data)", length(state.gQD.history)), 
+            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].history) : "0 (MF not updated)"),
             ("α",α)
         ])
     end
