@@ -22,7 +22,7 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
 end
 
 ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
-    ProjLambert(Ny, Nx, θpix, center, promote_type(real(T), Float32), storage)
+    ProjLambert(Ny, Nx, Float64(θpix), Float64.(center), promote_type(real(T), Float32), storage)
 
 @memoize function ProjLambert(Ny, Nx, θpix, center, T, storage)
 
@@ -40,7 +40,7 @@ ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) =
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
 
-    ProjLambert(Ny,Nx,Float64(θpix),Float64.(center),storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ)
+    ProjLambert(Ny,Nx,θpix,center,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ)
     
 end
 
@@ -148,3 +148,27 @@ the power spectrum will be pixwin^2.
 """
 pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 
+
+
+# ### serialization
+# makes it so the arrays in ProjLambert objects aren't actually
+# serialized to disk by JLD2, instead just (Ny, Nx, θpix, center, T)
+# are stored, and the arrays are reconstructed when loading a field
+
+function JLD2.writeas(::Type{P}) where {P<:ProjLambert}
+    Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}
+end
+function JLD2.wconvert(
+         :: Type{Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}}, 
+    proj :: ProjLambert{T}
+) where {T}
+    @unpack Ny, Nx, θpix, center = proj
+    (Val(ProjLambert), Ny, Nx, θpix, center, T)
+end
+function JLD2.rconvert(
+         :: Type{<:ProjLambert}, 
+    proj :: Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}
+)
+    (_, Ny, Nx, θpix, center, T) = proj
+    ProjLambert(; Ny, Nx, θpix, center, T)
+end

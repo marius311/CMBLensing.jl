@@ -389,7 +389,7 @@ function sample_joint(
             if filename != nothing
                 last_chunks[1][end][:t_write] = t_write
                 t_write = @elapsed jldopen(filename,"a+") do io
-                    wsession = JLDWriteSession()
+                    wsession = JLD2.JLDWriteSession()
                     write(io, "chunks_$chunks_index", last_chunks, wsession)
                 end
             end

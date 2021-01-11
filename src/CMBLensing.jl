@@ -16,7 +16,7 @@ using FileIO
 using FFTW
 using InteractiveUtils
 using IterTools: flagfirst
-using JLD2: jldopen, JLDWriteSession
+using JLD2
 import KahanSummation
 using Loess
 using LinearAlgebra
