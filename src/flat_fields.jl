@@ -82,13 +82,13 @@ function FlatField{B}(X::A, Y::A, Z::A; kwargs...) where {T, A<:AbstractArray{T}
 end
 ## constructing from other fields
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), get_metadata_strict(X, Y))
 end
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{Basis2Prod{Pol,B₀}}) where {B₀<:Union{Map,Fourier}, Pol<:Union{𝐐𝐔,𝐄𝐁}, B<:Basis3Prod{𝐈,Pol,B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), get_metadata_strict(X, Y))
 end
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}, Z::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), last(promote_fields_bcast(X, Y, Z)))
+    FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), get_metadata_strict(X, Y, Z))
 end
 
 

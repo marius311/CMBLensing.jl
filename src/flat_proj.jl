@@ -21,7 +21,6 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     cos2ϕ     :: M
 end
 
-# need at least a float to store these quantities
 ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
     ProjLambert(Ny, Nx, θpix, center, promote_type(real(T), Float32), storage)
 
@@ -51,9 +50,8 @@ typealias_def(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 
 ### promotion
 
-# used in broadcasting to decide the result of broadcasting across two
-# fields with a given `metadata` and basis, `b` (where b is an
-# instance of the type-parameter B) 
+# used in broadcasting to decide the resulting metadata when
+# broadcasting over two fields
 function promote_metadata_strict(metadata₁::ProjLambert{T₁}, metadata₂::ProjLambert{T₂} ) where {T₁,T₂}
 
     if (
@@ -76,22 +74,19 @@ function promote_metadata_strict(metadata₁::ProjLambert{T₁}, metadata₂::Pr
 end
 
 
-# used in non-broadcasted algebra to decide the result of performing
-# some operation across two fields with a given `metadata`. this is
-# free to do more generic promotion than promote_bcast_rule. the
-# result should be a common metadata which we can convert both fields
-# to then do a succesful broadcast
-function promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert)
-
-    # in the future, could add rules here to allow more generic
-    # promotion than what makes sense during a broadcast, e.g.
-    # upgrading one field if they have different resolutions, etc...
+# used in non-broadcasted algebra to decide the resulting metadata
+# when performing some operation across two fields. this is free to do
+# more generic promotion than promote_metadata_strict (although this
+# is currently not used, but in the future could include promoting
+# resolution, etc...). the result should be a common metadata which we
+# can convert both fields to then do a succesful broadcast
+promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert) = 
     promote_metadata_strict(metadata₁, metadata₂)
-
-end
 
 
 ### preprocessing
+# defines how ImplicitFields and BatchedReals behave when broadcasted
+# with ProjLambert fields 
 
 function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, br::BatchedReal) where {T,V}
     adapt(V, reshape(br.vals, 1, 1, 1, :))

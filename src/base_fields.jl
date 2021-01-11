@@ -40,12 +40,11 @@ convert_metadata(metadata, f::BaseField) = f.metadata === metadata ? f : error("
 
 ## broadcasting 
 
-# the first step in broadcasting is to go through all the arguments
-# recursively and figure out the final "BroadcastStyle" according to
-# the rules below. here, we make it so anything involving at least one
-# BaseField will end up as BaseFieldStyle{S}. the S carries around
-# what the BroadcastStyle would have been for the underlying arrays,
-# and is promoted as per the usual rules by the result_style call
+# any broadcast expression that contains at least one BaseField will
+# have a broadcast style of BaseFieldStyle{S,B}. the S is the
+# broadcast style for the underlying arrays and B is the B parameter
+# of the result BaseField. S and B are promoted recursively across all
+# the arguments according to the set of rules below. 
 struct BaseFieldStyle{S,B} <: AbstractArrayStyle{1} end
 BroadcastStyle(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = 
     BaseFieldStyle{typeof(BroadcastStyle(A)),B}()
@@ -53,24 +52,26 @@ BroadcastStyle(::BaseFieldStyle{S₁,B₁}, ::BaseFieldStyle{S₂,B₂}) where {
     BaseFieldStyle{typeof(result_style(S₁(), S₂())), typeof(promote_basis_strict(B₁(),B₂()))}()
 BroadcastStyle(S::BaseFieldStyle, ::DefaultArrayStyle{0}) = S
 
-# now we compute the broadcast
+# with the Broadcasted object created, we now compute the answer
 function materialize(bc::Broadcasted{BaseFieldStyle{S,B}}) where {S,B}
 
-    # first, recursively go through the broadcast expression and
-    # figure out the final `B` and `metadata` of the result, using the
-    # promote_bcast_rule rules
+    # first, recursively go through the broadcast arguments and figure
+    # out the metadata of the result, using the
+    # promote_metadata_strict rules
     metadata = get_metadata_strict(bc)
 
-    # then "preprocess" all the arguments, which unwraps all of the
-    # BaseFields in the expression to just the underlying arrays.
-    # `preprocess` can dispatch on the now-known (B, metadata)
+    # then "preprocess" all the arguments. this unwraps all of the
+    # BaseFields in the expression into just the underlying arrays,
+    # and turns things which were ImplicitFields into actual arrays
+    # (which are computed by dispatching on the now-known S, B, and
+    # metadata of the result)
     bc′ = preprocess((BaseFieldStyle{S,B}(), metadata), bc)
     
-    # convert the expression to style S, which is what it would have
-    # been for the equivalent broadcast over the underlying arrays
+    # the arguments of bc′ are now all normal arrays, so convert it to
+    # the broadcast style S that goes along with them
     bc″ = convert(Broadcasted{S}, bc′)
 
-    # run the normal array broadcast, and wrap in the appropriate
+    # run the normal array broadcast, and wrap in the right
     # result type
     BaseField{B}(materialize(bc″), metadata)
 
@@ -86,29 +87,26 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S,B′}}
     bc′ = preprocess((BaseFieldStyle{S,B}(), dst.metadata), bc)
     bc″ = convert(Broadcasted{S}, bc′)
     materialize!(dst.arr, bc″)
-    
-    # return field itself
     dst
 
 end
 
 # the default preprocessing, which just unwraps the underlying array.
-# this doesn't use the known (B,metadata) in the first argument, but
-# custom BaseFields are free to override this and dispatch on it if
-# they need
+# this doesn't dispatch on the first argument, but custom BaseFields
+# are free to override this and dispatch on it if they need
 preprocess(::Any, f::BaseField) = f.arr
 
+# we re-wrap each Broadcasted object as we go through preprocessing
+# because some array types do special things here (e.g. CUDA wraps
+# bc.f in a CUDA.cufunc)
 preprocess(dest::Tuple{BaseFieldStyle{S,B},M}, bc::Broadcasted) where {S,B,M} = 
     broadcasted(S(), bc.f, preprocess_args(dest, bc.args)...)
 
-
-# go through some arguments and promote down to a single (B,
-# metadata), recursively going into Broadcasted objects. the thing we
-# return is actually (B(), metadata), ie an *instance* of B, rather
-# than the type, otherwise we would lose the information from the type
-# system. more explicitly, if we returned (B, metadata), the return
-# type would be inferred as eg Tuple{DataType, M}, whereas this way
-# its Tuple{Map, M}, Tuple{Fourier, M}, etc...
+# recursively go through a Broadcasted object's arguments and compute
+# the final metadata according to the promote_metadata_strict rules.
+# we use the select_known_rule machinery (see util.jl) to make it so
+# promote_metadata_strict_rule only needs one argument order defined
+# (similar to Base.promote_rule)
 get_metadata_strict(x, rest...)      = promote_metadata_strict(get_metadata_strict(x), get_metadata_strict(rest...))
 get_metadata_strict(bc::Broadcasted) = get_metadata_strict(bc.args...)
 get_metadata_strict(f ::BaseField)   = f.metadata
@@ -120,8 +118,6 @@ promote_metadata_strict(x, y) = select_known_rule(promote_metadata_strict_rule, 
 promote_metadata_strict_rule(metadata,   ::Nothing) = metadata
 promote_metadata_strict_rule(::Nothing,  ::Nothing) = nothing
 promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
-
-
 
 
 ## properties

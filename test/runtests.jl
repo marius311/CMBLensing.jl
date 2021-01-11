@@ -33,6 +33,8 @@ Nsides_big = [(128,128), (64,128), (128,64)]
 
 Random.seed!(0)
 
+has_batched_fft = (FFTW.fftw_vendor != :fftw) || (storage != Array)
+
 ##
 
 @testset "CMBLensing" begin
@@ -96,7 +98,7 @@ end
         @testset "$(typealias(Bin)) → $(typealias(Bout))" for (f,Bin,Bout) in [
             (f,Bin,Bout)
             for (f,Bs) in [
-                (FlatMap(rand(Nside...)),             (Map,Fourier)),
+                (FlatMap(rand(Nside...)), (Map,Fourier)),
                 (FlatQUMap(rand(Nside...),rand(Nside...)), (QUMap,QUFourier,EBMap,EBFourier))
             ]
             for Bin in Bs
@@ -125,7 +127,7 @@ end
             # (IEBFourier, maybegpu(FlatIQUMap(rand(Nside...),rand(Nside...),rand(Nside...)))), 
         ]
         # MKL doesnt seem to support batched FFTs, not that theyre really useful on CPU
-        (FFTW.fftw_vendor != :mkl) && append!(fs, [
+        has_batched_fft && append!(fs, [
             (Fourier,    maybegpu(FlatMap(rand(Nside...,2)))),
             (EBFourier,  maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2)))),
         ])
@@ -227,15 +229,15 @@ end
     @test logdet(Diagonal(FlatQUMap([1 -2; 3 -4], [1 -2; 3 -4])))                           ≈ 2log(24)
     @test logdet(Diagonal(FlatIQUMap([1 -2; 3 -4], [1 -2; 3 -4], [1 -2; 3 -4])))            ≈ 3log(24)
     @test logdet(Diagonal(FieldTuple(FlatMap([1 -2; 3 -4]), FlatMap([1 -2; 3 -4]))))        ≈ 2log(24)
-    @test all(logdet(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈ log(24))
+    @test all(logdet(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈  log(24))
 
     for Nside in Nsides_big
         x = rand(Nside...)
-        @test logdet(Diagonal(Fourier(FlatMap(x))))                                             ≈ real( logdet(Diagonal(fft(x)[:])))
-        @test logdet(Diagonal(QUFourier(FlatQUMap(x,x))))                                       ≈ real(2logdet(Diagonal(fft(x)[:])))
-        @test logdet(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                   ≈ real(3logdet(Diagonal(fft(x)[:])))
-        @test logdet(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))            ≈ real(2logdet(Diagonal(fft(x)[:])))
-        (FFTW.fftw_vendor != :mkl) && @test logdet(Diagonal(Fourier(FlatMap(cat(x,x,dims=3))))) ≈ real( logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(Fourier(FlatMap(x))))                                                   ≈ real( logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ real(2logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ real(3logdet(Diagonal(fft(x)[:])))
+        @test logdet(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))                  ≈ real(2logdet(Diagonal(fft(x)[:])))
+        has_batched_fft && @test all(logdet(Diagonal(Fourier(FlatMap(cat(x,x,dims=3)))))::BatchedReal ≈ real( logdet(Diagonal(fft(x)[:]))))
     end
 
 end
