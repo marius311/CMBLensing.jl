@@ -81,7 +81,7 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S,B′}}
     
     (B == B′) || error("Can't broadcast a $(typealias(B′)) into a $(typealias(B))")
 
-    # for inplace broadcasting, we don't need to compute B, T and the
+    # for inplace broadcasting, we don't need to compute B or the
     # metadata from the broadcasted object, we just take it from the
     # destination BaseField. otherwise its the same as materialize above
     bc′ = preprocess((BaseFieldStyle{S,B}(), dst.metadata), bc)
