@@ -409,3 +409,14 @@ macro show⌛(ex)
         result
     end
 end
+
+
+
+# used in a couple of places to create a Base.promote_rule-like system
+# where you can specify a set of rules for promotion via dispatch but
+# don't need to write a method for both orders
+select_known_rule(rule, x, y) = select_known_rule(rule, x, y, rule(x,y), rule(y,x))
+select_known_rule(rule, x, y, R₁::Any,       R₂::Unknown) = R₁
+select_known_rule(rule, x, y, R₁::Unknown,   R₂::Any)     = R₂
+select_known_rule(rule, x, y, R₁::Any,       R₂::Any)     = (R₁ == R₂) ? R₁ : error("Conflicting rules.")
+select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_error(rule, x, y)

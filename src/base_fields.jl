@@ -31,8 +31,8 @@ copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 ## promotion
 function promote(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
-    metadata = promote_generic(f₁.metadata, f₂.metadata)
-    B = typeof(promote_generic(B₁(), B₂()))
+    metadata = promote_metadata_generic(f₁.metadata, f₂.metadata)
+    B = typeof(promote_basis_generic(B₁(), B₂()))
     B(convert_metadata(metadata,f₁)), B(convert_metadata(metadata,f₂))
 end
 convert_metadata(metadata, f::BaseField) = f.metadata === metadata ? f : error("need promotion rule")
@@ -50,7 +50,7 @@ struct BaseFieldStyle{S,B} <: AbstractArrayStyle{1} end
 BroadcastStyle(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = 
     BaseFieldStyle{typeof(BroadcastStyle(A)),B}()
 BroadcastStyle(::BaseFieldStyle{S₁,B₁}, ::BaseFieldStyle{S₂,B₂}) where {S₁,B₁,S₂,B₂} = 
-    BaseFieldStyle{typeof(result_style(S₁(), S₂())), typeof(promote_bcast(B₁(),B₂()))}()
+    BaseFieldStyle{typeof(result_style(S₁(), S₂())), typeof(promote_basis_strict(B₁(),B₂()))}()
 BroadcastStyle(S::BaseFieldStyle, ::DefaultArrayStyle{0}) = S
 
 # now we compute the broadcast
@@ -59,7 +59,7 @@ function materialize(bc::Broadcasted{BaseFieldStyle{S,B}}) where {S,B}
     # first, recursively go through the broadcast expression and
     # figure out the final `B` and `metadata` of the result, using the
     # promote_bcast_rule rules
-    metadata = promote_fields_bcast(bc)
+    metadata = get_metadata_strict(bc)
 
     # then "preprocess" all the arguments, which unwraps all of the
     # BaseFields in the expression to just the underlying arrays.
@@ -78,12 +78,12 @@ end
 
 function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S,B′}}) where {B,B′,S}
     
-    # for inplace broadcasting, we don't need to compute the
-    # (B,metadata) from the broadcasted object, we just take it from
-    # the destination BaseField
+    (B == B′) || error("Can't broadcast a $(typealias(B′)) into a $(typealias(B))")
+
+    # for inplace broadcasting, we don't need to compute B, T and the
+    # metadata from the broadcasted object, we just take it from the
+    # destination BaseField. otherwise its the same as materialize above
     bc′ = preprocess((BaseFieldStyle{S,B}(), dst.metadata), bc)
-    
-    # same as before
     bc″ = convert(Broadcasted{S}, bc′)
     materialize!(dst.arr, bc″)
     
@@ -109,41 +109,19 @@ preprocess(dest::Tuple{BaseFieldStyle{S,B},M}, bc::Broadcasted) where {S,B,M} =
 # system. more explicitly, if we returned (B, metadata), the return
 # type would be inferred as eg Tuple{DataType, M}, whereas this way
 # its Tuple{Map, M}, Tuple{Fourier, M}, etc...
-promote_fields_bcast(x,               rest...) = promote_bcast(get_metadata(x),                  promote_fields_bcast(rest...))
-promote_fields_bcast(bc::Broadcasted, rest...) = promote_bcast(promote_fields_bcast(bc.args...), promote_fields_bcast(rest...))
-promote_fields_bcast(x)                        = get_metadata(x)
-promote_fields_bcast()                         = nothing
+get_metadata_strict(x, rest...)      = promote_metadata_strict(get_metadata_strict(x), get_metadata_strict(rest...))
+get_metadata_strict(bc::Broadcasted) = get_metadata_strict(bc.args...)
+get_metadata_strict(f ::BaseField)   = f.metadata
+get_metadata_strict(  ::Any)         = nothing
+get_metadata_strict()                = nothing
 
-# get the (b,metadata) out of the argument, if it has one
-get_metadata(::Any)        = nothing
-get_metadata(x::BaseField) = x.metadata
+promote_metadata_strict(x) = x
+promote_metadata_strict(x, y) = select_known_rule(promote_metadata_strict_rule, x, y)
+promote_metadata_strict_rule(metadata,   ::Nothing) = metadata
+promote_metadata_strict_rule(::Nothing,  ::Nothing) = nothing
+promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
 
-# like promote_bcast_rule, but checks both argument orders, to allow
-# the user to only define one order. if both argument orders defined,
-# they should be the same (although this is not checked for
-# performance reasons), so just pick either. if only one is defined,
-# pick that one. otherwise the user would need to specify a rule
-promote_bcast(x, y) = _select_known_rule(x, y, promote_bcast_rule(x, y), promote_bcast_rule(y, x))
-_select_known_rule(x, y, R::Any,      ::Any)     = R
-_select_known_rule(x, y, R::Any,      ::Unknown) = R
-_select_known_rule(x, y,  ::Unknown, R::Any)     = R
-_select_known_rule(x, y,  ::Unknown,  ::Unknown) = error("need rule")
 
-# default rule is that metadata must be absolutely identical.
-# individual field types can implement more lenient promotion rules,
-# see e.g. flat_proj.jl
-function promote_bcast_rule(metadata₁, metadata₂)
-    if (
-        metadata₁ === metadata₂ || # `===` is much faster so try to short-circuit to that before checking `==`
-        metadata₁ == metadata₂
-    )
-        metadata₁
-    else
-        Unknown()
-    end
-end
-promote_bcast_rule(metadata,   ::Nothing) = metadata
-promote_bcast_rule(::Nothing,  ::Nothing) = nothing
 
 
 ## properties

@@ -1,32 +1,31 @@
 
 abstract type FlatProj end
 
-# default angular resolution used by a number of convenience constructors
-θpix₀ = 1
-
-
 struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
-    θpix
+    # these must be the same to broadcast together
+    Ny        :: Int
+    Nx        :: Int
+    θpix      :: Float64
+    center    :: Tuple{Float64,Float64}
+    # these can be different and still broadcast (including different types)
     storage
-    Δx       :: T
-    Ny       :: Int
-    Nx       :: Int
-    Ωpix     :: T
-    nyquist  :: T
-    Δℓx      :: T
-    Δℓy      :: T
-    ℓy       :: V
-    ℓx       :: V
-    ℓmag     :: M
-    sin2ϕ    :: M
-    cos2ϕ    :: M
-    θϕ_center
+    Δx        :: T
+    Ωpix      :: T
+    nyquist   :: T
+    Δℓx       :: T
+    Δℓy       :: T
+    ℓy        :: V
+    ℓx        :: V
+    ℓmag      :: M
+    sin2ϕ     :: M
+    cos2ϕ     :: M
 end
 
 # need at least a float to store these quantities
-ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array) = ProjLambert(Ny, Nx, θpix, promote_type(T, Float32), storage)
+ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
+    ProjLambert(Ny, Nx, θpix, center, promote_type(real(T), Float32), storage)
 
-@memoize function ProjLambert(Ny, Nx, θpix, T, storage)
+@memoize function ProjLambert(Ny, Nx, θpix, center, T, storage)
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))
@@ -42,9 +41,7 @@ ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array) = ProjLambert(Ny,
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
 
-    θϕ_center = nothing
-    
-    ProjLambert(θpix,storage,Δx,Ny,Nx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ,θϕ_center)
+    ProjLambert(Ny,Nx,Float64(θpix),Float64.(center),storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ)
     
 end
 
@@ -57,30 +54,22 @@ typealias_def(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 # used in broadcasting to decide the result of broadcasting across two
 # fields with a given `metadata` and basis, `b` (where b is an
 # instance of the type-parameter B) 
-function promote_bcast(
-    metadata₁ :: ProjLambert{T₁}, 
-    metadata₂ :: ProjLambert{T₂}
-) where {T₁,T₂}
-
-    # even though if metadata₁ === metadata₂ we could technically
-    # return either, it helps inference if we always return the
-    # technically-"wider" one. this line is optimized away at compile
-    # time anyway so doesn't slow us down if metadata₁ === metadata₂
-    # is indeed true
-    wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
+function promote_metadata_strict(metadata₁::ProjLambert{T₁}, metadata₂::ProjLambert{T₂} ) where {T₁,T₂}
 
     if (
-        metadata₁ === metadata₂ || (
-            metadata₁.θpix == metadata₂.θpix &&
-            metadata₁.Ny   == metadata₂.Ny   &&
-            metadata₁.Nx   == metadata₂.Nx      
-        )
+        metadata₁.θpix === metadata₂.θpix &&
+        metadata₁.Ny   === metadata₂.Ny   &&
+        metadata₁.Nx   === metadata₂.Nx      
     )
-        wider_metadata
+        
+        # always returning the "wider" metadata even if T₁==T₂ helps
+        # inference and is optimized away anyway
+        promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
+        
     else
         error("""Can't broadcast two fields with the following differing metadata:
-        1: $((;B₁, select(fields(metadata₁),(:θpix,:Ny,:Nx))...))
-        2: $((;B₂, select(fields(metadata₂),(:θpix,:Ny,:Nx))...))
+        1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx)))
+        2: $(select(fields(metadata₂),(:θpix,:Ny,:Nx)))
         """)
     end
 
@@ -92,18 +81,14 @@ end
 # free to do more generic promotion than promote_bcast_rule. the
 # result should be a common metadata which we can convert both fields
 # to then do a succesful broadcast
-function promote_generic(
-    metadata₁ :: ProjLambert,
-    metadata₂ :: ProjLambert
-)
+function promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert)
 
     # in the future, could add rules here to allow more generic
     # promotion than what makes sense during a broadcast, e.g.
     # upgrading one field if they have different resolutions, etc...
-    promote_bcast(metadata₁, metadata₂)
+    promote_metadata_strict(metadata₁, metadata₂)
 
 end
-
 
 
 ### preprocessing
@@ -112,23 +97,27 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, br::BatchedReal) 
     adapt(V, reshape(br.vals, 1, 1, 1, :))
 end
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
-    # turn both vectors into 2-D matrix so this function is
-    # type-stable (note: reshape does not actually make a copy here,
-    # so this doesn't impact performance)
+function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ∇d::∇diag) where {S,B}
+
+    (B <: Union{Fourier,QUFourier,IQUFourier}) ||
+        error("Can't broadcast ∇² as a $(typealias(B)), its not diagonal in this basis.")
+
+    # turn both into 2D matrices so this function is type-stable
+    # (reshape doesnt actually make a copy here, so this doesn't
+    # impact performance)
     if ∇d.coord == 1
         broadcasted(*, ∇d.prefactor * im, reshape(proj.ℓx, 1, :))
-    elseif ∇d.coord == 2
-        broadcasted(*, ∇d.prefactor * im, reshape(proj.ℓy, :, 1))
     else
-        error()
+        broadcasted(*, ∇d.prefactor * im, reshape(proj.ℓy, :, 1))
     end
 end
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
-    # need complex here to avoid problem with ^ below being Base.pow instead of CUDA.pow
-    # todo: find better solution
-    broadcasted(complex, broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2)))
+function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ::∇²diag) where {S,B}
+    
+    (B <: Union{Fourier,<:Basis2Prod{<:Any,Fourier},<:Basis3Prod{<:Any,<:Any,Fourier}}) ||
+        error("Can't broadcast a BandPass as a $(typealias(B)), its not diagonal in this basis.")
+
+    broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2))
 end
 
 function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
