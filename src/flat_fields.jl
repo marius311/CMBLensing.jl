@@ -61,34 +61,34 @@ _reshape_batch(arr) = arr
 ## constructing from arrays
 # spin-0
 function FlatMap(Ix::A; kwargs...) where {T, A<:AbstractArray{T}}
-    FlatMap(_reshape_batch(Ix), ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), T, storage=basetype(A), kwargs...))
+    FlatMap(_reshape_batch(Ix), ProjLambert(;Ny=size(Ix,1), Nx=size(Ix,2), storage=basetype(A), kwargs...))
 end
 function FlatFourier(Il::A; Ny, kwargs...) where {T, A<:AbstractArray{T}}
-    FlatFourier(_reshape_batch(Il), ProjLambert(;Ny, Nx=size(Il,2), T, storage=basetype(A), kwargs...))
+    FlatFourier(_reshape_batch(Il), ProjLambert(;Ny, Nx=size(Il,2), storage=basetype(A), kwargs...))
 end
 # spin-2
 function FlatField{B}(X::A, Y::A, metadata)  where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁}}}
     FlatField{B}(cat(_reshape_batch(X), _reshape_batch(Y), dims=Val(3)), metadata)
 end
 function FlatField{B}(X::A, Y::A; kwargs...) where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁}}}
-    FlatField{B}(X, Y, ProjLambert(;Ny=size(X,1), Nx=size(X,2), T, storage=basetype(A), kwargs...))
+    FlatField{B}(X, Y, ProjLambert(;Ny=size(X,1), Nx=size(X,2), storage=basetype(A), kwargs...))
 end
 # spin-(0,2)
 function FlatField{B}(X::A, Y::A, Z::A, metadata) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁}}}
     FlatField{B}(cat(_reshape_batch(X), _reshape_batch(Y), _reshape_batch(Z), dims=Val(3)), metadata)
 end
 function FlatField{B}(X::A, Y::A, Z::A; kwargs...) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁}}}
-    FlatField{B}(X, Y, Z, ProjLambert(;Ny=size(X,1), Nx=size(X,2), T, storage=basetype(A), kwargs...))
+    FlatField{B}(X, Y, Z, ProjLambert(;Ny=size(X,1), Nx=size(X,2), storage=basetype(A), kwargs...))
 end
 ## constructing from other fields
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), combine_metadata(X, Y))
 end
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{Basis2Prod{Pol,B₀}}) where {B₀<:Union{Map,Fourier}, Pol<:Union{𝐐𝐔,𝐄𝐁}, B<:Basis3Prod{𝐈,Pol,B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), last(promote_fields_bcast(X, Y)))
+    FlatField{B}(cat(X.arr, Y.arr, dims=Val(3)), combine_metadata(X, Y))
 end
 function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}, Z::FlatField{B₀}) where {B₀<:Union{Map,Fourier}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}}
-    FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), last(promote_fields_bcast(X, Y, Z)))
+    FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), combine_metadata(X, Y, Z))
 end
 
 

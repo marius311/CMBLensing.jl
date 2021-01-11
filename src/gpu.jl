@@ -25,7 +25,7 @@ gpu(x) = adapt_structure(CuArray, x)
 
 
 
-function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
+function Cℓ_to_2D(Cℓ, proj::ProjLambert{CuArray,T}) where {T}
     # todo: remove needing to go through cpu here:
     gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
 end

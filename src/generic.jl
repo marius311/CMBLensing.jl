@@ -3,14 +3,6 @@
 ### abstract type hierarchy
 
 abstract type Basis end
-abstract type Basislike <: Basis end
-
-struct DerivBasis <: Basislike end # Basis in which derivatives are sparse for a given field
-const Ð! = DerivBasis
-const Ð  = DerivBasis
-struct LenseBasis <: Basislike end # Basis in which lensing is a pixel remapping for a given field
-const Ł! = LenseBasis
-const Ł  = LenseBasis
 
 ## fields
 abstract type Field{B<:Basis,T} <: AbstractVector{T} end
@@ -57,9 +49,30 @@ for F in ["QUMap", "EBMap", "QUFourier", "EBFourier", "IQUMap", "IEBMap", "IQUFo
     @eval typealias(::Type{$(Symbol(F))}) = $F
 end
 
+# basis-like definitions
 
-### basis
+abstract type Basislike <: Basis end
 
+# Basis in which derivatives are sparse for a given field
+struct DerivBasis <: Basislike end 
+const Ð! = DerivBasis
+const Ð  = DerivBasis
+# Basis in which lensing is a pixel remapping for a given field
+struct LenseBasis <: Basislike end 
+const Ł! = LenseBasis
+const Ł  = LenseBasis
+
+DerivBasis(::Union{Map,Fourier})                                = Fourier()
+DerivBasis(::Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},<:Union{Map,Fourier}}) = QUFourier()
+DerivBasis(::Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},<:Union{Map,Fourier}}) = IQUFourier()
+LenseBasis(::Union{Map,Fourier})                                = Map()
+LenseBasis(::Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},<:Union{Map,Fourier}}) = QUMap()
+LenseBasis(::Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},<:Union{Map,Fourier}}) = IQUMap()
+
+
+### basis promotion
+
+## generic rules which might cause a basis conversion
 basis_promotion_rules = Dict(
     # spin-0
     (Map,        Fourier)     => Map,
@@ -79,17 +92,26 @@ basis_promotion_rules = Dict(
     (IQUFourier, IEBMap)      => IQUFourier
 )
 for ((B₁,B₂),B) in basis_promotion_rules
-    @eval promote_rule_generic(::$B₁, ::$B₂) = $B()
+    @eval promote_basis_generic_rule(::$B₁, ::$B₂) = $B()
 end
-promote_rule_generic(b::B,::B) where {B<:Basis} = b
-promote_rule_generic(::Any,::Any) = Unknown()
-promote_generic(x,y) = _select_known_rule(x, y, promote_rule_generic(x,y), promote_rule_generic(y,x))
+promote_basis_generic_rule(::B, ::B) where {B<:Basis} = B()
+promote_basis_generic_rule(::Any, ::Any) = Unknown()
+promote_basis_generic(x, y) = select_known_rule(promote_basis_generic_rule, x, y)
 
 
-# a spin-0 can broadcast with a spin-2 or spin-(0,2) as long the Map/Fourier part is the same
-promote_bcast_rule(b::B,   ::B ) where {B <:Basis} = b
-promote_bcast_rule(b::B₂,  ::B₀) where {B₀<:Union{Map,Fourier}, B₂ <:Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
-promote_bcast_rule(b::B₀₂, ::B₀) where {B₀<:Union{Map,Fourier}, B₀₂<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}} = b
+## stricter rules used in broadcasting
+promote_basis_bcast_rule(::B,   ::B )        where {B <:Basis}                                                    = B()
+promote_basis_bcast_rule(::B,   ::Basislike) where {B <:Basis}                                                    = B()
+promote_basis_bcast_rule(::B₂,  ::B₀)        where {B₀<:Union{Map,Fourier}, B₂ <:Basis2Prod{  <:Union{𝐐𝐔,𝐄𝐁},B₀}} = B₂()
+promote_basis_bcast_rule(::B₀₂, ::B₀)        where {B₀<:Union{Map,Fourier}, B₀₂<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},B₀}} = B₀₂()
+promote_basis_bcast_rule(::Any, ::Any)                                                                            = Unknown()
+promote_basis_bcast(x, y) = select_known_rule(promote_basis_bcast_rule, x, y)
+unknown_rule_error(::typeof(promote_basis_bcast_rule), ::B₁, ::B₂) where {B₁, B₂} = 
+    error("Can't broadcast fields in $(typealias(B₁)) and $(typealias(B₂)) bases.")
+
+
+
+## applying bases
 
 # Map(B) or Fourier(B) for another basis, B
 (::Type{B})(::Type{B′}) where {B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = B
