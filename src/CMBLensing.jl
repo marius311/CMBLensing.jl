@@ -108,7 +108,7 @@ include("flat_proj.jl")
 include("flat_fields.jl")
 include("masking.jl")
 # include("taylens.jl")
-# include("bilinearlens.jl")
+include("bilinearlens.jl")
 
 # plotting
 function animate end

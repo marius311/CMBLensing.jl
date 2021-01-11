@@ -118,7 +118,7 @@ dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...)
 
 # # logdet & trace
 logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(logdet∘Diagonal,L.diag.fs))
-# tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(tr∘Diagonal,L.diag.fs))
+tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(tr∘Diagonal,L.diag.fs))
 
 # # misc
 # fieldinfo(ft::FieldTuple) = fieldinfo(only(unique(map(typeof, ft.fs)))) # todo: make even more generic

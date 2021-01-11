@@ -286,8 +286,18 @@ end
 
 
 ### traces
-tr(L::Diagonal{<:Complex,<:FlatFourier}) = batch(real(sum_kbn(L.diag[:Il,full_plane=true],dims=(1,2))))
-tr(L::Diagonal{<:Real,   <:FlatMap})     = batch(real(sum_kbn(complex.(L.diag.Ix),dims=(1,2))))
+
+function tr(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
+    @unpack Ny, arr = L.diag
+    λ = adapt(typeof(arr), iseven(Ny) ? [1; 2ones(Ny÷2-1); 1] : [1; 2ones(Ny÷2)])
+    # the `real` is ok bc the imaginary parts of the half-plane which
+    # is stored would cancel with those from the other half-plane
+    batch(real.(sum_kbn(arr .* λ, dims=nonbatch_dims(L.diag))))
+end
+
+function tr(L::Diagonal{<:Real,<:FlatField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+    batch(sum_kbn(L.diag.arr, dims=nonbatch_dims(L.diag)))
+end
 
 
 ### simulation
@@ -309,7 +319,13 @@ end
 
 
 ### spin adjoints
-mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField} = (copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3)); dst)
+function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}
+    FlatMap(sum(a.f.arr .* b.arr, dims=3), get_metadata_strict(a, b))
+end
+function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
+    copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3))
+    dst
+end
 
 
 ### batching

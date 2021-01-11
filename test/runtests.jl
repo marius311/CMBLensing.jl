@@ -31,7 +31,7 @@ using Zygote
 Nsides     = [(8,8), (4,8), (8,4)]
 Nsides_big = [(128,128), (64,128), (128,64)]
 
-Random.seed!(0)
+Random.seed!(1)
 
 has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
 
@@ -225,19 +225,38 @@ end
 
 @testset "Log/Trace" begin
 
-    @test logdet(Diagonal(FlatMap([1 -2; 3 -4])))                                           ≈  log(24)
-    @test logdet(Diagonal(FlatQUMap([1 -2; 3 -4], [1 -2; 3 -4])))                           ≈ 2log(24)
-    @test logdet(Diagonal(FlatIQUMap([1 -2; 3 -4], [1 -2; 3 -4], [1 -2; 3 -4])))            ≈ 3log(24)
-    @test logdet(Diagonal(FieldTuple(FlatMap([1 -2; 3 -4]), FlatMap([1 -2; 3 -4]))))        ≈ 2log(24)
-    @test all(logdet(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈  log(24))
+    @testset "logdet(Diagonal(::Map))" begin
+        @test logdet(Diagonal(FlatMap([1 -2; 3 -4])))                                           ≈  log(24)
+        @test logdet(Diagonal(FlatQUMap([1 -2; 3 -4], [1 -2; 3 -4])))                           ≈ 2log(24)
+        @test logdet(Diagonal(FlatIQUMap([1 -2; 3 -4], [1 -2; 3 -4], [1 -2; 3 -4])))            ≈ 3log(24)
+        @test logdet(Diagonal(FieldTuple(FlatMap([1 -2; 3 -4]), FlatMap([1 -2; 3 -4]))))        ≈ 2log(24)
+        @test all(logdet(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈  log(24))
+    end
 
-    for Nside in Nsides_big
+    @testset "logdet(Diagonal(::Fourier)) Nside=$Nside" for Nside in Nsides_big
         x = rand(Nside...)
         @test logdet(Diagonal(Fourier(FlatMap(x))))                                                   ≈ real( logdet(Diagonal(fft(x)[:])))
         @test logdet(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ real(2logdet(Diagonal(fft(x)[:])))
         @test logdet(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ real(3logdet(Diagonal(fft(x)[:])))
         @test logdet(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))                  ≈ real(2logdet(Diagonal(fft(x)[:])))
         has_batched_fft && @test all(logdet(Diagonal(Fourier(FlatMap(cat(x,x,dims=3)))))::BatchedReal ≈ real( logdet(Diagonal(fft(x)[:]))))
+    end
+
+    @testset "tr(Diagonal(::Map))" begin
+        @test tr(Diagonal(FlatMap([1 -2; 3 -4])))                                           ≈  -2
+        @test tr(Diagonal(FlatQUMap([1 -2; 3 -4], [1 -2; 3 -4])))                           ≈  -4
+        @test tr(Diagonal(FlatIQUMap([1 -2; 3 -4], [1 -2; 3 -4], [1 -2; 3 -4])))            ≈  -6
+        @test tr(Diagonal(FieldTuple(FlatMap([1 -2; 3 -4]), FlatMap([1 -2; 3 -4]))))        ≈  -4
+        @test all(tr(Diagonal(FlatMap(cat([1 -2; 3 -4],[1 -2; 3 -4],dims=3))))::BatchedReal ≈  -2)
+    end
+
+    @testset "tr(Diagonal(::Fourier)) Nside=$Nside" for Nside in Nsides_big
+        x = rand(Nside...)
+        @test tr(Diagonal(Fourier(FlatMap(x))))                                                   ≈ tr(Diagonal(fft(x)[:]))
+        @test tr(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ tr(2tr(Diagonal(fft(x)[:])))
+        @test tr(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ tr(3tr(Diagonal(fft(x)[:])))
+        @test tr(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))                  ≈ tr(2tr(Diagonal(fft(x)[:])))
+        has_batched_fft && @test all(tr(Diagonal(Fourier(FlatMap(cat(x,x,dims=3)))))::BatchedReal ≈ real(tr(Diagonal(fft(x)[:]))))
     end
 
 end
@@ -491,41 +510,45 @@ end
     
     Cℓ = camb().unlensed_total
 
-    @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
+    @testset "$L" for (L,rtol) in [(BilinearLens,0.4), (LenseFlow,1e-2)]
 
-        @testset "T :: $T" for T in (Float32, Float64)
-            
-            proj = ProjLambert(;Ny,Nx,T,storage)
+        @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
-            ε = sqrt(eps(T))
-            Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
-            @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
-            Lϕ = LenseFlow(ϕ)
-            
-            ## S0
-            Cf = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.TT))
-            @test (f = @inferred simulate(Cf)) isa FlatS0
-            @test (@inferred Lϕ*f) isa FlatS0
-            # adjoints
-            f,g = simulate(Cf),simulate(Cf)
-            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-            # gradients
-            δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
+            @testset "T :: $T" for T in (Float32, Float64)
+                
+                proj = ProjLambert(;Ny,Nx,T,storage)
 
-            # S2 lensing
-            Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
-            @test (f = @inferred simulate(Cf)) isa FlatS2
-            @test (@inferred Lϕ*f) isa FlatS2
-            # adjoints
-            f,g = simulate(Cf),simulate(Cf)
-            @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
-            # gradients
-            δf, δϕ = simulate(Cf), simulate(Cϕ)
-            @test FieldTuple(gradient((f′,ϕ) -> f'*(LenseFlow(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                (f'*((LenseFlow(ϕ+ε*δϕ)*(f+ε*δf))-(LenseFlow(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=1e-2
-            
+                ε = sqrt(eps(T))
+                Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
+                @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
+                Lϕ = L(ϕ)
+                
+                ## S0
+                Cf = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.TT))
+                @test (f = @inferred simulate(Cf)) isa FlatS0
+                @test (@inferred Lϕ*f) isa FlatS0
+                # adjoints
+                f,g = simulate(Cf),simulate(Cf)
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # gradients
+                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+
+                # S2 lensing
+                Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
+                @test (f = @inferred simulate(Cf)) isa FlatS2
+                @test (@inferred Lϕ*f) isa FlatS2
+                # adjoints
+                f,g = simulate(Cf),simulate(Cf)
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # gradients
+                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
+                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+                
+            end
+
         end
 
     end

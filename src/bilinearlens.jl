@@ -24,20 +24,21 @@ algorithm, taking anti-lensing as the preconditioner.
     in your Julia session before `BilinearLens` is available.
 
 """
-mutable struct BilinearLens{Φ,S} <: ImplicitOp{Basis,Spin,Pix}
+mutable struct BilinearLens{T,Φ<:Field{<:Any,T},S} <: ImplicitOp{T}
     ϕ :: Φ
     sparse_repr :: S
     anti_lensing_sparse_repr :: Union{S, Nothing}
 end
 
-function BilinearLens(ϕ::FlatS0)
+function BilinearLens(ϕ::FlatField)
     
     # if ϕ == 0 then just return identity operator
     if norm(ϕ) == 0
         return BilinearLens(ϕ,I,I)
     end
     
-    @unpack Nx,Ny,Nside,Δx,T = fieldinfo(ϕ)
+    @unpack Nbatch,Nx,Ny,Δx,T = ϕ
+    Nbatch > 1 && error("BilinearLens with batched ϕ not implemented yet.")
     
     # the (i,j)-th pixel is deflected to (ĩs[i],j̃s[j])
     j̃s,ĩs = getindex.((∇*ϕ)./Δx, :Ix)
@@ -125,48 +126,46 @@ getϕ(Lϕ::BilinearLens) = Lϕ.ϕ
 
 # applying various forms of the operator
 
-function *(Lϕ::BilinearLens, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+function *(Lϕ::BilinearLens, f::FlatField)
     Lϕ.sparse_repr===I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
-    ds = (D == 1 ? ((),) : tuple.(1:D))
-    for d in ds
-        mul!(@views(f̃.Ix[:,:,d...][:]), Lϕ.sparse_repr, @views(Łf.Ix[:,:,d...][:]))
+    for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
+        mul!(@views(f̃.arr[:,:,pol,batch][:]), Lϕ.sparse_repr, @views(Łf.arr[:,:,pol,batch][:]))
     end
     f̃
 end
 
-function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatField)
     parent(Lϕ).sparse_repr===I && return f
     Łf = Ł(f)
     f̃ = similar(Łf)
-    ds = (D == 1 ? ((),) : tuple.(1:D))
-    for d in ds
-        mul!(@views(f̃.Ix[:,:,d...][:]), parent(Lϕ).sparse_repr', @views(Łf.Ix[:,:,d...][:]))
+    for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
+        mul!(@views(f̃.arr[:,:,pol,batch][:]), parent(Lϕ).sparse_repr', @views(Łf.arr[:,:,pol,batch][:]))
     end
     f̃
 end
 
-function \(Lϕ::BilinearLens, f̃::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+function \(Lϕ::BilinearLens, f̃::FlatField)
+    Lϕ.sparse_repr===I && return f
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
-    ds = (D == 1 ? ((),) : tuple.(1:D))
-    for d in ds
-        @views(f.Ix[:,:,d...][:]) .= gmres(
-            Lϕ.sparse_repr, @views(Łf̃.Ix[:,:,d...][:]),
+    for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
+        @views(f.arr[:,:,pol,batch][:]) .= gmres(
+            Lϕ.sparse_repr, @views(Łf̃.arr[:,:,pol,batch][:]),
             Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
         )
     end
     f
 end
 
-function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatS0{P}) where {N,D,P<:Flat{N,<:Any,<:Any,D}}
+function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatField)
+    parent(Lϕ).sparse_repr===I && return f
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
-    ds = (D == 1 ? ((),) : tuple.(1:D))
-    for d in ds
-        @views(f.Ix[:,:,d...][:]) .= gmres(
-            parent(Lϕ).sparse_repr', @views(Łf̃.Ix[:,:,d...][:]),
+    for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
+        @views(f.Ix[:,:,pol,batch][:]) .= gmres(
+            parent(Lϕ).sparse_repr', @views(Łf̃.Ix[:,:,pol,batch][:]),
             Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
         )
     end
@@ -174,18 +173,9 @@ function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatS0{P}) where {N,D,P<:Fla
 end
 
 
-# optimizations for BilinearLens(0ϕ)
-\(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
-*(Lϕ::BilinearLens{<:Any,<:UniformScaling}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
-\(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
-*(Lϕ::Adjoint{<:Any,<:BilinearLens{<:Any,<:UniformScaling}}, f::FlatS0{P}) where {N,P<:Flat{N}} = f
-
-
 for op in (:*, :\)
     @eval function ($op)(Lϕ::Union{BilinearLens, Adjoint{<:Any,<:BilinearLens}}, f::FieldTuple)
-        Łf = Ł(f)
-        F = typeof(Łf)
-        F(map(f->($op)(Lϕ,f), Łf.fs))
+        FieldTuple(map(f->($op)(Lϕ,f), f.fs))
     end
 end
 
@@ -197,7 +187,7 @@ end
 @adjoint function *(Lϕ::BilinearLens, f::Field{B}) where {B}
     f̃ = Lϕ * f
     function back(Δ)
-        (∇' * (Ref(tuple_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ*Δ)
+        (∇' * (Ref(spin_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ*Δ)
     end
     f̃, back
 end
