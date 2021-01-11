@@ -20,7 +20,6 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     ℓmag     :: M
     sin2ϕ    :: M
     cos2ϕ    :: M
-    units
     θϕ_center
 end
 
@@ -43,10 +42,9 @@ ProjLambert(;Ny, Nx, θpix=θpix₀, T=Float32, storage=Array) = ProjLambert(Ny,
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
 
-    units     = 1
     θϕ_center = nothing
     
-    ProjLambert(θpix,storage,Δx,Ny,Nx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ,units,θϕ_center)
+    ProjLambert(θpix,storage,Δx,Ny,Nx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ,θϕ_center)
     
 end
 
@@ -60,9 +58,9 @@ typealias_def(::Type{<:ProjLambert{T}}) where {T} = "ProjLambert{$T}"
 # fields with a given `metadata` and basis, `b` (where b is an
 # instance of the type-parameter B) 
 function promote_bcast(
-    (b₁,metadata₁) :: Tuple{B₁,<:ProjLambert{T₁}}, 
-    (b₂,metadata₂) :: Tuple{B₂,<:ProjLambert{T₂}}
-) where {B₁,B₂,T₁,T₂}
+    metadata₁ :: ProjLambert{T₁}, 
+    metadata₂ :: ProjLambert{T₂}
+) where {T₁,T₂}
 
     # even though if metadata₁ === metadata₂ we could technically
     # return either, it helps inference if we always return the
@@ -70,18 +68,15 @@ function promote_bcast(
     # time anyway so doesn't slow us down if metadata₁ === metadata₂
     # is indeed true
     wider_metadata = promote_type(T₁,T₂) == T₁ ? metadata₁ : metadata₂
-    b = promote_bcast(b₁,b₂)
 
     if (
-        b isa Basis && (
-            metadata₁ === metadata₂ || (
-                metadata₁.θpix == metadata₂.θpix &&
-                metadata₁.Ny   == metadata₂.Ny   &&
-                metadata₁.Nx   == metadata₂.Nx      
-            )
+        metadata₁ === metadata₂ || (
+            metadata₁.θpix == metadata₂.θpix &&
+            metadata₁.Ny   == metadata₂.Ny   &&
+            metadata₁.Nx   == metadata₂.Nx      
         )
     )
-        (b, wider_metadata)
+        wider_metadata
     else
         error("""Can't broadcast two fields with the following differing metadata:
         1: $((;B₁, select(fields(metadata₁),(:θpix,:Ny,:Nx))...))
@@ -98,40 +93,26 @@ end
 # result should be a common metadata which we can convert both fields
 # to then do a succesful broadcast
 function promote_generic(
-    (b₁,metadata₁) :: Tuple{B₁,<:ProjLambert{T₁}}, 
-    (b₂,metadata₂) :: Tuple{B₂,<:ProjLambert{T₂}}
-) where {B₁,B₂,T₁,T₂}
+    metadata₁ :: ProjLambert,
+    metadata₂ :: ProjLambert
+)
 
-    b = promote_generic(b₁, b₂)
-
-    if (
-        metadata₁ === metadata₂ || (
-            metadata₁.θpix    == metadata₂.θpix    &&
-            metadata₁.Ny      == metadata₂.Ny      &&
-            metadata₁.Nx      == metadata₂.Nx      &&
-            metadata₁.storage == metadata₂.storage
-        )
-    )
-        (b, metadata₁)
-    else
-        error("""Can't promote two fields with the following differing metadata:
-        1: $(select(fields(metadata₁),(:θpix,:Ny,:Nx,:storage)))
-        2: $(select(fields(metadata₂),(:θpix,:Ny,:Nx,:storage)))
-        """)
-    end
-    # in the future, could add rules here to allow e.g. automatically
+    # in the future, could add rules here to allow more generic
+    # promotion than what makes sense during a broadcast, e.g.
     # upgrading one field if they have different resolutions, etc...
+    promote_bcast(metadata₁, metadata₂)
+
 end
 
 
 
 ### preprocessing
 
-function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert{T,V}}, br::BatchedReal) where {T,V}
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, br::BatchedReal) where {T,V}
     adapt(V, reshape(br.vals, 1, 1, 1, :))
 end
 
-function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, ∇d::∇diag)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ∇d::∇diag)
     # turn both vectors into 2-D matrix so this function is
     # type-stable (note: reshape does not actually make a copy here,
     # so this doesn't impact performance)
@@ -144,13 +125,13 @@ function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, ∇d::∇diag)
     end
 end
 
-function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, ::∇²diag)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, ::∇²diag)
     # need complex here to avoid problem with ^ below being Base.pow instead of CUDA.pow
     # todo: find better solution
     broadcasted(complex, broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2)))
 end
 
-function preprocess((_,_,proj)::Tuple{<:Any,<:Any,<:ProjLambert}, bp::BandPass)
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
     Cℓ_to_2D(bp.Wℓ, proj)
 end
 
