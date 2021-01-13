@@ -318,7 +318,7 @@ end
 
 ### spin adjoints
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}
-    FlatMap(dropdims(sum(a.f.arr .* b.arr, dims=3), dims=(a.f.Nbatch>1 || b.Nbatch>1 ? () : 3)), get_metadata_strict(a, b))
+    FlatMap(dropdims(sum(a.f.arr .* b.arr, dims=3), dims=((a.f.Nbatch>1 || b.Nbatch>1) ? 3 : ())), get_metadata_strict(a, b))
 end
 function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
     copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3))
