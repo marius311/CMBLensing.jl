@@ -31,11 +31,10 @@ copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 ## promotion
 function promote(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
-    metadata = promote_metadata_generic(f₁.metadata, f₂.metadata)
+    get_metadata_strict(f₁.metadata, f₂.metadata) # for now just check compatible
     B = typeof(promote_basis_generic(B₁(), B₂()))
-    B(convert_metadata(metadata,f₁)), B(convert_metadata(metadata,f₂))
+    B(f₁), B(f₂)
 end
-convert_metadata(metadata, f::BaseField) = f.metadata === metadata ? f : error("need promotion rule")
 
 
 ## broadcasting 
@@ -122,13 +121,9 @@ promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
 
 ## properties
 getproperty(f::BaseField, s::Symbol) = getproperty(f,Val(s))
-function getproperty(f::BaseField, ::Val{s}) where {s}
-    if hasfield(typeof(getfield(f,:metadata)),s) && !hasfield(typeof(f),s)
-        getfield(getfield(f,:metadata),s)
-    else
-        getfield(f,s)
-    end
-end
+getproperty(f::BaseField, ::Val{:arr}) = getfield(f,:arr)
+getproperty(f::BaseField, ::Val{:metadata}) = getfield(f,:metadata)
+getproperty(f::BaseField, ::Val{s}) where {s} = getfield(getfield(f,:metadata),s)
 propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.metadata))...)
 
 ## other CMBLensing-specific
@@ -136,3 +131,4 @@ global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
 fieldinfo(f::BaseField) = f
 get_storage(f::BaseField) = typeof(f.arr)
 adapt_structure(to, f::BaseField{B}) where {B} = BaseField{B}(adapt(to, f.arr), adapt(to, f.metadata))
+hash(f::BaseField, h::UInt64) = foldr(hash, (typeof(f), cpu(f.arr), f.metadata), init=h)

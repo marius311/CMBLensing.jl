@@ -256,10 +256,10 @@ end
 
 
 ### dot products
-# do in Map space (the LenseBasis, Ł) for simplicity, and use sum_kbn to reduce roundoff error
+# do in Map space (the LenseBasis, Ł) for simplicity
 function dot(a::FlatField, b::FlatField)
     z = Ł(a) .* Ł(b)
-    batch(sum_kbn(z.arr, dims=nonbatch_dims(z)))
+    batch(sum_dropdims(z.arr, dims=nonbatch_dims(z)))
 end
 
 ### logdets
@@ -272,12 +272,12 @@ function logdet(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Uni
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
-    batch(real.(sum_kbn(log.(abs.(arr)) .* λ, dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(log.(abs.(arr)) .* λ, dims=nonbatch_dims(L.diag))))
 end
 
 function logdet(L::Diagonal{<:Real,<:FlatField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
     batch(
-        sum_kbn(log.(abs.(L.diag.arr)), dims=nonbatch_dims(L.diag)) 
+        sum_dropdims(log.(abs.(L.diag.arr)), dims=nonbatch_dims(L.diag)) 
         .+ dropdims(log.(prod(sign.(L.diag.arr), dims=nonbatch_dims(L.diag))), dims=nonbatch_dims(L.diag))
     )
 end
@@ -290,11 +290,11 @@ function tr(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Union{F
     λ = adapt(typeof(arr), iseven(Ny) ? [1; 2ones(Ny÷2-1); 1] : [1; 2ones(Ny÷2)])
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
-    batch(real.(sum_kbn(arr .* λ, dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
 end
 
 function tr(L::Diagonal{<:Real,<:FlatField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
-    batch(sum_kbn(L.diag.arr, dims=nonbatch_dims(L.diag)))
+    batch(sum_dropdims(L.diag.arr, dims=nonbatch_dims(L.diag)))
 end
 
 

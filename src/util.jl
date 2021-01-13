@@ -342,15 +342,28 @@ end
 firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
+USE_SUM_KBN = true
+use_sum_kbn!(flag) = USE_SUM_KBN=flag
 
-function sum_kbn(A::AbstractArray{T,N}; dims=:) where {T,N}
+# type-stable combination of summing and dropping dims, which uses
+# either sum or sum_kbn (to reduce roundoff error), depending on
+# CMBLensing.USE_SUM_KBN constant
+function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
     if (dims == (:)) || (N == length(dims))
-        KahanSummation.sum_kbn(cpu(A))
+        if USE_SUM_KBN
+            sum_kbn(cpu(A))
+        else
+            sum(A)
+        end :: T
     else
-        dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
+        if USE_SUM_KBN
+            dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) 
+        else
+            dropdims(mapslices(sum,         A,  dims=dims), dims=dims)
+        end :: Array{T,N-length(dims)}
     end
 end
-@adjoint sum_kbn(A) = sum_kbn(A), Δ -> (fill!(similar(A),Δ),)
+@adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
 
 
 # courtesy of Takafumi Arakaki

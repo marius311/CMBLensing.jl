@@ -51,6 +51,9 @@ size(L::CachedLenseFlow) = length(L.memŁf) .* (1,1)
 getϕ(L::LenseFlow) = L.ϕ
 getϕ(L::CachedLenseFlow) = L.ϕ[]
 
+# if the type and ϕ are the same, its the same op
+hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
+
 
 ### caching
 τ(t) = Float16(t)
@@ -161,4 +164,13 @@ end
 
 # adapting storage
 adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))
-adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁} = cache(LenseFlow{RK4Solver{N},t₀,t₁}(adapt(storage,Lϕ.ϕ[])), adapt(storage,Lϕ.memŁf))
+function adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁}
+    # we dont need to actually copy the memory in the L.mem*
+    # variables, just allocate it on the new storage. 
+    Lϕ′ = alloc_cache(LenseFlow{RK4Solver{N},t₀,t₁}(adapt(storage,Lϕ.ϕ[])), adapt(storage,Lϕ.memŁf))
+    for t in keys(Lϕ′.p)
+        copyto!.(Lϕ′.p[t],   Lϕ.p[t])
+        copyto!.(Lϕ′.M⁻¹[t], Lϕ.M⁻¹[t])
+    end
+    Lϕ′
+end

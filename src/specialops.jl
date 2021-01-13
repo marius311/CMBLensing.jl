@@ -25,7 +25,7 @@ pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
 getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
 
 # the generic version of this is prohibitively slow so we need this
-hash(D::DiagOp, h::UInt64) = hash(D.diag, h)
+hash(D::DiagOp, h::UInt64) = foldr(hash, (typeof(D), D.diag), init=h)
 
 # adapting
 get_storage(L::DiagOp) = get_storage(diag(L))
@@ -233,6 +233,10 @@ function Base.summary(io::IO, L::ParamDependentOp)
     Base.showarg(io, L, true)
 end
 
+# we have to include recompute_function in the hash, but its hash
+# might change if shipped to a distributed worker, despite being the
+# same function. not sure if there's any way around this...
+hash(L::ParamDependentOp, h::UInt64) = foldr(hash, (typeof(L), L.op, L.recompute_function), init=h)
 
 adapt_structure(to, L::ParamDependentOp) = 
     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)
@@ -293,7 +297,7 @@ function diag(lz::LazyBinaryOp{*})
     # end
     da .* db
 end
-
+hash(lz::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(lz), lz.a, lz.b), init=h)
 
 ### OuterProdOp
 

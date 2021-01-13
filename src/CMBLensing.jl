@@ -4,20 +4,20 @@ module CMBLensing
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
-using Base.Iterators: flatten, product, repeated, cycle, countfrom
+using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs, @fetchfrom
 using FileIO
 using FFTW
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
-import KahanSummation
+using KahanSummation
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op

@@ -110,7 +110,7 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 
 # # promote before recursing for these 
 dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
-# hash(ft::FieldTuple, h::UInt) = hash(ft.fs, h)
+hash(ft::FieldTuple, h::UInt) = foldr(hash, (typeof(ft), ft.fs))
 
 # function ud_grade(f::FieldTuple, args...; kwargs...)
 #     FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))

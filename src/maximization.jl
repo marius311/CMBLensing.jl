@@ -249,13 +249,16 @@ function MAP_marg(
     aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
 )
     
-    ds = (@set ds.G = 1)
-    @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
-    T = eltype(Cf)
+    mod(Nsims+1,nworkers())==0 || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+
+    ds = (@set ds.G = I)
+    dsθ = ds(θ)
+    @unpack Cϕ,d = dsθ
+    T = real(eltype(d))
     
-    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
-    # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
+    # compute approximate inverse ϕ Hessian used in gradient descent,
+    # possibly from quadratic estimate
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
@@ -263,25 +266,26 @@ function MAP_marg(
     state = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     ProgressMeter.update!(pbar)
-    
+
     for i=1:nsteps
         aggressive_gc && cuda_gc()
         g, state = δlnP_δϕ(
-            ϕ, θ, ds,
+            ϕ, θ, ds;
             use_previous_MF = i>nsteps_with_meanfield_update,
-            Nsims=Nsims, Nbatch=Nbatch, weights=weights,
-            progress=false, return_state=true, previous_state=state,
-            conjgrad_kwargs=conjgrad_kwargs, aggressive_gc=aggressive_gc
+            progress = false, return_state = true, previous_state = state,
+            Nsims, Nbatch, weights, conjgrad_kwargs, aggressive_gc
         )
         ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr, @dict(i,g,ϕ))
         next!(pbar, showvalues=[
             ("step",i), 
             ("Ncg (data)", length(state.gQD.history)), 
-            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].history) : "0 (MF not updated)"),
+            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
             ("α",α)
         ])
     end
+
+    set_distributed_dataset(nothing) # free memory, which got used inside δlnP_δϕ
     
     return ϕ, tr
 

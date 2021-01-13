@@ -133,9 +133,13 @@ nodes, this assigns each Julia worker process a unique GPU using `CUDA.device!`.
 """
 function assign_GPU_workers()
     @everywhere @eval Main using CUDA, Distributed
-    accessible_gpus = @eval Main Dict(pmap(workers()) do _
-        ds = CUDA.devices()
-        myid() => Dict(CUDA.deviceid.(ds) .=> CUDA.uuid.(ds))
+    master_uuid = CUDA.uuid(device())
+    accessible_gpus = Dict(map(workers()) do id
+        @eval Main @fetchfrom $id begin
+            ds = CUDA.devices()
+            # put master's GPU last so don't double up on it unless we need to
+            $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
+        end
     end)
     claimed = Set()
     assignments = Dict(map(workers()) do myid
@@ -145,6 +149,7 @@ function assign_GPU_workers()
                 return myid => gpu_id
             end
         end
+        error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
     end)
     @everywhere workers() device!($assignments[myid()])
     @info GPU_worker_info()
@@ -156,8 +161,8 @@ end
 Returns string showing info about assigned GPU workers. 
 """
 function GPU_worker_info()
-    lines = @eval Main pmap(procs()) do id
-        "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
+    lines = @eval Main map(procs()) do id
+        @fetchfrom id "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
     end
     join(["GPU_worker_info:"; lines], "\n")
 end

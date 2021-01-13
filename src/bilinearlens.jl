@@ -123,6 +123,8 @@ end
 
 getϕ(Lϕ::BilinearLens) = Lϕ.ϕ
 (Lϕ::BilinearLens)(ϕ::FlatField) = BilinearLens(ϕ)
+hash(L::BilinearLens, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
+
 
 # applying various forms of the operator
 

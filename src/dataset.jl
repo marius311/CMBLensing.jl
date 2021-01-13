@@ -18,8 +18,38 @@ end
 copy(ds::DS) where {DS<:DataSet} = 
     DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
 
+hash(ds::DataSet, h::UInt64) = hash(typeof(ds), foldr(hash, fieldvalues(ds), init=h))
+
 # needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
 Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
+
+
+# util for distributing a singleton global dataset to workers
+"""
+    set_distributed_dataset(ds)
+    get_distributed_dataset()
+
+Sometimes it's more performant to distribute a DataSet object to
+parallel workers just once, and have them refer to it from the global
+state, rather than having it get automatically but repeatedly sent as
+part of closures. This provides that functionality. Use
+`set_distributed_dataset(ds)` from the master process to set the
+global DataSet and `get_distributed_dataset()` from any process to
+retrieve it. Repeated calls will not resend `ds` if it hasn't changed
+(based on `hash(ds)`) and if no new workers have been added since the
+last send.
+"""
+function set_distributed_dataset(ds)
+    h = hash((procs(), ds))
+    if h != _distributed_dataset_hash
+        @everywhere @eval CMBLensing _distributed_dataset = $ds
+        global _distributed_dataset_hash = h
+    end
+    nothing
+end
+get_distributed_dataset() = _distributed_dataset
+_distributed_dataset = nothing
+_distributed_dataset_hash = nothing
 
 
 # Stores variables needed to construct the posterior
