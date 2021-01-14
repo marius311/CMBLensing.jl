@@ -1,5 +1,5 @@
 
-abstract type FlatProj end
+abstract type FlatProj <: FieldMetadata end
 
 struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     # these must be the same to broadcast together

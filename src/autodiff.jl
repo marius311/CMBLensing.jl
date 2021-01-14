@@ -1,4 +1,28 @@
     
+
+const PolBasis{I,P,B} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
+
+Base.iterate(::Val{x}) where x = Base.iterate(x)
+
+# adjoint constructors
+@nograd ProjLambert
+
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:PolBasis{<:Any,<:Any,Map},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+    F(arr, metadata), Δ->(Δ.arr, nothing)
+end
+
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:PolBasis{<:Any,<:Any,Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+    function back(Δ)
+        @unpack Ny, Nx, storage = Δ
+        fac = adapt(storage, rfft_degeneracy_fac(Ny) ./ (Ny*Nx))
+        (Δ.arr .* fac, nothing)
+    end
+    F(arr, metadata), back
+end
+    
+# @adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
+
+
 # lazy outer products of Fields, which comes up alot in automatic differentiation
 *(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x, y.parent)
 
@@ -22,7 +46,25 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',) # this was wrong in Zygote before
+@adjoint logdet(L::DiagOp{<:Field{B}}) where {B<:PolBasis{<:Any,<:Any,Map}} = logdet(L), Δ -> (Δ * pinv(L)',)
+@adjoint logdet(L::DiagOp{<:Field{B}}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
+    @unpack Ny, Nx = L.diag
+    logdet(L), Δ -> (Δ * pinv(L)',)
+end
+
+@adjoint Diagonal(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
+    @unpack Ny, Nx = f
+    function back(Δ)
+        @show typeof(Δ)
+        (diag(Δ) * (Nx*Ny),)
+    end
+    function back(Δ::OuterProdOp)
+        @show typeof(Δ)
+        (diag(Δ),)
+    end
+    Diagonal(f), back
+end
+
 
 
 # basis conversion
@@ -104,6 +146,20 @@ if versionof(Zygote) > v"0.4.15"
     Zygote._zero(xs::StaticArray, T) = SizedArray{Tuple{size(xs)...},Union{T,Nothing}}(map(_->nothing, xs))
 end
 
+# workaround for Zygote not working through cat when dims is a Val
+# adapted from solution by Seth Axen 
+@adjoint function cat(Xs::AbstractArray...; dims)
+    cat(Xs...; dims = dims), Δ -> begin
+        start = ntuple(_ -> 0, ndims(Δ))
+        catdims = Base.dims2cat(dims)
+        dXs = map(Xs) do x
+            move = ntuple(d -> (d<=length(catdims) && catdims[d]) ? size(x,d) : 0, ndims(Δ))
+            x_in_Δ = ntuple(d -> (d<=length(catdims) && catdims[d]) ? (start[d]+1:start[d]+move[d]) : Colon(), ndims(Δ))
+            start = start .+ move
+            dx = reshape(Δ[x_in_Δ...], size(x))
+        end
+    end
+end
 
 # functions with no gradient which Zygote would otherwise fail on
 

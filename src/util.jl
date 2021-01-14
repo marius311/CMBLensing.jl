@@ -29,9 +29,8 @@ macro !(ex)
 end
 
 
-nan2zero(x::T) where {T} = !isfinite(x) ? zero(T) : x
-nan2zero(x::Diagonal{T}) where {T} = Diagonal{T}(nan2zero.(x.diag))
-nan2inf(x::T) where {T} = !isfinite(x) ? T(Inf) : x
+nan2zero(x::T) where {T} = isfinite(x) ? x : zero(T)
+@adjoint nan2zero(x::T) where {T} = nan2zero(x), Δ -> (isfinite(x) ? Δ : zero(T),)
 
 
 """ Return a tuple with the expression repeated n times """
@@ -136,10 +135,8 @@ ensure1d(x::Union{Tuple,AbstractArray}) = x
 ensure1d(x) = (x,)
 
 
-# see
 # https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
-# for why we need this to use, just decorate the custom show_datatype
-# with it, and make sure the arg is named `t`
+# has some background related to this function. we can simplify this in 1.6
 function typealias(t)
     if isconcretetype(t)
         ta = typealias_def(t)

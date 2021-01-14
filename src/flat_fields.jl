@@ -103,7 +103,8 @@ nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
 
 ### properties
 # generic
-getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr),4)
+getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
+getproperty(f::FlatField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
 # sub-components
 for (F, keys) in [
@@ -124,7 +125,7 @@ for (F, keys) in [
         else
             I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(F).parameters[end-1:end]...} : basis(F).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
         end
-        @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M,T,N,A<:AbstractArray{T,N}} = $body
+        @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M<:FlatProj,T,N,A<:AbstractArray{T,N}} = $body
     end
 end
 
@@ -268,11 +269,11 @@ function logdet(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Uni
     # half the Fourier plane needs to be counted twice since the real
     # FFT only stores half of it
     @unpack Ny, arr = L.diag
-    λ = adapt(typeof(arr), iseven(Ny) ? [1; 2ones(Ny÷2-1); 1] : [1; 2ones(Ny÷2)])
+    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
-    batch(real.(sum_dropdims(log.(abs.(arr)) .* λ, dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(nan2zero.(log.(abs.(arr)) .* λ), dims=nonbatch_dims(L.diag))))
 end
 
 function logdet(L::Diagonal{<:Real,<:FlatField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
@@ -286,8 +287,8 @@ end
 ### traces
 
 function tr(L::Diagonal{<:Union{Real,Complex},<:FlatField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    @unpack Ny, arr = L.diag
-    λ = adapt(typeof(arr), iseven(Ny) ? [1; 2ones(Ny÷2-1); 1] : [1; 2ones(Ny÷2)])
+    @unpack Ny, Nx, arr = L.diag
+    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
     batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
@@ -462,7 +463,7 @@ function ud_grade(
         # downgrade
         AA = anti_aliasing ? Diagonal(FlatFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) : I
         if mode == :map
-            PWF \ FlatField{Map(B)}(mean(reshape(Map(AA*f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3))[1,:,1,:,..], proj)
+            PWF \ FlatField{Map(B)}(dropdims(mean(reshape(Map(AA*f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
         else
             error("Not implemented")
             # FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])

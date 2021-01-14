@@ -20,6 +20,7 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 ##
 
 using FFTW
+using FiniteDifferences
 using LinearAlgebra
 using Random
 using SparseArrays
@@ -27,6 +28,10 @@ using Test
 using Zygote
 
 ##
+
+macro test_real_gradient(f,x)
+    esc(:(@test real(gradient($f,$x)[1]) ≈ central_fdm(5,1)($f,$x)))
+end
 
 Nsides     = [(8,8), (4,8), (8,4)]
 Nsides_big = [(128,128), (64,128), (128,64)]
@@ -160,6 +165,11 @@ end
             @test (@inferred pinv(Diagonal(f))) isa Diagonal{<:Any,<:typeof(f)}
             @test_throws Exception inv(Diagonal(0*f))
             
+            # trace
+            @test all(tr(Diagonal(f)' * Diagonal(f)) ≈ f'f)
+            @test all(tr(Diagonal(f) * Diagonal(f)') ≈ f'f)
+            @test all(tr(f*f') ≈ f'f)
+
             # Field dot products
             D = Diagonal(f)
             @test (@inferred f' * f) isa Real
@@ -252,10 +262,10 @@ end
 
     @testset "tr(Diagonal(::Fourier)) Nside=$Nside" for Nside in Nsides_big
         x = rand(Nside...)
-        @test tr(Diagonal(Fourier(FlatMap(x))))                                                   ≈ tr(Diagonal(fft(x)[:]))
-        @test tr(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ tr(2tr(Diagonal(fft(x)[:])))
-        @test tr(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ tr(3tr(Diagonal(fft(x)[:])))
-        @test tr(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))                  ≈ tr(2tr(Diagonal(fft(x)[:])))
+        @test tr(Diagonal(Fourier(FlatMap(x))))                                                   ≈  tr(Diagonal(fft(x)[:]))
+        @test tr(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ 2tr(Diagonal(fft(x)[:]))
+        @test tr(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ 3tr(Diagonal(fft(x)[:]))
+        @test tr(Diagonal(FieldTuple(Fourier(FlatMap(x)), Fourier(FlatMap(x)))))                  ≈ 2tr(Diagonal(fft(x)[:]))
         has_batched_fft && @test all(tr(Diagonal(Fourier(FlatMap(cat(x,x,dims=3)))))::BatchedReal ≈ real(tr(Diagonal(fft(x)[:]))))
     end
 
@@ -394,15 +404,20 @@ end;
 
 @testset "Zygote" begin
 
-    @testset "Nside = $Nside" for Nside in Nsides
+    @testset "Nside = $Nside" for Nside in Nsides[1:1]
 
-        @testset "$(typeof(f))" for (f,g,h) in [
-            @repeated(maybegpu(FlatMap(rand(Nside...))),3), 
-            @repeated(maybegpu(FlatQUMap(rand(Nside...),rand(Nside...))),3)
+        @testset "$FMap" for (FMap, FFourier, Npol) in [
+            (FlatMap,   FlatFourier,   1),
+            (FlatQUMap, FlatQUFourier, 2)
         ]
-        
+            
+            Ny,Nx = Nside
+            Ixs = collect(rand(Nside...) for i=1:Npol)
+            Ils = rfft.(Ixs)
+            f,g,h = @repeated(maybegpu(FMap(Ixs...)),3)
             v = @SVector[f,f]
             D = Diagonal(f)
+            A = 2
 
             @testset "Fields" begin
                 
@@ -488,17 +503,50 @@ end;
                 @test gradient(x -> norm((x*Diagonal(Fourier(f)))*f), 1)[1] ≈ norm(Diagonal(Fourier(f))*f)
 
             end
+
+            @testset "Array Bailout" begin
+
+                @testset "Fourier" begin
+
+                    @test_real_gradient(A -> logdet(Diagonal(FFourier((A.*Ils)...; Ny))), A)
+                    @test_real_gradient(A -> logdet(Diagonal(A*FFourier(Ils...; Ny))), A)
+                    @test_real_gradient(A -> logdet(A*Diagonal(FFourier(Ils...; Ny))), A)
+                    
+                    @test_real_gradient(A -> f' * (Diagonal(FFourier((A.*Ils)...; Ny))) * f, A)
+                    @test_real_gradient(A -> f' * (Diagonal(A*FFourier(Ils...; Ny))) * f, A)
+                    @test_real_gradient(A -> f' * (A*Diagonal(FFourier(Ils...; Ny))) * f, A)
+                    
+                    @test_real_gradient(A -> norm(FFourier((A.*Ils)...; Ny)), A)
+                    @test_real_gradient(A -> norm(A*FFourier(Ils...; Ny)), A)
+
+                end
+
+                @testset "Map" begin
+                
+                    @test_real_gradient(A -> logdet(Diagonal(FMap((A.*Ixs)...))), A)
+                    @test_real_gradient(A -> logdet(Diagonal(A*FMap(Ixs...))), A)
+                    @test_real_gradient(A -> logdet(A*Diagonal(FMap(Ixs...))), A)
+                    
+                    @test_real_gradient(A -> f' * (Diagonal(FMap((A.*Ixs)...))) * f, A)
+                    @test_real_gradient(A -> f' * (Diagonal(A*FMap(Ixs...))) * f, A)
+                    @test_real_gradient(A -> f' * (A*Diagonal(FMap(Ixs...))) * f, A)
+                    
+                    @test_real_gradient(A -> norm(FMap((A.*Ixs)...)), A)
+                    @test_real_gradient(A -> norm(A*FMap(Ixs...)), A)
+
+                end
+                
+            end
         
         end
         
-        
     end
 
-    @testset "LinearInterpolation" begin
-        @test gradient(x->LinearInterpolation([1,2,3],[1,2,3])(x), 2)[1] == 1
-        @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
-        @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
-    end
+    # @testset "LinearInterpolation" begin
+    #     @test gradient(x->LinearInterpolation([1,2,3],[1,2,3])(x), 2)[1] == 1
+    #     @test gradient(x->LinearInterpolation([1,2,3],[1,x,3])(2), 2)[1] == 1
+    #     @test gradient(x->LinearInterpolation([1,x,3],[1,2,3])(2), 2)[1] == -1
+    # end
         
 end
 

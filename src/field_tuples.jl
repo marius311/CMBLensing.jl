@@ -123,4 +123,6 @@ tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(tr∘Diagonal,L.d
 # # misc
 # fieldinfo(ft::FieldTuple) = fieldinfo(only(unique(map(typeof, ft.fs)))) # todo: make even more generic
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
-global_rng_for(::Type{<:FieldTuple{FS}}) where {FS} = global_rng_for(eltype(FS))
+function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
+    only(unique(map_tupleargs(global_rng_for, FS)))
+end

@@ -7,11 +7,13 @@
 #  * the `metadata` field, for information which is only needed at
 #    run-time
 #
-struct BaseField{B, M, T, A<:AbstractArray{T}} <: Field{B, T}
+
+abstract type FieldMetadata end
+
+struct BaseField{B, M<:FieldMetadata, T, A<:AbstractArray{T}} <: Field{B, T}
     arr :: A
     metadata :: M
-    function (::Type{F})(arr::A, metadata::M) where {B,M,T,A<:AbstractArray{T},F<:BaseField{B}}
-        (metadata isa AbstractArray) && error("Array-type metadata is disallowed to avoid ambiguities.")
+    function (::Type{F})(arr::A, metadata::M) where {B,M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
         new{B,M,T,A}(arr, metadata)
     end
 end
@@ -120,10 +122,10 @@ promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
 
 
 ## properties
-getproperty(f::BaseField, s::Symbol) = getproperty(f,Val(s))
-getproperty(f::BaseField, ::Val{:arr}) = getfield(f,:arr)
-getproperty(f::BaseField, ::Val{:metadata}) = getfield(f,:metadata)
-getproperty(f::BaseField, ::Val{s}) where {s} = getfield(getfield(f,:metadata),s)
+getproperty(f::BaseField, s::Symbol)           = getproperty(f,Val(s))
+getproperty(f::BaseField,  ::Val{:arr})        = getfield(f,:arr)
+getproperty(f::BaseField,  ::Val{:metadata})   = getfield(f,:metadata)
+getproperty(f::BaseField,  ::Val{s}) where {s} = getfield(getfield(f,:metadata),s)
 propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.metadata))...)
 
 ## other CMBLensing-specific
