@@ -299,6 +299,17 @@ function diag(lz::LazyBinaryOp{*})
 end
 hash(lz::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(lz), lz.a, lz.b), init=h)
 
+function show(io::IO, lz::LazyBinaryOp{λ}) where {λ}
+    print(io, "LazyBinaryOp{$λ}(")
+    print(io, lz.a)
+    print(io, ", ")
+    print(io, lz.b)
+    println(io, ")")
+end
+
+
+
+
 ### OuterProdOp
 
 # an operator L which represents L = V*W'

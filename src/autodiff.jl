@@ -2,8 +2,6 @@
 
 const PolBasis{I,P,B} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
 
-Base.iterate(::Val{x}) where x = Base.iterate(x)
-
 # adjoint constructors
 @nograd ProjLambert
 
@@ -14,6 +12,7 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:PolBasis{<:Any,<:Any,Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
     function back(Δ)
         @unpack Ny, Nx, storage = Δ
+        @show typeof(Δ)
         fac = adapt(storage, rfft_degeneracy_fac(Ny) ./ (Ny*Nx))
         (Δ.arr .* fac, nothing)
     end
@@ -46,47 +45,24 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',)
+@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (@show(Δ) * Zfac(L.diag) * pinv(L)',)
 
-
-@adjoint Diagonal(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
-    @unpack Ny, Nx = f
-    function back(Δ)
-        @show typeof(Δ)
-        (diag(Δ) * (Nx*Ny),)
-    end
-    function back(Δ::OuterProdOp)
-        @show typeof(Δ)
-        (diag(Δ),)
-    end
-    Diagonal(f), back
-end
-
-@adjoint diag(D::DiagOp{<:FlatField{B}}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
-    @unpack Ny, Nx = D.diag
-    function back(Δ)
-        @show typeof(Δ)
-        (Diagonal(Δ / (Nx*Ny)),)
-    end
-    function back(Δ::OuterProdOp)
-        @show typeof(Δ)
-        (Diagonal(Δ),)
-    end
-    diag(D), back
-end
-
-
+Zfac(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = f.Ny*f.Nx
+Zfac(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Map}} = 1
 
 # basis conversion
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
 
 # algebra
 @adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
-@adjoint *(a::Real, f::Field{B}) where {B} = a*f, Δ -> (f'*Δ, B(Δ*a))
-@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ), a*Δ) # need to use trace here since it unfolds the diagonal
+
+@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ)/Zfac(L.diag), a*Δ)
+@adjoint *(L::DiagOp, a::Real) = a*L, Δ -> (a*Δ, tr(L'*Δ)/Zfac(L.diag))
 
 # operators
-@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = D*v, Δ->(B(Δ)*B(v)', B′(D'*Δ))
+@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
+    D*v, Δ->(Diagonal(B(Δ) .* conj.(B(v))), B′(D'*Δ))
+end
 @adjoint \(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
     z = D \ v
     function back(Δ)
@@ -152,7 +128,7 @@ end
 @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
 
 # workaround for https://github.com/FluxML/Zygote.jl/issues/686
-if versionof(Zygote) > v"0.4.15"
+@static if versionof(Zygote) > v"0.4.15"
     Zygote._zero(xs::StaticArray, T) = SizedArray{Tuple{size(xs)...},Union{T,Nothing}}(map(_->nothing, xs))
 end
 
