@@ -45,12 +45,9 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
-@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ) # dont need to take out offset here like in 
-@adjoint logdet(L::DiagOp{<:Field{B}}) where {B<:PolBasis{<:Any,<:Any,Map}} = logdet(L), Δ -> (Δ * pinv(L)',)
-@adjoint logdet(L::DiagOp{<:Field{B}}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
-    @unpack Ny, Nx = L.diag
-    logdet(L), Δ -> (Δ * pinv(L)',)
-end
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
+@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * pinv(L)',)
+
 
 @adjoint Diagonal(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
     @unpack Ny, Nx = f
@@ -63,6 +60,19 @@ end
         (diag(Δ),)
     end
     Diagonal(f), back
+end
+
+@adjoint diag(D::DiagOp{<:FlatField{B}}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = begin
+    @unpack Ny, Nx = D.diag
+    function back(Δ)
+        @show typeof(Δ)
+        (Diagonal(Δ / (Nx*Ny)),)
+    end
+    function back(Δ::OuterProdOp)
+        @show typeof(Δ)
+        (Diagonal(Δ),)
+    end
+    diag(D), back
 end
 
 
