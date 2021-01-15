@@ -288,49 +288,7 @@ end
 *(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a, abs(lz.b)), init=f)
 adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
 adapt_structure(to, lz::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,lz.a), adapt(to,lz.b))
-function diag(lz::LazyBinaryOp{*}) 
-    _diag(x) = diag(x)
-    _diag(x::Number) = x
-    da, db = _diag(lz.a), _diag(lz.b)
-    # if basis(da)!=basis(db)
-    #     error("Can't take diag(A*B) where A::$(typeof(lz.a)) and B::$(typeof(lz.b)).")
-    # end
-    da .* db
-end
 hash(lz::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(lz), lz.a, lz.b), init=h)
-
-function show(io::IO, lz::LazyBinaryOp{λ}) where {λ}
-    print(io, "LazyBinaryOp{$λ}(")
-    print(io, lz.a)
-    print(io, ", ")
-    print(io, lz.b)
-    println(io, ")")
-end
-
-
-
-
-### OuterProdOp
-
-# an operator L which represents L = V*W'
-# this could also be represented by a LazyBinaryOp, but this allows us to 
-# define a few extra functions like simulate or diag, which get used in various places 
-struct OuterProdOp{TV,TW} <: ImplicitOp{Bottom}
-    V::TV
-    W::TW
-end
-OuterProdOp(V) = OuterProdOp(V,V)
-_check_sym(L::OuterProdOp) = L.V === L.W ? L : error("Can't do this operation on non-symmetric OuterProdOp.")
-# pinv(L::OuterProdOp{<:LazyBinaryOp{*}}) = (_check_sym(L); OuterProdOp(pinv(L.V.a)' * pinv(L.V.b)'))
-*(L::OuterProdOp, f::Field) = L.V * (L.W' * f)
-\(L::OuterProdOp{<:FieldOp,<:FieldOp}, f::Field) = L.W' \ (L.V \ f)
-adjoint(L::OuterProdOp) = OuterProdOp(L.W,L.V)
-adapt_structure(to, L::OuterProdOp) = OuterProdOp((V′=adapt(to,L.V);), (L.V === L.W ? V′ : adapt(to,L.W)))
-diag(L::OuterProdOp{<:Field{B},<:Field}) where {B} = L.V .* conj.(B(L.W))
-*(D::DiagOp{<:Field{B}}, L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = OuterProdOp(diag(D) .* L.V, L.W)
-*(L::OuterProdOp{<:Field{B},<:Field{B}}, D::DiagOp{<:Field{B}}) where {B} = OuterProdOp(L.V, L.W .* diag(D))
-tr(L::OuterProdOp{<:Field{B},<:Field{B}}) where {B} = dot(L.V, L.W)
-
 
 
 

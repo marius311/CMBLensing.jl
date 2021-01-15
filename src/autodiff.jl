@@ -1,42 +1,45 @@
-    
-
-const PolBasis{I,P,B} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
-
-# adjoint constructors
-@nograd ProjLambert
-
-@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:PolBasis{<:Any,<:Any,Map},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
-    F(arr, metadata), Δ->(Δ.arr, nothing)
-end
-
-@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:PolBasis{<:Any,<:Any,Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
-    function back(Δ)
-        @unpack Ny, Nx, storage = Δ
-        @show typeof(Δ)
-        fac = adapt(storage, rfft_degeneracy_fac(Ny) ./ (Ny*Nx))
-        (Δ.arr .* fac, nothing)
-    end
-    F(arr, metadata), back
-end
-    
-# @adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
-
-
-# lazy outer products of Fields, which comes up alot in automatic differentiation
-*(x::Field, y::Adjoint{<:Any, <:Field}) = OuterProdOp(x, y.parent)
-
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
 # this may create a LazyBinaryOp, unlike Zygote's
 Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 
+
+# constant functions, as far as AD is concerned
+@nograd ProjLambert
+@nograd fieldinfo
+
+
+const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
+
+# adjoint constructors
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Map},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+    F(arr, metadata), Δ -> (Δ.arr, nothing)
+end
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+    F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata)), nothing)
+end
+
+# @adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
+
+
+
 ## Fields
 
-# we have to define several custom adjoints which account for the automatic
-# basis conversion which CMBLensing does. part of the reason we have to do this
-# explicilty is because of:
-# https://discourse.julialang.org/t/how-to-deal-with-zygote-sometimes-pirating-its-own-adjoints-with-worse-ones
+# A Diagonal(::Field) is a really subtle object in terms of AD bc of
+# all the implicit FFT operations (ie auto basis-conversions) that it
+# inserts. this leads to needing a factor of Npix(=Ny*Nx) for
+# Diagonal(::Fourier) in a few cases below to make the logic all work.
+# this is handled by this Zfac function.
+Zfac(::SpatialBasis{Map},     proj::FlatProj) = 1
+Zfac(::SpatialBasis{Fourier}, proj::FlatProj) = proj.Ny * proj.Nx
+Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 
+# Zygote has lots of rules for AbstractVectors / AbstractMatrices that
+# don't quite work right due to the auto-basis conversions done for
+# Fields, or which work right but trigger scalar indexing (thus don't
+# work on GPU). this leads us to need a few more custom rules below
+# than might be ideal, although its not too bad. see also: 
+# https://discourse.julialang.org/t/how-to-deal-with-zygote-sometimes-pirating-its-own-adjoints-with-worse-ones
 
 # ℝᴺ -> ℝ¹ 
 @adjoint sum(f::Field{B}) where {B} = sum(f), Δ -> (Δ*one(f),)
@@ -45,10 +48,7 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (@show(Δ) * Zfac(L.diag) * pinv(L)',)
-
-Zfac(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Fourier}} = f.Ny*f.Nx
-Zfac(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Map}} = 1
+@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * Zfac(L) * pinv(L)',)
 
 # basis conversion
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
@@ -56,8 +56,8 @@ Zfac(f::FlatField{B}) where {B<:PolBasis{<:Any,<:Any,Map}} = 1
 # algebra
 @adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
 
-@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ)/Zfac(L.diag), a*Δ)
-@adjoint *(L::DiagOp, a::Real) = a*L, Δ -> (a*Δ, tr(L'*Δ)/Zfac(L.diag))
+@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ)/Zfac(L), a*Δ)
+@adjoint *(L::DiagOp, a::Real) = a*L, Δ -> (a*Δ, tr(L'*Δ)/Zfac(L))
 
 # operators
 @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
@@ -67,15 +67,21 @@ end
     z = D \ v
     function back(Δ)
         v̄ = D' \ Δ
-        -B(v̄)*B(z)', B′(v̄)
+        -Diagonal(B(v̄) .* conj.(B(z))), B′(v̄)
     end
     z, back
 end
-@adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
-# this makes it so we only have to define adjoints for L*f, and the f'*L adjoint just uses that
+# this makes it so we only have to define the two adjoints above, and the f'*L and f'/L use those
 @adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'*f')', f, D)
+@adjoint /(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'\f')', f, D)
+# special case for ∇ which is a constant by definition
+@adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
 
-# properties
+# don't use the AbstractMatrix * AbstractVector rule here, just go
+# through the actual definition of LazyBinaryOp * Field
+@adjoint *(L::LazyBinaryOp, f::Field) = Zygote.pullback((L,f)->L.a*(L.b*f), L, f)
+
+
 # these make things like gradient(f->f.arr[1], f) return a Field rather than a NamedTuple
 @adjoint Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B} = getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
 @adjoint Zygote.literal_getproperty(f::FieldTuple,   ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
@@ -146,10 +152,6 @@ end
         end
     end
 end
-
-# functions with no gradient which Zygote would otherwise fail on
-
-@nograd fieldinfo
 
 
 # finite difference Hessian using Zygote gradients
