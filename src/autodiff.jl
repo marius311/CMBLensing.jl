@@ -1,3 +1,4 @@
+
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
 # this may create a LazyBinaryOp, unlike Zygote's
@@ -7,6 +8,7 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 # constant functions, as far as AD is concerned
 @nograd ProjLambert
 @nograd fieldinfo
+@nograd hasfield
 
 
 const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
@@ -74,16 +76,19 @@ end
     end
     z, back
 end
-# this makes it so we only have to define the two adjoints above, and the f'*L and f'/L use those
-@adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'*f')', f, D)
-@adjoint /(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'\f')', f, D)
+# this makes it so we only have to define a L*f and L\f adjoint (like
+# above) for any new operators, and we get f'*L and f'/L for free
+# without necessarily needing to fully implement the AbstractMatrix
+# interface for L
+@adjoint *(f::Adjoint{<:Any,<:Field}, L::Union{DiagOp,ImplicitOp}) = Zygote.pullback((f,L)->(L'*f')', f, L)
+@adjoint /(f::Adjoint{<:Any,<:Field}, L::Union{DiagOp,ImplicitOp}) = Zygote.pullback((f,L)->(L'\f')', f, L)
 # special case for some ops which are constant by definition
 @adjoint *(L::Union{FuncOp,DiagOp{<:∇diag}}, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
 
 
 # don't use the AbstractMatrix * AbstractVector rule here, just go
 # through the actual definition of these things
-@adjoint *(L::LazyBinaryOp,     f::Field) = Zygote.pullback((L,f)->L.a*(L.b*f), L, f)
+@adjoint *(L::LazyBinaryOp,     f::Field) = Zygote.pullback((L,f)->L.X*(L.Y*f), L, f)
 @adjoint *(L::ParamDependentOp, f::Field) = Zygote.pullback((L,f)->L()*f,       L, f)
 
 

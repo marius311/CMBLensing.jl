@@ -430,3 +430,34 @@ select_known_rule(rule, x, y, R₁::Any,       R₂::Unknown) = R₁
 select_known_rule(rule, x, y, R₁::Unknown,   R₂::Any)     = R₂
 select_known_rule(rule, x, y, R₁::Any,       R₂::Any)     = (R₁ == R₂) ? R₁ : error("Conflicting rules.")
 select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_error(rule, x, y)
+
+
+
+"""
+    @auto_adjoint foo(args...; kwargs...) = body
+
+is equivalent to 
+
+    ##foo(args...; kwargs...) = body
+    foo(args...; kwargs...) = ##foo(args...; kwargs...)
+    @adjoint foo(args...; kwargs...) = Zygote.pullback(##foo, args...; kwargs...)
+
+That is, it defines the function as well as a Zygote adjoint which
+takes a gradient explicitly through the body of the function, rather
+than relying on rules which may be defined for `foo`. Mainly useful in
+the case that `foo` is a common function with existing rules, but
+which you do *not* want to be used.
+"""
+macro auto_adjoint(funcdef)
+    sdef = splitdef(funcdef)
+    name = sdef[:name]
+    sdef[:name] = symname = gensym(string(name))
+    defs = []
+    push!(defs, combinedef(sdef))
+    sdef[:name] = name
+    sdef[:body] = :($symname($(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :(Core.@__doc__ $(combinedef(sdef))))
+    sdef[:body] = :($Zygote.pullback($symname, $(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :($Zygote.@adjoint $(combinedef(sdef))))
+    esc(Expr(:block, defs...))
+end

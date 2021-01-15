@@ -15,7 +15,7 @@ global_rng_for(D::DiagOp) = global_rng_for(diag(D))
 # versions:
 (*)(x::Adjoint{<:Any,<:Field}, D::DiagOp) = (D*parent(x))'
 (*)(x::Adjoint{<:Any,<:Field}, D::DiagOp, y::Field) = x*(D*y)
-diag(L::DiagOp) = L.diag
+diag(D::DiagOp) = D.diag
 (^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
 pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
 (≈)(D₁::DiagOp, D₂::DiagOp) = diag(D₁) ≈ diag(D₂)
@@ -28,7 +28,7 @@ getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
 hash(D::DiagOp, h::UInt64) = foldr(hash, (typeof(D), D.diag), init=h)
 
 # adapting
-get_storage(L::DiagOp) = get_storage(diag(L))
+get_storage(D::DiagOp) = get_storage(diag(D))
 
 
 ### Derivative ops
@@ -242,53 +242,55 @@ adapt_structure(to, L::ParamDependentOp) =
     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)
 
 
-# ### LazyBinaryOp
+### LazyBinaryOp
 
-# we use LazyBinaryOps to create new operators composed from other operators
-# which don't actually evaluate anything until they've been multiplied by a
-# field
+# we use LazyBinaryOps to create new operators composed from other
+# operators which don't actually evaluate anything until they've been
+# multiplied by a field. 
+# L::LazyBinaryOp{λ} lazily represents λ(L.X,L.Y)
 struct LazyBinaryOp{λ} <: ImplicitOp{Bottom}
-    a :: FieldOpScal
-    b :: FieldOpScal
-    LazyBinaryOp(λ, a::FieldOpScal, b::FieldOpScal) = new{λ}(a, b)
+    X :: FieldOpScal
+    Y :: FieldOpScal
+    LazyBinaryOp(λ, X::Union{FieldOp,Scalar}, Y::Union{FieldOp,Scalar}) = new{λ}(X, Y)
 end
+
 # creating LazyBinaryOps
 for λ in (:+, :-, :*)
     @eval begin
         function ($λ)(
-            a :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
-            b :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
+            X :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
+            Y :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
         ) where {B₁,B₂}
-            LazyBinaryOp($λ, a, b)
+            LazyBinaryOp($λ, X, Y)
         end
         function ($λ)(
-            D1 :: DiagOp{<:Field{B}},
-            D2 :: DiagOp{<:Field{B}}
+            X :: DiagOp{<:Field{B}},
+            Y :: DiagOp{<:Field{B}}
         ) where {B}
-            Diagonal(broadcast($λ, diag(D1), diag(D2)))
+            Diagonal(broadcast($λ, diag(X), diag(Y)))
         end
     end
 end
-@eval *(a::ImplicitOp, b::Scalar) = LazyBinaryOp(*,a,b)
-@eval *(a::Scalar, b::ImplicitOp) = LazyBinaryOp(*,a,b)
-/(op::ImplicitOp, n::Real)        = LazyBinaryOp(/,op,n)
-^(op::ImplicitOp, n::Integer)     = LazyBinaryOp(^,op,n)
-# inv(op::Union{ImplicitOrAdjOp,DiagOp{<:ImplicitField}}) = LazyBinaryOp(^,op,-1)
-# -(op::ImplicitOrAdjOp) = -1 * op
-# pinv(op::LazyBinaryOp{*}) = pinv(op.b) * pinv(op.a)
+(*)(X::ImplicitOp,  Y::Scalar)     = LazyBinaryOp(*, X, Y)
+(*)(X::Scalar,      Y::ImplicitOp) = LazyBinaryOp(*, X, Y)
+(/)(X::ImplicitOp,  Y::Real)       = LazyBinaryOp(/, X, Y)
+(^)(X::ImplicitOp,  Y::Integer)    = LazyBinaryOp(^, X, Y)
+(-)(L::ImplicitOp)                 = LazyBinaryOp(*, -1, L)
+pinv(L::LazyBinaryOp{*})           = LazyBinaryOp(*, pinv(L.Y), pinv(L.X))
+adjoint(L::LazyBinaryOp{*})        = LazyBinaryOp(*, adjoint(L.Y), adjoint(L.X))
+
 # evaluating LazyBinaryOps
 for λ in (:+, :-)
-    @eval *(lz::LazyBinaryOp{$λ}, f::Field) = ($λ)(lz.a * f, lz.b * f)
-    @eval diag(lz::LazyBinaryOp{$λ}) = ($λ)(diag(lz.a), diag(lz.b))
-    @eval adjoint(lz::LazyBinaryOp{$λ}) = LazyBinaryOp(($λ), adjoint(lz.a), adjoint(lz.b))
+    @eval (*)(L::LazyBinaryOp{$λ}, f::Field) = ($λ)(L.X * f, L.Y * f)
+    @eval diag(L::LazyBinaryOp{$λ}) = ($λ)(diag(L.X), diag(L.Y))
+    @eval adjoint(L::LazyBinaryOp{$λ}) = LazyBinaryOp(($λ), adjoint(L.X), adjoint(L.Y))
 end
-*(lz::LazyBinaryOp{/}, f::Field) = (lz.a * f) / lz.b
-*(lz::LazyBinaryOp{*}, f::Field) = lz.a * (lz.b * f)
-\(lz::LazyBinaryOp{*}, f::Field) = lz.b \ (lz.a \ f)
-*(lz::LazyBinaryOp{^}, f::Field) = foldr((lz.b>0 ? (*) : (\)), fill(lz.a, abs(lz.b)), init=f)
-adjoint(lz::LazyBinaryOp{*}) = LazyBinaryOp(*,adjoint(lz.b),adjoint(lz.a))
-adapt_structure(to, lz::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,lz.a), adapt(to,lz.b))
-hash(lz::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(lz), lz.a, lz.b), init=h)
+(*)(L::LazyBinaryOp{/}, f::Field) = (L.X * f) / L.Y
+(*)(L::LazyBinaryOp{*}, f::Field) = L.X * (L.Y * f)
+(\)(L::LazyBinaryOp{*}, f::Field) = L.Y \ (L.X \ f)
+(*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
+adapt_structure(to, L::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,L.X), adapt(to,L.Y))
+hash(L::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(L), L.X, L.Y), init=h)
 
 
 
