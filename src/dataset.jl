@@ -302,8 +302,8 @@ function load_sim(;
     end
 
     if Nbatch > 1
-        ds.d = identity.(batch(ds.d, Nbatch))
-        ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
+        ds.d *= batch(ones(Int,Nbatch))
+        ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     
     return (;f, f̃, ϕ, n, ds, ds₀=ds(), Cℓ, proj)

@@ -13,7 +13,7 @@ LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
 LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),real(eltype(ϕ))}(ϕ)
 
 
-struct CachedLenseFlow{N,t₀,t₁,Φ<:Field,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{RK4Solver{N},t₀,t₁,T}
+struct CachedLenseFlow{N,t₀,t₁,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{RK4Solver{N},t₀,t₁,T}
     
     # save ϕ to know when to trigger recaching
     ϕ :: Ref{Any}
@@ -40,8 +40,8 @@ end
 
 ### printing
 typealias_def(::Type{<:RK4Solver{N}}) where {N} = "$N-step RK4"
-typealias_def(::Type{<:CachedLenseFlow{N,t₀,t₁,Φ,<:Any,<:Any,ŁF}}) where {N,t₀,t₁,Φ,ŁF} = 
-    "CachedLenseFlow{$t₀→$t₁, $N-step RK4}(ϕ::$(typealias(Φ)), Łf::$(typealias(ŁF)))"
+typealias_def(::Type{<:CachedLenseFlow{N,t₀,t₁,ŁΦ,<:Any,ŁF}}) where {N,t₀,t₁,ŁΦ,ŁF} = 
+    "CachedLenseFlow{$t₀→$t₁, $N-step RK4}(ϕ::$(typealias(ŁΦ)), Łf::$(typealias(ŁF)))"
 typealias_def(::Type{<:LenseFlow{I,t₀,t₁}}) where {I,t₀,t₁} = 
     "LenseFlow{$t₀→$t₁, $(typealias(I))}(ϕ)"
 size(L::CachedLenseFlow) = length(L.memŁf) .* (1,1)
@@ -57,11 +57,19 @@ hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
 
 ### caching
 τ(t) = Float16(t)
-cache(L::LenseFlow, f) = cache!(alloc_cache(L,f),L,f)
 cache(cL::CachedLenseFlow, f) = cL
-cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁} = 
-    (cL.ϕ[]===ϕ) ? cL : cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
 (cL::CachedLenseFlow)(ϕ::Field) = cache!(cL,ϕ)
+function cache(L::LenseFlow, f)
+    f′ = Ł(L.ϕ) .* Ł(f) # in case ϕ is batched but f is not, promote f to batched
+    cache!(alloc_cache(L,f′), L, f′)
+end
+function cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁}
+    if cL.ϕ[] === ϕ
+        cL
+    else
+        cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
+    end
+end
 function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
     ts = range(t₀,t₁,length=2N+1)
     ∇ϕ,Hϕ = map(Ł, gradhess(L.ϕ))
@@ -82,7 +90,7 @@ function alloc_cache(L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁
         M⁻¹[τ] = Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))
         p[τ]   = Diagonal.(similar.(@SVector[Łϕ,Łϕ]))
     end
-    CachedLenseFlow{N,t₀,t₁,typeof(L.ϕ),typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf),eltype(Łϕ)}(
+    CachedLenseFlow{N,t₀,t₁,typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf),eltype(Łϕ)}(
         Ref{Any}(L.ϕ), p, M⁻¹, 
         similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
         similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),

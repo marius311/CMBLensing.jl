@@ -47,7 +47,7 @@ Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 @adjoint sum(f::Field{B}) where {B} = sum(f), Δ -> (Δ*one(f),)
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
-@adjoint *(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
+@adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
 @adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * Zfac(L) * pinv(L)',)
@@ -56,19 +56,16 @@ Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
 
 # algebra
-@adjoint +(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
+@adjoint (+)(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))
 
-@adjoint *(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ)/Zfac(L), a*Δ)
-@adjoint *(L::DiagOp, a::Real) = a*L, Δ -> (a*Δ, tr(L'*Δ)/Zfac(L))
+@adjoint (*)(a::Real, L::DiagOp) = a*L, Δ -> (tr(L'*Δ)/Zfac(L), a*Δ)
+@adjoint (*)(L::DiagOp, a::Real) = a*L, Δ -> (a*Δ, tr(L'*Δ)/Zfac(L))
 
 # operators
-@adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
-    D*v, Δ -> begin
-        # @show B typeof(Δ) typeof(v) typeof(D.diag)
-        (Diagonal(B(Δ) .* conj.(B(v))), B′(D'*Δ))
-    end
+@adjoint function (*)(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′}
+    D*v, Δ -> (Diagonal(B(Δ) .* conj.(B(v))), B′(D'*Δ))
 end
-@adjoint \(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
+@adjoint function (\)(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′}
     z = D \ v
     function back(Δ)
         v̄ = D' \ Δ

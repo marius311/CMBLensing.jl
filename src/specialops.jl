@@ -210,7 +210,7 @@ function (L::ParamDependentOp)(θ::NamedTuple)
         # to GPU here
         storage = get_storage(L.op)
         Lθ = L.recompute_function(;θ...)
-        storage == get_storage(Lθ) ? Lθ : adapt(storage, Lθ)
+        basetype(storage) == basetype(get_storage(Lθ)) ? Lθ : adapt(storage, Lθ)
     else
         L.op
     end

@@ -536,8 +536,7 @@ end
 
 @testset "Lensing" begin
     
-    local f,ϕ
-    
+    local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
     @testset "$L" for (L,rtol) in [(BilinearLens,0.4), (LenseFlow,1e-2)]
@@ -551,11 +550,11 @@ end
                 ε = sqrt(eps(T))
                 Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
                 @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
-                Lϕ = L(ϕ)
                 
                 ## S0
                 Cf = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.TT))
                 @test (f = @inferred simulate(Cf)) isa FlatS0
+                @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS0
                 # adjoints
                 f,g = simulate(Cf),simulate(Cf)
@@ -568,6 +567,7 @@ end
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
                 @test (f = @inferred simulate(Cf)) isa FlatS2
+                @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS2
                 # adjoints
                 f,g = simulate(Cf),simulate(Cf)
