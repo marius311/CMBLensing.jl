@@ -177,21 +177,12 @@ end
             @test (@inferred f' * D * f) isa Real
             @test sum(f, dims=:) ≈ sum(f[:])
 
-            # gradients
-            if (f isa FieldTuple)
+            # Explicit vs. lazy DiagOp algebra
+            @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{basis(Ð(f))}}
+            @test (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
+            @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
 
-                # Explicit vs. lazy DiagOp algebra broken for
-                # FieldTuples (not clear its that critical...)
-                @test        (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{basis(Ð(f))}}
-                @test_broken (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
-                @test        (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
-
-            else
-
-                # Explicit vs. lazy DiagOp algebra
-                @test (Diagonal(Ð(f)) + Diagonal(Ð(f))) isa DiagOp{<:Field{basis(Ð(f))}}
-                @test (Diagonal(Ł(f)) + Diagonal(Ð(f))) isa LazyBinaryOp
-                @test (Diagonal(Ł(f)) + Diagonal(Ł(f))) isa DiagOp{<:Field{basis(Ł(f))}}
+            if !(f isa FieldTuple)
 
                 # gradients
                 @test (Ðf = @inferred ∇[1]*f) isa Field

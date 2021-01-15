@@ -3,11 +3,12 @@
 
 # FieldTuple is a thin wrapper around a Tuple or NamedTuple holding some Fields
 # and behaving like a Field itself
-struct FieldTuple{FS<:Union{Tuple,NamedTuple},T} <: Field{Basis,T}
+struct FieldTuple{FS<:Union{Tuple,NamedTuple},B,T} <: Field{B,T}
     fs :: FS
     function FieldTuple(fs::FS) where {FS<:Union{Tuple,NamedTuple}}
+        B = BasisProd{Tuple{map(basis,values(fs))...}}
         T = promote_type(map(eltype,values(fs))...)
-        new{FS,T}(fs)
+        new{FS,B,T}(fs)
     end
 end
 # FieldTuple(args...) or FieldTuple(;kwargs...) calls the inner constructor
@@ -82,6 +83,10 @@ end
 Basis(ft::FieldTuple) = ft
 (::Type{B})(ft::FieldTuple) where {B<:Basis}     = FieldTuple(map(B, ft.fs))
 (::Type{B})(ft::FieldTuple) where {B<:Basislike} = FieldTuple(map(B, ft.fs))
+(::Type{B})(ft::FieldTuple{<:Tuple}) where {Bs,B<:BasisProd{Bs}} = 
+    FieldTuple(map_tupleargs((B,f)->B(f), Bs, ft.fs))
+(::Type{B})(ft::FieldTuple{<:NamedTuple{Names}}) where {Names,Bs,B<:BasisProd{Bs}} = 
+    FieldTuple(NamedTuple{Names}(map_tupleargs((B,f)->B(f), Bs, values(ft.fs))))
 
 
 

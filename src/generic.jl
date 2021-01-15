@@ -32,10 +32,10 @@ const FieldOrOp   = Union{Field,FieldOp}
 const FieldOpScal = Union{Field,FieldOp,Scalar}
 
 ## basis types
-abstract type BasisProd <: Basis end
+abstract type BasisProd{Bs} <: Basis end
 
-struct Basis2Prod{B₁,B₂}    <: BasisProd end
-struct Basis3Prod{B₁,B₂,B₃} <: BasisProd end
+struct Basis2Prod{B₁,B₂}    <: BasisProd{Tuple{B₁,B₂}} end
+struct Basis3Prod{B₁,B₂,B₃} <: BasisProd{Tuple{B₁,B₂,B₃}} end
 
 struct Map     <: Basis end
 struct Fourier <: Basis end

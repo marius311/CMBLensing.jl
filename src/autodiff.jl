@@ -19,7 +19,7 @@ end
     F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata)), nothing)
 end
 
-# @adjoint (::Type{FT})(fs::Tuple) where {FT<:FieldTuple} = FT(fs), Δ -> (values(Δ.fs),)
+@adjoint (::Type{FT})(fs) where {FT<:FieldTuple} = FT(fs), Δ -> (Δ.fs,)
 
 
 
@@ -61,7 +61,10 @@ Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 
 # operators
 @adjoint *(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
-    D*v, Δ->(Diagonal(B(Δ) .* conj.(B(v))), B′(D'*Δ))
+    D*v, Δ -> begin
+        # @show B typeof(Δ) typeof(v) typeof(D.diag)
+        (Diagonal(B(Δ) .* conj.(B(v))), B′(D'*Δ))
+    end
 end
 @adjoint \(D::DiagOp{<:Field{B}}, v::Field{B′}) where {B,B′} = begin
     z = D \ v
@@ -74,12 +77,14 @@ end
 # this makes it so we only have to define the two adjoints above, and the f'*L and f'/L use those
 @adjoint *(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'*f')', f, D)
 @adjoint /(f::Adjoint{<:Any,<:Field}, D::Diagonal) = Zygote.pullback((f,D)->(D'\f')', f, D)
-# special case for ∇ which is a constant by definition
-@adjoint *(∇::DiagOp{<:∇diag}, f::Field{B}) where {B} = ∇*f, Δ->(nothing, B(∇'*Δ))
+# special case for some ops which are constant by definition
+@adjoint *(L::Union{FuncOp,DiagOp{<:∇diag}}, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
+
 
 # don't use the AbstractMatrix * AbstractVector rule here, just go
-# through the actual definition of LazyBinaryOp * Field
-@adjoint *(L::LazyBinaryOp, f::Field) = Zygote.pullback((L,f)->L.a*(L.b*f), L, f)
+# through the actual definition of these things
+@adjoint *(L::LazyBinaryOp,     f::Field) = Zygote.pullback((L,f)->L.a*(L.b*f), L, f)
+@adjoint *(L::ParamDependentOp, f::Field) = Zygote.pullback((L,f)->L()*f,       L, f)
 
 
 # these make things like gradient(f->f.arr[1], f) return a Field rather than a NamedTuple
