@@ -11,27 +11,27 @@
 #
 
 
-struct PowerLens{N,F<:Field{<:Any,<:S0}} <: ImplicitOp{Basis,Spin,Pix}
+struct PowerLens{N,T,F<:Field{<:Any,T}} <: ImplicitOp{T}
     ∂xϕⁱ::Dict{Int,Union{Int,F}}
     ∂yϕⁱ::Dict{Int,Union{Int,F}}
 end
 
 function PowerLens(d::FieldVector, N)
     ∂xϕ, ∂yϕ = Ł(d)
-    PowerLens{N,typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
+    PowerLens{N,eltype(∂xϕ),typeof(∂xϕ)}((Dict([(i,(i==0 ? 1 : ∂ϕ.^i)) for i=0:N]) for ∂ϕ=(∂xϕ,∂yϕ))...)
 end
 PowerLens(ϕ::Field, N) = PowerLens(∇*ϕ, N)
 PowerLens{N}(x) where {N} = PowerLens(x,N)
 
 """ Create a PowerLens operator that lenses by -ϕ instead. """
-antilensing(L::PowerLens{N,F}) where {N,F} = PowerLens{N,F}(N, (Dict(i=>v*(-1)^i for (i,v)=∂) for ∂=(L.∂xϕⁱ,L.∂xϕⁱ))...)
+antilensing(L::PowerLens{N,T,F}) where {N,T,F} = PowerLens{N,F}(N, (Dict(i=>v*(-1)^i for (i,v)=∂) for ∂=(L.∂xϕⁱ,L.∂xϕⁱ))...)
 
 
 function *(L::PowerLens{N}, f::Field) where {N}
     f̂ = Ð(f)
     f̃ = 1Ł(f)
     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-        @. f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $(Ł(∂x^a * ∂y^b * f̂)) / factorial(a) / factorial(b)
+        @. f̃ += L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * $(Ł(∇[1]^a * ∇[2]^b * f̂)) / factorial(a) / factorial(b)
     end
     f̃
 end
@@ -40,7 +40,7 @@ function *(L::Adjoint{<:Any,<:PowerLens{N}}, f::Field) where {N}
     Łf = Ł(f)
     r = 1Ð(f)
     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-        r .+= (-1)^n .* (∂x^a * ∂y^b * Ð(@. L'.∂xϕⁱ[a] * L'.∂yϕⁱ[b] * Łf)) ./ factorial(a) ./ factorial(b)
+        r .+= (-1)^n .* (∇[1]^a * ∇[2]^b * Ð(@. L'.∂xϕⁱ[a] * L'.∂yϕⁱ[b] * Łf)) ./ factorial(a) ./ factorial(b)
     end
     r
 end
@@ -65,7 +65,7 @@ end
 #     r = Ł(zero(F))
 #     ∂xv, ∂yv = Ł(∇*v)
 #     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-#         ∂ⁿf = @. $Ł(@. ∂x^a * ∂y^b * Ðf) / factorial(a) / factorial(b)
+#         ∂ⁿf = @. $Ł(@. ∇[1]^a * ∇[2]^b * Ðf) / factorial(a) / factorial(b)
 #         @. r += (  ((a==0) ? 0 : a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂xv * ∂ⁿf)
 #                  + ((b==0) ? 0 : b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂yv * ∂ⁿf))
 #     end
@@ -83,7 +83,7 @@ end
 #     Łv = Ł(v)
 #     r = 1Ð(v)
 #     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-#         @. r += (-1)^n * ∂x^a * ∂y^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * Łv) / factorial(a) / factorial(b)
+#         @. r += (-1)^n * ∇[1]^a * ∇[2]^b * $Ð(@. L.∂xϕⁱ[a] * L.∂yϕⁱ[b] * Łv) / factorial(a) / factorial(b)
 #     end
 #     r
 # end
@@ -94,7 +94,7 @@ end
 #     Ðf = Ð(f)
 #     r = Ð(zero(F))
 #     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-#         ∂ⁿfᴴ_v = @. $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łv) / factorial(a) / factorial(b)
+#         ∂ⁿfᴴ_v = @. $(Ł(@. ∇[1]^a * ∇[2]^b * Ðf)' * Łv) / factorial(a) / factorial(b)
 #         @. r += -(  ((a==0) ? 0 : (∂x * $Ð(@. a * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b] * ∂ⁿfᴴ_v)))
 #                   + ((b==0) ? 0 : (∂y * $Ð(@. b * L.∂xϕⁱ[a] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_v))))
 #     end
@@ -110,7 +110,7 @@ end
 #     ∂xv, ∂yv = Ł(∇*v)
 #     r = Ð(zero(F))
 #     for n in 1:N, (a,b) in zip(0:n,n:-1:0)
-#         ∂ⁿfᴴ_w = @. $(Ł(@. ∂x^a * ∂y^b * Ðf)' * Łw) / factorial(a) / factorial(b)
+#         ∂ⁿfᴴ_w = @. $(Ł(@. ∇[1]^a * ∇[2]^b * Ðf)' * Łw) / factorial(a) / factorial(b)
 #         @. r += -(  ((a<2)       ? 0 : (∂x * $Ð(@. ∂xv * a * (a-1) * L.∂xϕⁱ[a-2] * L.∂yϕⁱ[b]   * ∂ⁿfᴴ_w)))
 #                   + ((a<1 | b<1) ? 0 : (∂x * $Ð(@. ∂yv * a * b     * L.∂xϕⁱ[a-1] * L.∂yϕⁱ[b-1] * ∂ⁿfᴴ_w)))
 #                   + ((b<2)       ? 0 : (∂y * $Ð(@. ∂yv * b * (b-1) * L.∂yϕⁱ[b-2] * L.∂xϕⁱ[a]   * ∂ⁿfᴴ_w)))

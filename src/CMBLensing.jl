@@ -101,7 +101,7 @@ include("base_fields.jl")
 
 # # lensing
 include("lenseflow.jl")
-# include("powerlens.jl")
+include("powerlens.jl")
 
 # # flat-sky maps
 include("flat_proj.jl")

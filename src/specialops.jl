@@ -271,13 +271,14 @@ for λ in (:+, :-, :*)
         end
     end
 end
-(*)(X::ImplicitOp,  Y::Scalar)     = LazyBinaryOp(*, X, Y)
-(*)(X::Scalar,      Y::ImplicitOp) = LazyBinaryOp(*, X, Y)
-(/)(X::ImplicitOp,  Y::Real)       = LazyBinaryOp(/, X, Y)
-(^)(X::ImplicitOp,  Y::Integer)    = LazyBinaryOp(^, X, Y)
-(-)(L::ImplicitOp)                 = LazyBinaryOp(*, -1, L)
-pinv(L::LazyBinaryOp{*})           = LazyBinaryOp(*, pinv(L.Y), pinv(L.X))
-adjoint(L::LazyBinaryOp{*})        = LazyBinaryOp(*, adjoint(L.Y), adjoint(L.X))
+(*)(X::ImplicitOp,              Y::Scalar)     = LazyBinaryOp(*, X, Y)
+(*)(X::Scalar,                  Y::ImplicitOp) = LazyBinaryOp(*, X, Y)
+(/)(X::ImplicitOp,              Y::Real)       = LazyBinaryOp(/, X, Y)
+(^)(X::ImplicitOp,              Y::Integer)    = LazyBinaryOp(^, X, Y)
+(^)(X::DiagOp{<:ImplicitField}, Y::Integer)    = LazyBinaryOp(^, X, Y)
+(-)(L::ImplicitOp)                             = LazyBinaryOp(*, -1, L)
+pinv(L::LazyBinaryOp{*})                       = LazyBinaryOp(*, pinv(L.Y), pinv(L.X))
+adjoint(L::LazyBinaryOp{*})                    = LazyBinaryOp(*, adjoint(L.Y), adjoint(L.X))
 
 # evaluating LazyBinaryOps
 for λ in (:+, :-)
