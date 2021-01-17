@@ -25,7 +25,7 @@ typealias_def(::Type{<:FieldTuple{FS,T}}) where {FS<:Tuple,T} =
     "Field-$(tuple_type_len(FS))-$FS"
 
 ### array interface
-size(f::FieldTuple) = (sum(map(length, f.fs)),)
+size(f::FieldTuple) = (mapreduce(length, +, f.fs, init=0),)
 copyto!(dest::FieldTuple, src::FieldTuple) = (map(copyto!,dest.fs,src.fs); dest)
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
@@ -114,19 +114,18 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 # end
 
 # # promote before recursing for these 
-dot(a::FieldTuple, b::FieldTuple) = sum(map(dot, getfield.(promote(a,b),:fs)...))
+dot(a::FieldTuple, b::FieldTuple) = reduce(+, map(dot, getfield.(promote(a,b),:fs)...), init=0)
 hash(ft::FieldTuple, h::UInt) = foldr(hash, (typeof(ft), ft.fs))
 
 # function ud_grade(f::FieldTuple, args...; kwargs...)
 #     FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))
 # end
 
-# # logdet & trace
-logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(logdet∘Diagonal,L.diag.fs))
-tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = sum(map(tr∘Diagonal,L.diag.fs))
+# logdet & trace
+logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, L.diag.fs), init=0)
+tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagonal, L.diag.fs), init=0)
 
-# # misc
-# fieldinfo(ft::FieldTuple) = fieldinfo(only(unique(map(typeof, ft.fs)))) # todo: make even more generic
+# misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
 function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
     only(unique(map_tupleargs(global_rng_for, FS)))
