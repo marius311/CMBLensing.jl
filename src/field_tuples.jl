@@ -106,20 +106,9 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 (\)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal(d)\f, D.diag.fs, f.fs))
 
 
-# # generic AbstractVector inv/pinv don't work with FieldTuples because those
-# # implementations depends on get/setindex which we don't implement for FieldTuples
-# for func in [:inv, :pinv]
-#     @eval $(func)(D::DiagOp{FT}) where {FT<:FieldTuple} = 
-#         Diagonal(FT(map(firstfield, map($(func), map(Diagonal,D.diag.fs)))))
-# end
-
 # # promote before recursing for these 
 dot(a::FieldTuple, b::FieldTuple) = reduce(+, map(dot, getfield.(promote(a,b),:fs)...), init=0)
 hash(ft::FieldTuple, h::UInt) = foldr(hash, (typeof(ft), ft.fs))
-
-# function ud_grade(f::FieldTuple, args...; kwargs...)
-#     FieldTuple(map(f->ud_grade(f,args...; kwargs...), f.fs))
-# end
 
 # logdet & trace
 logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, L.diag.fs), init=0)

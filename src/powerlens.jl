@@ -1,16 +1,18 @@
-#
-# This file defines a lensing operator that works on any generic Field as long
-# as ∂x and ∂y are defined for that field.
-#
-# The gradient of the lensed field with respect to the unlensed field and to ϕ
-# can also be computed.
-#
-# This just does the standard taylor series expansion around ∇ϕ to arbitrary
-# order (without a pixel permute step), but since the name "Taylens" is already
-# taken, this is called "PowerLens"
-#
 
 
+@doc doc"""
+
+    PowerLens(ϕ, order)
+
+`PowerLens` is a lensing operator which lenses a map with a power
+series expansion in $\nabla \phi$ to any order. 
+
+```math
+f(x+\nabla x) \approx f(x) + (\nabla f)(\nabla \phi) + \frac{1}{2} (\nabla \nabla f) (\nabla \phi)^2 + ... 
+```
+
+The action of the operator and its adjoint can be computed.
+"""
 struct PowerLens{D<:Dict} <: ImplicitOp{Bottom}
     order :: Int
     ∇1ϕᵖ  :: D

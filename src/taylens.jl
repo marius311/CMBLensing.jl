@@ -1,5 +1,14 @@
 
 
+@doc doc"""
+
+    Taylens(ϕ, order)
+
+`Taylens` is a lensing operator which lenses a map with a
+nearest-pixel permute step followed by power series expansion in the
+residual displacement, to any order. This is the algorithm from
+[Næss&Louis 2013](https://arxiv.org/abs/1307.0719).
+"""
 struct Taylens{L<:PowerLens} <: ImplicitOp{Bottom}
 
     # nearest pixel remapping

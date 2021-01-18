@@ -5,23 +5,17 @@ export BilinearLens
 
     BilinearLens(ϕ)
     
-BilinearLens is a lensing operator that computes lensing with bilinear
+`BilinearLens` is a lensing operator that computes lensing with bilinear
 interpolation. The action of the operator, as well as its adjoint, inverse,
 inverse-adjoint, and gradient w.r.t. ϕ can all be computed. The log-determinant
 of the operation is non-zero and can't be computed. 
 
-Internally, BilinearLens forms a sparse matrix with the interpolation weights,
+Internally, `BilinearLens` forms a sparse matrix with the interpolation weights,
 which can be applied and adjoint-ed extremely fast (e.g. at least an order of
 magnitude faster than LenseFlow). Inverse and inverse-adjoint lensing is
 somewhat slower as it is implemented with several steps of the [preconditioned
 generalized minimal residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
 algorithm, taking anti-lensing as the preconditioner.
-
-!!! warning 
-
-    Due to [this bug](https://github.com/JuliaLang/PackageCompiler.jl/issues/379)
-    in PackageCompiler, currently you have to run `using SparseArrays` by hand
-    in your Julia session before `BilinearLens` is available.
 
 """
 mutable struct BilinearLens{T,Φ<:Field{<:Any,T},S} <: ImplicitOp{T}
