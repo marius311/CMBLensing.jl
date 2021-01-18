@@ -1,11 +1,11 @@
 
+versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
 """ 
 Return the type's fields as a tuple
 """
 @generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
 @generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
-firstfield(x) = first(fieldvalues(x))
 
 
 """
@@ -209,16 +209,16 @@ end
 get_kwarg_names(func::Function) = Vector{Symbol}(Base.kwarg_decl(first(methods(func))))
 
 
-# adapting a closure adapts the captured variables. this is textbook
-# type-piracy and prone to infinite loops if we have self-referential
-# objects... but its pretty handy
-@generated function adapt_structure(to, f::F) where {F<:Function}
-    if fieldcount(F) == 0
-        :f
-    else
-        quote
-            captured_vars = $(Expr(:tuple, (:(adapt(to, f.$x)) for x=fieldnames(F))...))
-            $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
+# https://discourse.julialang.org/t/is-there-a-way-to-modify-captured-variables-in-a-closure/31213/16
+@static if versionof(Adapt) < v"3.1.0"
+    @generated function adapt_structure(to, f::F) where {F<:Function}
+        if fieldcount(F) == 0
+            :f
+        else
+            quote
+                captured_vars = $(Expr(:tuple, (:(adapt(to, f.$x)) for x=fieldnames(F))...))
+                $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
+            end
         end
     end
 end
@@ -362,9 +362,6 @@ function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
 end
 @adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
 
-
-# courtesy of Takafumi Arakaki
-versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
 # for mixed eltype, which Loess stupidly does not support
 Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
