@@ -100,6 +100,7 @@ similar(f::FlatField{B}, Nbatch::Int) where {B} = FlatField{B}(similar(f.arr, si
 batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T,4}} = (f.Nbatch,)
 batch_axes(f::FlatField{B,M,T,A}) where {B,M,T,A<:AbstractArray{T}} = ()
 nonbatch_dims(f::FlatField) = ntuple(identity,min(3,ndims(f.arr)))
+require_unbatched(f::FlatField) = (f.Nbatch==1) || error("This function not implemented for batched fields.")
 
 ### properties
 # generic

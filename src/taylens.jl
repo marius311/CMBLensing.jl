@@ -1,69 +1,57 @@
 
 
-struct Taylens{N,T<:Real} <: ImplicitOp{Basis,Spin,Pix}
-    # pixel remapping
-    i::Matrix{Int}
-    j::Matrix{Int}
+struct Taylens{L<:PowerLens} <: ImplicitOp{Bottom}
 
-    # residual displacement
-    rx::Matrix{T}
-    ry::Matrix{T}
+    # nearest pixel remapping
+    i :: Matrix{Int}
+    j :: Matrix{Int}
 
-    # precomputed quantities
-    kα::Dict{Any,Matrix{Complex{T}}}
-    xα::Dict{Any,Matrix{T}}
+    # residual lensing (via PowerLens)
+    residual :: L
 
 end
 
+Taylens(order) = x -> Taylens(x, order)
+Taylens(ϕ::FlatS0, order) = Taylens(∇*ϕ, order)
+function Taylens(d::FieldVector, order)
 
-
-function Taylens(ϕ::FlatS0{P,T}, N) where {P,T}
-
-    @unpack kx,ky,Nx,Ny,Δx = fieldinfo(ϕ)
+    require_unbatched(d[1])
+    @unpack ℓx,ℓy,Nx,Ny,Δx,metadata = d[1]
     
     # total displacement
-    d = ∇*ϕ
     dx, dy = d[1][:Ix], d[2][:Ix]
 
     # nearest pixel displacement
-    indexwrap(ind::Int64, uplim)  = mod(ind - 1, uplim) + 1
-    di, dj = (round.(Int,d/Δx) for d=(dx,dy))
-    i = indexwrap.(di .+ (1:Nx)', Nx)
-    j = indexwrap.(dj .+ (1:Ny) , Ny)
+    indexwrap(i, N) = mod(i - 1, N) + 1
+    di = round.(Int,dy/Δx)
+    dj = round.(Int,dx/Δx)
+    i = indexwrap.(di .+ (1:Ny) , Ny)
+    j = indexwrap.(dj .+ (1:Nx)', Nx)
 
     # residual displacement
-    rx, ry = ((d - i.*Δx) for (d,i)=[(dx,di),(dy,dj)])
+    r = @SVector[
+        FlatMap(dx .- dj .* Δx, metadata),
+        FlatMap(dy .- di .* Δx, metadata),
+    ]
+    residual = PowerLens(r, order)
 
-    # precomputation
-    kα = Dict{Any,Matrix{Complex{T}}}()
-    xα = Dict{Any,Matrix{T}}()
-    for n in 1:N, α₁ in 0:n
-        kα[n,α₁] = im ^ n .* kx' .^ α₁ .* ky[1:Ny÷2+1] .^ (n - α₁)
-        xα[n,α₁] = rx .^ α₁ .* ry .^ (n - α₁) ./ factorial(α₁) ./ factorial(n - α₁)
-    end
+    Taylens(i, j, residual)
 
-    Taylens{N,T}(i,j,rx,ry,kα,xα)
 end
 
-# our implementation of Taylens
-function *(L::Taylens{N}, f::FlatS0{P,T}) where {N,P,T}
-
-    intlense(fx) = getindex.(Ref(fx), L.j, L.i)
-    fl = f[:Il]
-
-    # lens to the nearest whole pixel
-    Lfx = intlense(f[:Ix])
-
-    # add in Taylor series correction
-    for n in 1:N, α₁ in 0:n
-        Lfx .+= L.xα[n,α₁] .* intlense(fieldinfo(f).FFT \ (L.kα[n,α₁] .* fl))
+function (*)(Lϕ::Taylens, f::FlatField)
+    require_unbatched(f)
+    function nearest_pixel_remapping(Łf)
+        Łf.arr .= getindex.(Ref(copy(Łf.arr)), Lϕ.i, Lϕ.j, (reshape(1:Npol, 1, 1, :) for Npol in size(Łf.arr)[3:end])...)
+        Łf
     end
-
-    FlatMap{P}(Lfx)
-end
-
-function *(L::Taylens, f::FieldTuple)
-    Łf = Ł(f)
-    F = typeof(Łf)
-    F(map(f->L*f, Łf.fs))
+    @unpack ∇1ϕᵖ, ∇2ϕᵖ, order = Lϕ.residual
+    Ðf = Ð(f)
+    # nearest pixel remapping
+    f̃ = nearest_pixel_remapping(Ł(f))
+    # add in residual Taylor correction
+    for n in 1:order, (a,b) in zip(0:n,n:-1:0)
+        @. f̃ += ∇1ϕᵖ[a] * ∇2ϕᵖ[b] * $(nearest_pixel_remapping(Ł(∇[1]^a * ∇[2]^b * Ðf))) / factorial(a) / factorial(b)
+    end
+    f̃
 end
