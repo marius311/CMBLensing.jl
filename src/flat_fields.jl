@@ -37,6 +37,21 @@ const FlatS02{        B<:Union{IQUMap,IQUFourier,IEBMap,IEBFourier}, M<:FlatProj
 # any flat projection
 const FlatField{      B,                                             M<:FlatProj, T, A<:AbstractArray{T} } = BaseField{B, M, T, A}
 
+
+# A Flat TEB covariance of the form:
+# 
+#    [ΣTT ΣTE  ⋅
+#     ΣTE ΣEE  ⋅
+#      ⋅   ⋅  ΣBB]
+# 
+# We store the 2x2 block as a 2x2 SMatrix, ΣTE, so that we can easily call sqrt/inv on
+# it, and the ΣBB block separately as ΣB. 
+struct FlatIEBCov{T,F} <: ImplicitOp{T}
+    ΣTE :: SMatrix{2,2,Diagonal{T,F},4}
+    ΣB :: Diagonal{T,F}
+end
+
+
 ### basis-like definitions
 LenseBasis(::Type{<:FlatS0})    = Map
 LenseBasis(::Type{<:FlatS2})    = QUMap
@@ -141,37 +156,35 @@ function getindex(f::FlatS0, k::Symbol; full_plane=false)
         _   => throw(ArgumentError("Invalid FlatS0 index: $k"))
     end
 end
-function getindex(f::FlatS2, k::Symbol; full_plane=false)
+function getindex(f::FlatS2{Basis2Prod{B₁,B₂}}, k::Symbol; full_plane=false) where {B₁,B₂}
     maybe_unfold = (full_plane && k in [:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
     B = @match k begin
         (:P)         => identity
-        (:E  || :B)  => @match f begin
-            _ :: FlatQUMap     => EBMap
-            _ :: FlatQUFourier => EBFourier
-            _                  => identity
-        end
-        (:Q  || :U)  => @match f begin
-            _ :: FlatEBMap     => QUMap
-            _ :: FlatEBFourier => QUFourier
-            _                  => identity
-        end
-        (:Ex || :Bx) => EBMap
-        (:El || :Bl) => EBFourier
-        (:Qx || :Ux) => QUMap
-        (:Ql || :Ul) => QUFourier
+        (:E  || :B)  => Basis2Prod{𝐄𝐁,B₂}
+        (:Q  || :U)  => Basis2Prod{𝐐𝐔,B₂}
+        (:Ex || :Bx) => Basis2Prod{𝐄𝐁,Map}
+        (:El || :Bl) => Basis2Prod{𝐄𝐁,Fourier}
+        (:Qx || :Ux) => Basis2Prod{𝐐𝐔,Map}
+        (:Ql || :Ul) => Basis2Prod{𝐐𝐔,Fourier}
         _ => throw(ArgumentError("Invalid FlatS2 index: $k"))
     end
     maybe_unfold(getproperty(B(f),k))
 end
-function getindex(f::FlatS02, k::Symbol; kwargs...)
-    @match k begin
-        (:IP) => f
-        (:I || :P) => getfield(f.fs,k)
-        (:Q || :U || :E || :B) => getindex(f.P,k; kwargs...)
-        (:Ix || :Il) => getindex(f.I,k; kwargs...)
-        (:Qx || :Ux || :Ql || :Ul || :Ex || :Bx || :El || :Bl) => getindex(f.P,k; kwargs...)
+function getindex(f::FlatS02{Basis3Prod{B₁,B₂,B₃}}, k::Symbol; full_plane=false) where {B₁,B₂,B₃}
+    maybe_unfold = (full_plane && k in [:Il,:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
+    B = @match k begin
+        (:I  || :P)  => identity
+        (:E  || :B)  => Basis3Prod{𝐈,𝐄𝐁,B₃}
+        (:Q  || :U)  => Basis3Prod{𝐈,𝐐𝐔,B₃}
+        (:Ix)        => Basis3Prod{𝐈,B₂,Map}
+        (:Il)        => Basis3Prod{𝐈,B₂,Fourier}
+        (:Ex || :Bx) => Basis3Prod{𝐈,𝐄𝐁,Map}
+        (:El || :Bl) => Basis3Prod{𝐈,𝐄𝐁,Fourier}
+        (:Qx || :Ux) => Basis3Prod{𝐈,𝐐𝐔,Map}
+        (:Ql || :Ul) => Basis3Prod{𝐈,𝐐𝐔,Fourier}
         _ => throw(ArgumentError("Invalid FlatS02 index: $k"))
     end
+    maybe_unfold(getproperty(B(f),k))
 end
 function getindex(D::DiagOp{<:FlatEBFourier}, k::Symbol)
     @unpack El, Bl, metadata = diag(D)
@@ -184,6 +197,18 @@ function getindex(D::DiagOp{<:FlatEBFourier}, k::Symbol)
     end
     Diagonal(f)
 end
+function getindex(L::FlatIEBCov, k::Symbol)
+    @match k begin
+        :IP => L
+        :I => L.ΣTE[1,1]
+        :E => L.ΣTE[2,2]
+        :B => L.ΣB
+        :P => Diagonal(FlatEBFourier(L[:E].diag, L[:B].diag))
+        (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
+        _ => throw(ArgumentError("Invalid FlatIEBCov index: $k"))
+    end
+end
+
 
 
 
@@ -221,6 +246,7 @@ EBMap(f::FlatEBFourier) = FlatEBMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
 EBMap(f::FlatQUMap)     = f |> QUFourier |> EBFourier |> EBMap
 EBMap(f::FlatQUFourier) = f |> EBFourier |> EBMap
 
+# in-place
 QUMap(f′::FlatQUMap, f::FlatQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
 QUFourier(f′::FlatQUFourier, f::FlatQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
@@ -240,6 +266,10 @@ IEBFourier(f::FlatIQUFourier) = FlatIEBFourier(f.I, EBFourier(f.P))
 IEBMap(f::FlatIEBFourier) = FlatIEBMap(m_irfft(f.arr, f.Ny, (1,2)), f.metadata)
 IEBMap(f::FlatIQUMap)     = f |> IQUFourier |> IEBFourier |> IEBMap
 IEBMap(f::FlatIQUFourier) = f |> IEBFourier |> IEBMap
+
+# in-place
+IQUMap(f′::FlatIQUMap, f::FlatIQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
+IQUFourier(f′::FlatIQUFourier, f::FlatIQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
 # spin-0 bases applied to spin-2 and spin-(0,2)
 Fourier(f::FlatField{B}) where {B<:BasisProd} = Fourier(B)(f)
@@ -308,7 +338,7 @@ white_noise(ξ::FlatS2,  rng::AbstractRNG) = FlatEBMap(_white_noise(ξ,rng)...)
 white_noise(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise(ξ,rng)...)
 
 
-### covariance operators
+### creating covariance operators
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; units=proj.Ωpix)
     Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
@@ -316,7 +346,10 @@ end
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; units=proj.Ωpix)
     Diagonal(FlatEBFourier(Cℓ_to_2D(CℓEE,proj), Cℓ_to_2D(CℓBB,proj), proj) / units)
 end
-
+function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, CℓTE; kwargs...)
+    ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
+    FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
+end
 
 ### spin adjoints
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}
@@ -326,6 +359,38 @@ function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union
     copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3))
     dst
 end
+
+
+### FlatIEBCov
+# applying
+*(L::FlatIEBCov, f::FlatS02) =       L * IEBFourier(f)
+\(L::FlatIEBCov, f::FlatS02) = pinv(L) * IEBFourier(f)
+function *(L::FlatIEBCov, f::FlatIEBFourier)
+    (i,e),b = (L.ΣTE * [f.I, f.E]), L.ΣB * f.B
+    FlatIEBFourier(i,e,b)
+end
+# manipulating
+size(L::FlatIEBCov) = 3 .* size(L.ΣB)
+adjoint(L::FlatIEBCov) = L
+sqrt(L::FlatIEBCov) = FlatIEBCov(sqrt(L.ΣTE), sqrt(L.ΣB))
+pinv(L::FlatIEBCov) = FlatIEBCov(pinv(L.ΣTE), pinv(L.ΣB))
+global_rng_for(::Type{FlatIEBCov{T,F}}) where {T,F} = global_rng_for(F)
+diag(L::FlatIEBCov) = FlatIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
+similar(L::FlatIEBCov) = FlatIEBCov(similar.(L.ΣTE), similar(L.ΣB))
+get_storage(L::FlatIEBCov) = get_storage(L.ΣB)
+simulate(rng::AbstractRNG, L::FlatIEBCov; Nbatch=nothing) = 
+    sqrt(L) * white_noise(similar(diag(L), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
+# arithmetic
+*(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
++(L::FlatIEBCov, D::DiagOp{<:FlatIEBFourier}) = FlatIEBCov(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
+*(La::F, Lb::F) where {F<:FlatIEBCov} = F(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
++(La::F, Lb::F) where {F<:FlatIEBCov} = F(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
++(L::FlatIEBCov, U::UniformScaling{<:Scalar}) = FlatIEBCov(@SMatrix[(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
+*(L::FlatIEBCov, λ::Scalar) = FlatIEBCov(L.ΣTE * λ, L.ΣB * λ)
+*(D::DiagOp{<:FlatIEBFourier}, L::FlatIEBCov) = L * D
++(U::UniformScaling{<:Scalar}, L::FlatIEBCov) = L + U
+*(λ::Scalar, L::FlatIEBCov) = L * λ
+copyto!(dst::Σ, src::Σ) where {Σ<:FlatIEBCov} = (copyto!(dst.ΣB, src.ΣB); copyto!.(dst.ΣTE, src.ΣTE); dst)
 
 
 ### batching
@@ -362,30 +427,7 @@ make_mask(f::FlatField; kwargs...) = make_mask((f.Ny,f.Nx), f.θpix; kwargs...)
 
 
 
-# function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S0}, (Cℓ, ℓedges, θname)::Tuple; units=fieldinfo(P).Ωpix) where {P,T}
-#     C₀ = Cℓ_to_Cov(P, T, S0, Cℓ, units=units)
-#     Cbins = Diagonal.(MidPasses(ℓedges) .* [diag(C₀)])
-#     BinRescaledOp(C₀,Cbins,θname)
-# end
-# function Cℓ_to_Cov(::Type{P}, ::Type{T}, ::Type{S2}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::InterpolatedCℓs; units=fieldinfo(P).Ωpix) where {P,T}
-#     C₀ = Cℓ_to_Cov(P, T, S2, CℓEE, CℓBB, units=units)
-#     Cbins = Diagonal.(FlatEBFourier.(MidPasses(ℓedges) .* [diag(C₀).E], [zero(diag(C₀).B)]))
-#     BinRescaledOp(C₀,Cbins,θname)
-# end
-
-# function cov_to_Cℓ(L::DiagOp{<:FlatS0{P}}; units=fieldinfo(P).Ωpix) where {P}
-#     ii = sortperm(fieldinfo(L.diag).kmag[:])
-#     InterpolatedCℓs(fieldinfo(L.diag).kmag[ii], real.(unfold(L.diag.Il, fieldinfo(L.diag).Ny))[ii] * units, concrete=false)
-# end
-
-
-
 ### power spectra
-
-function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)
-    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
-    which isa Symbol ? Cℓ[1] : Cℓ
-end
 
 function get_Cℓ(f₁::FlatS0, f₂::FlatS0=f₁; Δℓ=50, ℓedges=0:Δℓ:16000, Cℓfid=ℓ->1, err_estimate=false)
     @unpack Nx, Ny, Δx, ℓmag = fieldinfo(f₁)
@@ -421,6 +463,17 @@ function get_Cℓ(f₁::FlatS0, f₂::FlatS0=f₁; Δℓ=50, ℓedges=0:Δℓ:16
         InterpolatedCℓs(ℓ./A,  Cℓ./A)
     end
 end
+
+function get_Cℓ(f1::FlatS2, f2::FlatS2=f1; which=(:EE,:BB), kwargs...)
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
+    which isa Symbol ? Cℓ[1] : Cℓ
+end
+
+function get_Cℓ(f1::FlatS02, f2::FlatS02=f1; which=(:II,:EE,:BB,:IE,:IB,:EB), kwargs...)
+    Cℓ = (;[Symbol(x1*x2) => get_Cℓ(getindex(f1,Symbol(x1)),getindex(f2,Symbol(x2)); kwargs...) for (x1,x2) in split.(string.(ensure1d(which)),"")]...)
+    which isa Symbol ? Cℓ[1] : Cℓ
+end
+
 
 
 
