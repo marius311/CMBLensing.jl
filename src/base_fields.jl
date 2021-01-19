@@ -130,7 +130,7 @@ propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.met
 
 ## other CMBLensing-specific
 global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
-fieldinfo(f::BaseField) = f
+fieldinfo(f::BaseField) = f # for backwards compatibility
 get_storage(f::BaseField) = typeof(f.arr)
 adapt_structure(to, f::BaseField{B}) where {B} = BaseField{B}(adapt(to, f.arr), adapt(to, f.metadata))
 hash(f::BaseField, h::UInt64) = foldr(hash, (typeof(f), cpu(f.arr), f.metadata), init=h)

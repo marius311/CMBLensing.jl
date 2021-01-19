@@ -339,7 +339,7 @@ white_noise(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise(ξ,rng)...)
 
 
 ### creating covariance operators
-
+# fixed covariances
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; units=proj.Ωpix)
     Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
@@ -351,20 +351,35 @@ function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, Cℓ
     ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
 end
-
-function BandpowerScalingOp(C₀, ℓedges, A::Symbol)
-    T = real(eltype(C₀))
-    @eval Main begin
-        let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
-            ParamDependentOp(function (;$A=ones($T,length(ℓedges)-1))
-                length($A)==length(ℓedges)-1 || error("Length of $($(QuoteNode(A))) should be $(length(ℓedges)-1).")
-                A′ = map(A->$preprocess((nothing,C₀.metadata), A), $A)
-                Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, A′...), C₀.metadata))
-            end)
-        end
+# ParamDependentOp covariances scaled by amplitudes in different ℓ-bins
+function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T}
+    # we need an @eval here since we want to dynamically select a
+    # keyword argument name, θname. the @eval happens into Main rather
+    # than CMBLensing as a workaround for
+    # https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
+    C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
+    @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
+        ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
+            _A = $preprocess.(Ref((nothing,C₀.metadata)), $θname)
+            Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, _A...), C₀.metadata))
+        end)
     end
 end
+function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::InterpolatedCℓs; kwargs...) where {T}
+    C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
+    @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
+        ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
+            _E = $preprocess.(Ref((nothing,C₀.metadata)),      $θname)
+            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($θname))
+            Diagonal(FlatEBFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.El, _E...), C₀.Bl .* _B[1], C₀.metadata))
+        end)
+    end
+end
+# cant reliably get Zygote's gradients to work through these
+# broadcasts, which on GPU use ForwardDiff, so write the adjoint by
+# hand for now. likely more performant, in any case. 
 function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
+    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, not $(length(A)).")
     broadcast(ℓ, Cℓ, A...) do ℓ, Cℓ, A...
         for i=1:length(ℓedges)-1
             (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
