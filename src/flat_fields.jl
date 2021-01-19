@@ -339,6 +339,7 @@ white_noise(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise(ξ,rng)...)
 
 
 ### creating covariance operators
+
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; units=proj.Ωpix)
     Diagonal(FlatFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
@@ -350,6 +351,45 @@ function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, Cℓ
     ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
 end
+
+function BandpowerScalingOp(C₀, ℓedges, A::Symbol)
+    T = real(eltype(C₀))
+    @eval Main begin
+        let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
+            ParamDependentOp(function (;$A=ones($T,length(ℓedges)-1))
+                length($A)==length(ℓedges)-1 || error("Length of $($(QuoteNode(A))) should be $(length(ℓedges)-1).")
+                A′ = map(A->$preprocess((nothing,C₀.metadata), A), $A)
+                Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, A′...), C₀.metadata))
+            end)
+        end
+    end
+end
+function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
+    broadcast(ℓ, Cℓ, A...) do ℓ, Cℓ, A...
+        for i=1:length(ℓedges)-1
+            (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
+        end
+        return Cℓ
+    end
+end
+@adjoint function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
+    function back(Δ)
+        Ā = map(1:length(A)) do i
+            sum_dropdims(
+                broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
+                    (ℓedges[i] < ℓ < ℓedges[i+1]) ? Cℓ*Δ : zero(Cℓ)
+                end,
+                dims = ntuple(identity, Val(ndims(Cℓ)))
+            )
+        end
+        (nothing, nothing, nothing, Ā...)
+    end
+    bandpower_rescale(ℓedges, ℓ, Cℓ, A...), back
+end
+
+
+
+
 
 ### spin adjoints
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}

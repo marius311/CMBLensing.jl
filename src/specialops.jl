@@ -292,37 +292,3 @@ end
 (*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
 adapt_structure(to, L::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,L.X), adapt(to,L.Y))
 hash(L::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(L), L.X, L.Y), init=h)
-
-
-
-# ### BinRescaledOp
-
-# """
-#     BinRescaledOp(C₀, Cbins, θname::Symbol)
-    
-# Create a [`ParamDependentOp`](@ref) which has a parameter named `θname` which is
-# an array that controls the amplitude of bandpowers in bins given by `Cbins`. 
-
-# For example, `BinRescaledOp(C₀, [Cbin1, Cbin2], :A)` creates the operator: 
-
-#     ParamDependentOp( (;A=[1,1], _...) -> C₀ + (A[1]-1) * Cbin1 + (A[2]-1) * Cbin2 )
-
-# where `C₀`, `Cbin1`, and `Cbin2` should be some `FieldOp`s. Note `Cbins` are
-# directly the power which is added, rather than a mask. 
-
-# The resulting operator is differentiable in `θname`.
-
-# """
-# function BinRescaledOp(C₀, Cbins, θname::Symbol)
-#     # for some reason, if I eval this into CMBLensing as opposed to Main, it
-#     # doesn't get shipped to workers correctly. 
-#     # see also: https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main
-#     @eval Main begin
-#         # ensure Cbins is a tuple and not Array so that `adapt` works recursively through it
-#         let C₀=$C₀, T=$(real(eltype(C₀))), Cbins=$(tuple(Cbins...)) 
-#             $ParamDependentOp(function (;($θname)=$(ones(Int,length(Cbins))), _...)
-#                 $(Expr(:call, :+, :C₀, [:(T($θname[$i] - 1) * Cbins[$i]) for i=1:length(Cbins)]...))
-#             end)
-#         end
-#     end
-# end

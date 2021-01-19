@@ -20,8 +20,25 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata)), nothing)
 end
+# adjoint getproperty
+# the factors here need to cancel the ones in the corresponding constructors above
+@adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Fourier}}
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata)), f.metadata),)
+end
+Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothing(nt.arr)); f)
+
 
 @adjoint (::Type{FT})(fs) where {FT<:FieldTuple} = FT(fs), Δ -> (Δ.fs,)
+@adjoint Zygote.literal_getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
+
+
+
+@adjoint function Zygote.literal_getproperty(br::BatchedReal, ::Val{:vals})
+    getfield(br,:vals), Δ -> (batch(real.(Δ)),)
+end
 
 
 
@@ -89,9 +106,6 @@ end
 @adjoint *(L::ParamDependentOp, f::Field) = Zygote.pullback((L,f)->L()*f,       L, f)
 
 
-# these make things like gradient(f->f.arr[1], f) return a Field rather than a NamedTuple
-@adjoint Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B} = getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
-@adjoint Zygote.literal_getproperty(f::FieldTuple,   ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
 
 
 ## FieldVectors
@@ -160,6 +174,8 @@ end
     end
 end
 
+
+@adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(A, Δ))
 
 # finite difference Hessian using Zygote gradients
 function hessian(f, xs::Vector; ε=1f-3)
