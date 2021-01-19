@@ -360,7 +360,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _A = $preprocess.(Ref((nothing,C₀.metadata)), $θname)
+            _A = $preprocess.(Ref((nothing,C₀.metadata)), T.($θname))
             Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, _A...), C₀.metadata))
         end)
     end
@@ -369,8 +369,8 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _E = $preprocess.(Ref((nothing,C₀.metadata)),      $θname)
-            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($θname))
+            _E = $preprocess.(Ref((nothing,C₀.metadata)),      T.($θname))
+            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.(T.($θname)))
             Diagonal(FlatEBFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.El, _E...), C₀.Bl .* _B[1], C₀.metadata))
         end)
     end
@@ -380,6 +380,7 @@ end
 # hand for now. likely more performant, in any case. 
 function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
     length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, not $(length(A)).")
+    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
     broadcast(ℓ, Cℓ, A...) do ℓ, Cℓ, A...
         for i=1:length(ℓedges)-1
             (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
@@ -390,11 +391,12 @@ end
 @adjoint function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
     function back(Δ)
         Ā = map(1:length(A)) do i
-            sum_dropdims(
+            sum(
+                real,
                 broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
                     (ℓedges[i] < ℓ < ℓedges[i+1]) ? Cℓ*Δ : zero(Cℓ)
                 end,
-                dims = ntuple(identity, Val(ndims(Cℓ)))
+                dims = ndims(Δ)==4 ? (1,2) : (:)
             )
         end
         (nothing, nothing, nothing, Ā...)

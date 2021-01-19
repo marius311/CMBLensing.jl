@@ -91,9 +91,15 @@ promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert) =
 # defines how ImplicitFields and BatchedReals behave when broadcasted
 # with ProjLambert fields 
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, br::BatchedReal) where {T,V}
-    adapt(V, reshape(br.vals, 1, 1, 1, :))
+function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, r::Real) where {T,V}
+    r isa BatchedReal ? adapt(V, reshape(r.vals, 1, 1, 1, :)) : r
 end
+# need custom adjoint here bc Δ can come back batched from the
+# backward pass even though r was not batched on the forward pass
+@adjoint function preprocess(m::Tuple{<:Any,<:ProjLambert{T,V}}, r::Real) where {T,V}
+    preprocess(m, r), Δ -> (nothing, Δ isa AbstractArray ? batch(real.(Δ[:])) : Δ)
+end
+
 
 function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ∇d::∇diag) where {S,B}
 
