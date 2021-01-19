@@ -216,8 +216,8 @@ function (L::ParamDependentOp)(θ::NamedTuple)
     end
 end
 (L::ParamDependentOp)(;θ...) = L((;θ...))
-*(L::ParamDependentOp, f::Field) = L.op * f
-\(L::ParamDependentOp, f::Field) = L.op \ f
+@auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
+@auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f
 for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
@@ -286,9 +286,9 @@ for λ in (:+, :-)
     @eval diag(L::LazyBinaryOp{$λ}) = ($λ)(diag(L.X), diag(L.Y))
     @eval adjoint(L::LazyBinaryOp{$λ}) = LazyBinaryOp(($λ), adjoint(L.X), adjoint(L.Y))
 end
-(*)(L::LazyBinaryOp{/}, f::Field) = (L.X * f) / L.Y
-(*)(L::LazyBinaryOp{*}, f::Field) = L.X * (L.Y * f)
-(\)(L::LazyBinaryOp{*}, f::Field) = L.Y \ (L.X \ f)
-(*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
+@auto_adjoint (*)(L::LazyBinaryOp{/}, f::Field) = (L.X * f) / L.Y
+@auto_adjoint (*)(L::LazyBinaryOp{*}, f::Field) = L.X * (L.Y * f)
+@auto_adjoint (\)(L::LazyBinaryOp{*}, f::Field) = L.Y \ (L.X \ f)
+@auto_adjoint (*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
 adapt_structure(to, L::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,L.X), adapt(to,L.Y))
 hash(L::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(L), L.X, L.Y), init=h)

@@ -11,16 +11,27 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @nograd hasfield
 
 
-const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
+# AD for Fourier Fields can be really subtle because such objects are
+# still supposed to represent a pixel-space field, despite that
+# they're stored as the half-plane real FFT coefficients. this leads
+# to needing factors of Npix(=Ny*Nx) and rfft_degeneracy_fac (which
+# gives weight of 2 to coefficient which would be there twice in the
+# full-plane FFT) in a few cases below to make the logic all work. the
+# Npix factor is handled by the Zfac function.
+Zfac(::SpatialBasis{Map},     proj::FlatProj) = 1
+Zfac(::SpatialBasis{Fourier}, proj::FlatProj) = proj.Ny * proj.Nx
+Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 
-# adjoint constructors
+
+## constructors and getproperty
+# these are needed to allow you to "bail out" to the underlyig arrays
+# via f.arr and reconstruct them with FlatField(f.arr, f.metadata). 
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Map},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr, nothing)
 end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata)), nothing)
 end
-# adjoint getproperty
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
@@ -30,28 +41,16 @@ end
 end
 Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothing(nt.arr)); f)
 
-
+# FieldTuple
 @adjoint (::Type{FT})(fs) where {FT<:FieldTuple} = FT(fs), Δ -> (Δ.fs,)
 @adjoint Zygote.literal_getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
 
-
-
-@adjoint function Zygote.literal_getproperty(br::BatchedReal, ::Val{:vals})
-    getfield(br,:vals), Δ -> (batch(real.(Δ)),)
-end
+# BatchedReals
+@adjoint Zygote.literal_getproperty(br::BatchedReal, ::Val{:vals}) = getfield(br,:vals), Δ -> (batch(real.(Δ)),)
 
 
 
-## Fields
-
-# A Diagonal(::Field) is a really subtle object in terms of AD bc of
-# all the implicit FFT operations (ie auto basis-conversions) that it
-# inserts. this leads to needing a factor of Npix(=Ny*Nx) for
-# Diagonal(::Fourier) in a few cases below to make the logic all work.
-# this is handled by this Zfac function.
-Zfac(::SpatialBasis{Map},     proj::FlatProj) = 1
-Zfac(::SpatialBasis{Fourier}, proj::FlatProj) = proj.Ny * proj.Nx
-Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
+## Field algebra
 
 # Zygote has lots of rules for AbstractVectors / AbstractMatrices that
 # don't quite work right due to the auto-basis conversions done for
@@ -98,13 +97,6 @@ end
 @adjoint /(f::Adjoint{<:Any,<:Field}, L::Union{DiagOp,ImplicitOp}) = Zygote.pullback((f,L)->(L'\f')', f, L)
 # special case for some ops which are constant by definition
 @adjoint *(L::Union{FuncOp,DiagOp{<:∇diag}}, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
-
-
-# don't use the AbstractMatrix * AbstractVector rule here, just go
-# through the actual definition of these things
-@adjoint *(L::LazyBinaryOp,     f::Field) = Zygote.pullback((L,f)->L.X*(L.Y*f), L, f)
-@adjoint *(L::ParamDependentOp, f::Field) = Zygote.pullback((L,f)->L()*f,       L, f)
-
 
 
 
@@ -161,6 +153,7 @@ end
 
 # workaround for Zygote not working through cat when dims is a Val
 # adapted from solution by Seth Axen 
+# see https://github.com/FluxML/Zygote.jl/pull/881
 @adjoint function cat(Xs::AbstractArray...; dims)
     cat(Xs...; dims = dims), Δ -> begin
         start = ntuple(_ -> 0, ndims(Δ))
@@ -178,6 +171,7 @@ end
 @adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(A, Δ))
 
 # finite difference Hessian using Zygote gradients
+# todo: delete, just use FiniteDifferences
 function hessian(f, xs::Vector; ε=1f-3)
     hcat(finite_difference(xs->vcat(gradient(f,xs)[1]...),xs,ε=ε)...)
 end

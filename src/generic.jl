@@ -52,6 +52,9 @@ const IEBMap     = Basis3Prod{ 𝐈, 𝐄𝐁, Map     }
 const IQUFourier = Basis3Prod{ 𝐈, 𝐐𝐔, Fourier }
 const IEBFourier = Basis3Prod{ 𝐈, 𝐄𝐁, Fourier }
 
+# handy for picking out anything Map/Fourier
+const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
+
 # for printing
 for F in ["QUMap", "EBMap", "QUFourier", "EBFourier", "IQUMap", "IEBMap", "IQUFourier", "IEBFourier"]
     @eval typealias(::Type{$(Symbol(F))}) = $F
