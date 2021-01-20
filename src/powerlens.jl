@@ -28,7 +28,11 @@ function PowerLens(d::FieldVector, order)
     PowerLens(order, ∇1ϕᵖ, ∇2ϕᵖ)
 end
 
-""" Create a PowerLens operator that lenses by -ϕ instead. """
+""" 
+    antilensing(L::PowerLens)
+
+Create a `PowerLens` operator that lenses by `-ϕ` instead. 
+"""
 function antilensing(L::PowerLens)
     PowerLens(N, (Dict(p=>∇iϕᵖ*(-1)^p for (p,∇iϕᵖ)=coeffs) for coeffs=(L.∇1ϕᵖ,L.∇1ϕᵖ))...)
 end

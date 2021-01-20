@@ -64,15 +64,15 @@ end
     Σ(ϕ::Field,  ds; [conjgrad_kwargs])
     Σ(Lϕ,        ds; [conjgrad_kwargs])
     
-An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
+An operator for the data covariance, `Cn + M*B*L*Cf*L'*B'*M'`, which can
 applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
 `conjugate_gradient`.
 """
 Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
 function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
-    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
+    @unpack d,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
     SymmetricFuncOp(
-        op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
+        op   = x -> (Cn + M*B*Lϕ*Cf*Lϕ'*B'*M')*x,
         op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
 end
@@ -90,21 +90,20 @@ quasi-sample.
 
 Keyword arguments:
 
-* `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*.
-* `nsteps` — The maximum number of iterations for the maximizer
-* `ϕtol` — If given, stop when $\phi$ updates reach this tolerance.
-  `ϕtol` is roughly the relative per-pixel standard deviation between
-  changes to $\phi$ and draws from the $\phi$ prior. Values in the
-  range $10^{-2}-10^{-4}$ are reasonable. 
-* `lbfgs_rank` — The maximum rank of the LBFGS approximation to the
-   Hessian *(default: 5).
-* `conjgrad_kwargs` — Passed to the inner call to
+* `nsteps` — The maximum number of iterations for the maximizer.
+* `ϕstart = 0` — Starting point of the maximizer.
+* `ϕtol = nothing` — If given, stop when `ϕ` updates reach this
+  tolerance. `ϕtol` is roughly the relative per-pixel standard
+  deviation between changes to `ϕ` and draws from the `ϕ` prior.
+  Values in the range $10^{-2}-10^{-4}$ are reasonable. 
+* `lbfgs_rank = 5` — The maximum rank of the LBFGS approximation to
+   the Hessian.
+* `conjgrad_kwargs = (;)` — Passed to the inner call to
   [`conjugate_gradient`](@ref).
-* `progress` — Whether to show the progress bar.
-* `Nϕ` — Noise to use in the initial approximation to the Hessian. Can
-   also give `Nϕ=:qe` to use the quadratic estimate noise *(default:*
-   `:qe`*)*.
-* `quasi_sample` — `false` *(default)* to compute the MAP, `true` to
+* `progress = true` — Whether to show the progress bar.
+* `Nϕ = :qe` — Noise to use in the initial approximation to the
+   Hessian. Can give `:qe` to use the quadratic estimate noise.
+* `quasi_sample = false` — `false` to compute the MAP, `true` to
    iterate quasi-samples, or an integer to compute a fixed-seed
    quasi-sample.
 * `history_keys` — What quantities to include in the returned

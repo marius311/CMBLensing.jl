@@ -89,7 +89,9 @@ promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert) =
 
 ### preprocessing
 # defines how ImplicitFields and BatchedReals behave when broadcasted
-# with ProjLambert fields 
+# with ProjLambert fields. these can return arrays, but can also
+# return `Broadcasted` objects which are spliced into the final
+# broadcast, thus avoiding allocating any temporary arrays.
 
 function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, r::Real) where {T,V}
     r isa BatchedReal ? adapt(V, reshape(r.vals, 1, 1, 1, :)) : r

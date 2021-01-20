@@ -7,7 +7,7 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.5.1
+    display_name: Julia 1.5.3
     language: julia
     name: julia-1.5
 ---
@@ -111,7 +111,7 @@ plot(ds.d, title = "data " .* ["E" "B"]);
 Now we compute the maximum of the joint posterior, $\mathcal{P}\big(f, \phi \,\big|\,d\big)$
 
 ```julia
-fbf, ϕbf, history = MAP_joint(ds, nsteps=30, progress=true);
+fJ, ϕJ, history = MAP_joint(ds, nsteps=30, progress=true);
 ```
 
 # Examine results
@@ -136,7 +136,7 @@ Here's how far away our final $\chi^2$ is from this expectation, in units of $\s
 Here's the best-fit $\phi$ relative to the truth,
 
 ```julia
-plot(10^6*[ϕ ϕbf], title=["true" "best-fit"] .* raw" $\phi$", vlim=17);
+plot(10^6*[ϕ ϕJ], title=["true" "best-fit"] .* raw" $\phi$", vlim=17);
 ```
 
 Here is the difference in terms of the power spectra. Note the best-fit has high-$\ell$ power suppressed, like a Wiener filter solution (in fact what we're doing here is akin to a non-linear Wiener filter). In the high S/N region ($\ell\lesssim1000$), the difference is approixmately equal to the noise, which you can see is almost two orders of magnitude below the signal.
@@ -144,8 +144,8 @@ Here is the difference in terms of the power spectra. Note the best-fit has high
 ```julia
 loglog(ℓ⁴ * Cℓ.total.ϕϕ, "k")
 loglog(get_ℓ⁴Cℓ(ϕ))
-loglog(get_ℓ⁴Cℓ(ϕbf))
-loglog(get_ℓ⁴Cℓ(ϕbf-ϕ))
+loglog(get_ℓ⁴Cℓ(ϕJ))
+loglog(get_ℓ⁴Cℓ(ϕJ-ϕ))
 xlim(80,3000)
 ylim(5e-9,2e-6)
 legend(["theory",raw"true $\phi$", raw"best-fit $\phi$", "difference"])
@@ -156,11 +156,11 @@ ylabel(raw"$\ell^4 C_\ell$");
 The best-fit unlensed fields relative to truth,
 
 ```julia
-plot([f,fbf], title = ["true", "best-fit"] .* " unlensed " .* ["E" "B"]);
+plot([f,fJ], title = ["true", "best-fit"] .* " unlensed " .* ["E" "B"]);
 ```
 
 The best-fit lensed field (bottom row) relative to truth (top row),
 
 ```julia
-plot([f̃, LenseFlow(ϕbf)*fbf], title = ["true", "best-fit"] .* " lensed " .* ["E" "B"]);
+plot([f̃, LenseFlow(ϕJ)*fJ], title = ["true", "best-fit"] .* " lensed " .* ["E" "B"]);
 ```

@@ -8,7 +8,7 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.5.1
+    display_name: Julia 1.5.3
     language: julia
     name: julia-1.5
 ---
@@ -40,14 +40,13 @@ $$ d =  \mathbb{A} \, \mathbb{L}(\phi) \, f + n, $$
 
 where
 
-$$ \mathbb{A} = \mathbb{P} \, \mathbb{M} \, \mathbb{B} $$
+$$ \mathbb{A} = \mathbb{M} \, \mathbb{B} $$
 
 and 
 
 * $\mathbb{L}(\phi)$ is the lensing operation
 * $\mathbb{B}$ is an instrumental transfer function or "beam"
 * $\mathbb{M}$ is a user-chosen mask
-* $\mathbb{P}$ is a pixelization operation which allows one to estimate $f$ on a higher resolution than the data
 * $n$ is the instrumental noise. 
 
 
@@ -93,7 +92,7 @@ To evaluate this posterior, we need the arguments of the probability distributio
 First lets load up some simulated data. The function `load_sim` handles constructing a `DataSet` and is the recommended way to create the various fields and covariances needed. In this case, let's use 1$\mu$K-arcmin noise and a border mask:
 
 ```julia
-@unpack f, f̃, ϕ, ds, L = load_sim(
+@unpack f, f̃, ϕ, ds = load_sim(
     θpix      = 2,
     Nside     = 256,
     T         = Float64,
@@ -142,7 +141,7 @@ For the unlensed and lensed parametrizations, pass `0` and `1` as the first argu
 For example, the following is the same point in parameter space that we evaluated above, just in a different parametrization (any differences to the above value are numerical):
 
 ```julia
--2*lnP(1, L(ϕ)*f, ϕ, ds)
+-2*lnP(1, ds.L(ϕ)*f, ϕ, ds)
 ```
 
 We expect minus twice the posterior evaluated at the truth to be distributed like a $\chi^2$ distribution where the degrees of freedom equals the number of pixels in $d$, $f$, and $\phi$ (i.e. in each of the three Gaussian terms in the posterior). Since these maps are 256x256 and $d$ and $f$ have both Q and U maps, this is:

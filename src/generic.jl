@@ -168,7 +168,7 @@ end
 """
     logdet(L::FieldOp, θ)
     
-If L depends on θ, evaluates `logdet(L(θ))` offset by its fiducial value at
+If `L` depends on `θ`, evaluates `logdet(L(θ))` offset by its fiducial value at
 `L()`. Otherwise, returns 0.
 """
 logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
@@ -180,7 +180,7 @@ logdet(L, θ) = logdet(L)
 ### Simulation
 
 @doc doc"""
-    simulate(Σ;     rng=global_rng_for(Σ), seed=nothing)
+    simulate(Σ; rng=global_rng_for(Σ), seed=nothing)
     
 Draw a simulation from the covariance matrix `Σ`, i.e. draw a random vector
 $\xi$ such that the covariance $\langle \xi \xi^\dagger \rangle = \Sigma$. 
