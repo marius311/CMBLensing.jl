@@ -4,9 +4,11 @@ using CUDA: cufunc, curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
-export cuda_gc
+export cuda_gc, gpu
 
-const CuFlatS0{P,T,M<:CuArray} = FlatS0{P,T,M}
+const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
+
+typealias(::Type{CuArray{T,N}}) where {T,N} = "CuArray{$T,$N}"
 
 # a function version of @cuda which can be referenced before CUDA is
 # loaded as long as it exists by run-time (unlike the macro @cuda which must
@@ -15,38 +17,29 @@ function cuda(f, args...; threads=256)
     @cuda threads=threads f(args...)
 end
 
-is_gpu_backed(f::FlatField) = fieldinfo(f).M <: CuArray
+is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
 global_rng_for(::Type{<:CuArray}) = curand_rng()
-seed_for_storage!(::Type{<:CuArray}, seed=nothing) = 
-    Random.seed!(global_rng_for(CuArray), seed)
+
+
+gpu(x) = adapt_structure(CuArray, x)
 
 
 
-### broadcasting
-preprocess(dest::F, bc::Broadcasted) where {F<:CuFlatS0} = 
-    Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), map(OneTo,content_size(F)))
-preprocess(dest::F, arg) where {M,F<:CuFlatS0{<:Any,<:Any,M}} = 
-    adapt(M,broadcastable(F, arg))
-function copyto!(dest::F, bc::Broadcasted{Nothing}) where {F<:CuFlatS0}
-    bc′ = preprocess(dest, bc)
-    copyto!(firstfield(dest), bc′)
-    return dest
+function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
+    # todo: remove needing to go through cpu here:
+    gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
 end
-BroadcastStyle(::FlatS0Style{F,Array}, ::FlatS0Style{F,CuArray}) where {P,F<:FlatS0{P}} = 
-    FlatS0Style{basetype(F){P},CuArray}()
 
 
 ### misc
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
 
-pinv(D::Diagonal{T,<:CuFlatS0}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
-inv(D::Diagonal{T,<:CuFlatS0}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
-fill!(f::CuFlatS0, x) = (fill!(firstfield(f),x); f)
-==(a::CuFlatS0, b::CuFlatS0) = (==)(firstfield.(promote(a,b))...)
-≈(a::CuFlatS0, b::CuFlatS0) = (≈)(firstfield.(promote(a,b))...)
-≈(a::Diagonal{<:Any,<:CuFlatS0}, b::Diagonal{<:Any,<:CuFlatS0}) = basis(diag(a)) == basis(diag(b)) && diag(a) ≈ diag(b)
-sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
+pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
+inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
+fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
+==(a::CuBaseField, b::CuBaseField) = (==)(promote(a.arr, b.arr)...)
+sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 
 # these only work for Reals in CUDA
@@ -54,7 +47,10 @@ sum(f::CuFlatS0; dims=:) = (dims == :) ? sum(firstfield(f)) : (1 in dims) ? erro
 CUDA.isfinite(x::Complex) = Base.isfinite(x)
 CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
 CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+CUDA.pow(x::Complex, p) = x^p
 
+# until https://github.com/JuliaGPU/CUDA.jl/pull/618
+CUDA.cufunc(::typeof(angle)) = CUDA.angle
 
 # this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSR rather than a
 # dense CuArray
@@ -67,7 +63,7 @@ ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
 
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
-    adapt(Array,randn!(rng, CuVector{T}(undef,1)))[1]
+    cpu(randn!(rng, CuVector{T}(undef,1)))[1]
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator
@@ -137,9 +133,13 @@ nodes, this assigns each Julia worker process a unique GPU using `CUDA.device!`.
 """
 function assign_GPU_workers()
     @everywhere @eval Main using CUDA, Distributed
-    accessible_gpus = @eval Main Dict(pmap(workers()) do _
-        ds = CUDA.devices()
-        myid() => Dict(CUDA.deviceid.(ds) .=> CUDA.uuid.(ds))
+    master_uuid = CUDA.uuid(device())
+    accessible_gpus = Dict(map(workers()) do id
+        @eval Main @fetchfrom $id begin
+            ds = CUDA.devices()
+            # put master's GPU last so don't double up on it unless we need to
+            $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
+        end
     end)
     claimed = Set()
     assignments = Dict(map(workers()) do myid
@@ -149,6 +149,7 @@ function assign_GPU_workers()
                 return myid => gpu_id
             end
         end
+        error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
     end)
     @everywhere workers() device!($assignments[myid()])
     @info GPU_worker_info()
@@ -160,8 +161,8 @@ end
 Returns string showing info about assigned GPU workers. 
 """
 function GPU_worker_info()
-    lines = @eval Main pmap(procs()) do id
-        "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
+    lines = @eval Main map(procs()) do id
+        @fetchfrom id "($(id==1 ? "master" : "worker") = $id, host = $(gethostname()), device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
     end
     join(["GPU_worker_info:"; lines], "\n")
 end

@@ -94,7 +94,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
 	else
-		extent = [-1,1,-1,1] .* fieldinfo(f).nyq
+		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 	end
 	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
 	cax = ax.matshow(
@@ -140,11 +140,16 @@ end
 Plotting fields. 
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
-plot(D::DiagOp; kwargs...) = 
-	plot([diag(D)]; which=permutedims([x for x in propertynames(diag(D)) if string(x)[end] in "xl"]), kwargs...)
+function plot(D::DiagOp; kwargs...)
+	plot(
+		[diag(D)]; 
+		which = permutedims([Symbol(k,(v==Map ? "x" : "l")) for (k,v) in _sub_basis[basis(diag(D))] if v<:Union{Fourier,Map}]),
+		kwargs...
+	)
+end
 
 function plot(
-	fs::AbstractVecOrMat{F}; 
+	fs :: AbstractVecOrMat{F}; 
 	plotsize = plotsize₀, 
 	which = default_which(fs), 
 	title = nothing, 
@@ -153,7 +158,7 @@ function plot(
 	cmap = nothing,
 	return_all = false, 
 	kwargs...
-) where {F<:Field}
+) where {F<:FlatField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
@@ -170,14 +175,14 @@ function plot(
 	
 end
 
-default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
-default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:FlatS0})  = [:Ix]
+default_which(::AbstractVecOrMat{<:FlatS2})  = [:Ex :Bx]
 default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
-function default_which(fs::AbstractVecOrMat{<:Field})
+function default_which(fs::AbstractVecOrMat{<:FlatField})
     try
         ensuresame((default_which([f]) for f in fs)...)
     catch x
-        x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for this combination of fields to plot.")) : rethrow()
+        x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for plotting this combination of fields.")) : rethrow()
     end
 end
 
@@ -188,9 +193,9 @@ end
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
+animate(f::AbstractVecOrMat{<:FlatField}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:FlatField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     

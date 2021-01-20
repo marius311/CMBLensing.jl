@@ -14,26 +14,6 @@ const FieldRowVector{F<:Field} = FieldOrOpRowVector{F}
 const FieldArray{F<:Field}     = FieldOrOpArray{F}
 
 
-
-
-### broadcasting
-# FieldArray broadcasting wins over Field and FieldTuple broadcasting, so go
-# through the broadcast expression, wrap all Field and FieldTuple args in Refs,
-# then forward to StaticArrayStyle broadcasting
-struct FieldOrOpArrayStyle{N} <: AbstractArrayStyle{N} end
-(::Type{<:FieldOrOpArrayStyle})(::Val{N}) where {N} = FieldOrOpArrayStyle{N}()
-BroadcastStyle(::Type{<:FieldOrOpVector}) = FieldOrOpArrayStyle{1}()
-BroadcastStyle(::Type{<:FieldOrOpMatrix}) = FieldOrOpArrayStyle{2}()
-BroadcastStyle(S::FieldOrOpArrayStyle, ::FieldTupleStyle) = S
-instantiate(bc::Broadcasted{<:FieldOrOpArrayStyle}) = bc
-function copy(bc::Broadcasted{FieldOrOpArrayStyle{N}}) where {N}
-    bc′ = convert(Broadcasted{StaticArrayStyle{N}}, map_bc_args(fieldvector_data,bc))
-    materialize(bc′)
-end
-fieldvector_data(f::FieldOrOp) = Ref(f)
-fieldvector_data(x) = x
-
-
 # non-broadcasted algebra
 for f in (:/, :\, :*)
     if f != :/
@@ -43,10 +23,6 @@ for f in (:/, :\, :*)
         @eval ($f)(A::FieldOrOpArray, B::Field) = broadcast($f, A, B)
     end
 end
-
-
-
-
 
 # this makes Vector{Diagonal}' * Vector{Field} work right
 dot(D::DiagOp{<:Field{B}}, f::Field) where {B} = conj(D.diag) .* B(f)
@@ -74,20 +50,18 @@ mul!(v::FieldVector, w::FieldOrOpVector{<:Diagonal}, f::Field) =
     ((@. v[1] = w[1].diag * f); (@. v[2] = w[2].diag * f); v)
 mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) = 
     ((@. v[1] = x.diag * w[1].diag * f); (@. v[2] = x.diag * w[2].diag * f); v)
-# only thing needed for TupleAdjoints
-mul!(v::FieldVector, f::TupleAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
+# only thing needed for SpinAdjoints
+mul!(v::FieldVector, f::SpinAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
-function pinv!(dst::FieldOrOpMatrix, src::FieldOrOpMatrix)
-    a,b,c,d = src
-    det⁻¹ = pinv(@. a*d-b*c)
-    @. dst[1,1] =  det⁻¹ * d
-    @. dst[1,2] = -det⁻¹ * b
-    @. dst[2,1] = -det⁻¹ * c
-    @. dst[2,2] =  det⁻¹ * a
+function pinv!(dst::FieldOrOpMatrix{<:Diagonal}, src::FieldOrOpMatrix{<:Diagonal})
+    a,b,c,d = diag.(src)
+    det⁻¹ = diag(pinv(Diagonal(@. a*d-b*c)))
+    @. dst[1,1].diag =  det⁻¹ * d
+    @. dst[1,2].diag = -det⁻¹ * b
+    @. dst[2,1].diag = -det⁻¹ * c
+    @. dst[2,2].diag =  det⁻¹ * a
     dst
 end
-
-
 
 promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
 arithmetic_closure(::F) where {F<:Field} = F

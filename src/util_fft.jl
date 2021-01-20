@@ -1,4 +1,37 @@
 
+@doc """
+The number of threads used by FFTW for CPU FFTs (default is the environment
+variable `FFTW_NUM_THREADS`, or if that is not specified its
+`Sys.CPU_THREADS÷2`). This must be set before creating any `FlatField` objects.
+"""
+FFTW_NUM_THREADS = nothing
+@init global FFTW_NUM_THREADS = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
+
+
+@doc """
+Time-limit for FFT planning on CPU (default: 5 seconds). This must be set before
+creating any `FlatField` objects.
+"""
+FFTW_TIMELIMIT = 5
+
+
+# a set of wrapper FFT functions which use a @memoize'd plan
+_fft_arr_type(arr) = basetype(typeof(parent(arr)))
+m_rfft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...) * arr
+m_irfft(arr::AbstractArray{Complex{T},N}, d, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, d, size(arr)[2:end]...) \ arr
+m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
+m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(dst)...), copy_if_fftw(arr))
+@memoize function m_plan_rfft(::Type{A}, dims::Dims, sz...) where {T, N, A<:AbstractArray{T,N}, Dims}
+    FFTW.set_num_threads(FFTW_NUM_THREADS)
+    plan_rfft(
+        A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...
+    ) #:: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
+end
+# FFTW (but not MKL) destroys the input array for inplace inverse real
+# FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
+copy_if_fftw(x) = FFTW.fftw_vendor==:fftw ? copy(x) : x
+
+
 """
 Convert a matrix A which is the output of a real FFT to a real vector, keeping
 only unqiue real/imaginary entries of A
@@ -33,9 +66,9 @@ end
 Convert an M×N matrix (with M=N÷2+1) which is the output a real FFT to a full
 N×N one via symmetries.
 """
-unfold(Tls::AbstractArray{<:Complex,3}, Ny) = mapslices(X -> unfold(X, Ny), Array(Tls), dims=(1,2))
-unfold(Tl::AbstractMatrix{<:Complex}, Ny) = unfold(Array(Tl), Ny)
-function unfold(Tl::Matrix{<:Complex}, Ny::Int)
+unfold(Tls::AbstractArray{<:Any,3}, Ny) = mapslices(X -> unfold(X, Ny), Array(Tls), dims=(1,2))
+unfold(Tl::AbstractMatrix{<:Any}, Ny) = unfold(Array(Tl), Ny)
+function unfold(Tl::Matrix{<:Any}, Ny::Int)
     m,n = size(Tl)
     @assert m==Ny÷2+1
     m2 = iseven(Ny) ? 2m : 2m+1
@@ -78,9 +111,10 @@ Returns a tuple of (ireal, iimag, negks) where these are
     ireal,iimag,inegks#,ks,negk.(ks)#,k_in_ks.(negk.(ks)),map(k->k_in_ks(negk(k)),ks)
 end
 
+
 """
     rfft_degeneracy_fac(n)
-
+    
 Returns an Array which is 2 if the complex conjugate of the
 corresponding entry in the half-plane real FFT appears in the
 full-plane FFT, and is 1 othewise. `n` is the length of the first
@@ -94,4 +128,4 @@ function rfft_degeneracy_fac(n)
     else
         [1; fill(2,n÷2)]
     end
-end
+end 

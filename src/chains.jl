@@ -137,17 +137,17 @@ wrap_chains(chain::Vector) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
-    D = batchsize(chain[end][:lnP])
+    D = batch_length(chain[end][:lnP])
     (D==1) && return chain
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
-                if v isa Union{BatchedReal,FlatField} && batchsize(v)==D
-                    k => batchindex(v, I)
+                if v isa Union{BatchedReal,FlatField}
+                    k => batch_index(v, I)
                 elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:BatchedVals}}
-                    k => map(x -> (x isa BatchedVals ? batchindex(x,I) : x), v)
+                    k => map(x -> (x isa BatchedVals ? batch_index(x,I) : x), v)
                 elseif v isa AbstractArray{<:BatchedVals}
-                    k => batchindex.(v, I)
+                    k => batch_index.(v, I)
                 else
                     k => v
                 end

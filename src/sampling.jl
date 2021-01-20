@@ -82,7 +82,7 @@ function grid_and_sample(lnP::Function, range::AbstractVector; progress=false, k
 end
 
 function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
-    batches = [grid_and_sample(batchindex.(lnPs,i), xs; kwargs...) for i=1:batchsize(lnPs[1])]
+    batches = [grid_and_sample(batch_index.(lnPs,i), xs; kwargs...) for i=1:batch_length(lnPs[1])]
     ((batch(getindex.(batches,i)) for i=1:3)...,)
 end
 
@@ -189,7 +189,7 @@ function sample_joint(
     interruptable = false,
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
     postprocess = nothing,
-    storage = basetype(fieldinfo(ds.d).M)
+    storage = ds.d.storage
 )
     
     ds = cpu(ds)
@@ -213,7 +213,7 @@ function sample_joint(
     end
     
     # seed
-    @everywhere seed_for_storage!((Array,$storage))
+    @everywhere @eval CMBLensing seed!.(global_rng_for.((Array,$storage)))
 
     # initialize chains
     if (filename != nothing) && isfile(filename)
@@ -225,10 +225,10 @@ function sample_joint(
         end
     else
 
-        D = batchsize(ds.d)
+        Nbatch = batch_length(ds.d)
         
         θstarts = if θstart == :prior
-            [map(range->batch((first(range) .+ rand(D) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
+            [map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
         elseif θstart isa NamedTuple
             fill(θstart, nchains)
         elseif θstart isa Vector{<:NamedTuple}
@@ -239,10 +239,10 @@ function sample_joint(
         
         ϕstarts = if ϕstart == :prior
             pmap(θstarts) do θstart
-                simulate(batch(ds(;θstart...).Cϕ, D))
+                simulate(ds(;θstart...).Cϕ; Nbatch)
             end
         elseif ϕstart == 0 
-            fill(batch(zero(diag(ds().Cϕ)), D), nchains)
+            fill(zero(diag(ds().Cϕ)), nchains)
         elseif ϕstart isa Field
             fill(ϕstart, nchains)
         elseif ϕstart isa Vector{<:Field}
@@ -278,14 +278,16 @@ function sample_joint(
     end
     dsₐ,Nϕₐ = ds,Nϕ
     t_write = 0
+    if progress==:summary
+        @everywhere first(workers()) @eval CMBLensing begin
+            pbar = Progress($(nsamps_per_chain-last_chunks[1][end][:i]+1), dt=0, desc="Gibbs chain: ")
+            ProgressMeter.update!(pbar, showvalues=[("step", $(last_chunks[1][end][:i]))])
+        end
+    end
 
     # start chains
     try
         
-        if progress==:summary && myid()==first(workers())
-            pbar = Progress(nsamps_per_chain, 0, "Gibbs chain: ")
-        end
-
         for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
             
             last_chunks = pmap(last.(last_chunks)) do state
@@ -366,7 +368,7 @@ function sample_joint(
                     end
                     push!(chain_chunk, cpu(state))
                     
-                    if @isdefined pbar
+                    if @isdefined(pbar)
                         string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
                         next!(pbar, showvalues = [
                             ("step",i), 
@@ -387,7 +389,7 @@ function sample_joint(
             if filename != nothing
                 last_chunks[1][end][:t_write] = t_write
                 t_write = @elapsed jldopen(filename,"a+") do io
-                    wsession = JLDWriteSession()
+                    wsession = JLD2.JLDWriteSession()
                     write(io, "chunks_$chunks_index", last_chunks, wsession)
                 end
             end
@@ -402,6 +404,5 @@ function sample_joint(
             rethrow(err)
         end
     end
-    
     
 end

@@ -1,6 +1,6 @@
 
-abstract type FlowOp{I,t₀,t₁} <: ImplicitOp{Basis,Spin,Pix} end
-abstract type FlowOpWithAdjoint{I,t₀,t₁} <: FlowOp{I,t₀,t₁} end
+abstract type FlowOp{I,t₀,t₁,T} <: ImplicitOp{T} end
+abstract type FlowOpWithAdjoint{I,t₀,t₁,T} <: FlowOp{I,t₀,t₁,T} end
 
 # interface
 function velocity end

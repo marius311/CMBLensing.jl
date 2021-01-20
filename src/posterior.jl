@@ -55,17 +55,16 @@ lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ, 
 function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
     
     @unpack Cn,Cf,Cϕ,L,M,B,d = ds
-    @unpack T = fieldinfo(d)
     
     f,f̃ = t==0 ? (fₜ, L(ϕ)*fₜ) : (L(ϕ)\fₜ, fₜ)
     Δ = d - M(θ)*B(θ)*f̃ - nonCMB_data_components(θ,ds)
     (
-        -T(1/2) * (
+        -(1//2) * (
             Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
             f'*pinv(Cf(θ))*f + logdet(Cf,θ) +
             ϕ'*pinv(Cϕ(θ))*ϕ + logdet(Cϕ,θ)
         ) 
-        + T(lnPriorθ(θ,ds))
+        + lnPriorθ(θ,ds)
     )
 
 end
@@ -82,10 +81,10 @@ lnPriorθ(θ, ds::DataSet) = 0
 ### marginal posterior gradients
 
 function δlnP_δϕ(
-    ϕ, θ, ds; 
+    ϕ, θ, ds;
     previous_state = nothing,
     use_previous_MF = false,
-    Nsims = (previous_state==nothing ? 50 : previous_state.Nsims), 
+    Nsims = (isnothing(previous_state) ? 50 : previous_state.Nsims), 
     Nbatch = 1,
     weights = :unlensed,
     return_state = false,
@@ -94,36 +93,36 @@ function δlnP_δϕ(
     aggressive_gc = fieldinfo(ϕ).Nside>=512
 )
 
-    @unpack d,P,M,B,Cn,Cf,Cf̃,Cϕ,Cn̂,G,L = ds(θ)
+    dsθ = ds(θ)
+    set_distributed_dataset(dsθ)
+    @unpack d,L,G,Cf,Cn,Cϕ = dsθ
+    (d.Nbatch == Nbatch == 1) || error("δlnP_δϕ for batched fields not implemented")
+    (G == I) || error("δlnP_δϕ with G!=I not implemented")
     Lϕ = L(ϕ)
-    Lϕ_batch = Nbatch==1 ? Lϕ : cache(LenseFlow(identity.(batch(ϕ,Nbatch))),identity.(batch(d,Nbatch)))
-    
-    if G!=1
-        @warn "δlnP_δϕ does not currently handle the G mixing matrix"
-    end
-    
-    if (previous_state == nothing)
-        f_sims = [simulate(batch(Cf,Nbatch)) for i=1:Nsims÷Nbatch]
-        n_sims = [simulate(batch(Cn,Nbatch)) for i=1:Nsims÷Nbatch]
+
+    if isnothing(previous_state)
+        f_sims = [simulate(Cf; Nbatch) for i=1:Nsims÷Nbatch]
+        n_sims = [simulate(Cn; Nbatch) for i=1:Nsims÷Nbatch]
         f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
         f_wf_prev = nothing
     else
         @unpack f_sims, n_sims, f_wf_sims_prev, f_wf_prev = previous_state
     end
 
-    # generate simulated datasets for the current ϕ
-    ds_sims = map(f_sims, n_sims) do f,n
-        resimulate(ds, f̃=Lϕ_batch*f, n=n).ds
+    # generate simulated data for the current ϕ
+    d_sims = map(f_sims, n_sims) do f,n
+        resimulate(dsθ, f̃=Lϕ*f, n=n).d
     end
 
-    W = (weights == :unlensed) ? 1 : (Cf̃ * pinv(Cf))
+    W = (weights == :unlensed) ? I : (Cf̃ * pinv(Cf))
 
     # gradient of the quadratic (in d) piece of the likelihood
     function get_gQD(Lϕ, ds, f_wf_prev)
+        @unpack Cf = ds
         f_wf, history = argmaxf_lnP(
             Lϕ, θ, ds;
             which = :wf,
-            fstart = (f_wf_prev==nothing ? 0d : f_wf_prev),
+            fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
             conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
         )
         aggressive_gc && cuda_gc()
@@ -133,23 +132,19 @@ function δlnP_δϕ(
         (;g, f_wf, history)
     end
 
-    # gQD for the real data
-    gQD_future = @spawnat :any get_gQD(Lϕ, ds, f_wf_prev)
-
-    # gQD for several simulated datasets
     if use_previous_MF
+        gQD = get_gQD(Lϕ, dsθ, f_wf_prev)
         @unpack gQD_sims, ḡ = previous_state
     else
-        gQD_sims = pmap(ds_sims, f_wf_sims_prev) do ds_sim, f_wf_prev
-            get_gQD(Lϕ_batch, ds_sim, f_wf_prev)
-        end
-        ḡ = mean(mapreduce(vcat, gQD_sims) do gQD
-            [batchindex(gQD.g,i) for i=1:batchsize(gQD.g)]
+        gQD, gQD_sims = peel(pmap([dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do d, f_wf_prev
+            get_gQD(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev)
+        end)
+        ḡ = mean(map(gQD_sims) do gQD
+            mean(unbatch(gQD.g))
         end)
     end
     
     # final total posterior gradient, including gradient of the prior
-    gQD = fetch(gQD_future)
     g = gQD.g - ḡ - Cϕ\ϕ
 
     if return_state

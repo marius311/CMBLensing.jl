@@ -22,8 +22,6 @@ function make_mask(
     FlatMap(Float32.(mask_array), θpix=θpix)
 end
 
-make_mask(::FlatField{<:Flat{Nside,θpix}}; kwargs...) where {Nside,θpix} = make_mask(Nside, θpix; kwargs...)
-
 
 # all padding/smoothing/etc... quantities below are in units of numbers of pixels
 

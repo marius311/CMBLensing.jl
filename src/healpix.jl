@@ -1,6 +1,5 @@
 
-@init global hp = safe_pyimport("healpy")
-
+@init global hp = lazy_pyimport("healpy")
 
 function θϕ_to_xy((θ,ϕ))
     r = 2cos(θ/2)
@@ -16,10 +15,10 @@ function xy_to_θϕ((x,y))
     θ, ϕ
 end
 
-function healpix_to_flat(healpix_map::Vector{T}, ::Type{P}; rot=(0,0,0)) where {Nside, θpix, T, P<:Flat{Nside,θpix}}
+function healpix_to_flat(healpix_map::Vector{T}, proj::ProjLambert{T}; rot=(0,0,0)) where {T}
     
     Nside_sphere = hp.npix2nside(length(healpix_map))
-    @unpack Δx = fieldinfo(P)
+    @unpack Δx = proj
 
     # compute projection coordinate mapping
     xs = ys = Δx*((-Nside÷2:Nside÷2-1) .+ 0.5)
@@ -33,27 +32,36 @@ function healpix_to_flat(healpix_map::Vector{T}, ::Type{P}; rot=(0,0,0)) where {
     (θs′, ϕs′) = eachrow(R.get_inverse()(θs, ϕs))
     
     # interpolate map
-    FlatMap{P,T}(reshape(hp.get_interp_val(healpix_map, θs′, ϕs′), Nside, Nside))
+    FlatMap(reshape(hp.get_interp_val(healpix_map, θs′, ϕs′), Nside, Nside), proj)
     
 end
 
-function flat_to_healpix(f::FlatMap, Nside_sphere; rot=(0,0,0))
-    
-    @unpack Δx, Nside = fieldinfo(f)
+function healpix_pixel_centers_to_flat(f::FlatField, Nside_sphere; rots=[(0,90,0)], healpix_pixels=0:(12*Nside_sphere^2-1))
 
-    (θs, ϕs) = hp.pix2ang(Nside_sphere, 0:(12*Nside_sphere^2-1))
+    @unpack Δx, Ny, Nx = f
+
+    (θs, ϕs) = hp.pix2ang(Nside_sphere, healpix_pixels)
     
     # rotate the pole to the equator to match Healpy's azeqview convention, in
     # addition to applying the user rotation
-    R = hp.Rotator((0,90,0), eulertype="ZYX") * hp.Rotator(rot, eulertype="ZYX")
+    R = prod([hp.Rotator(rot, eulertype="ZYX") for rot in rots])
     (θs′, ϕs′) = eachrow(R(θs, ϕs))
 
     # compute projection coordinate mapping
-    xys = θϕ_to_xy.(tuple.(θs′, ϕs′))
-    xs = first.(xys) ./ Δx .+ Nside÷2 .+ 0.5
-    ys = last.(xys) ./ Δx .+ Nside÷2 .+ 0.5
+    # (using Ny for xs and vice-versa intentional)
+    xys = @. θϕ_to_xy(tuple(θs′, ϕs′))
+    xs = @. first(xys) / Δx + Ny÷2 + 0.5
+    ys = @.  last(xys) / Δx + Nx÷2 + 0.5
 
+    (xs, ys)
+
+end
+
+
+function flat_to_healpix(f::FlatS0, Nside_sphere; kwargs...)
+    # get pixel centers of Healpix pixels in 2D map
+    xs,ys = healpix_pixel_centers_to_flat(f, Nside_sphere; kwargs...)
     # interpolate map
     @ondemand(Images.bilinear_interpolation).(Ref(f[:Ix]), xs, ys)
-    
 end
+

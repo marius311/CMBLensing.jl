@@ -1,11 +1,11 @@
 
+versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
 """ 
 Return the type's fields as a tuple
 """
 @generated fieldvalues(x) = Expr(:tuple, (:(x.$f) for f=fieldnames(x))...)
 @generated fields(x) = Expr(:tuple, (:($f=x.$f) for f=fieldnames(x))...)
-firstfield(x) = first(fieldvalues(x))
 
 
 """
@@ -82,13 +82,13 @@ end
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
 function sqrt(A::SMatrix{2,2,<:Diagonal})
     a,b,c,d = A
-    s = @. sqrt(a*d-b*c)
-    t = pinv(@. sqrt(a+d+2s))
+    s = sqrt(a*d-b*c)
+    t = pinv(sqrt(a+d+2s))
     @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
 end
 function pinv(A::SMatrix{2,2,<:Diagonal})
     a,b,c,d = A
-    idet = pinv(@. a*d-b*c)
+    idet = pinv(a*d-b*c)
     @SMatrix[d*idet -(b*idet); -(c*idet) a*idet]
 end
 
@@ -135,57 +135,19 @@ ensure1d(x::Union{Tuple,AbstractArray}) = x
 ensure1d(x) = (x,)
 
 
-# see https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
-# for why we need this
-# to use, just decorate the custom show_datatype with it, and make sure the args
-# are named `io` and `t`.
-macro show_datatype(ex)
-    def = splitdef(ex)
-    def[:body] = quote
-        isconcretetype(t) ? $(def[:body]) : invoke(Base.show_datatype, Tuple{IO,DataType}, io, t)
-    end
-    esc(combinedef(def))
-end
-
-
-
-"""
-    # symmetric in any of its final arguments except for bar:
-    @sym_memo foo(bar, @sym(args...)) = <body> 
-    # symmetric in (i,j), but not baz
-    @sym_memo foo(baz, @sym(i, j)) = <body> 
-    
-The `@sym_memo` macro should be applied to a definition of a function
-which is symmetric in some of its arguments. The arguments in which its
-symmetric are specified by being wrapping them in @sym, and they must come at
-the very end. The resulting function will be memoized and permutations of the
-arguments which are equal due to symmetry will only be computed once.
-"""
-macro sym_memo(funcdef)
-    
-    
-    sfuncdef = splitdef(funcdef)
-    
-    asymargs = sfuncdef[:args][1:end-1]
-    symargs = collect(@match sfuncdef[:args][end] begin
-        Expr(:macrocall, [head, _, ex...]), if head==Symbol("@sym") end => ex
-        _ => error("final argument(s) should be marked @sym")
-    end)
-    sfuncdef[:args] = [asymargs..., symargs...]
-    
-    sfuncdef[:body] = quote
-        symargs = [$(symargs...)]
-        sorted_symargs = sort(symargs)
-        if symargs==sorted_symargs
-            $((sfuncdef[:body]))
-        else
-            $(sfuncdef[:name])($(asymargs...), sorted_symargs...)
+# https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
+# has some background related to this function. we can simplify this in 1.6
+function typealias(t)
+    if isconcretetype(t)
+        ta = typealias_def(t)
+        if !isnothing(ta)
+            return ta
         end
     end
-    
-    esc(:(@memoize $(combinedef(sfuncdef))))
-    
+    sprint(io -> invoke(Base.show_datatype, Tuple{IO,DataType}, io, t))
 end
+typealias_def(t) = nothing
+
 
 
 @doc doc"""
@@ -246,35 +208,42 @@ end
 
 get_kwarg_names(func::Function) = Vector{Symbol}(Base.kwarg_decl(first(methods(func))))
 
-# maps a function recursively across all arguments of a Broadcasted expression,
-# using the function `broadcasted` to reconstruct the `Broadcasted` object at
-# each point.
-map_bc_args(f, bc::Broadcasted) = broadcasted(bc.f, map(arg->map_bc_args(f, arg), bc.args)...)
-map_bc_args(f, arg) = f(arg)
 
-
-# adapting a closure adapts the captured variables
-# this could probably be a PR into Adapt.jl
-@generated function adapt_structure(to, f::F) where {F<:Function}
-    if fieldcount(F) == 0
-        :f
-    else
-        quote
-            captured_vars = $(Expr(:tuple, (:(adapt(to, f.$x)) for x=fieldnames(F))...))
-            $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
+# https://discourse.julialang.org/t/is-there-a-way-to-modify-captured-variables-in-a-closure/31213/16
+@static if versionof(Adapt) < v"3.1.0"
+    @generated function adapt_structure(to, f::F) where {F<:Function}
+        if fieldcount(F) == 0
+            :f
+        else
+            quote
+                captured_vars = $(Expr(:tuple, (:(adapt(to, f.$x)) for x=fieldnames(F))...))
+                $(Expr(:new, :($(F.name.wrapper){map(typeof,captured_vars)...}), (:(captured_vars[$i]) for i=1:fieldcount(F))...))
+            end
         end
     end
 end
 
 adapt_structure(to, d::Dict) = Dict(k => adapt(to, v) for (k,v) in d)
 
+
 @doc doc"""
 
-    cpu(xs)
+    cpu(x)
 
-Recursively move an object to CPU memory (i.e. the opposite of `cu`)
+Recursively move an object to CPU memory. See also [`gpu`](@ref).
 """
-cpu(xs) = adapt_structure(Array, xs)
+cpu(x) = adapt_structure(Array, x)
+
+@doc doc"""
+
+    gpu(x)
+
+Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
+this does not change the `eltype` of any underlying arrays. See also
+[`cpu`](@ref).
+"""
+function gpu end # defined in gpu.jl only when CUDA.jl is loaded
+
 
 
 function corrify(H)
@@ -288,26 +257,21 @@ end
 
 
 
-struct FailedPyimport
-    err
+struct LazyPyImport
+    pkg
 end
-getproperty(p::FailedPyimport, ::Symbol) = throw(getfield(p,:err))
+getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(pkg), s)
 
 @doc doc"""
 
-    safe_pyimport(s)
+    lazy_pyimport(s)
 
-Like `pyimport`, but if `s` fails to import, instead of an error right away, the
-error will be thrown the first time the user tries to access the contents of the
-module.
+Like `pyimport(s)`, but doesn't actually load anything (not even
+PyCall) until a property of the returned module is accessed, allowing
+this to go in `__init__` and still delay loading PyCall, as well as
+preventing a Julia module load error if a Python module failed to load.
 """
-function safe_pyimport(s)
-    try
-        @ondemand(PyCall.pyimport)(s)
-    catch err
-        FailedPyimport(err)
-    end
-end
+lazy_pyimport(s) = LazyPyImport(s)
 
 
 @doc doc"""
@@ -318,21 +282,6 @@ Return true if the current file is being run as a script.
 macro ismain()
     (__source__ != nothing) && (String(__source__.file) == abspath(PROGRAM_FILE))
 end
-
-
-@doc doc"""
-    seed_for_storage!(storage[, seed])
-    seed_for_storage!((storage1, storage2, ...)[, seed])
-    
-Set the global random seed for the RNG which controls `storage`-type. 
-"""
-seed_for_storage!(::Type{<:Array}, seed=nothing) = 
-    Random.seed!((seed == nothing ? () : (seed,))...)
-seed_for_storage!(storage::Any, seed=nothing) = 
-    error("Don't know how to set seed for storage=$storage")
-seed_for_storage!(storages::Tuple, seed=nothing) = 
-    seed_for_storage!.(storages, seed)
-
 
 
 @init @require MPIClusterManagers="e7922434-ae4b-11e9-05c5-9780451d2c66" begin
@@ -390,19 +339,29 @@ end
 firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
+USE_SUM_KBN = true
+use_sum_kbn!(flag) = USE_SUM_KBN=flag
 
-function sum_kbn(A::AbstractArray{T,N}; dims=:) where {T,N}
+# type-stable combination of summing and dropping dims, which uses
+# either sum or sum_kbn (to reduce roundoff error), depending on
+# CMBLensing.USE_SUM_KBN constant
+function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
     if (dims == (:)) || (N == length(dims))
-        KahanSummation.sum_kbn(adapt(Array,A))
+        if USE_SUM_KBN
+            sum_kbn(cpu(A))
+        else
+            sum(A)
+        end :: T
     else
-        dropdims(mapslices(sum_kbn, adapt(Array,A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
+        if USE_SUM_KBN
+            dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) 
+        else
+            dropdims(mapslices(sum,         A,  dims=dims), dims=dims)
+        end :: Array{T,N-length(dims)}
     end
 end
-@adjoint sum_kbn(A) = sum_kbn(A), Δ -> (fill!(similar(A),Δ),)
+@adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
 
-
-# courtesy of Takafumi Arakaki
-versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
 # for mixed eltype, which Loess stupidly does not support
 Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
@@ -411,6 +370,10 @@ Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) =
 
 expnorm(x) = exp.(x .- maximum(x))
 
+
+
+# MacroTool's is broken https://github.com/FluxML/MacroTools.jl/issues/154
+_isdef(ex) = @capture(ex, function f_(arg__) body_ end)
 
 """
 
@@ -430,7 +393,7 @@ Timing uses `TimerOutputs.get_defaulttimer()`.
 """
 macro ⌛(ex)
     source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
-    if isdef(ex)
+    if _isdef(ex)
         sdef = splitdef(ex)
         sdef[:body] = quote
             CMBLensing.@timeit $("$(string(sdef[:name]))(…)  ($source_str)") $(sdef[:body])
@@ -452,4 +415,46 @@ macro show⌛(ex)
         show(get_defaulttimer())
         result
     end
+end
+
+
+
+# used in a couple of places to create a Base.promote_rule-like system
+# where you can specify a set of rules for promotion via dispatch but
+# don't need to write a method for both orders
+select_known_rule(rule, x, y) = select_known_rule(rule, x, y, rule(x,y), rule(y,x))
+select_known_rule(rule, x, y, R₁::Any,       R₂::Unknown) = R₁
+select_known_rule(rule, x, y, R₁::Unknown,   R₂::Any)     = R₂
+select_known_rule(rule, x, y, R₁::Any,       R₂::Any)     = (R₁ == R₂) ? R₁ : error("Conflicting rules.")
+select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_error(rule, x, y)
+
+
+
+"""
+    @auto_adjoint foo(args...; kwargs...) = body
+
+is equivalent to 
+
+    ##foo(args...; kwargs...) = body
+    foo(args...; kwargs...) = ##foo(args...; kwargs...)
+    @adjoint foo(args...; kwargs...) = Zygote.pullback(##foo, args...; kwargs...)
+
+That is, it defines the function as well as a Zygote adjoint which
+takes a gradient explicitly through the body of the function, rather
+than relying on rules which may be defined for `foo`. Mainly useful in
+the case that `foo` is a common function with existing rules, but
+which you do *not* want to be used.
+"""
+macro auto_adjoint(funcdef)
+    sdef = splitdef(funcdef)
+    name = sdef[:name]
+    sdef[:name] = symname = gensym(string(name))
+    defs = []
+    push!(defs, combinedef(sdef))
+    sdef[:name] = name
+    sdef[:body] = :($symname($(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :(Core.@__doc__ $(combinedef(sdef))))
+    sdef[:body] = :($Zygote.pullback($symname, $(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :($Zygote.@adjoint $(combinedef(sdef))))
+    esc(Expr(:block, defs...))
 end
