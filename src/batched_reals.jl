@@ -6,13 +6,13 @@ Holds a vector of real numbers and broadcasts algebraic operations
 over them, as well as broadcasting along the batch dimension of
 `Field`s, but is itself a `Real`. 
 """
-struct BatchedReal{T<:Real,V<:AbstractVector{T}} <: Real
+struct BatchedReal{T<:Real,V<:Vector{T}} <: Real
     vals :: V
 end
 
 batch(r::Real) = r
-batch(rs::Real...) = BatchedReal(collect(rs))
-batch(v::AbstractVector) = BatchedReal(v)
+batch(rs::Real...) = BatchedReal(rs)
+batch(v::AbstractVector) = BatchedReal(collect(v))
 batch_length(br::BatchedReal) = length(br.vals)
 batch_length(::Real) = 1
 batch_index(br::BatchedReal, I) = getindex(br.vals, I)
