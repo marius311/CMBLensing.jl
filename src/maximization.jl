@@ -205,7 +205,7 @@ function MAP_joint(
             lbfgs_rank; 
             maxiter = nsteps, 
             verbosity = verbosity[1], 
-            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2])
+            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5)
         ); 
         finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
