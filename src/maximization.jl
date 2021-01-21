@@ -278,6 +278,7 @@ function MAP_marg(
     lastϕ = nothing
     lastg = nothing
     lastHg = nothing
+    lastHinv = nothing
     diffϕ = nothing
     H = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
@@ -299,11 +300,19 @@ function MAP_marg(
         if (isnothing(lastg) || hess_method=="no-update") 
             ϕ += T(α)*Hϕ⁻¹*g
             lastHg = deepcopy(T(α)*Hϕ⁻¹*g)
-        else   
+        elseif hess_method == "lbfgs-hessian"   
             Hg, H = get_lbfgs_Hg(g, lastg, lastHg, H,
                                 (_,η)->(Hϕ⁻¹*η))
             ϕ += Hg            
             lastHg = deepcopy(Hg)
+        else #broyden's good or bad 
+            if isnothing(lastHinv); lastHinv=Hϕ⁻¹; end;
+            lastϕ = ϕ - lastHg #workaround
+            Hg, Hinv = get_broyden_Hg(ϕ, g, lastHinv,lastϕ, lastg;
+                         method=hess_method)
+            ϕ += Hg
+            lastHg = deepcopy(Hg)
+            lastHinv = deepcopy(Hinv)
         end
         lastg = deepcopy(g)
 
@@ -373,6 +382,29 @@ function get_lbfgs_Hg(g::Field, gprev::Field, ηprev::Field,
     return η, H
 end
 
+function get_broyden_Hg(ϕ, g, lastHinv, lastϕ, lastg ;
+    method = "broyden_good"
+    )
+    #https://en.wikipedia.org/wiki/Broyden%27s_method
+    dg = isnothing(lastg) ? g : g-lastg
+    dϕ = isnothing(lastϕ) ? ϕ : ϕ-lastϕ
+    sgn = -1.0
+    if method == "broyden_good"
+        #minimize Hessian Frobenius norm
+        #Sherman_morrison formula
+        num = dϕ - lastHinv * dg
+        denom = dϕ' * (lastHinv * dg)
+        Hinv = lastHinv + FuncOp(f-> (num/denom)*(dϕ'* f))*lastHinv
+    elseif method =="broyden_bad"
+        #minimize inverse Hessian Frobenius norm
+        num = dϕ - lastHinv * dg
+        denom = dot(dg,dg)
+        Hinv = lastHinv + FuncOp(f-> ( num / denom ) * (dg' * f))
+    end
 
+    #return Hg: step for ϕ to take
+    return sgn*Hinv*g, Hinv
+
+end
 
 
