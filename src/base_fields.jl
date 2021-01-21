@@ -28,7 +28,7 @@ lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
 @propagate_inbounds getindex(f::BaseField, I::Union{Int,Colon,AbstractArray}...) = getindex(f.arr, I...)
 @propagate_inbounds setindex!(f::BaseField, X, I::Union{Int,Colon,AbstractArray}...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
-copyto!(dst::BaseField, src::BaseField) = ((dst.arr .= src.arr); dst)
+copyto!(dst::BaseField, src::BaseField) = (copyto!(dst.arr, src.arr); dst)
 
 
 ## promotion

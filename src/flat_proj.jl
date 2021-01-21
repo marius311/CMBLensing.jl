@@ -27,7 +27,7 @@ real_type(T) = promote_type(real(T), Float32)
 ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
     ProjLambert(Ny, Nx, Float64(θpix), Float64.(center), real_type(T), storage)
 
-function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, ::Type{storage}) where {T,storage}
+@memoize function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, ::Type{storage}) where {T,storage}
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))
@@ -163,23 +163,34 @@ pixwin(θpix, ℓ) = @. sinc(ℓ*deg2rad(θpix/60)/2π)
 
 # ### serialization
 # makes it so the arrays in ProjLambert objects aren't actually
-# serialized to disk by JLD2, instead just (Ny, Nx, θpix, center, T)
-# are stored, and the arrays are reconstructed when loading a field
+# serialized, instead just (Ny, Nx, θpix, center, T) are stored, and
+# deserializing just recreates the ProjLambert object, possibly from
+# the memoized cache if it already exists.
 
-function JLD2.writeas(::Type{P}) where {P<:ProjLambert}
-    Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}
+function _serialization_key(proj::ProjLambert{T}) where {T}
+    @unpack Ny, Nx, θpix, center, storage = proj
+    (;Ny, Nx, θpix, center, T, storage)
 end
-function JLD2.wconvert(
-         :: Type{Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}}, 
-    proj :: ProjLambert{T}
-) where {T}
+
+# Julia serialization
+function Serialization.serialize(s::AbstractSerializer, proj::ProjLambert)
     @unpack Ny, Nx, θpix, center = proj
-    (Val(ProjLambert), Ny, Nx, θpix, center, T)
+    Serialization.writetag(s.io, Serialization.OBJECT_TAG)
+    Serialization.serialize(s, ProjLambert)
+    Serialization.serialize(s, _serialization_key(proj))
 end
-function JLD2.rconvert(
-         :: Type{<:ProjLambert}, 
-    proj :: Tuple{Val{ProjLambert},Int,Int,Float64,Tuple{Float64,Float64},DataType}
-)
-    (_, Ny, Nx, θpix, center, T) = proj
-    ProjLambert(; Ny, Nx, θpix, center, T)
+function Serialization.deserialize(s::AbstractSerializer, ::Type{ProjLambert})
+    ProjLambert(; Serialization.deserialize(s)...)
+end
+
+# JLD2 serialization
+# (always deserialize as Array)
+function JLD2.writeas(::Type{<:ProjLambert})
+    Tuple{Val{ProjLambert},NamedTuple{(:Ny,:Nx,:θpix,:center,:T),Tuple{Int,Int,Float64,Tuple{Float64,Float64},DataType}}}
+end
+function JLD2.wconvert(::Type{<:Tuple{Val{ProjLambert},NamedTuple}}, proj::ProjLambert)
+    (Val(ProjLambert), delete(_serialization_key(proj), :storage))
+end
+function JLD2.rconvert(::Type{<:ProjLambert}, (_,s)::Tuple{Val{ProjLambert},NamedTuple})
+    ProjLambert(; storage=Array, s...)
 end

@@ -26,7 +26,7 @@ using Match
 using Markdown
 using Measurements
 using Memoization
-using NamedTupleTools: select
+using NamedTupleTools: select, delete
 using OptimKit
 using Pkg
 using Printf
@@ -36,6 +36,7 @@ using Random
 using Random: seed!, AbstractRNG
 using Roots
 using Requires
+using Serialization
 using Setfield
 using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,

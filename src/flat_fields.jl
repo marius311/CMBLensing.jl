@@ -375,7 +375,7 @@ end
 
 ### simulation
 _white_noise(ξ::FlatField, rng::AbstractRNG) = 
-    (randn!(similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
+    (randn!(rng, similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
 white_noise(ξ::FlatS0,  rng::AbstractRNG) = FlatMap(_white_noise(ξ,rng)...)
 white_noise(ξ::FlatS2,  rng::AbstractRNG) = FlatEBMap(_white_noise(ξ,rng)...)
 white_noise(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise(ξ,rng)...)
@@ -500,13 +500,13 @@ batch_length(f::FlatField) = f.Nbatch
 """
     batch(fs::FlatField...)
     batch(fs::Vector{<:FlatField})
-    batch(fs::TUple{<:FlatField})
 
 Concatenate one of more FlatFields along the "batch" dimension
 (dimension 4 of the underlying array). For the inverse operation, see
 [`unbatch`](@ref). 
 """
-batch(fs::FlatField{B}...) where {B} = 
+batch(fs::FlatField{B}...) where {B} = batch(collect(fs))
+batch(fs::AbstractVector{<:FlatField{B}}) where {B} =
     FlatField{B}(cat(getfield.(fs,:arr)..., dims=Val(4)), only(unique(getfield.(fs,:metadata))))
 
 """
