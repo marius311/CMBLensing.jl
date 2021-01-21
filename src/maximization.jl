@@ -296,10 +296,10 @@ function MAP_marg(
             H = initHessian(g,lbfgs_rank) 
         end   
 
-        if (isnothing(lastg) || hess_method=="no-update") #first step
+        if (isnothing(lastg) || hess_method=="no-update") 
             ϕ += T(α)*Hϕ⁻¹*g
             lastHg = deepcopy(T(α)*Hϕ⁻¹*g)
-        else   #subsequent steps
+        else   
             Hg, H = get_lbfgs_Hg(g, lastg, lastHg, H,
                                 (_,η)->(Hϕ⁻¹*η))
             ϕ += Hg            
@@ -311,6 +311,14 @@ function MAP_marg(
             diffϕ=sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - lastϕ))) / sqrt(2length(ϕ))))
         end   
         
+        push!(history, select((;g,ϕ,lastHg=Map(lastHg),diffϕ), history_keys))
+        next!(pbar, showvalues=[
+            ("step",niter), 
+            ("Ncg (data)", length(state.gQD.history)), 
+            ("Ncg (sims)", niter<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
+            ("α",α)
+        ])
+
         if ( (!isnothing(lastϕ) && !isnothing(ϕtol) &&  diffϕ < ϕtol)||
               niter >= nsteps
             )
@@ -320,13 +328,6 @@ function MAP_marg(
             niter += 1
         end
 
-        push!(history, select((;g,ϕ,Hg=lastHg,diffϕ), history_keys))
-        next!(pbar, showvalues=[
-            ("step",niter), 
-            ("Ncg (data)", length(state.gQD.history)), 
-            ("Ncg (sims)", niter<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
-            ("α",α)
-        ])
     end
     ProgressMeter.finish!(pbar)
 
