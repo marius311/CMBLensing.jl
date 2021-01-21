@@ -19,4 +19,7 @@ scripts/
 test/benchmarks
 !.github/**
 docs/src/*.ipynb
+docs/build
+docs/src-staging/0*
+profiling
 posts

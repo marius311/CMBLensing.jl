@@ -54,16 +54,7 @@ macro dict(exs...)
     :(Dict($((kv(ex) for ex=exs)...)))
 end
 
-""" 
-Pack some variables into a NamedTuple. E.g.:
 
-```julia
-> x = 3
-> y = 4
-> @namedtuple(x, y, z=5)
-(x=3,y=4,z=5)
-```
-"""
 macro namedtuple(exs...)
     Base.depwarn("@namedtuple(x,y) is deprecated and will be removed soon, just use the built-in Julia (;x,y) now.", nothing)
     if length(exs)==1 && isexpr(exs[1],:tuple)
@@ -435,9 +426,9 @@ select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_err
 
 is equivalent to 
 
-    ##foo(args...; kwargs...) = body
-    foo(args...; kwargs...) = ##foo(args...; kwargs...)
-    @adjoint foo(args...; kwargs...) = Zygote.pullback(##foo, args...; kwargs...)
+    _foo(args...; kwargs...) = body
+    foo(args...; kwargs...) = _foo(args...; kwargs...)
+    @adjoint foo(args...; kwargs...) = Zygote.pullback(_foo, args...; kwargs...)
 
 That is, it defines the function as well as a Zygote adjoint which
 takes a gradient explicitly through the body of the function, rather

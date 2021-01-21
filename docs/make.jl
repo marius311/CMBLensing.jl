@@ -30,9 +30,10 @@ for file in readdir("src")
     if endswith(file, "ipynb")
         file |> convert_to_markdown |> convert_equations
     elseif !startswith(file, ".")
-        cp("src/$file", "src-staging/$file")
+        cp("src/$file", "src-staging/$file", force=true)
     end
 end
+rm("src-staging/index.md",force=true)
 symlink("../../README.md","src-staging/index.md")
 
 
@@ -152,10 +153,11 @@ makedocs(
     ],
 )
 
-open("build/Dockerfile","w") do io
-    write(io,"FROM $(ENV["IMAGE_NAME"])")
+if haskey(ENV, "IMAGE_NAME")
+    open("build/Dockerfile","w") do io
+        write(io,"FROM $(ENV["IMAGE_NAME"])")
+    end
 end
-
 
 deploydocs(
     repo = "github.com/marius311/CMBLensing.jl.git",

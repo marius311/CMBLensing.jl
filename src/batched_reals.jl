@@ -12,7 +12,7 @@ end
 
 batch(r::Real) = r
 batch(rs::Real...) = BatchedReal(rs)
-batch(v::AbstractVector) = BatchedReal(collect(v))
+batch(v::AbstractVector{<:Real}) = BatchedReal(collect(v))
 batch_length(br::BatchedReal) = length(br.vals)
 batch_length(::Real) = 1
 batch_index(br::BatchedReal, I) = getindex(br.vals, I)

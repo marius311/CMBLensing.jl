@@ -5,7 +5,7 @@ export quadratic_estimate
     quadratic_estimate(ds::DataSet, which; wiener_filtered=true)
     quadratic_estimate((ds₁::DataSet, ds₂::DataSet), which; wiener_filtered=true)
 
-Compute quadratic estimate of ϕ given data.
+Compute the quadratic estimate of `ϕ` given data.
 
 The `ds` or `(ds₁,ds₂)` tuple contain the DataSet object(s) which house the
 data and covariances used in the estimate. Note that only the Fourier-diagonal
@@ -20,7 +20,7 @@ An optional keyword argument `AL` can be passed in case the QE normalization
 was already computed, in which case it won't be recomputed during the
 calculation.
 
-Returns a NamedTuple `(ϕqe, AL, Nϕ)` where `ϕqe` is the (possibly Wiener
+Returns a named tuple of `(;ϕqe, AL, Nϕ)` where `ϕqe` is the (possibly Wiener
 filtered, depending on `wiener_filtered` option) quadratic estimate, `AL` is the
 normalization (which is already applied to ϕqe, it does not need to be applied
 again), and `Nϕ` is the analytic N⁰ noise bias (Nϕ==AL if using unlensed
@@ -48,6 +48,8 @@ quadratic_estimate(ds::DataSet, args...; kwargs...) = quadratic_estimate((ds,ds)
 
 
 @doc doc"""
+
+    QE_leg(C::Diagonal, inds...)
 
 The quadratic estimate and normalization expressions all consist of
 terms involving products of two "legs", each leg which look like:

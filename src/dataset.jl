@@ -92,22 +92,24 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 
 
 @doc doc"""
-    resimulate(ds::DataSet; [f, ϕ, n])
-    
-Make a new DataSet with the data replaced by a simulation, potentially given a
-fixed f, ϕ, or n, if any are provided. 
+    resimulate(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
 
-Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+Make a new DataSet with the data replaced by a simulation. Keyword
+argument fields will be used instead of new simulations, if they are
+provided. 
+
+Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
 """
 resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
 
 @doc doc"""
-    resimulate!(ds::DataSet; [f, ϕ, n])
-    
-Replace the data in this DataSet in-place with a simulation, potentially given a
-fixed f, ϕ, or n, if any are provided. 
-    
-Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+    resimulate!(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
+
+Replace the data in this DataSet in-place with a simulation. Keyword
+argument fields will be used instead of new simulations, if they are
+provided. 
+
+Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
 """
 function resimulate!(
     ds::DataSet; 
@@ -141,21 +143,49 @@ end
 
 
 @doc doc"""
-    load_sim
-    
-Create a `BaseDataSet` object with some simulated data, returing the DataSet
-and simulated truths. E.g.
+
+    load_sim(;kwargs...)
+
+The starting point for many typical sessions. Creates a `BaseDataSet`
+object with some simulated data, returing the DataSet and simulated
+truths, which can then be passed to other maximization / sampling
+functions. E.g.:
 
 ```julia
 @unpack f,ϕ,ds = load_sim(;
     θpix  = 2,
     Nside = 128,
-    pol   = :I,
+    pol   = :P,
     T     = Float32
-);
+)
 ```
-For rectangular maps, Nside expects (Ny, Nx), i.e. (Nrow, Ncol). 
-If Nside isa Int, the code interprets it as a square map.
+
+Keyword arguments: 
+
+* `θpix` — Angular resolution, in arcmin. 
+* `Nside` — Number of pixels in the map as an `(Ny,Nx)` tuple, or a
+  single number for square maps. 
+* `pol` — One of `:I`, `:P`, or `:IP` to select intensity,
+  polarization, or both. 
+* `T = Float32` — Precision, either `Float32` or `Float64`.
+* `storage = Array` — Set to `CuArray` to use GPU.
+* `Nbatch = 1` — Number of batches of data in this dataset.
+* `μKarcminT = 3` — Noise level in temperature in μK-arcmin.
+* `ℓknee = 100` — 1/f noise knee.
+* `αknee = 3` — 1/f noise slope.
+* `beamFWHM = 0` — Beam full-width-half-max in arcmin.
+* `pixel_mask_kwargs = (;)` — NamedTuple of keyword arguments to
+  pass to `make_mask` to create the pixel mask.
+* `bandpass_mask = LowPass(3000)` — Operator which performs
+  Fourier-space masking.
+* `fiducial_θ = (;)` — NamedTuple of keyword arguments passed to
+  `camb()` for the fiducial model.
+* `seed = nothing` — Specific seed for the simulation.
+* `L = LenseFlow` — Lensing operator.
+
+Returns a named tuple of `(;f, f̃, ϕ, n, ds, Cℓ, proj)`.
+
+
 """
 function load_sim(;
     

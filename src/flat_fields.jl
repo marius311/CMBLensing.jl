@@ -64,6 +64,21 @@ HarmonicBasis(::Type{<:FlatQU}) = QUFourier
 HarmonicBasis(::Type{<:FlatEB}) = EBFourier
 
 
+# useful for enumerating some cases below
+_sub_components = [
+    (:FlatMap,        ("Ix"=>:, "I"=>:)),
+    (:FlatFourier,    ("Il"=>:, "I"=>:)),
+    (:FlatQUMap,      ("Qx"=>1, "Ux"=>2, "Q" =>1, "U"=>2, "P"=>:)),
+    (:FlatQUFourier,  ("Ql"=>1, "Ul"=>2, "Q" =>1, "U"=>2, "P"=>:)),
+    (:FlatEBMap,      ("Ex"=>1, "Bx"=>2, "E" =>1, "B"=>2, "P"=>:)),
+    (:FlatEBFourier,  ("El"=>1, "Bl"=>2, "E" =>1, "B"=>2, "P"=>:)),
+    (:FlatIQUMap,     ("Ix"=>1, "Qx"=>2, "Ux"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
+    (:FlatIQUFourier, ("Il"=>1, "Ql"=>2, "Ul"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
+    (:FlatIEBMap,     ("Ix"=>1, "Ex"=>2, "Bx"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
+    (:FlatIEBFourier, ("Il"=>1, "El"=>2, "Bl"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
+]
+
+
 ### constructors
 # the default constructor uses ProjLambert, but the code in this file
 # should be agnostic to the projection type
@@ -104,8 +119,46 @@ function FlatField{B}(X::FlatField{B₀}, Y::FlatField{B₀}, Z::FlatField{B₀}
     FlatField{B}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), get_metadata_strict(X, Y, Z))
 end
 
+## docstrings
+for (F, props) in _sub_components
+    
+    B        = basis(@eval($F))
+    origin   = B <: BasisProd ? "some `AbstractArrays`" : "an `AbstractArray`"
+    dims     = B <: SpatialBasis{Map} ? "(Ny,Nx[,Nbatch])" : "(Ny÷2+1,Nx[,Nbatch])"
+    F₀       = B <: SpatialBasis{Map} ? "FlatMap" : "FlatFourier"
+    arr_args = join(["$X::AbstractArray" for X in first.(props) if endswith(X,r"[xl]")], ", ")
+    f_args   = join(["$(X[1])::$F₀" for X in first.(props) if endswith(X,r"[xl]")], ", ")
+    Ny_req   = B <: SpatialBasis{Fourier} ? "`Ny` must be given as keyword argument. " : ""
 
-# todo: doc strings
+    doc = """
+        $F($arr_args; $(B <: SpatialBasis{Fourier} ? "Ny, " : "")[θpix=1]) 
+        $F($arr_args, proj::FieldMetadata)
+
+    Construct a `$F` object from $origin. The array dimensions should
+    be `$dims`, where `Ny` and `Nx` are the number of pixels in the
+    map in the y/x direction, and `Nbatch` is an optional batch
+    dimension. $Ny_req `θpix` is the angular resolution in arcmin
+    (default=1). A second positional argument `proj` can be used
+    instead of keyword arguments to specify the projection/metadata
+    (currently the only builtin projection is [`ProjLambert`](@ref),
+    which is the default if keyword arguments are used).
+    """
+
+    if B <: BasisProd
+        doc *= """
+
+            $F($f_args)
+
+        Construct a `$F` object from other `$F₀` objects.
+        Projection/metadata and batch size is required to be the same
+        for the arguments.
+        """
+    end
+
+    @eval @doc $doc $F
+end
+
+
 
 ### array interface
 # most is inherited from BaseField. the main thing we have specify
@@ -123,27 +176,17 @@ getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::FlatField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
 # sub-components
-for (F, keys) in [
-    (FlatMap,        ("Ix"=>:, "I"=>:)),
-    (FlatFourier,    ("Il"=>:, "I"=>:)),
-    (FlatQUMap,      ("Qx"=>1, "Ux"=>2, "Q" =>1, "U"=>2, "P"=>:)),
-    (FlatQUFourier,  ("Ql"=>1, "Ul"=>2, "Q" =>1, "U"=>2, "P"=>:)),
-    (FlatEBMap,      ("Ex"=>1, "Bx"=>2, "E" =>1, "B"=>2, "P"=>:)),
-    (FlatEBFourier,  ("El"=>1, "Bl"=>2, "E" =>1, "B"=>2, "P"=>:)),
-    (FlatIQUMap,     ("Ix"=>1, "Qx"=>2, "Ux"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
-    (FlatIQUFourier, ("Il"=>1, "Ql"=>2, "Ul"=>3, "I"=>1, "Q"=>2, "U"=>3, "P"=>2:3, "IP"=>:)),
-    (FlatIEBMap,     ("Ix"=>1, "Ex"=>2, "Bx"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
-    (FlatIEBFourier, ("Il"=>1, "El"=>2, "Bl"=>3, "I"=>1, "E"=>2, "B"=>3, "P"=>2:3, "IP"=>:)),
-]
-    for (k,I) in keys
+for (F, props) in _sub_components
+    for (k,I) in props
         body = if k[end] in "xl"
             I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...))
         else
-            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(F).parameters[end-1:end]...} : basis(F).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
+            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
         end
         @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M<:FlatProj,T,N,A<:AbstractArray{T,N}} = $body
     end
 end
+
 
 
 ### indices
@@ -332,7 +375,7 @@ end
 
 ### simulation
 _white_noise(ξ::FlatField, rng::AbstractRNG) = 
-    (randn!(similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
+    (randn!(rng, similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
 white_noise(ξ::FlatS0,  rng::AbstractRNG) = FlatMap(_white_noise(ξ,rng)...)
 white_noise(ξ::FlatS2,  rng::AbstractRNG) = FlatEBMap(_white_noise(ξ,rng)...)
 white_noise(ξ::FlatS02, rng::AbstractRNG) = FlatIEBMap(_white_noise(ξ,rng)...)
@@ -457,13 +500,13 @@ batch_length(f::FlatField) = f.Nbatch
 """
     batch(fs::FlatField...)
     batch(fs::Vector{<:FlatField})
-    batch(fs::TUple{<:FlatField})
 
 Concatenate one of more FlatFields along the "batch" dimension
 (dimension 4 of the underlying array). For the inverse operation, see
 [`unbatch`](@ref). 
 """
-batch(fs::FlatField{B}...) where {B} = 
+batch(fs::FlatField{B}...) where {B} = batch(collect(fs))
+batch(fs::AbstractVector{<:FlatField{B}}) where {B} =
     FlatField{B}(cat(getfield.(fs,:arr)..., dims=Val(4)), only(unique(getfield.(fs,:metadata))))
 
 """

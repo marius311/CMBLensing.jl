@@ -26,7 +26,7 @@ using Match
 using Markdown
 using Measurements
 using Memoization
-using NamedTupleTools: select
+using NamedTupleTools: select, delete
 using OptimKit
 using Pkg
 using Printf
@@ -36,6 +36,7 @@ using Random
 using Random: seed!, AbstractRNG
 using Roots
 using Requires
+using Serialization
 using Setfield
 using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
@@ -65,26 +66,26 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @BandpowerParamOp, @ismain, @namedtuple, @repeated, @unpack, animate,
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
     FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
-    firsthalf, fixed_white_noise, Flat, FlatEB, FlatEBFourier, FlatEBMap, FlatField, 
-    FlatFieldFourier, FlatFieldMap, FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap,
+    firsthalf, fixed_white_noise, FlatEB, FlatEBFourier, FlatEBMap, FlatField, 
+    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap,
     FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0,
-    FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, fourier∂, FuncOp, get_Cℓ,
+    FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, FuncOp, get_Cℓ,
     get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    map∂, mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
-    resimulate, RK4Solver, S0, S02, S2, sample_joint, shiftℓ,
+    resimulate, RK4Solver, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    tuple_adjoint, ud_grade, unbatch, unmix, white_noise, Ð, Ł, δfϕ_δf̃ϕ, 
-    ℓ², ℓ⁴, ∇, ∇², ∇¹, ∇ᵢ, ∇⁰, ∇ⁱ, ∇₀, ∇₁, ⋅, ⨳
+    ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
+    ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
     
 # generic stuff
 include("util.jl")

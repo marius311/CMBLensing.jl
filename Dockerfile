@@ -28,7 +28,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.1-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -53,14 +53,13 @@ RUN curl https://pyenv.run | bash \
 RUN pip install --no-cache-dir \
         cython \
         julia \
-        jupyterlab \
+        jupyterlab==3 \
         jupytext \
         matplotlib \
         "nbconvert<6" \
         numpy \
         scipy \
         setuptools \
-    && jupyter labextension install @jupyterlab/toc \
     && rm -rf $HOME/.cache
 
 ## install CAMB
@@ -89,7 +88,7 @@ COPY --chown=1000 Project.toml $HOME/CMBLensing/
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate; precompile"' \
+RUN julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
 RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')

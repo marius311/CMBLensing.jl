@@ -133,36 +133,41 @@ end
 
 @doc doc"""
     sample_joint(ds::DataSet; kwargs...)
-    
-Sample the joint posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$. 
 
+Sample the joint posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$. 
 
 Keyword arguments: 
 
-* `nsamps_per_chain` — *(required)* The number of samples per chain
-* `nchains` — Run `nchains` chains in parallel *(default: 1)*
-* `nchunk` — Do `nchunk` steps between parallel chain communication *(default: 1)*
-* `nsavemaps` — Save maps into chain every `nsavemaps` steps *(default: 1)*
-* `nburnin_always_accept` — The first `nburnin_always_accept` steps, always accept
-                            HMC steps independent of integration error *(default: 0)*
-* `nburnin_fixθ` — For the first `nburnin_fixθ` steps, fix θ at its starting point *(default: 0)*
-* `Nϕ` — Noise to use in the HMC mass matrix. can also give `Nϕ=:qe` to use the 
-         EB quadratic estimate noise *(default: `:qe`)*
-* `chains` — `nothing` to start a new chain; the return value from a previous call to
-             `sample_joint` to resume those chains; `:resume` to resume chains
-             from a file given by `filename`
-* `θrange` — Range and density to grid sample parameters as a NamedTuple, 
-             e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
-* `θstart` — Starting values of parameters as a NamedTuple, e.g. `(Aϕ=1.2,)`, 
-             or nothing to randomly sample from θrange
-* `ϕstart` — Starting ϕ, either a `Field` object, `:quasi_sample`, or `:best_fit`
+* `nsamps_per_chain` — The number of samples per chain.
+* `nchains = 1` — Number of chains in parallel.
+* `nchunk = 1` — Number of steps between parallel chain communication.
+* `nsavemaps = 1` — Number of steps in between saving maps into chain.
+* `nburnin_always_accept = 0` — Number of steps at the beginning of
+  the chain to always accept HMC steps regardless of integration
+  error.
+* `nburnin_fixθ = 0` — Number of steps at the beginning of the chain
+  before starting to sample `θ`.
+* `Nϕ = :qe` — Noise to use in the initial approximation to the
+  Hessian. Can give `:qe` to use the quadratic estimate noise.
+* `chains = nothing` — `nothing` to start a new chain; the return
+  value from a previous call to `sample_joint` to resume those chains;
+  `:resume` to resume chains from a file given by `filename`
+* `θrange` — Range and density to grid sample parameters as a
+  NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
+* `θstart` — Starting values of parameters as a NamedTuple, e.g.
+  `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
+* `ϕstart` — Starting `ϕ`, either a `Field` object, `:quasi_sample`,
+  or `:best_fit`
 * `metadata` — Does nothing, but is saved into the chain file
-* `nhmc` — The number of HMC passes per ϕ Gibbs step *(default: 1)*
-* `symp_kwargs` — an array of NamedTupe kwargs to pass to [`symplectic_integrate`](@ref). 
-                  E.g. `[(N=50,ϵ=0.1),(N=25,ϵ=0.01)]` would do 50 large steps then 25 
-                  smaller steps per each Gibbs pass. If specified, `nhmc` is ignored.
-* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_lnP`](@ref) in the Wiener Filter Gibbs step.
-* `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when computing the starting point.
+* `nhmc = 1` — Number of HMC passes per `ϕ` Gibbs step.
+* `symp_kwargs = fill((N=25, ϵ=0.01), nhmc)` — an array of NamedTupe
+  kwargs to pass to [`symplectic_integrate`](@ref). E.g.
+  `[(N=50,ϵ=0.1),(N=25,ϵ=0.01)]` would do 50 large steps then 25
+  smaller steps per each Gibbs pass. If specified, `nhmc` is ignored.
+* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_lnP`](@ref) in
+  the Wiener Filter Gibbs step.
+* `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when
+  computing the starting point.
 """
 function sample_joint(
     ds :: DataSet;

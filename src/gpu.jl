@@ -24,6 +24,8 @@ global_rng_for(::Type{<:CuArray}) = curand_rng()
 gpu(x) = adapt_structure(CuArray, x)
 
 
+adapt_structure(::CUDA.Float32Adaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
+
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
     # todo: remove needing to go through cpu here:
@@ -132,7 +134,7 @@ Assuming you submitted a SLURM job and got several GPUs, possibly across several
 nodes, this assigns each Julia worker process a unique GPU using `CUDA.device!`.
 """
 function assign_GPU_workers()
-    @everywhere @eval Main using CUDA, Distributed
+    @everywhere @eval Main using CUDA, Distributed, CMBLensing
     master_uuid = CUDA.uuid(device())
     accessible_gpus = Dict(map(workers()) do id
         @eval Main @fetchfrom $id begin
@@ -152,7 +154,7 @@ function assign_GPU_workers()
         error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
     end)
     @everywhere workers() device!($assignments[myid()])
-    @info GPU_worker_info()
+    println(GPU_worker_info())
 end
 
 """
