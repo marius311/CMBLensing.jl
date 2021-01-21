@@ -8,7 +8,7 @@ jobs:
     continue-on-error: ${{ matrix.experimental == 'nightly' }}
     strategy:
       matrix:
-        julia-version: ['1.5']
+        julia-version: ['1.5', '1.6-nightly']
         os: [ubuntu-latest]
         JULIA_FFTW_PROVIDER: ['MKL','FFTW']
       fail-fast: false
