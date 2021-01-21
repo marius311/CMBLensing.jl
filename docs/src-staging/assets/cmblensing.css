@@ -7,7 +7,7 @@ pre.language-output {
     src: url("JuliaMono-Regular.ttf");
 }
 
-pre, code, kbd {
-  font-family: 'JuliaMono-Regular', Monaco, courier, monospace;
-  font-size: 0.90em;
+code, pre {
+  font-family: 'JuliaMono-Regular', Monaco, courier, monospace !important;
+  font-size: 0.90em !important;
 }

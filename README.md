@@ -41,6 +41,7 @@ You can also clone the repostiory and open the notebooks in [docs/src](https://g
 * _(recommended)_ FFTW.jl built with [`JULIA_FFTW_PROVIDER=MKL`](https://juliamath.github.io/FFTW.jl/stable/#Installation-1) for faster CPU FFTs 
 * _(recommended)_ Python 3 + matplotlib (used for plotting)
 * _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
+* _(recommended)_ [JuliaMono](https://github.com/cormullion/juliamono/releases) font to ensure characters like `f̃, ϕ, ∇, ℓ`, etc... are rendered correctly
 * _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
 ### Native installation
