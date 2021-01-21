@@ -230,21 +230,33 @@ OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
 Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior,
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
+Keyword arguments (same as MAP_joint unless otherwise stated)
+* hess_method: "no-update"; "lbfgs-hessian" updates the Hessian with the
+L-BFGS algorithm without the linesearch.
+* α: scale the "no-update" approximate Hessian by this number.
+All hess_methods use this as first step.
+* nsteps_with_meanfield_update: number of steps that explicitly computes
+the mean-field.
+
 """
 MAP_marg(ds::DataSet; kwargs...) = MAP_marg(NamedTuple(), ds; kwargs...)
 function MAP_marg(
     θ,
     ds :: DataSet;
-    ϕstart = nothing,
-    Nϕ = :qe,
     nsteps = 10, 
+    ϕstart = nothing,
+    ϕtol = nothing,
+    lbfgs_rank = 5,
+    Nϕ = :qe,
     nsteps_with_meanfield_update = 4,
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     α = 0.2,
+    hess_method="no-update",
     weights = :unlensed, 
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
+    history_keys = (:ϕ),
     aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
 )
     
@@ -261,31 +273,105 @@ function MAP_marg(
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
-    tr = []
+    history = []
     state = nothing
+    lastϕ = nothing
+    lastg = nothing
+    lastHg = nothing
+    diffϕ = nothing
+    H = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
     ProgressMeter.update!(pbar)
 
-    for i=1:nsteps
+    niter = 1
+    while true
         aggressive_gc && cuda_gc()
         g, state = δlnP_δϕ(
             ϕ, θ, ds;
-            use_previous_MF = i>nsteps_with_meanfield_update,
+            use_previous_MF = niter>nsteps_with_meanfield_update,
             progress = false, return_state = true, previous_state = state,
             Nsims, Nbatch, weights, conjgrad_kwargs, aggressive_gc
         )
-        ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr, @dict(i,g,ϕ))
+        if (hess_method == "lbfgs-hessian" && isnothing(lastg)); 
+            H = initHessian(g,lbfgs_rank) 
+        end   
+
+        if (isnothing(lastg) || hess_method=="no-update") #first step
+            ϕ += T(α)*Hϕ⁻¹*g
+            lastHg = deepcopy(T(α)*Hϕ⁻¹*g)
+        else   #subsequent steps
+            Hg, H = get_lbfgs_Hg(g, lastg, lastHg, H,
+                                (_,η)->(Hϕ⁻¹*η))
+            ϕ += Hg            
+            lastHg = deepcopy(Hg)
+        end
+        lastg = deepcopy(g)
+
+        if !isnothing(lastϕ)
+            diffϕ=sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - lastϕ))) / sqrt(2length(ϕ))))
+        end   
+        
+        if ( (!isnothing(lastϕ) && !isnothing(ϕtol) &&  diffϕ < ϕtol)||
+              niter >= nsteps
+            )
+            break
+        else            
+            lastϕ = deepcopy(ϕ)
+            niter += 1
+        end
+
+        push!(history, select((;g,ϕ,Hg=lastHg,diffϕ), history_keys))
         next!(pbar, showvalues=[
-            ("step",i), 
+            ("step",niter), 
             ("Ncg (data)", length(state.gQD.history)), 
-            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
+            ("Ncg (sims)", niter<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
             ("α",α)
         ])
     end
+    ProgressMeter.finish!(pbar)
 
     set_distributed_dataset(nothing) # free memory, which got used inside δlnP_δϕ
     
-    return ϕ, tr
-
+    return ϕ, history
 end
+
+function initHessian(g, lbfgs_rank)
+    #for g returned by δlnP_δϕ
+    TangentType = typeof(g)
+    ScalarType = typeof(sum(unbatch(dot(g,g))))
+
+    H = OptimKit.LBFGSInverseHessian(lbfgs_rank,
+                TangentType[], TangentType[], ScalarType[])
+    return H
+end
+
+
+function get_lbfgs_Hg(g::Field, gprev::Field, ηprev::Field,
+                      H::OptimKit.LBFGSInverseHessian,
+                      precondition; #(_,η)->(Hϕ⁻¹*η)
+                      inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
+                      scale! = OptimKit._scale!, 
+                      add! = OptimKit._add!)
+    #following convention in OptimKit.LBFGS for 
+    #minimal confusion
+
+    y = g .- gprev
+    s = ηprev
+
+    innersy = inner(0,s,y)
+    innerss = inner(0,s,s)
+
+    norms = sqrt(innerss)
+    ρ = innerss/innersy
+    OptimKit.push!(H, (scale!(s, 1/norms), scale!(y, 1/norms), ρ))
+
+    Hg = H(g, ξ->precondition(0, ξ), (ξ1, ξ2)->inner(0, ξ1, ξ2), add!, scale!)
+
+    η = scale!(Hg, -1)
+
+    return η, H
+end
+
+
+
+
