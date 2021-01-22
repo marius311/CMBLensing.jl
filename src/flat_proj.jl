@@ -106,7 +106,7 @@ end
 function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ∇d::∇diag) where {S,B}
 
     (B <: Union{Fourier,QUFourier,IQUFourier}) ||
-        error("Can't broadcast ∇² as a $(typealias(B)), its not diagonal in this basis.")
+        error("Can't broadcast ∇[$(∇d.coord)] as a $(typealias(B)), its not diagonal in this basis.")
 
     # turn both into 2D matrices so this function is type-stable
     # (reshape doesnt actually make a copy here, so this doesn't

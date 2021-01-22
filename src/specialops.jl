@@ -30,6 +30,15 @@ hash(D::DiagOp, h::UInt64) = foldr(hash, (typeof(D), D.diag), init=h)
 # adapting
 get_storage(D::DiagOp) = get_storage(diag(D))
 
+# allows broadcasting over DiagOps
+struct DiagOpStyle{S} <: AbstractArrayStyle{2} end
+BroadcastStyle(::Type{Diagonal{T,F}}) where {T,F<:Field} = DiagOpStyle{typeof(BroadcastStyle(F))}()
+BroadcastStyle(::DiagOpStyle{S₁}, ::DiagOpStyle{S₂}) where {S₁,S₂} = DiagOpStyle{typeof(result_style(S₁(), S₂()))}()
+materialize(bc::Broadcasted{DiagOpStyle{S}}) where {S} = Diagonal(materialize(convert(Broadcasted{S}, preprocess(DiagOpStyle{S}(), bc))))
+materialize!(dest::DiagOp, bc::Broadcasted{DiagOpStyle{S}}) where {S} = 
+    (materialize!(diag(dest), convert(Broadcasted{S}, preprocess(DiagOpStyle{S}(), bc))); dest)
+preprocess(::DiagOpStyle, D::Diagonal) = diag(D)
+
 
 ### Derivative ops
 

@@ -159,7 +159,7 @@ end
             @test (@inferred f + B(Float32.(f))) isa typeof(f)
             
             # Diagonal broadcasting
-            @test_broken (@inferred Diagonal(f) .* Diagonal(f) .* Diagonal(f)) isa typeof(Diagonal(f))
+            @test (@inferred Diagonal(f) .* Diagonal(f) .* Diagonal(f)) isa typeof(Diagonal(f))
             
             # inverses
             @test (@inferred pinv(Diagonal(f))) isa Diagonal{<:Any,<:typeof(f)}
@@ -332,7 +332,7 @@ end
 
         f = maybegpu(FlatMap(rand(Nside...)))
         
-        @test_broken           @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
+        @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
         @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
 
     end

@@ -1,13 +1,14 @@
 
-# length-2 StaticVectors or 2x2 StaticMatrices of Fields or LinOps are what we
-# consider "Field or Op" arrays, for which we define some special behavior
-# note: these are non-concrete types to accomodate ∇ which is a custom
-# StaticVector rather than an SVector (this doesn't hurt performance anywhere)
+# imlements some behavior for length-2 StaticVectors and 2x2
+# StaticMatrices of Fields or FieldOps. these come up when you do
+# gradients, e.g. ∇*ϕ is a vector of Fields. 
+
+# where elements are Fields or FieldOps
 const FieldOrOpVector{F<:FieldOrOp}    = StaticVector{2,F}
 const FieldOrOpMatrix{F<:FieldOrOp}    = StaticMatrix{2,2,F}
 const FieldOrOpRowVector{F<:FieldOrOp} = Adjoint{<:Any,<:FieldOrOpVector{F}}
 const FieldOrOpArray{F<:FieldOrOp}     = Union{FieldOrOpVector{F}, FieldOrOpMatrix{F}, FieldOrOpRowVector{F}}
-# or just Fields (in this case, they are concrete)
+# where elements are just Fields
 const FieldVector{F<:Field}    = SVector{2,F}
 const FieldMatrix{F<:Field}    = SMatrix{2,2,F,4}
 const FieldRowVector{F<:Field} = FieldOrOpRowVector{F}
@@ -54,12 +55,12 @@ mul!(v::FieldVector, x::Diagonal, w::FieldOrOpVector{<:Diagonal}, f::Field) =
 mul!(v::FieldVector, f::SpinAdjoint, w::FieldVector) = (mul!(v[1], f, w[1]); mul!(v[2], f, w[2]); v)
 
 function pinv!(dst::FieldOrOpMatrix{<:Diagonal}, src::FieldOrOpMatrix{<:Diagonal})
-    a,b,c,d = diag.(src)
-    det⁻¹ = diag(pinv(Diagonal(@. a*d-b*c)))
-    @. dst[1,1].diag =  det⁻¹ * d
-    @. dst[1,2].diag = -det⁻¹ * b
-    @. dst[2,1].diag = -det⁻¹ * c
-    @. dst[2,2].diag =  det⁻¹ * a
+    a,b,c,d = src
+    det⁻¹ = pinv(@. a*d-b*c)
+    @. dst[1,1] =  det⁻¹ * d
+    @. dst[1,2] = -det⁻¹ * b
+    @. dst[2,1] = -det⁻¹ * c
+    @. dst[2,2] =  det⁻¹ * a
     dst
 end
 
