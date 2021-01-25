@@ -125,7 +125,7 @@ function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ł∇f = Ł(Ð∇f)
         @! v   = p' * Ł∇f
     end
-    return (v!, copyto!(L.memŁf,Ł(f₀)))
+    return (v!, L.memŁf .= Ł(f₀))
 end
 
 function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
@@ -138,7 +138,7 @@ function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
         @! Ð_Łf_p = Ð(Łf_p)
         @! v = -∇ᵢ' * Ð_Łf_p
     end
-    return (v!, copyto!(L.memÐf,Ð(f₀)))
+    return (v!, L.memÐf .= Ð(f₀))
 end
 
 function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)
@@ -177,19 +177,20 @@ function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTupl
     
     end
     
-    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), copyto!(L.memÐϕ,Ð(zero(getϕ(L))))))
+    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), L.memÐϕ .= Ð(zero(getϕ(L)))))
     
 end
 
 # adapting storage
 adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))
 function adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁}
-    # we dont need to actually copy the memory in the L.mem*
-    # variables, just allocate it on the new storage. 
-    Lϕ′ = alloc_cache(LenseFlow{RK4Solver{N},t₀,t₁}(adapt(storage,Lϕ.ϕ[])), adapt(storage,Lϕ.memŁf))
-    for t in keys(Lϕ′.p)
-        copyto!.(Lϕ′.p[t],   Lϕ.p[t])
-        copyto!.(Lϕ′.M⁻¹[t], Lϕ.M⁻¹[t])
-    end
-    Lϕ′
+    _adapt(x) = adapt(storage, x)
+    memŁf, memÐf, memŁϕ, memÐϕ = _adapt(Lϕ.memŁf), _adapt(Lϕ.memÐf), _adapt(Lϕ.memŁϕ), _adapt(Lϕ.memÐϕ)
+    CachedLenseFlow{N,t₀,t₁,typeof(memŁϕ),typeof(memÐϕ),typeof(memŁf),typeof(memÐf),eltype(memŁϕ)}(
+        Ref(_adapt(Lϕ.ϕ[])), 
+        Dict(t => _adapt.(x) for (t,x) in Lϕ.p),
+        Dict(t => _adapt.(x) for (t,x) in Lϕ.M⁻¹),
+        memŁf, memÐf, _adapt.(Lϕ.memŁvf), _adapt.(Lϕ.memÐvf),
+        memŁϕ, memÐϕ, _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)
+    )
 end

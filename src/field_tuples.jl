@@ -26,7 +26,7 @@ typealias_def(::Type{<:FieldTuple{FS,T}}) where {FS<:Tuple,T} =
 
 ### array interface
 size(f::FieldTuple) = (mapreduce(length, +, f.fs, init=0),)
-copyto!(dest::FieldTuple, src::FieldTuple) = (map(copyto!,dest.fs,src.fs); dest)
+copy(f::FieldTuple) = FieldTuple(map(copy,f.fs))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)

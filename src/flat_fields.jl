@@ -403,7 +403,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _A = $preprocess.(Ref((nothing,C₀.metadata)), T.($θname))
+            _A = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
             Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, _A...), C₀.metadata))
         end)
     end
@@ -412,8 +412,8 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _E = $preprocess.(Ref((nothing,C₀.metadata)),      T.($θname))
-            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.(T.($θname)))
+            _E = $preprocess.(Ref((nothing,C₀.metadata)),      $T.($ensure1d($θname)))
+            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($T.($ensure1d($θname))))
             Diagonal(FlatEBFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.El, _E...), C₀.Bl .* _B[1], C₀.metadata))
         end)
     end
@@ -456,7 +456,7 @@ function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Ba
     FlatMap(dropdims(sum(a.f.arr .* b.arr, dims=3), dims=((a.f.Nbatch>1 || b.Nbatch>1) ? 3 : ())), get_metadata_strict(a, b))
 end
 function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
-    copyto!(dst.arr, sum(a.f.arr .* b.arr, dims=3))
+    dst.arr .= reshape(sum(a.f.arr .* b.arr, dims=3), size(dst.arr))
     dst
 end
 
@@ -490,7 +490,7 @@ simulate(rng::AbstractRNG, L::FlatIEBCov; Nbatch=nothing) =
 *(D::DiagOp{<:FlatIEBFourier}, L::FlatIEBCov) = L * D
 +(U::UniformScaling{<:Scalar}, L::FlatIEBCov) = L + U
 *(λ::Scalar, L::FlatIEBCov) = L * λ
-copyto!(dst::Σ, src::Σ) where {Σ<:FlatIEBCov} = (copyto!(dst.ΣB, src.ΣB); copyto!.(dst.ΣTE, src.ΣTE); dst)
+# copyto!(dst::Σ, src::Σ) where {Σ<:FlatIEBCov} = (copyto!(dst.ΣB, src.ΣB); copyto!.(dst.ΣTE, src.ΣTE); dst)
 
 
 ### batching

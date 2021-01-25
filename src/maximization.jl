@@ -51,7 +51,7 @@ function argmaxf_lnP(
     
     A_preconditioner = @match preconditioner begin
         :diag  => A_diag
-        :zeroϕ => FuncOp(op⁻¹ = (b -> conjugate_gradient(A_diag, A_zeroϕ, b, 0*b, tol=1e-1)))
+        :zeroϕ => FuncOp(op⁻¹ = (b -> (conjugate_gradient(A_diag, A_zeroϕ, b, zero(b); conjgrad_kwargs.tol))))
         _      => error("Unrecognized preconditioner='$preconditioner'")
     end
     

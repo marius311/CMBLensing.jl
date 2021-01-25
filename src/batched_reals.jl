@@ -36,3 +36,11 @@ unbatch(r::Real; dims=nothing) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
 Base.hash(bv::BatchedReal, h::UInt) = foldr(hash, (typeof(bv), bv.vals), init=h)
+
+
+# used to denote a batch of things, no other functionality
+struct BatchedVal{V<:Vector}
+    vals :: V
+end
+batch(v::AbstractVector) = BatchedVal(v)
+batch_index(bv::BatchedVal, I) = getindex(bv.vals, I)

@@ -144,9 +144,9 @@ function unbatch(chain::Chain)
             Dict(map(collect(samp)) do (k,v)
                 if v isa Union{BatchedReal,FlatField}
                     k => batch_index(v, I)
-                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:BatchedVals}}
-                    k => map(x -> (x isa BatchedVals ? batch_index(x,I) : x), v)
-                elseif v isa AbstractArray{<:BatchedVals}
+                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:Union{BatchedReal,BatchedVal}}}
+                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ? batch_index(x,I) : x), v)
+                elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
                     k => batch_index.(v, I)
                 else
                     k => v

@@ -192,12 +192,11 @@ function sample_joint(
     metadata = nothing,
     progress = :summary,
     interruptable = false,
+    grid_and_sample_kwargs = (;),
     gibbs_pass_θ::Union{Function,Nothing} = nothing,
     postprocess = nothing,
     storage = ds.d.storage
 )
-    
-    ds = cpu(ds)
     
     # save input configuration to later write to chain file
     rundat = Base.@locals
@@ -233,7 +232,7 @@ function sample_joint(
         Nbatch = batch_length(ds.d)
         
         θstarts = if θstart == :prior
-            [map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange) for i=1:nchains]
+            [map(range->batch(first(range) .+ rand(Nbatch) .* (last(range) - first(range))), θrange) for i=1:nchains]
         elseif θstart isa NamedTuple
             fill(θstart, nchains)
         elseif θstart isa Vector{<:NamedTuple}
@@ -254,14 +253,14 @@ function sample_joint(
             ϕstart
         elseif ϕstart in [:quasi_sample, :best_fit]
             pmap(θstarts) do θstart
-                MAP_joint(adapt(storage,ds(;θstart...)), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
+                MAP_joint(ds(;θstart...), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
             end
         else
             error("`ϕstart` should be 0, :quasi_sample, :best_fit, or a Field.")
         end
         
         last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G*cpu(ϕstart)) θ=>θstart]
+            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G * ϕstart) θ=>θstart]
         end
         chunks_index = 1
         if filename != nothing
@@ -348,7 +347,7 @@ function sample_joint(
                     t_θ = @elapsed begin
                         if (i > nburnin_fixθ && length(θrange)>0)
                             if gibbs_pass_θ == nothing
-                                θ, lnPθ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange, progress=(progress==:verbose))
+                                θ, lnPθ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange; progress=(progress==:verbose), grid_and_sample_kwargs...)
                             else
                                 θ, lnPθ = gibbs_pass_θ(;(Base.@locals)...)
                             end
