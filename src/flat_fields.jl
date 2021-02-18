@@ -607,20 +607,24 @@ function ud_grade(
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
-    Nnew = @. round(Int, N * θ ÷ θnew)
-    proj = ProjLambert(;Ny=Nnew[1], Nx=Nnew[2], θpix=θnew, T=real(T), f.storage)
+    Ny_new, Nx_new = @. round(Int, N * θ ÷ θnew)
+    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage)
     @unpack Δx,ℓx,ℓy,Nx,Ny,nyquist = proj
 
     PWF = deconv_pixwin ? Diagonal(FlatFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) : I
 
     if θnew > θ
         # downgrade
-        AA = anti_aliasing ? Diagonal(FlatFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) : I
+        if anti_aliasing
+            f = Diagonal(FlatFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
+        end
         if mode == :map
-            PWF \ FlatField{Map(B)}(dropdims(mean(reshape(Map(AA*f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = FlatField{Map(B)}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
         else
-            error("Not implemented")
-            # FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
+            fnew = FlatField{Fourier(B)}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+        end
+        if deconv_pixwin
+            fnew = Diagonal(FlatFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew
         end
     else
         error("Not implemented")
@@ -636,4 +640,5 @@ function ud_grade(
         # end
 
     end
+    return fnew
 end
