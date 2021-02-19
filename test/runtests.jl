@@ -23,6 +23,7 @@ using FFTW
 using FiniteDifferences
 using LinearAlgebra
 using Random
+using Random: default_rng
 using SparseArrays
 using Test
 using Zygote
@@ -605,7 +606,7 @@ end
                 beamFWHM = 3,
                 pol      = pol,
                 storage  = storage,
-                rng      = Random.default_rng(),
+                rng      = default_rng(),
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
             @unpack Cf,Cϕ = ds₀
@@ -614,9 +615,9 @@ end
             @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
 
-            δf,δϕ = simulate(Cf, rng=Random.default_rng()), simulate(Cϕ, rng=Random.default_rng())
+            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.2)
+            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
             @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
             @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
             
