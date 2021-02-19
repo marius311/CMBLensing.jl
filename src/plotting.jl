@@ -4,9 +4,11 @@ using .PyPlot.PyCall
 import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 
 
-### plotting Cℓs
+### overloaded 1D plotting
 
 for plot in (:plot, :loglog, :semilogx, :semilogy)
+
+	# Cℓs
     @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
 		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 	end
@@ -18,7 +20,26 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 		($plot) in [:loglog,:semilogx] && xscale("log")
 		($plot) in [:loglog,:semilogy] && yscale("log")
 	end
+
+	# Loess-interpolated
+	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
+	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
+        xs′ = vcat(map(1:length(m.xs)-1) do i
+		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
+		end..., [last(m.xs)])
+	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
+	end
+	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
+
+	# KDE
+	@eval function ($plot)(f::Function, k::GetDistKDE, args...; kwargs...)
+	    ($plot)(k.kde.x, f.(k.kde.P), args...; kwargs...)
+	end
+	@eval ($plot)(k::GetDistKDE, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
+
+
 end
+
 
 function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
@@ -141,9 +162,10 @@ Plotting fields.
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
 function plot(D::DiagOp; kwargs...)
+	props = _sub_components[findfirst(((k,v),)->diag(D) isa @eval($k), _sub_components)][2]
 	plot(
 		[diag(D)]; 
-		which = permutedims([Symbol(k,(v==Map ? "x" : "l")) for (k,v) in _sub_basis[basis(diag(D))] if v<:Union{Fourier,Map}]),
+		which = permutedims([Symbol(p) for (p,_) in props if endswith(p,r"[lx]")]),
 		kwargs...
 	)
 end
@@ -227,20 +249,6 @@ end
 
 ### Plotting Loess interpolated objects
 
-for plot in (:plot, :loglog, :semilogx, :semilogy)
-
-	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
-	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
-        xs′ = vcat(map(1:length(m.xs)-1) do i
-		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
-		end..., [last(m.xs)])
-	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
-	end
-
-	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
-	
-end
-
 
 ### convenience
 # for plotting in environments that only show a plot if its the last thing returned
@@ -249,4 +257,20 @@ function figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()
+end
+
+
+### chains
+
+"""
+    plot_kde(samples; [boundary=(min,max), normalize="integral" or "max"])
+
+Plot a Kernel Density Estimate PDF for a set of samples. Based on
+Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html),
+which must be installed. Extra keyword arguments are passed to the
+underlying call to `plot`.
+"""
+function plot_kde(samples; boundary=(nothing,nothing), normalize="integral", kwargs...)
+    k = kde(samples; boundary, normalize)
+    plot(k.x, k.P; kwargs...)
 end

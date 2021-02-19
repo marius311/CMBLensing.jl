@@ -95,7 +95,7 @@ function δlnP_δϕ(
 
     dsθ = ds(θ)
     set_distributed_dataset(dsθ)
-    @unpack d,L,G,Cf,Cn,Cϕ = dsθ
+    @unpack d,L,G,Cf,Cf̃,Cn,Cϕ = dsθ
     (d.Nbatch == Nbatch == 1) || error("δlnP_δϕ for batched fields not implemented")
     (G == I) || error("δlnP_δϕ with G!=I not implemented")
     Lϕ = L(ϕ)
