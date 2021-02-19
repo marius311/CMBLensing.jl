@@ -172,9 +172,9 @@ Get the mean and standard deviation of a set of correlated `samples` from a
 chain where the error on the mean and standard deviation is estimated with
 bootstrap resampling using the calculated "effective sample size" of the chain.
 """
-function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2)
+function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2, tol=50)
     
-    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples)[1])
+    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples; tol)[1])
     
     μ = mean(samples)
     σ = std(samples)
@@ -196,4 +196,28 @@ function paren_errors(μ, σ; N_in_paren=2)
     N = round(Int, floor(log10(1/σ))) + N_in_paren
     fmt = "%.$(N)f"
     @ondemand(Formatting.sprintf1)(fmt, μ)*"($(round(Int,σ*10^N)))"
+end
+
+
+
+struct GetDistKDE
+    kde
+end
+(k::GetDistKDE)(x) = k.kde(x)
+
+"""
+    kde(samples; [boundary=(min,max), normalize="integral" or "max"])
+
+Return a Kernel Density Estimate for a set of samples. The return
+object is a function which can be evaluated anywhere to compute the
+PDF. Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
+which must be installed.
+"""
+function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral")
+    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist.chains.print_load_details = false
+    kde = getdist.MCSamples(;
+        samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
+    )
+    GetDistKDE(kde.get1DDensity(0).normalize(normalize))
 end

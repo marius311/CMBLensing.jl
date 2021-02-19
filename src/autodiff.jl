@@ -36,7 +36,7 @@ end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
 end
-@adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Fourier}}
+@adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{Fourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
 end
 Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothing(nt.arr)); f)

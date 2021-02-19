@@ -27,7 +27,7 @@ real_type(T) = promote_type(real(T), Float32)
 ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
     ProjLambert(Ny, Nx, Float64(θpix), Float64.(center), real_type(T), storage)
 
-@memoize function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, ::Type{storage}) where {T,storage}
+@memoize function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, storage) where {T}
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))

@@ -238,6 +238,7 @@ function gpu end # defined in gpu.jl only when CUDA.jl is loaded
 
 
 function corrify(H)
+    H = copy(H)
     σ = sqrt.(abs.(diag(H)))
     for i=1:checksquare(H)
         H[i,:] ./= σ
@@ -448,4 +449,56 @@ macro auto_adjoint(funcdef)
     sdef[:body] = :($Zygote.pullback($symname, $(sdef[:args]...); $(sdef[:kwargs]...)))
     push!(defs, :($Zygote.@adjoint $(combinedef(sdef))))
     esc(Expr(:block, defs...))
+end
+
+
+
+"""
+    assign_GPU_workers()
+
+Assign each Julia worker process a unique GPU using `CUDA.device!`.
+Workers may be distributed across different hosts, and each host can have
+multiple GPUs.
+"""
+function assign_GPU_workers()
+    @everywhere @eval Main using Distributed, CMBLensing
+    master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
+    accessible_gpus = Dict(map(workers()) do id
+        @eval Main @fetchfrom $id begin
+            ds = CUDA.devices()
+            # put master's GPU last so we don't double up on it unless we need to
+            $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
+        end
+    end)
+    claimed = Set()
+    assignments = Dict(map(workers()) do myid
+        for (gpu_id, gpu_uuid) in accessible_gpus[myid]
+            if !(gpu_uuid in claimed)
+                push!(claimed, gpu_uuid)
+                return myid => gpu_id
+            end
+        end
+        error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
+    end)
+    @everywhere workers() device!($assignments[myid()])
+    println(GPU_worker_info())
+end
+
+"""
+    GPU_worker_info()
+
+Returns string showing info about assigned GPU workers. 
+"""
+function GPU_worker_info()
+    lines = @eval Main map(procs()) do id
+        @fetchfrom id begin
+            if @isdefined(CUDA)
+                device = "device = $(sprint(io->show(io, MIME("text/plain"), CUDA.device()))) $(split(string(CUDA.uuid(CUDA.device())),'-')[1]))"
+            else
+                device = ""
+            end
+            join(["($(id==1 ? "master" : "worker") = $id", "host = $(gethostname())", device], ", ")
+        end
+    end
+    join(["GPU_worker_info:"; lines], "\n")
 end

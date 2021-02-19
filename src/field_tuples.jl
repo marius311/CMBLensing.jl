@@ -33,6 +33,7 @@ fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
 adapt_structure(to, f::FieldTuple) = FieldTuple(map(f->adapt(to,f),f.fs))
 similar(ft::FieldTuple) = FieldTuple(map(similar,ft.fs))
 similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar(f,T),ft.fs))
+similar(ft::FieldTuple, Nbatch::Int) = FieldTuple(map(f->similar(f,Nbatch),ft.fs))
 sum(f::FieldTuple; dims=:) = dims == (:) ? sum(sum, f.fs) : error("sum(::FieldTuple, dims=$dims not supported")
 
 ### broadcasting

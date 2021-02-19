@@ -326,7 +326,7 @@ function load_sim(;
         ds.D = ParamDependentOp(
             function (;r=r₀, _...)
                 Cfr = Cf(;r=r)
-                sqrt(Cfr + I*σ²len + 2*Cn̂) * pinv(Cfr)
+                sqrt((Cfr + I*σ²len + 2*Cn̂) * pinv(Cfr))
             end,
         )
     end
