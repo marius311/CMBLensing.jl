@@ -29,8 +29,8 @@ using Zygote
 
 ##
 
-macro test_real_gradient(f,x)
-    esc(:(@test real(gradient($f,$x)[1]) ≈ central_fdm(5,1)($f,$x)))
+macro test_real_gradient(f, x, tol=:(rtol=1e-3))
+    esc(:(@test real(gradient($f,$x)[1]) ≈ central_fdm(5,1)($f,$x) $tol))
 end
 
 Nsides     = [(8,8), (4,8), (8,4)]
@@ -605,6 +605,7 @@ end
                 beamFWHM = 3,
                 pol      = pol,
                 storage  = storage,
+                rng      = Random.default_rng(),
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
             @unpack Cf,Cϕ = ds₀
@@ -613,15 +614,11 @@ end
             @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
 
-            ε = 1f-5
-            δf,δϕ = simulate(Cf),simulate(Cϕ)
-            
-            @test FieldTuple(gradient((f,ϕ)->lnP(0,f,ϕ,ds),f,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(0,f+ε*δf,ϕ+ε*δϕ,ds)-lnP(0,f-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.001
-            @test FieldTuple(gradient((f̃,ϕ)->lnP(1,f̃,ϕ,ds),f̃,ϕ))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(1,f̃+ε*δf,ϕ+ε*δϕ,ds)-lnP(1,f̃-ε*δf,ϕ-ε*δϕ,ds))/(2ε)  rtol=0.015
-            @test FieldTuple(gradient((f°,ϕ°)->lnP(:mix,f°,ϕ°,ds),f°,ϕ°))'*FieldTuple(δf,δϕ) ≈ 
-                (lnP(:mix,f°+ε*δf,ϕ°+ε*δϕ,ds)-lnP(:mix,f°-ε*δf,ϕ°-ε*δϕ,ds))/(2ε)  rtol=0.04
+            δf,δϕ = simulate(Cf, rng=Random.default_rng()), simulate(Cϕ, rng=Random.default_rng())
+
+            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.2)
+            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
+            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
             
         end
         
