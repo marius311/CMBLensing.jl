@@ -27,6 +27,9 @@ gpu(x) = adapt_structure(CuArray, x)
 adapt_structure(::CUDA.Float32Adaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
 
 
+_deviceid(::Type{<:CuArray}) = deviceid()
+
+
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
     # todo: remove needing to go through cpu here:
     gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
@@ -77,10 +80,11 @@ Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} =
 # in the C2R case we pre-allocate the memory only once (via memoization) as well
 # as doing the copy asynchronously
 import CUDA.CUFFT: unsafe_execute!
-using CUDA.CUFFT: rCuFFTPlan, cufftReal, cufftComplex, CUFFT_R2C, cufftExecR2C, cufftExecC2R, CUFFT_C2R, unsafe_copyto!, CuDefaultStream, pointer
+using CUDA.CUFFT: rCuFFTPlan, cufftReal, cufftComplex, CUFFT_R2C, cufftExecR2C, 
+    cufftExecC2R, CUFFT_C2R, unsafe_copyto!, pointer, stream
 
 plan_buffer(x) = plan_buffer(eltype(x),size(x))
-@memoize plan_buffer(T,dims) = CuArray{T}(undef,dims...)
+@memoize plan_buffer(T, dims, dev=deviceid()) = CuArray{T}(undef,dims...)
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                             x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
@@ -92,7 +96,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                             x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
                             ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuDefaultStream()), y)
+    cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=stream()), y)
 end
 
 # monkey-patched version of https://github.com/JuliaGPU/CUDA.jl/pull/436
