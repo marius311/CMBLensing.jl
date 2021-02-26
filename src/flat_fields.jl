@@ -181,7 +181,7 @@ for (F, props) in _sub_components
         body = if k[end] in "xl"
             I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...))
         else
-            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
+            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]})(_reshape_batch(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...)), f.metadata))
         end
         @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M<:FlatProj,T,N,A<:AbstractArray{T,N}} = $body
     end
