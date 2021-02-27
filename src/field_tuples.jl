@@ -117,6 +117,7 @@ tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagon
 
 # misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
+batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
 function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
     only(unique(map_tupleargs(global_rng_for, FS)))
 end
