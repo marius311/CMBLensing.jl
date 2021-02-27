@@ -11,7 +11,7 @@ struct BatchedReal{T<:Real,V<:Vector{T}} <: Real
 end
 
 batch(r::Real) = r
-batch(rs::Real...) = BatchedReal(rs)
+batch(rs::Real...) = BatchedReal(collect(rs))
 batch(v::AbstractVector{<:Real}) = BatchedReal(collect(v))
 batch_length(br::BatchedReal) = length(br.vals)
 batch_length(::Real) = 1
