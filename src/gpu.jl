@@ -23,6 +23,16 @@ global_rng_for(::Type{<:CuArray}) = curand_rng()
 
 gpu(x) = adapt_structure(CuArray, x)
 
+function adapt_structure(::Type{Mem.Unified}, x::Union{Array{T,N},CuArray{T,N}}) where {T,N}
+    buf = Mem.alloc(Mem.Unified, sizeof(T) * prod(size(x)))
+    y = unsafe_wrap(CuArray{T,N}, convert(CuPtr{T}, buf), size(x); own=false)
+    # TODO: need to write finalizer, right now this just leaks the unified memory
+    copyto!(y, x)
+    return y
+end
+unified_gpu(x) = adapt(Mem.Unified, x)
+
+
 
 adapt_structure(::CUDA.Float32Adaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
 
