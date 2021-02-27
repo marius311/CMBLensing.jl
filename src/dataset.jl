@@ -18,7 +18,7 @@ end
 copy(ds::DS) where {DS<:DataSet} = 
     DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
 
-hash(ds::DataSet, h::UInt64) = hash(typeof(ds), foldr(hash, fieldvalues(ds), init=h))
+hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
 
 # needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
 Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))

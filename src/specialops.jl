@@ -122,6 +122,7 @@ SymmetricFuncOp(op::Function) = SymmetricFuncOp(op=op)
 adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
 inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
 adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
+hash(L::FuncOp, h::UInt64) = foldr(hash, (typeof(L), fieldvalues(L)...), init=h)
 
 
 ### BandPassOp
