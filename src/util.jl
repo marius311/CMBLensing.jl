@@ -369,12 +369,13 @@ _isdef(ex) = @capture(ex, function f_(arg__) body_ end)
 
 """
 
-    @⌛ code ...
-    @⌛ function_definition() = .... 
+    @⌛ [label] code ...
+    @⌛ [label] function_definition() = .... 
 
-Label a section of code to be timed. The first form uses the code
-itselfs as a label, the second uses the function name, and its the
-body of the function which is timed. 
+Label a section of code to be timed. If a label string is not
+provided, the first form uses the code itselfs as a label, the second
+uses the function name, and its the body of the function which is
+timed. 
 
 To run the timer and print output, returning the result of the
 calculation, use
@@ -383,16 +384,27 @@ calculation, use
 
 Timing uses `TimerOutputs.get_defaulttimer()`. 
 """
-macro ⌛(ex)
+macro ⌛(args...)
+    if length(args)==1
+        label, ex = nothing, args[1]
+    else
+        label, ex = esc(args[1]), args[2]
+    end
     source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
     if _isdef(ex)
         sdef = splitdef(ex)
+        if isnothing(label)
+            label = "$(string(sdef[:name]))(…)  ($source_str)"
+        end
         sdef[:body] = quote
-            CMBLensing.@timeit $("$(string(sdef[:name]))(…)  ($source_str)") $(sdef[:body])
+            CMBLensing.@timeit $label $(sdef[:body])
         end
         esc(combinedef(sdef))
     else
-        :(@timeit $("$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)") $(esc(ex)))
+        if isnothing(label)
+            label = "$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)"
+        end
+        :(@timeit $label $(esc(ex)))
     end
 end
 

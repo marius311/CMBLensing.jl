@@ -36,7 +36,6 @@ end
 ### misc
 # the generic versions of these trigger scalar indexing of CUDA, so provide
 # specialized versions: 
-
 pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
@@ -51,12 +50,15 @@ CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
 CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
 CUDA.pow(x::Complex, p) = x^p
 
-# until https://github.com/JuliaGPU/CUDA.jl/pull/618
+# until https://github.com/JuliaGPU/CUDA.jl/pull/618 (CUDA 2.5)
 CUDA.cufunc(::typeof(angle)) = CUDA.angle
 
-# this makes cu(::SparseMatrixCSC) return a CuSparseMatrixCSR rather than a
-# dense CuArray
-adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC) = CuSparseMatrixCSR(L)
+# adapting of SparseMatrixCSC ↔ CuSparseMatrixCSR (otherwise dense arrays created)
+adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC)   = CuSparseMatrixCSR(L)
+adapt_structure(::Type{<:Array},   L::CuSparseMatrixCSR) = SparseMatrixCSC(L)
+adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
+adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
+
 
 # CUDA somehow missing this one
 # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
