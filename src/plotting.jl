@@ -272,5 +272,5 @@ underlying call to `plot`.
 """
 function plot_kde(samples; boundary=(nothing,nothing), normalize="integral", kwargs...)
     k = kde(samples; boundary, normalize)
-    plot(k.x, k.P; kwargs...)
+    plot(k.kde.x, k.kde.P; kwargs...)
 end
