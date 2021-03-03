@@ -514,3 +514,9 @@ function GPU_worker_info()
     end
     join(["GPU_worker_info:"; lines], "\n")
 end
+
+
+string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
+
+import NamedTupleTools
+NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
