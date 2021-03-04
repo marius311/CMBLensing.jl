@@ -6,13 +6,18 @@ getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} =
     hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
 setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
     hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
-propertynames(ds::DS) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
+propertynames(ds::DS) where {DS} = propertynames(DS)
+propertynames(::Type{DS}) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
     union(fieldnames(DS), fieldnames(DS′))
 
 function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
-    kw  = filter(((k,_),)->  k in fieldnames(DS),  kwargs)
-    kw′ = filter(((k,_),)->!(k in fieldnames(DS)), kwargs)
-    DS(_super=DS′(;kw′...); kw...)
+    kw  = Dict(k => v for (k,v) in kwargs if   k in fieldnames(DS))
+    kw′ = Dict(k => v for (k,v) in kwargs if !(k in fieldnames(DS)))
+    DS(; kw..., _super=new_dataset(DS′; kw′...))
+end
+
+function new_dataset(::Type{DS}; kwargs...) where {DS<:DataSet{Nothing}}
+    DS(; kwargs...)
 end
 
 copy(ds::DS) where {DS<:DataSet} = 
