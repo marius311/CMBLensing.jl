@@ -252,7 +252,7 @@ end
 struct LazyPyImport
     pkg
 end
-getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(pkg), s)
+getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s)
 
 @doc doc"""
 
