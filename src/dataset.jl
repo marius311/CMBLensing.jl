@@ -8,7 +8,8 @@ setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} =
     hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
 propertynames(ds::DS) where {DS} = propertynames(DS)
 propertynames(::Type{DS}) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
-    union(fieldnames(DS), fieldnames(DS′))
+    union(fieldnames(DS), propertynames(DS′))
+propertynames(::Type{DS}) where {DS<:DataSet{Nothing}} = fieldnames(DS)
 
 function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
     kw  = Dict(k => v for (k,v) in kwargs if   k in fieldnames(DS))
