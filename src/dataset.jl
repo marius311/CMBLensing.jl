@@ -6,7 +6,7 @@ getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} =
     hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
 setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
     hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
-propertynames(ds::DS) where {DS} = propertynames(DS)
+propertynames(ds::DS) where {DS<:DataSet} = propertynames(DS)
 propertynames(::Type{DS}) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
     union(fieldnames(DS), propertynames(DS′))
 propertynames(::Type{DS}) where {DS<:DataSet{Nothing}} = fieldnames(DS)
