@@ -240,7 +240,8 @@ depends_on(L,                   θ) = false
 
 typealias_def(::Type{<:ParamDependentOp{T,L}}) where {T,L} = "ParamDependentOp{$(typealias(L))}"
 function Base.summary(io::IO, L::ParamDependentOp)
-    print(io, join(size(L.op), "×"), " (", join(map(string, L.parameters),","), ")-dependent ")
+    dependent_params = isempty(L.parameters) ? "..." : join(map(string, L.parameters), ",")
+    print(io, join(size(L.op), "×"), " (", dependent_params, ")-dependent ")
     Base.showarg(io, L, true)
 end
 

@@ -11,12 +11,14 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs, @fetchfrom
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool
 using FileIO
 using FFTW
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
+using JLD2: jldopen, JLDWriteSession
 using KahanSummation
 using Loess
 using LinearAlgebra
@@ -86,7 +88,14 @@ export
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
-    
+
+# bunch of sampling-related exports
+export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!, 
+    gibbs_sample_f!, gibbs_sample_ϕ!, gibbs_sample_slice_θ!, 
+    gibbs_mix!, gibbs_unmix!, gibbs_postprocess!, 
+    once_every, start_after_burnin, mass_matrix_ϕ, hmc_step
+
+
 # generic stuff
 include("util.jl")
 include("util_fft.jl")
