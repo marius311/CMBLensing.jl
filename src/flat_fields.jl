@@ -175,6 +175,7 @@ require_unbatched(f::FlatField) = (f.Nbatch==1) || error("This function not impl
 getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::FlatField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
+getproperty(f::FlatField, ::Val{:proj})   = getfield(f, :metadata)
 # sub-components
 for (F, props) in _sub_components
     for (k,I) in props
@@ -186,7 +187,6 @@ for (F, props) in _sub_components
         @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M<:FlatProj,T,N,A<:AbstractArray{T,N}} = $body
     end
 end
-
 
 
 ### indices
@@ -321,7 +321,7 @@ Map(f::FlatField{B}) where {B<:BasisProd} = Map(B)(f)
 
 
 ### pretty printing
-typealias_def(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
+typealias_def(::Type{F}) where {B,M<:FlatProj,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,Nbatch,θpix = f
     print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel $(θpix)′-resolution ")

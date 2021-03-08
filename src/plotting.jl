@@ -247,7 +247,13 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:FlatField}}; fps=
 end
 
 
-### Plotting Loess interpolated objects
+
+### plotting HealpixFields
+
+plot(f::HealpixMap; kwargs...) = hp.mollview(collect(f.arr); cmap="RdBu_r", kwargs...)
+
+
+
 
 
 ### convenience
