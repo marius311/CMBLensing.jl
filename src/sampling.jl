@@ -382,11 +382,12 @@ end
 @⌛ function gibbs_sample_ϕ!(state, ds::DataSet)
     @unpack f°, ϕ°, θ, symp_kwargs, progress, step, nburnin_always_accept = state
     U = ϕ° -> lnP(:mix, f°, ϕ°, θ, ds)
-    ϕ° = hmc_step(U, ϕ°, mass_matrix_ϕ(θ,ds); symp_kwargs, progress, always_accept=(step<nburnin_always_accept))
-    @pack! state = ϕ°
+    ϕ°, ΔH, accept = hmc_step(U, ϕ°, mass_matrix_ϕ(θ,ds); symp_kwargs, progress, always_accept=(step<nburnin_always_accept))
+    @pack! state = ϕ°, ΔH, accept
 end
 
 function hmc_step(U::Function, x, Λ; symp_kwargs, progress, always_accept)
+    local ΔH, accept
     for kwargs in symp_kwargs
         p = simulate(Λ)
         (ΔH, xtest) = symplectic_integrate(
@@ -397,7 +398,7 @@ function hmc_step(U::Function, x, Λ; symp_kwargs, progress, always_accept)
         accept = batch(@. always_accept | (log(rand()) < $unbatch(ΔH)))
         @. x = accept * xtest + (1 - accept) * x
     end
-    x
+    x, ΔH, accept
 end
 
 @⌛ function mass_matrix_ϕ(θ, ds)
@@ -434,8 +435,9 @@ end
 ## postprocessing
 
 @⌛ function gibbs_postprocess!(state, ds::DataSet)
-    @unpack f, ϕ, θ, pbar_dict = state
+    @unpack f, ϕ, θ, pbar_dict, ΔH = state
     lnP = pbar_dict["lnP"] = CMBLensing.lnP(0, select(state, lnP_arg_names(0, ds))..., ds)
+    pbar_dict["ΔH"] = ΔH
     f̃ = ds.L(ϕ) * f
     @pack! state = f̃, lnP
 end
