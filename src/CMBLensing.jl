@@ -99,6 +99,7 @@ export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!,
 # generic stuff
 include("util.jl")
 include("util_fft.jl")
+include("util_parallel.jl")
 include("numerical_algorithms.jl")
 include("generic.jl")
 include("cls.jl")
