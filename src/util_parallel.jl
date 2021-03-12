@@ -49,7 +49,7 @@ _mpi_rank() = nothing
 
     end
 
-    _mpi_rank() = MPI.Comm_rank(MPI.COMM_WORLD)
+    _mpi_rank() = MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : nothing
     
 end
 
