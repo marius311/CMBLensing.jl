@@ -39,11 +39,8 @@ _mpi_rank() = nothing
             
             if @isdefined(CUDA) && CUDA.functional()
                 assign_GPU_workers()
-            end
-            @everywhere begin
-                typ = (myid()==1) ? "(master)" : "(worker)"
-                dev = (@isdefined(CUDA) && CUDA.functional()) ? device() : "CPU"
-                @info "MPI process $(myid()) $typ is running on $(gethostname())::$dev"
+            else
+                println(worker_info())
             end
         end
 
