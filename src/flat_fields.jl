@@ -404,7 +404,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
             _A = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
-            Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, _A...), C₀.metadata))
+            Diagonal(FlatFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.arr), _A...), C₀.metadata))
         end)
     end
 end
@@ -414,24 +414,35 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
             _E = $preprocess.(Ref((nothing,C₀.metadata)),      $T.($ensure1d($θname)))
             _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($T.($ensure1d($θname))))
-            Diagonal(FlatEBFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.El, _E...), C₀.Bl .* _B[1], C₀.metadata))
+            Diagonal(FlatEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.El), _E...), C₀.Bl .* _B[1], C₀.metadata))
         end)
     end
+end
+# this is written weird because the stuff inside the broadcast! needs
+# to work as a GPU kernel
+function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
+    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, got $(length(A)).")
+    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
+    if length(A)>30
+        # if more than 30 bandpowers, we need to chunk the rescaling
+        # because of a maximum argument limit of CUDA kernels
+        for p in partition(1:length(A), 30)
+            bandpower_rescale!(ℓedges[p.start:(p.stop+1)], ℓ, Cℓ, A[p]...)
+        end
+    else
+        broadcast!(Cℓ, ℓ, Cℓ, A...) do ℓ, Cℓ, A...
+            for i=1:length(ℓedges)-1
+                (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
+            end
+            return Cℓ
+        end
+    end
+    Cℓ
 end
 # cant reliably get Zygote's gradients to work through these
 # broadcasts, which on GPU use ForwardDiff, so write the adjoint by
 # hand for now. likely more performant, in any case. 
-function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
-    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, not $(length(A)).")
-    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
-    broadcast(ℓ, Cℓ, A...) do ℓ, Cℓ, A...
-        for i=1:length(ℓedges)-1
-            (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
-        end
-        return Cℓ
-    end
-end
-@adjoint function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
+@adjoint function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
     function back(Δ)
         Ā = map(1:length(A)) do i
             sum(
@@ -444,7 +455,7 @@ end
         end
         (nothing, nothing, nothing, Ā...)
     end
-    bandpower_rescale(ℓedges, ℓ, Cℓ, A...), back
+    bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
 
 
