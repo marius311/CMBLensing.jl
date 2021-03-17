@@ -227,6 +227,18 @@ cpu(x) = adapt_structure(Array, x)
 
 @doc doc"""
 
+    @cpu! x y
+
+Equivalent to `x = cpu(x)`, `y = cpu(y)`, etc... for any number of
+listed variables. See [`cpu`](@ref).
+"""
+macro cpu!(vars...)
+    :(begin; $((:($(esc(var)) = cpu($(esc(var)))) for var in vars)...); nothing; end)
+end
+
+
+@doc doc"""
+
     gpu(x)
 
 Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
