@@ -137,7 +137,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# annonate
     if cbar
-		colorbar(cax,ax=ax)
+		colorbar(cax,ax=ax,pad=0.01)
 	end
     ax.set_title(title, y=1)
     if ticklabels
