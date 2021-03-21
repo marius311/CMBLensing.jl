@@ -194,3 +194,31 @@ function adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t�
         memŁϕ, memÐϕ, _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)
     )
 end
+
+
+
+"""
+Returns αmax such that 𝕀 + ∇∇(ϕ + α * η) has non-zero discriminant
+(pixel-by-pixel) for all α values in [0, αmax]. 
+
+This mean ϕ + αmax * η is the maximum step in the η direction which
+can be added to ϕ and still yield a lensing potential in the
+weak-lensing regime. This is important because it guarantees the
+potential can be paseed to LenseFlow, which cannot handle the
+strong-lensing / "shell-crossing" regime.
+"""
+function get_max_lensing_step(ϕ, η)
+
+    ϕ₁₁, ϕ₁₂, ϕ₂₁, ϕ₂₂ = Map.(gradhess(ϕ)[2])
+    η₁₁, η₁₂, η₂₁, η₂₂ = Map.(gradhess(η)[2])
+
+    a = @. η₁₁*η₂₂ - η₁₂^2
+    b = @. η₁₁*(1+ϕ₂₂) + η₂₂*(1+ϕ₁₁) - 2*η₁₂*ϕ₁₂
+    c = @. (1+ϕ₁₁) * (1+ϕ₂₂) - ϕ₁₂^2
+
+    α₁ = @. (-b + sqrt(b^2 - 4*a*c))/(2*a)
+    α₂ = @. (-b - sqrt(b^2 - 4*a*c))/(2*a)
+
+    αmax = min(minimum(α₁[α₁.>0]), minimum(α₂[α₂.>0]))
+
+end
