@@ -82,7 +82,7 @@ export
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
