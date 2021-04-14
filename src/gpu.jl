@@ -1,6 +1,6 @@
 
 using CUDA
-using CUDA: cufunc, curand_rng
+using CUDA: curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
@@ -72,16 +72,16 @@ fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
 ==(a::CuBaseField, b::CuBaseField) = (==)(promote(a.arr, b.arr)...)
 sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
-
-# these only work for Reals in CUDA
-# with these definitions, they work for Complex as well
-CUDA.isfinite(x::Complex) = Base.isfinite(x)
-CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
-CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
-CUDA.pow(x::Complex, p) = x^p
-
-# until https://github.com/JuliaGPU/CUDA.jl/pull/618 (CUDA 2.5)
-CUDA.cufunc(::typeof(angle)) = CUDA.angle
+# these things fixed in CUDA 3+
+if versionof(CUDA) < v"3"
+    # needed for complex CuArrays
+    CUDA.isfinite(x::Complex) = Base.isfinite(x)
+    CUDA.sqrt(x::Complex) = CUDA.sqrt(CUDA.abs(x)) * CUDA.exp(im*CUDA.angle(x)/2)
+    CUDA.culiteral_pow(::typeof(^), x::Complex, ::Val{2}) = x * x
+    CUDA.pow(x::Complex, p) = x^p
+    # until https://github.com/JuliaGPU/CUDA.jl/pull/618 (CUDA 2.5)
+    CUDA.cufunc(::typeof(angle)) = CUDA.angle
+end
 
 # adapting of SparseMatrixCSC ↔ CuSparseMatrixCSR (otherwise dense arrays created)
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC)   = CuSparseMatrixCSR(L)
