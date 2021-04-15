@@ -4,19 +4,21 @@ module CMBLensing
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
-using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel
+using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
 using Combinatorics
 using DataStructures
 using DelimitedFiles
-using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, @spawnat, pgenerate, procs, @fetchfrom
+using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool
 using FileIO
 using FFTW
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
+using JLD2: jldopen, JLDWriteSession
 using KahanSummation
 using Loess
 using LinearAlgebra
@@ -66,7 +68,7 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, animate,
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
@@ -80,16 +82,24 @@ export
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
-    
+
+# bunch of sampling-related exports
+export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!, 
+    gibbs_sample_f!, gibbs_sample_ϕ!, gibbs_sample_slice_θ!, 
+    gibbs_mix!, gibbs_unmix!, gibbs_postprocess!, 
+    once_every, start_after_burnin, mass_matrix_ϕ, hmc_step
+
+
 # generic stuff
 include("util.jl")
 include("util_fft.jl")
+include("util_parallel.jl")
 include("numerical_algorithms.jl")
 include("generic.jl")
 include("cls.jl")

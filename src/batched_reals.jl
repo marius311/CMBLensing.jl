@@ -11,7 +11,7 @@ struct BatchedReal{T<:Real,V<:Vector{T}} <: Real
 end
 
 batch(r::Real) = r
-batch(rs::Real...) = BatchedReal(rs)
+batch(rs::Real...) = BatchedReal(collect(rs))
 batch(v::AbstractVector{<:Real}) = BatchedReal(collect(v))
 batch_length(br::BatchedReal) = length(br.vals)
 batch_length(::Real) = 1
@@ -35,7 +35,7 @@ unbatch(br::BatchedReal; dims=1) = reshape(br.vals, ntuple(_->1, dims-1)..., :)
 unbatch(r::Real; dims=nothing) = r
 Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 (::Type{T})(br::BatchedReal) where {T<:Real} = batch(T.(br.vals))
-Base.hash(bv::BatchedReal, h::UInt) = foldr(hash, (typeof(bv), bv.vals), init=h)
+hash(bv::BatchedReal, h::UInt64) = foldr(hash, (typeof(bv), bv.vals), init=h)
 
 
 # used to denote a batch of things, no other functionality

@@ -122,6 +122,7 @@ SymmetricFuncOp(op::Function) = SymmetricFuncOp(op=op)
 adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
 inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
 adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
+hash(L::FuncOp, h::UInt64) = foldr(hash, (typeof(L), fieldvalues(L)...), init=h)
 
 
 ### BandPassOp
@@ -239,7 +240,8 @@ depends_on(L,                   θ) = false
 
 typealias_def(::Type{<:ParamDependentOp{T,L}}) where {T,L} = "ParamDependentOp{$(typealias(L))}"
 function Base.summary(io::IO, L::ParamDependentOp)
-    print(io, join(size(L.op), "×"), " (", join(map(string, L.parameters),","), ")-dependent ")
+    dependent_params = isempty(L.parameters) ? "..." : join(map(string, L.parameters), ",")
+    print(io, join(size(L.op), "×"), " (", dependent_params, ")-dependent ")
     Base.showarg(io, L, true)
 end
 

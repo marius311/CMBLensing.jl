@@ -1,3 +1,4 @@
+
 """
     symplectic_integrate(x₀, p₀, Λ, U, δUδx, N=50, ϵ=0.1, progress=false)
 
@@ -131,6 +132,9 @@ end
 # allow more convenient evaluation of Loess-interpolated functions
 (m::Loess.LoessModel)(x) = Loess.predict(m,x)
 
+
+
+
 @doc doc"""
     sample_joint(ds::DataSet; kwargs...)
 
@@ -171,242 +175,293 @@ Keyword arguments:
 """
 function sample_joint(
     ds :: DataSet;
+    gibbs_initializers = [
+        gibbs_initialize_θ!,
+        gibbs_initialize_ϕ!,
+        gibbs_initialize_f!
+    ],
+    gibbs_samplers = [
+        gibbs_sample_f!,
+        gibbs_mix!,
+        gibbs_sample_ϕ!,
+        gibbs_unmix!,
+        gibbs_postprocess!
+    ],
     nsamps_per_chain,
     nchains = nworkers(),
-    nchunk = 1,
+    nfilewrite = 5,
     nsavemaps = 1,
-    nburnin_always_accept = 0,
-    nburnin_fixθ = 0,
-    Nϕ = :qe,
     filename = nothing,
     ϕstart = :prior,
     θstart = :prior,
     θrange = NamedTuple(),
-    Nϕ_fac = 2,
     pmap = (myid() in workers() ? map : pmap),
+    pool = default_worker_pool(),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     preconditioner = :diag,
     nhmc = 1,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
-    progress = :summary,
-    interruptable = false,
+    progress = false,
+    storage = basetype(fieldinfo(ds.d).M),
     grid_and_sample_kwargs = (;),
-    gibbs_pass_θ::Union{Function,Nothing} = nothing,
-    postprocess = nothing,
-    storage = ds.d.storage
+    kwargs...
 )
-    
-    # save input configuration to later write to chain file
-    rundat = Base.@locals
-    pop!.(Ref(rundat), (:metadata, :ds)) # saved separately
-    
-    # validate arguments
-    if (length(θrange)>1 && gibbs_pass_θ==nothing)
-        error("Can only currently sample one parameter at a time, otherwise must pass custom `gibbs_pass_θ`")
+
+    # rundat is a Dict with all the args and kwargs minus a few removed ones
+    rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap, :pool), init=Base.@locals()), kwargs)
+    rundat[:Nbatch] = batch_length(ds.d)
+
+    # dont adapt things passed in kwargs when we adapt the state dict
+    _adapt(storage, state) = Dict(k => (haskey(rundat,k) ? v : adapt(storage, v)) for (k,v) in state)
+
+    function filter_for_saving(state, step)
+        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
     end
+
+    # validate arguments
     if !(progress in [false,:summary,:verbose])
-        error("`progress` should be one of [false,:summary,:verbose]")
+        error("`progress` should be one of [false, :summary, :verbose]")
     end
     if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
-    if mod(nchunk,nsavemaps) != 0
-        error("`nsavemaps` should divide evenly into `nchunk`")
-    end
     
     # seed
-    @everywhere @eval CMBLensing seed!.(global_rng_for.((Array,$storage)))
+    @everywhere @eval CMBLensing seed!(global_rng_for($storage))
+
+    # distributed dataset object to workers once
+    set_distributed_dataset(ds)
 
     # initialize chains
     if (filename != nothing) && isfile(filename)
+
         @info "Resuming chain at $filename"
-        local chunks_index, last_chunks
+        local chunks_index, prev_chunks
         jldopen(filename,"r") do io
-            chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")])
-            last_chunks = read(io, "chunks_$(chunks_index)")
+            chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")]) + 1
+            states = last.(read(io, "chunks_$(chunks_index-1)"))
+            merge!.(states, Ref(rundat))
+            @unpack step = states[1]
+            chain_chunks = map(copy, repeated([], nchains))
         end
+
     else
 
-        Nbatch = batch_length(ds.d)
-        
-        θstarts = if θstart == :prior
-            [map(range->batch(first(range) .+ rand(Nbatch) .* (last(range) - first(range))), θrange) for i=1:nchains]
-        elseif θstart isa NamedTuple
-            fill(θstart, nchains)
-        elseif θstart isa Vector{<:NamedTuple}
-            θstart
-        else
-            error("`θstart` should be either `nothing` to randomly sample the starting value or a NamedTuple giving the starting point.")
-        end
-        
-        ϕstarts = if ϕstart == :prior
-            pmap(θstarts) do θstart
-                simulate(ds(;θstart...).Cϕ; Nbatch)
+        chunks_index = step = 1
+
+        states = pmap(map(copy,repeated(rundat,nchains))) do state
+            state = _adapt(storage, state)
+            for gibbs_initialize! in gibbs_initializers
+                gibbs_initialize!(state, get_distributed_dataset())
             end
-        elseif ϕstart == 0 
-            fill(zero(diag(ds().Cϕ)), nchains)
-        elseif ϕstart isa Field
-            fill(ϕstart, nchains)
-        elseif ϕstart isa Vector{<:Field}
-            ϕstart
-        elseif ϕstart in [:quasi_sample, :best_fit]
-            pmap(θstarts) do θstart
-                MAP_joint(ds(;θstart...), progress=(progress==:verbose ? :summary : false), Nϕ=adapt(storage,Nϕ), quasi_sample=(ϕstart==:quasi_sample); MAP_kwargs...).ϕ
-            end
-        else
-            error("`ϕstart` should be 0, :quasi_sample, :best_fit, or a Field.")
+            @pack! state = step
+            _adapt(Array, state)
         end
+        chain_chunks = [Any[filter_for_saving(state, step)] for state in states]
         
-        last_chunks = pmap(θstarts,ϕstarts) do θstart,ϕstart
-            [@dict i=>1 f=>nothing ϕ°=>cpu(ds(;θstart...).G * ϕstart) θ=>θstart]
-        end
-        chunks_index = 1
         if filename != nothing
-            save(
-                filename, 
-                "rundat",   cpu(rundat),
-                "ds",       cpu(ds),
-                "ds₀",      cpu(ds()), # save separately incase θ-dependent has trouble loading
-                "metadata", cpu(metadata),
-                "chunks_1", cpu(last_chunks)
-            )
+            save(filename, "rundat", cpu(rundat))
         end
-    end
-    
-    
-    @unpack L, Cϕ = ds
-    if (Nϕ == :qe)
-        Nϕ = quadratic_estimate(ds()).Nϕ / Nϕ_fac
-    end
-    dsₐ,Nϕₐ = ds,Nϕ
-    t_write = 0
-    if progress==:summary
-        @everywhere first(workers()) @eval CMBLensing begin
-            pbar = Progress($(nsamps_per_chain-last_chunks[1][end][:i]+1), dt=0, desc="Gibbs chain: ")
-            ProgressMeter.update!(pbar, showvalues=[("step", $(last_chunks[1][end][:i]))])
-        end
-    end
 
-    # start chains
-    try
+    end
+    
+    # setup progressbar
+    setindex!.(states, copy.(Ref(OrderedDict{String,Any}("step"=>step))), :pbar_dict)
+    if progress == :summary
+        pbar = Progress(nsamps_per_chain-step, dt=0, desc="Gibbs chain: ")
+        ProgressMeter.update!(pbar, showvalues=[("step", step)])
+        @everywhere $reset_timer!()
+    end
+    
+    # start sampling
+    for step in (step+1):nsamps_per_chain
         
-        for chunks_index = (chunks_index+1):(nsamps_per_chain÷nchunk+1)
+        setindex!.(states, step, :step)
+
+        state₁, = states = pmap(pool, states) do state
             
-            last_chunks = pmap(last.(last_chunks)) do state
+            state = @⌛ _adapt(storage, state)
+            @unpack step, pbar_dict = state
                 
-                @unpack i,ϕ°,f,θ = state
-                f,ϕ°,ds,Nϕ = (adapt(storage, x) for x in (f,ϕ°,dsₐ,Nϕₐ))
-                dsθ = ds(θ)
-                ϕ = dsθ.G\ϕ°
-                pϕ°, ΔH, accept = nothing, nothing, nothing
-                L = ds.L
-                lnPθ = nothing
-                chain_chunk = []
-                
-                for (i, savemaps) in zip( (i+1):(i+nchunk), cycle([fill(false,nsavemaps-1); true]) )
-
-                    # ==== gibbs P(f°|ϕ°,θ) ====
-                    t_f = @elapsed begin
-                        f = argmaxf_lnP(
-                            ϕ, θ, dsθ;
-                            which           = :sample, 
-                            fstart          = f, 
-                            preconditioner  = preconditioner, 
-                            conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
-                        )
-                        f°, = mix(f,ϕ,dsθ)
-                    end
-                    
-                    
-                    # ==== gibbs P(ϕ°|f°,θ) ==== 
-                    t_ϕ = @elapsed begin
-                        
-                        Λm = pinv(dsθ.G)^2 * ((Nϕ == nothing) ? pinv(dsθ.Cϕ) : (pinv(dsθ.Cϕ) + pinv(Nϕ)))
-                        
-                        for kwargs in symp_kwargs
-                        
-                            pϕ° = simulate(Λm)
-                            (ΔH, ϕtest°) = symplectic_integrate(
-                                ϕ°, pϕ°, Λm, 
-                                ϕ°->lnP(:mix, f°, ϕ°, θ, dsθ);
-                                progress=(progress==:verbose),
-                                kwargs...
-                            )
-                            
-                            accept = batch(@. (i < nburnin_always_accept) | (log(rand()) < $unbatch(ΔH)))
-                            ϕ° = @. accept * ϕtest° + (1 - accept) * ϕ°
-                            
-                        end
-                        
-                    end
-                    
-                    
-                    # ==== gibbs P(θ|f°,ϕ°) ====
-                    t_θ = @elapsed begin
-                        if (i > nburnin_fixθ && length(θrange)>0)
-                            if gibbs_pass_θ == nothing
-                                θ, lnPθ = grid_and_sample(θ->lnP(:mix,f°,ϕ°,θ,ds), θrange; progress=(progress==:verbose), grid_and_sample_kwargs...)
-                            else
-                                θ, lnPθ = gibbs_pass_θ(;(Base.@locals)...)
-                            end
-                            dsθ = ds(θ)
-                        end
-                    end
-
-                    
-                    # compute un-mixed maps
-                    f, ϕ = unmix(f°,ϕ°,θ,dsθ)
-                    f̃ = L(ϕ)*f
-
-                    
-                    # save state to chain and print progress
-                    timing = (f=t_f, θ=t_θ, ϕ=t_ϕ)
-                    state = @dict i θ lnPθ ΔH accept lnP=>lnP(0,f,ϕ,θ,dsθ) timing
-                    if savemaps
-                        merge!(state, @dict f f° f̃ ϕ ϕ° pϕ°)
-                    end
-                    if postprocess != nothing
-                        merge!(state, postprocess(;(Base.@locals)...))
-                    end
-                    push!(chain_chunk, cpu(state))
-                    
-                    if @isdefined(pbar)
-                        string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
-                        next!(pbar, showvalues = [
-                            ("step",i), 
-                            tuple.(keys(θ), string_trunc.(values(θ)))..., 
-                            ("ΔH", string_trunc(ΔH)), 
-                            ("accept", string_trunc(accept)), 
-                            ("timing", timing)
-                        ])
-                    end
-
-                    
-                end
-
-                return chain_chunk
-                
+            timing = @⌛ "Gibbs passes" map(gibbs_samplers) do gibbs_sample!
+                @elapsed gibbs_sample!(state, get_distributed_dataset())
             end
             
-            if filename != nothing
-                last_chunks[1][end][:t_write] = t_write
-                t_write = @elapsed jldopen(filename,"a+") do io
-                    wsession = JLD2.JLDWriteSession()
-                    write(io, "chunks_$chunks_index", last_chunks, wsession)
-                end
+            state = @⌛ _adapt(Array, state)
+
+            timer = get_defaulttimer()
+            @pack! state = timing, timer
+
+            state
+
+        end
+
+        push!.(chain_chunks, filter_for_saving.(states, step))
+
+        if (filename != nothing) && ((step % nfilewrite) == 0)
+            @⌛ jldopen(filename,"a+") do io
+                wsession = JLDWriteSession()
+                write(io, "chunks_$chunks_index", chain_chunks, wsession)
             end
-            
+            chunks_index += 1
+            empty!.(chain_chunks)
         end
-        
-    catch err
-        if interruptable && (err isa InterruptException)
-            println()
-            @warn("Chain interrupted. Returning current progress.")
-        else
-            rethrow(err)
+
+        if progress == :summary
+            print("\033[2J")
+            next!(pbar, showvalues = [("step",step), ("timing",state₁[:timing]), collect(state₁[:pbar_dict])...])
+            merge!(state₁[:timer].inner_timers, get_defaulttimer().inner_timers)
+            print(state₁[:timer])
+            flush(stdout)
         end
+
     end
-    
+
+    Chains(chain_chunks)
+
 end
+
+
+lnP_arg_names(p::Union{Int,Symbol}, ds::DataSet) = lnP_arg_names(Val(p), ds)
+lnP_arg_names(::Val{0},    ds::DataSet) = (:f,  :ϕ,  :θ)
+lnP_arg_names(::Val{:mix}, ds::DataSet) = (:f°, :ϕ°, :θ)
+
+## initialization
+
+function gibbs_initialize_θ!(state, ds::DataSet)
+    @unpack θstart, θrange, nchains, Nbatch = state
+    θ = @match θstart begin
+        :prior => map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange)
+        (_::NamedTuple) => θstart
+        _ => throw(ArgumentError(θstart))
+    end
+    lnPθ = map(_->missing, θrange)
+    @pack! state = θ, lnPθ
+end
+
+function gibbs_initialize_f!(state, ds::DataSet)
+    f = missing
+    @pack! state = f
+end
+
+function gibbs_initialize_ϕ!(state, ds::DataSet)
+    @unpack ϕstart, θ, nchains, Nbatch = state
+    ϕ = @match ϕstart begin
+        :prior     => simulate(ds.Cϕ(θ); Nbatch)
+        0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
+        (_::Field) => ϕstart
+        (:quasi_sample|:best_fit) => MAP_joint(
+            adapt(storage, ds(θstart)), 
+            progress = (progress==:verbose ? :summary : false), 
+            Nϕ = adapt(storage,Nϕ),
+            quasi_sample = (ϕstart==:quasi_sample); MAP_kwargs...
+        ).ϕ
+        _ => throw(ArgumentError(ϕstart))
+    end
+    @pack! state = ϕ
+end
+
+
+## gibbs passes
+
+@⌛ function gibbs_sample_f!(state, ds::DataSet)
+    @unpack f, progress, preconditioner, conjgrad_kwargs = state
+    z_other = delete(select(state, lnP_arg_names(0, ds)), :f)
+    f = argmaxf_lnP(
+        z_other..., ds;
+        which = :sample, 
+        guess = ismissing(f) ? nothing : f, 
+        preconditioner = preconditioner, 
+        conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
+    )
+    @pack! state = f
+end
+
+@⌛ function gibbs_sample_ϕ!(state, ds::DataSet)
+    @unpack f°, ϕ°, θ, symp_kwargs, progress, step, nburnin_always_accept = state
+    U = ϕ° -> lnP(:mix, f°, ϕ°, θ, ds)
+    ϕ°, ΔH, accept = hmc_step(U, ϕ°, mass_matrix_ϕ(θ,ds); symp_kwargs, progress, always_accept=(step<nburnin_always_accept))
+    @pack! state = ϕ°, ΔH, accept
+end
+
+function hmc_step(U::Function, x, Λ; symp_kwargs, progress, always_accept)
+    local ΔH, accept
+    for kwargs in symp_kwargs
+        p = simulate(Λ)
+        (ΔH, xtest) = symplectic_integrate(
+            x, p, Λ, U;
+            progress = (progress==:verbose),
+            kwargs...
+        )
+        accept = batch(@. always_accept | (log(rand()) < $unbatch(ΔH)))
+        @. x = accept * xtest + (1 - accept) * x
+    end
+    x, ΔH, accept
+end
+
+@⌛ function mass_matrix_ϕ(θ, ds)
+    @unpack G, Cϕ, Nϕ = ds(θ)
+    pinv(G)^2 * (pinv(Cϕ) + pinv(Nϕ))
+end
+
+function gibbs_sample_slice_θ!(k::Symbol)
+    @⌛ function gibbs_sample_slice_θ!(state, ds::DataSet)
+        @unpack θ, θrange, lnPθ, pbar_dict, progress, grid_and_sample_kwargs = state
+        z_other = delete(select(state, lnP_arg_names(:mix, ds)), :θ)
+        θₖ, lnPθₖ = grid_and_sample(θₖ -> lnP(:mix, z_other..., @set(θ[k]=θₖ), ds), cpu(θrange[k]); progress=(progress==:verbose), grid_and_sample_kwargs...)
+        @set! θ[k] = θₖ
+        @set! lnPθ[k] = lnPθₖ
+        pbar_dict[string(k)] = string_trunc(θₖ)
+        @pack! state = θ, lnPθ
+    end
+end
+
+@⌛ function gibbs_mix!(state, ds::DataSet)
+    @unpack f, ϕ, θ = state
+    f°, ϕ° = mix(f, ϕ, θ, ds)
+    @pack! state = f°, ϕ°
+end
+
+@⌛ function gibbs_unmix!(state, ds::DataSet)
+    @unpack f°, ϕ°, θ = state
+    f, ϕ = unmix(f°, ϕ°, θ, ds)
+    @pack! state = f, ϕ
+end
+
+
+
+## postprocessing
+
+@⌛ function gibbs_postprocess!(state, ds::DataSet)
+    @unpack f, ϕ, θ, pbar_dict, ΔH = state
+    lnP = pbar_dict["lnP"] = CMBLensing.lnP(0, select(state, lnP_arg_names(0, ds))..., ds)
+    pbar_dict["ΔH"] = ΔH
+    f̃ = ds.L(ϕ) * f
+    @pack! state = f̃, lnP
+end
+
+
+## util
+
+function once_every(n)
+    function (gibbs_sample!)
+        function (state, ds)
+            if iszero(state[:step] % n)
+                gibbs_sample!(state, ds)
+            end
+        end
+    end
+end
+
+function start_after_burnin(n)
+    function (gibbs_sample!)
+        function (state, ds)
+            if state[:step] > n
+                gibbs_sample!(state, ds)
+            end
+        end
+    end
+end
+

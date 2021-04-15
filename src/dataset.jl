@@ -1,27 +1,18 @@
 
 
-abstract type DataSet{DS} end
+abstract type DataSet end
 
-getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
-setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
-propertynames(ds::DS) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
-    union(fieldnames(DS), fieldnames(DS′))
+copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
 
-function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
-    kw  = filter(((k,_),)->  k in fieldnames(DS),  kwargs)
-    kw′ = filter(((k,_),)->!(k in fieldnames(DS)), kwargs)
-    DS(_super=DS′(;kw′...); kw...)
+hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
+
+function show(io::IO, ds::DataSet)
+    println(io, typeof(ds), ": ")
+    ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
+    for line in split(sprint(show, MIME"text/plain"(), ds_dict, context = (:limit => true)), "\n")[2:end]
+        println(io, line)
+    end
 end
-
-copy(ds::DS) where {DS<:DataSet} = 
-    DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
-
-hash(ds::DataSet, h::UInt64) = hash(typeof(ds), foldr(hash, fieldvalues(ds), init=h))
-
-# needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
-Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
 
 
 # util for distributing a singleton global dataset to workers
@@ -53,7 +44,7 @@ _distributed_dataset_hash = nothing
 
 
 # Stores variables needed to construct the posterior
-@kwdef mutable struct BaseDataSet <: DataSet{Nothing}
+@kwdef mutable struct BaseDataSet <: DataSet
     d                # data
     Cϕ               # ϕ covariance
     Cf               # unlensed field covariance

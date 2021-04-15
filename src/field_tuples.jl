@@ -109,7 +109,7 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 
 # # promote before recursing for these 
 dot(a::FieldTuple, b::FieldTuple) = reduce(+, map(dot, getfield.(promote(a,b),:fs)...), init=0)
-hash(ft::FieldTuple, h::UInt) = foldr(hash, (typeof(ft), ft.fs))
+hash(ft::FieldTuple, h::UInt64) = foldr(hash, (typeof(ft), ft.fs), init=h)
 
 # logdet & trace
 logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, L.diag.fs), init=0)
@@ -117,6 +117,7 @@ tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagon
 
 # misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
+batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
 function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
     only(unique(map_tupleargs(global_rng_for, FS)))
 end

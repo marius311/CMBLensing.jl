@@ -1,7 +1,7 @@
 name = "CMBLensing"
 uuid = "b60c06c0-7e54-11e8-3788-4bd722d65317"
 authors = ["marius <mariusmillea@gmail.com>"]
-version = "0.5.0"
+version = "0.5.1"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -53,7 +53,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [compat]
 AbstractFFTs = "0.5, 1"
 Adapt = "1.0.1, 2, 3"
-CUDA = "2.1"
+CUDA = "3"
 Combinatorics = "1"
 DataStructures = "0.17.9, 0.18"
 FFTW = "1.2"
@@ -83,5 +83,5 @@ StaticArrays = "0.12.1, 1.0"
 StatsBase = "0.32, 0.33"
 TimerOutputs = "0.5"
 UnPack = "1"
-Zygote = "0.4.14, 0.5, 0.6"
-julia = "1.5"
+Zygote = "0.6.9"
+julia = "1.6"

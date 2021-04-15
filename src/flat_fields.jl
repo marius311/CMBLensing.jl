@@ -175,18 +175,18 @@ require_unbatched(f::FlatField) = (f.Nbatch==1) || error("This function not impl
 getproperty(f::FlatField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::FlatField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::FlatField, ::Val{:T})      = eltype(f)
+getproperty(f::FlatField, ::Val{:proj})   = getfield(f, :metadata)
 # sub-components
 for (F, props) in _sub_components
     for (k,I) in props
         body = if k[end] in "xl"
             I==(:) ? :(getfield(f,:arr)) : :(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...))
         else
-            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]})(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...), f.metadata))
+            I==(:) ? :f : :($(FlatField{k=="P" ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]})(_reshape_batch(view(getfield(f,:arr), :, :, $I, ntuple(_->:,max(0,N-3))...)), f.metadata))
         end
         @eval getproperty(f::$F{M,T,A}, ::Val{$(QuoteNode(Symbol(k)))}) where {M<:FlatProj,T,N,A<:AbstractArray{T,N}} = $body
     end
 end
-
 
 
 ### indices
@@ -321,7 +321,7 @@ Map(f::FlatField{B}) where {B<:BasisProd} = Map(B)(f)
 
 
 ### pretty printing
-typealias_def(::Type{F}) where {B,M,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
+typealias_def(::Type{F}) where {B,M<:FlatProj,T,A,F<:FlatField{B,M,T,A}} = "Flat$(typealias(B)){$(typealias(A)),$(typealias(M))}"
 function Base.summary(io::IO, f::FlatField)
     @unpack Nx,Ny,Nbatch,θpix = f
     print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel $(θpix)′-resolution ")
@@ -404,7 +404,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
             _A = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
-            Diagonal(FlatFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.arr, _A...), C₀.metadata))
+            Diagonal(FlatFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.arr), _A...), C₀.metadata))
         end)
     end
 end
@@ -414,24 +414,35 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
             _E = $preprocess.(Ref((nothing,C₀.metadata)),      $T.($ensure1d($θname)))
             _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($T.($ensure1d($θname))))
-            Diagonal(FlatEBFourier($bandpower_rescale(ℓedges, C₀.ℓmag, C₀.El, _E...), C₀.Bl .* _B[1], C₀.metadata))
+            Diagonal(FlatEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.El), _E...), C₀.Bl .* _B[1], C₀.metadata))
         end)
     end
+end
+# this is written weird because the stuff inside the broadcast! needs
+# to work as a GPU kernel
+function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
+    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, got $(length(A)).")
+    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
+    if length(A)>30
+        # if more than 30 bandpowers, we need to chunk the rescaling
+        # because of a maximum argument limit of CUDA kernels
+        for p in partition(1:length(A), 30)
+            bandpower_rescale!(ℓedges[p.start:(p.stop+1)], ℓ, Cℓ, A[p]...)
+        end
+    else
+        broadcast!(Cℓ, ℓ, Cℓ, A...) do ℓ, Cℓ, A...
+            for i=1:length(ℓedges)-1
+                (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
+            end
+            return Cℓ
+        end
+    end
+    Cℓ
 end
 # cant reliably get Zygote's gradients to work through these
 # broadcasts, which on GPU use ForwardDiff, so write the adjoint by
 # hand for now. likely more performant, in any case. 
-function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
-    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, not $(length(A)).")
-    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
-    broadcast(ℓ, Cℓ, A...) do ℓ, Cℓ, A...
-        for i=1:length(ℓedges)-1
-            (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
-        end
-        return Cℓ
-    end
-end
-@adjoint function bandpower_rescale(ℓedges, ℓ, Cℓ, A...)
+@adjoint function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
     function back(Δ)
         Ā = map(1:length(A)) do i
             sum(
@@ -444,7 +455,7 @@ end
         end
         (nothing, nothing, nothing, Ā...)
     end
-    bandpower_rescale(ℓedges, ℓ, Cℓ, A...), back
+    bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
 
 
@@ -538,8 +549,8 @@ function get_Cℓ(f₁::FlatS0, f₂::FlatS0=f₁; Δℓ=50, ℓedges=0:Δℓ:16
     ℓmask = (ℓmag .> minimum(ℓedges)) .&  (ℓmag .< maximum(ℓedges))
     L = ℓmag[ℓmask]
     CLobs = 1/α .* real.(dot.(
-        adapt(Array{Float64},f₁)[:Il, full_plane=true][ℓmask], 
-        adapt(Array{Float64},f₂)[:Il, full_plane=true][ℓmask]
+        adapt(Array,f₁)[:Il, full_plane=true][ℓmask], 
+        adapt(Array,f₂)[:Il, full_plane=true][ℓmask]
     ))
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     
@@ -607,20 +618,24 @@ function ud_grade(
     fac = θnew > θ ? θnew÷θ : θ÷θnew
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
-    Nnew = @. round(Int, N * θ ÷ θnew)
-    proj = ProjLambert(;Ny=Nnew[1], Nx=Nnew[2], θpix=θnew, T=real(T), f.storage)
+    Ny_new, Nx_new = @. round(Int, N * θ ÷ θnew)
+    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage)
     @unpack Δx,ℓx,ℓy,Nx,Ny,nyquist = proj
 
     PWF = deconv_pixwin ? Diagonal(FlatFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) : I
 
     if θnew > θ
         # downgrade
-        AA = anti_aliasing ? Diagonal(FlatFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) : I
+        if anti_aliasing
+            f = Diagonal(FlatFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
+        end
         if mode == :map
-            PWF \ FlatField{Map(B)}(dropdims(mean(reshape(Map(AA*f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = FlatField{Map(B)}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
         else
-            error("Not implemented")
-            # FlatFourier{Pnew}((AA*f)[:Il][1:(Nnew÷2+1), [1:(isodd(Nnew) ? Nnew÷2+1 : Nnew÷2); (end-Nnew÷2+1):end]])
+            fnew = FlatField{Fourier(B)}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+        end
+        if deconv_pixwin
+            fnew = Diagonal(FlatFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew
         end
     else
         error("Not implemented")
@@ -636,4 +651,5 @@ function ud_grade(
         # end
 
     end
+    return fnew
 end

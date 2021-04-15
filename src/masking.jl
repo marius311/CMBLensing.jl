@@ -11,12 +11,13 @@ function make_mask(
     deg2npix(x) = round(Int, x/θpix*60)
     arcmin2npix(x) = round(Int, x/θpix)
     
-    ptsrc = .!bleed(sim_ptsrcs(Nside, num_ptsrcs), arcmin2npix(ptsrc_radius_arcmin))
+    ptsrc = num_ptsrcs==0 ? 1 : .!bleed(sim_ptsrcs(Nside, num_ptsrcs), arcmin2npix(ptsrc_radius_arcmin))
     boundary = boundarymask(Nside, deg2npix(edge_padding_deg))
     mask_array = if apodization_deg in (false, 0)
         boundary .& ptsrc
     else
-        cos_apod(boundary, deg2npix(apodization_deg), deg2npix(edge_rounding_deg)) .* cos_apod(ptsrc, arcmin2npix(ptsrc_radius_arcmin));
+        apod_ptsrc = num_ptsrcs==0 ? 1 : cos_apod(ptsrc, arcmin2npix(ptsrc_radius_arcmin));
+        cos_apod(boundary, deg2npix(apodization_deg), deg2npix(edge_rounding_deg)) .* apod_ptsrc
     end
     
     FlatMap(Float32.(mask_array), θpix=θpix)
