@@ -90,8 +90,8 @@ Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator
-Random.randn!(rng::MersenneTwister, A::CuArray{T}) where {T} = 
-    (A .= adapt(CuArray{T}, randn!(rng, adapt(Array{T},A))))
+Random.randn!(rng::MersenneTwister, A::CuArray) = 
+    (A .= adapt(CuArray, randn!(rng, adapt(Array, A))))
 
 # CUDA makes some copies here as a workaround for JuliaGPU/CuArrays.jl#345 &
 # NVIDIA/cuFFT#2714055 but it doesn't appear to be needed in the R2C case, and
