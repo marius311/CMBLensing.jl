@@ -8,9 +8,9 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.5.1
+    display_name: Julia 1.6.0
     language: julia
-    name: julia-1.5
+    name: julia-1.6
 ---
 
 # Lensing a flat-sky map
@@ -113,8 +113,10 @@ using BenchmarkTools
 @benchmark cache(LenseFlow(ϕ),f)
 ```
 
-Once cached, it's very fast and memory non-intensive to repeatedly apply the operator:
+Once cached, it's faster and less memory intensive to repeatedly apply the operator:
 
 ```julia
 @benchmark Lϕ * f setup=(Lϕ=cache(LenseFlow(ϕ),f))
 ```
+
+Note that this documentation is generated on limited-performance cloud servers. Actual benchmarks are likely much faster locally or on a cluster, and yet (much) faster on [GPU](../06_gpu/).

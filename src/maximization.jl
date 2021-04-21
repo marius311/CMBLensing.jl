@@ -3,7 +3,7 @@
 
 @doc doc"""
     argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
-    argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
+    argmaxf_lnP(ϕ, θ, ds::DataSet; kwargs...)
     argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
     
 Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
@@ -20,11 +20,11 @@ Keyword arguments:
 
 """
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
-    θ::NamedTuple,
+    θ,
     ds::DataSet; 
     which = :wf, 
     fstart = nothing, 
@@ -32,25 +32,26 @@ function argmaxf_lnP(
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
     
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂, P = ds(θ)
-    D = batchsize(d)
+    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂ = ds(θ)
     
     Δ = d - nonCMB_data_components(θ,ds)
     b = 0
     if (which in (:wf, :sample))
-        b += Lϕ'*B'*P'*M'*(Cn\Δ)
+        b += Lϕ'*B'*M'*(Cn\Δ)
     end
     if (which in (:fluctuation, :sample))
-        b += Cf\simulate(batch(Cf,D)) + Lϕ'*B'*P'*M'*(Cn\simulate(batch(Cn,D)))
+        ξf = simulate(Cf; d.Nbatch)
+        ξn = simulate(Cn; d.Nbatch)
+        b += Cf\ξf + Lϕ'*B'*M'*(Cn\ξn)
     end
     
-    A_diag  = pinv(Cf) +     B̂' *  M̂'*pinv(Cn̂)*M̂ * B̂
-    A_zeroϕ = pinv(Cf) +     B'*P'*M'*pinv(Cn̂)*M*P*B
-    A       = pinv(Cf) + Lϕ'*B'*P'*M'*pinv(Cn)*M*P*B*Lϕ
+    A_diag  = pinv(Cf) +     B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+    A_zeroϕ = pinv(Cf) +     B'*M'*pinv(Cn̂)*M*B
+    A       = pinv(Cf) + Lϕ'*B'*M'*pinv(Cn)*M*B*Lϕ
     
     A_preconditioner = @match preconditioner begin
         :diag  => A_diag
-        :zeroϕ => FuncOp(op⁻¹ = (b -> conjugate_gradient(A_diag, A_zeroϕ, b, 0*b, tol=1e-1)))
+        :zeroϕ => FuncOp(op⁻¹ = (b -> (conjugate_gradient(A_diag, A_zeroϕ, b, zero(b); conjgrad_kwargs.tol))))
         _      => error("Unrecognized preconditioner='$preconditioner'")
     end
     
@@ -63,15 +64,15 @@ end
     Σ(ϕ::Field,  ds; [conjgrad_kwargs])
     Σ(Lϕ,        ds; [conjgrad_kwargs])
     
-An operator for the data covariance, Cn + P*M*B*L*Cf*L'*B'*M'*P', which can
+An operator for the data covariance, `Cn + M*B*L*Cf*L'*B'*M'`, which can
 applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
 `conjugate_gradient`.
 """
 Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
 function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
-    @unpack d,P,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
+    @unpack d,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
     SymmetricFuncOp(
-        op   = x -> (Cn + P*M*B*Lϕ*Cf*Lϕ'*B'*M'*P')*x,
+        op   = x -> (Cn + M*B*Lϕ*Cf*Lϕ'*B'*M')*x,
         op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
     )
 end
@@ -89,21 +90,20 @@ quasi-sample.
 
 Keyword arguments:
 
-* `ϕstart` — Starting point of the maximizer *(default:* $\phi=0$*)*.
-* `nsteps` — The maximum number of iterations for the maximizer
-* `ϕtol` — If given, stop when $\phi$ updates reach this tolerance.
-  `ϕtol` is roughly the relative per-pixel standard deviation between
-  changes to $\phi$ and draws from the $\phi$ prior. Values in the
-  range $10^{-2}-10^{-4}$ are reasonable. 
-* `lbfgs_rank` — The maximum rank of the LBFGS approximation to the
-   Hessian *(default: 5).
-* `conjgrad_kwargs` — Passed to the inner call to
+* `nsteps` — The maximum number of iterations for the maximizer.
+* `ϕstart = 0` — Starting point of the maximizer.
+* `ϕtol = nothing` — If given, stop when `ϕ` updates reach this
+  tolerance. `ϕtol` is roughly the relative per-pixel standard
+  deviation between changes to `ϕ` and draws from the `ϕ` prior.
+  Values in the range $10^{-2}-10^{-4}$ are reasonable. 
+* `lbfgs_rank = 5` — The maximum rank of the LBFGS approximation to
+   the Hessian.
+* `conjgrad_kwargs = (;)` — Passed to the inner call to
   [`conjugate_gradient`](@ref).
-* `progress` — Whether to show the progress bar.
-* `Nϕ` — Noise to use in the initial approximation to the Hessian. Can
-   also give `Nϕ=:qe` to use the quadratic estimate noise *(default:*
-   `:qe`*)*.
-* `quasi_sample` — `false` *(default)* to compute the MAP, `true` to
+* `progress = true` — Whether to show the progress bar.
+* `Nϕ = :qe` — Noise to use in the initial approximation to the
+   Hessian. Can give `:qe` to use the quadratic estimate noise.
+* `quasi_sample = false` — `false` to compute the MAP, `true` to
    iterate quasi-samples, or an integer to compute a fixed-seed
    quasi-sample.
 * `history_keys` — What quantities to include in the returned
@@ -126,6 +126,7 @@ function MAP_joint(
     ϕtol = nothing,
     progress::Bool = true,
     verbosity = (0,0),
+    linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
@@ -152,6 +153,7 @@ function MAP_joint(
         conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...),
     )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+    ProgressMeter.update!(pbar)
 
     (f, argmaxf_lnP_history) = argmaxf_lnP(
         (isnothing(ϕstart) ? 1 : ϕ), θ, dsθ; 
@@ -162,8 +164,11 @@ function MAP_joint(
     push!(history, select((;f,f°,ϕ,∇ϕ_lnP=nothing,χ²=nothing,lnP=nothing,argmaxf_lnP_history), history_keys))
 
     # objective function (with gradient) to maximize
-    @⌛ function objective(ϕ)
-        @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1])
+    @⌛ function objective(ϕ; need_gradient=true)
+        (
+            @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), 
+            need_gradient ? @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]) : nothing
+        )
     end
     # function to compute after each optimization iteration, which
     # recomputes the best-fit f given the current ϕ
@@ -181,7 +186,9 @@ function MAP_joint(
         ∇ϕ_lnP .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))])
+        values = [("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))]
+        hasproperty(linesearch, :α) && push!(values, ("α", linesearch.α))
+        next!(pbar, showvalues=values)
         push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
@@ -203,7 +210,7 @@ function MAP_joint(
             lbfgs_rank; 
             maxiter = nsteps, 
             verbosity = verbosity[1], 
-            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5)
+            linesearch = linesearch
         ); 
         finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
@@ -247,38 +254,43 @@ function MAP_marg(
     aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
 )
     
-    ds = (@set ds.G = 1)
-    @unpack Cf, Cϕ, Cf̃, Cn̂ = ds
-    T = eltype(Cf)
+    mod(Nsims+1,nworkers())==0 || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+
+    ds = (@set ds.G = I)
+    dsθ = ds(θ)
+    @unpack Cϕ,d = dsθ
+    T = real(eltype(d))
     
-    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
-    # from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(ds).Nϕ/2; end
+    # compute approximate inverse ϕ Hessian used in gradient descent,
+    # possibly from quadratic estimate
+    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
     Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
 
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     tr = []
     state = nothing
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
-    
+    ProgressMeter.update!(pbar)
+
     for i=1:nsteps
         aggressive_gc && cuda_gc()
         g, state = δlnP_δϕ(
-            ϕ, θ, ds,
+            ϕ, θ, ds;
             use_previous_MF = i>nsteps_with_meanfield_update,
-            Nsims=Nsims, Nbatch=Nbatch, weights=weights,
-            progress=false, return_state=true, previous_state=state,
-            conjgrad_kwargs=conjgrad_kwargs, aggressive_gc=aggressive_gc
+            progress = false, return_state = true, previous_state = state,
+            Nsims, Nbatch, weights, conjgrad_kwargs, aggressive_gc
         )
         ϕ += T(α) * Hϕ⁻¹ * g
         push!(tr, @dict(i,g,ϕ))
         next!(pbar, showvalues=[
             ("step",i), 
-            ("Ncg", length(state.gQD.history)), 
-            ("Ncg_sims", i<=nsteps_with_meanfield_update ? length(state.gQD_sims[1].history) : "(MF not updated)"),
+            ("Ncg (data)", length(state.gQD.history)), 
+            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
             ("α",α)
         ])
     end
+
+    set_distributed_dataset(nothing) # free memory, which got used inside δlnP_δϕ
     
     return ϕ, tr
 

@@ -4,9 +4,11 @@ using .PyPlot.PyCall
 import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 
 
-### plotting Cℓs
+### overloaded 1D plotting
 
 for plot in (:plot, :loglog, :semilogx, :semilogy)
+
+	# Cℓs
     @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
 		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 	end
@@ -18,8 +20,37 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 		($plot) in [:loglog,:semilogx] && xscale("log")
 		($plot) in [:loglog,:semilogy] && yscale("log")
 	end
+
+	# Loess-interpolated
+	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
+	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
+        xs′ = vcat(map(1:length(m.xs)-1) do i
+		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
+		end..., [last(m.xs)])
+	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
+	end
+	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
+
+	# 1D KDE
+	@eval function ($plot)(f::Function, k::GetDistKDE{1}, args...; kwargs...)
+	    ($plot)(k.kde.x, f.(k.kde.P), args...; kwargs...)
+	end
+	@eval ($plot)(k::GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
+
 end
 
+# 2D KDE
+function plot(k::GetDistKDE{2}, args...; color=nothing, kwargs...)
+	@unpack colors = pyimport("matplotlib")
+	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels([0.95,0.68]); Inf]
+	if color == nothing
+		color = gca()._get_lines.get_next_color()
+	end
+	contourf(args...; colors=[(colors.to_rgb(color)..., α) for α in (0.4, 0.8)], kwargs...)
+	contour(args...;  colors=color, kwargs...)
+end
+
+# Cℓ band
 function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
@@ -94,7 +125,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
 	else
-		extent = [-1,1,-1,1] .* fieldinfo(f).nyq
+		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 	end
 	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
 	cax = ax.matshow(
@@ -106,7 +137,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# annonate
     if cbar
-		colorbar(cax,ax=ax)
+		colorbar(cax,ax=ax,pad=0.01)
 	end
     ax.set_title(title, y=1)
     if ticklabels
@@ -140,11 +171,17 @@ end
 Plotting fields. 
 """
 plot(f::Field; kwargs...) = plot([f]; kwargs...)
-plot(D::DiagOp; kwargs...) = 
-	plot([diag(D)]; which=permutedims([x for x in propertynames(diag(D)) if string(x)[end] in "xl"]), kwargs...)
+function plot(D::DiagOp; kwargs...)
+	props = _sub_components[findfirst(((k,v),)->diag(D) isa @eval($k), _sub_components)][2]
+	plot(
+		[diag(D)]; 
+		which = permutedims([Symbol(p) for (p,_) in props if endswith(p,r"[lx]")]),
+		kwargs...
+	)
+end
 
 function plot(
-	fs::AbstractVecOrMat{F}; 
+	fs :: AbstractVecOrMat{F}; 
 	plotsize = plotsize₀, 
 	which = default_which(fs), 
 	title = nothing, 
@@ -153,7 +190,7 @@ function plot(
 	cmap = nothing,
 	return_all = false, 
 	kwargs...
-) where {F<:Field}
+) where {F<:FlatField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
@@ -170,14 +207,14 @@ function plot(
 	
 end
 
-default_which(::AbstractVecOrMat{<:FlatS0}) = [:Ix]
-default_which(::AbstractVecOrMat{<:FlatS2}) = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:FlatS0})  = [:Ix]
+default_which(::AbstractVecOrMat{<:FlatS2})  = [:Ex :Bx]
 default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
-function default_which(fs::AbstractVecOrMat{<:Field})
+function default_which(fs::AbstractVecOrMat{<:FlatField})
     try
         ensuresame((default_which([f]) for f in fs)...)
     catch x
-        x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for this combination of fields to plot.")) : rethrow()
+        x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for plotting this combination of fields.")) : rethrow()
     end
 end
 
@@ -188,9 +225,9 @@ end
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:Field}; kwargs...) = animate([f]; kwargs...)
+animate(f::AbstractVecOrMat{<:FlatField}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:FlatField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
@@ -220,21 +257,13 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Field}}; fps=25, 
 end
 
 
-### Plotting Loess interpolated objects
 
-for plot in (:plot, :loglog, :semilogx, :semilogy)
+### plotting HealpixFields
 
-	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
-	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
-        xs′ = vcat(map(1:length(m.xs)-1) do i
-		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
-		end..., [last(m.xs)])
-	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
-	end
+plot(f::HealpixMap; kwargs...) = hp.mollview(collect(f.arr); cmap="RdBu_r", kwargs...)
 
-	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
-	
-end
+
+
 
 
 ### convenience
@@ -244,4 +273,23 @@ function figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()
+end
+
+
+### chains
+
+"""
+    plot_kde(samples; [boundary, normalize, smooth_scale_2D], kwargs...)
+
+Plot a Kernel Density Estimate PDF for a set of 1D or 2D samples.
+`boundary`, `normalize`, and `smooth_scale_2D` keyword arguments are
+passed to to the underlying call to [`kde`](@ref), and all others are
+passed to the underlying call to `plot`.
+
+Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
+which must be installed. 
+"""
+function plot_kde(samples; boundary=nothing, normalize=nothing, smooth_scale_2D=nothing, kwargs...)
+	kde_kwargs = filter(!isnothing∘last, Dict(pairs((;boundary,normalize,smooth_scale_2D))))
+    plot(kde(samples; kde_kwargs...); kwargs...)
 end

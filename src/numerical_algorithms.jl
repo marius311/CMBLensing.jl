@@ -24,14 +24,7 @@ function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
         @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
-        
-        # due to https://github.com/JuliaLang/julia/issues/27988, if this were
-        # written the natural way as:
-        #    @. y .+= h*(k₁ + 2k₂ + 2k₃ + k₄)/6
-        # it has god-awful performance for FieldTuples (although is fine for
-        # FlatS0s). until a solution for that issue comes around, a workaround
-        # is to write out the broadcasting kernel by hand:
-        broadcast!((y,h,k₁,k₂,k₃,k₄)->(y+h⅙*(k₁+2*(k₂+k₃)+k₄)), y, (y,h,k₁,k₂,k₃,k₄)...)
+        @. y .+= h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
     return y
 end
@@ -45,7 +38,7 @@ function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
         k₂ = F(t + h½, y + h½*k₁)
         k₃ = F(t + h½, y + h½*k₂)
         k₄ = F(t + h,  y + h*k₃)
-        y += @. h*(k₁ + 2k₂ + 2k₃ + k₄)/6
+        y += @. h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
     return y
 end
@@ -113,7 +106,7 @@ Info from the iterations of the solver can be returned if
 
     prog = Progress(100, (progress!=false ? progress : Inf), "Conjugate Gradient: ")
     for outer i = 2:nsteps
-        Ap   = A * p
+        Ap   = @⌛ A * p
         α    = res / dot(p,Ap)
         x    = x + α * p
         r    = r - α * Ap

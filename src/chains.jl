@@ -137,17 +137,17 @@ wrap_chains(chain::Vector) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
-    D = batchsize(chain[end][:lnP])
+    D = batch_length(chain[end][:lnP])
     (D==1) && return chain
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
                 if v isa Union{BatchedReal,FlatField}
-                    k => batchindex(v, I)
-                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:BatchedVals}}
-                    k => map(x -> (x isa BatchedVals ? batchindex(x,I) : x), v)
-                elseif v isa AbstractArray{<:BatchedVals}
-                    k => batchindex.(v, I)
+                    k => batch_index(v, I)
+                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:Union{BatchedReal,BatchedVal}}}
+                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ? batch_index(x,I) : x), v)
+                elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
+                    k => batch_index.(v, I)
                 else
                     k => v
                 end
@@ -172,9 +172,9 @@ Get the mean and standard deviation of a set of correlated `samples` from a
 chain where the error on the mean and standard deviation is estimated with
 bootstrap resampling using the calculated "effective sample size" of the chain.
 """
-function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2)
+function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2, tol=50)
     
-    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples)[1])
+    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples; tol)[1])
     
     μ = mean(samples)
     σ = std(samples)
@@ -196,4 +196,50 @@ function paren_errors(μ, σ; N_in_paren=2)
     N = round(Int, floor(log10(1/σ))) + N_in_paren
     fmt = "%.$(N)f"
     @ondemand(Formatting.sprintf1)(fmt, μ)*"($(round(Int,σ*10^N)))"
+end
+
+
+
+# an N-dimensional getdist Kernel Density Estimate
+struct GetDistKDE{N}
+    kde
+end
+(k::GetDistKDE)(x...) = k.kde(x...)
+
+"""
+    kde(samples::AbstractVector; [boundary=(min,max), normalize="integral" or "max"])
+    kde(samples::AbstractMatrix; [boundary=[(min1,max1),(min2,max2)], normalize="integral" or "max", smooth_scale_2D])
+
+Return a Kernel Density Estimate for a set of 1D or 2D samples. The
+return object is a function which can be evaluated anywhere to compute
+the PDF. If provided, `boundary` specifies a hard upper/lower bound
+for the 1 or 2 or parameters, `normalize` specifies whether to
+normalize the PDF to unit integral or unit maximum, and
+`smooth_scale_2D` specifies how much smoothing to do for the 2D case.
+
+Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
+which must be installed.
+"""
+function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral")
+    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist.chains.print_load_details = false
+    kde = getdist.MCSamples(;
+        samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
+    )
+    GetDistKDE{1}(kde.get1DDensity(0).normalize(normalize))
+end
+
+function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothing)), normalize="integral", smooth_scale_2D=nothing)
+    if size(samples,1) == 2
+        samples = samples'
+    elseif size(samples,2) != 2
+        error("KDE only supports 1 or 2 dimensional samples.")
+    end
+    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist.chains.print_load_details = false
+    kde = getdist.MCSamples(;
+        samples, weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])
+    )
+    density_kwargs = isnothing(smooth_scale_2D) ? () : (;smooth_scale_2D)
+    GetDistKDE{2}(kde.get2DDensity(0, 1; density_kwargs...).normalize(normalize))
 end

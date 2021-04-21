@@ -1,42 +1,62 @@
 
 
-abstract type DataSet{DS} end
+abstract type DataSet end
 
-getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
-setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
-propertynames(ds::DS) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
-    union(fieldnames(DS), fieldnames(DS′))
+copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
 
-function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
-    kw  = filter(((k,_),)->  k in fieldnames(DS),  kwargs)
-    kw′ = filter(((k,_),)->!(k in fieldnames(DS)), kwargs)
-    DS(_super=DS′(;kw′...); kw...)
+hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
+
+function show(io::IO, ds::DataSet)
+    println(io, typeof(ds), ": ")
+    ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
+    for line in split(sprint(show, MIME"text/plain"(), ds_dict, context = (:limit => true)), "\n")[2:end]
+        println(io, line)
+    end
 end
 
-copy(ds::DS) where {DS<:DataSet} = 
-    DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
 
-# needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
-Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
+# util for distributing a singleton global dataset to workers
+"""
+    set_distributed_dataset(ds)
+    get_distributed_dataset()
+
+Sometimes it's more performant to distribute a DataSet object to
+parallel workers just once, and have them refer to it from the global
+state, rather than having it get automatically but repeatedly sent as
+part of closures. This provides that functionality. Use
+`set_distributed_dataset(ds)` from the master process to set the
+global DataSet and `get_distributed_dataset()` from any process to
+retrieve it. Repeated calls will not resend `ds` if it hasn't changed
+(based on `hash(ds)`) and if no new workers have been added since the
+last send.
+"""
+function set_distributed_dataset(ds)
+    h = hash((procs(), ds))
+    if h != _distributed_dataset_hash
+        @everywhere @eval CMBLensing _distributed_dataset = $ds
+        global _distributed_dataset_hash = h
+    end
+    nothing
+end
+get_distributed_dataset() = _distributed_dataset
+_distributed_dataset = nothing
+_distributed_dataset_hash = nothing
 
 
 # Stores variables needed to construct the posterior
-@kwdef mutable struct BaseDataSet <: DataSet{Nothing}
+@kwdef mutable struct BaseDataSet <: DataSet
     d                # data
     Cϕ               # ϕ covariance
     Cf               # unlensed field covariance
     Cf̃ = nothing     # lensed field covariance (not always needed)
     Cn               # noise covariance
     Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  = 1           # user mask
+    M  = I           # user mask
     M̂  = M           # approximate user mask, diagonal in same basis as Cf
-    B  = 1           # beam and instrumental transfer functions
+    B  = I           # beam and instrumental transfer functions
     B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
-    D  = 1           # mixing matrix for mixed parametrization
-    G  = 1           # reparametrization for ϕ
-    P  = 1           # pixelization operator (if estimating field on higher res than data)
+    D  = I           # mixing matrix for mixed parametrization
+    G  = I           # reparametrization for ϕ
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
 end
 
@@ -50,7 +70,7 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(θ::NamedTuple) 
+function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
         (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v
@@ -63,48 +83,50 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 
 
 @doc doc"""
-    resimulate(ds::DataSet; [f, ϕ, n])
-    
-Make a new DataSet with the data replaced by a simulation, potentially given a
-fixed f, ϕ, or n, if any are provided. 
+    resimulate(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
 
-Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+Make a new DataSet with the data replaced by a simulation. Keyword
+argument fields will be used instead of new simulations, if they are
+provided. 
+
+Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
 """
 resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
 
 @doc doc"""
-    resimulate!(ds::DataSet; [f, ϕ, n])
-    
-Replace the data in this DataSet in-place with a simulation, potentially given a
-fixed f, ϕ, or n, if any are provided. 
-    
-Returns a named tuple of `(ds, f, ϕ, n, f̃)`
+    resimulate!(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
+
+Replace the data in this DataSet in-place with a simulation. Keyword
+argument fields will be used instead of new simulations, if they are
+provided. 
+
+Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
 """
 function resimulate!(
     ds::DataSet; 
     f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
+    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
     rng=global_rng_for(ds.d), seed=nothing
 )
 
-    @unpack M,P,B,L,Cϕ,Cf,Cn,d = ds()
-    D = batchsize(d)
+    @unpack M,B,L,Cϕ,Cf,Cn,d = ds()
     
-    if (f̃ == nothing)
-        if (ϕ == nothing)
-            ϕ = simulate(batch(Cϕ,D), rng=rng, seed=seed)
+    if isnothing(f̃)
+        if isnothing(ϕ)
+            ϕ = simulate(Cϕ; Nbatch, rng, seed)
         end
-        if (f == nothing)
-            f = simulate(batch(Cf,D), rng=rng, seed=(seed==nothing ? nothing : seed+1))
+        if isnothing(f)
+            f = simulate(Cf; Nbatch, rng, seed=(seed==nothing ? nothing : seed+1))
         end
         f̃ = L(ϕ)*f
     else
         f = ϕ = nothing
     end
-    if (n == nothing)
-        n = simulate(batch(Cn,D), rng=rng, seed=(seed==nothing ? nothing : seed+2))
+    if isnothing(n)
+        n = simulate(Cn; rng, seed=(seed==nothing ? nothing : seed+2))
     end
 
-    ds.d = d = M*P*B*f̃ + n
+    ds.d = d = M*B*f̃ + n
     
     (;ds,f,ϕ,n,f̃,d)
     
@@ -112,32 +134,59 @@ end
 
 
 @doc doc"""
-    load_sim
-    
-Create a `BaseDataSet` object with some simulated data, returing the DataSet
-and simulated truths. E.g.
+
+    load_sim(;kwargs...)
+
+The starting point for many typical sessions. Creates a `BaseDataSet`
+object with some simulated data, returing the DataSet and simulated
+truths, which can then be passed to other maximization / sampling
+functions. E.g.:
 
 ```julia
 @unpack f,ϕ,ds = load_sim(;
     θpix  = 2,
     Nside = 128,
-    pol   = :I,
+    pol   = :P,
     T     = Float32
-);
+)
 ```
-For rectangular maps, Nside expects (Ny, Nx), i.e. (Nrow, Ncol). 
-If Nside isa Int, the code interprets it as a square map.
+
+Keyword arguments: 
+
+* `θpix` — Angular resolution, in arcmin. 
+* `Nside` — Number of pixels in the map as an `(Ny,Nx)` tuple, or a
+  single number for square maps. 
+* `pol` — One of `:I`, `:P`, or `:IP` to select intensity,
+  polarization, or both. 
+* `T = Float32` — Precision, either `Float32` or `Float64`.
+* `storage = Array` — Set to `CuArray` to use GPU.
+* `Nbatch = 1` — Number of batches of data in this dataset.
+* `μKarcminT = 3` — Noise level in temperature in μK-arcmin.
+* `ℓknee = 100` — 1/f noise knee.
+* `αknee = 3` — 1/f noise slope.
+* `beamFWHM = 0` — Beam full-width-half-max in arcmin.
+* `pixel_mask_kwargs = (;)` — NamedTuple of keyword arguments to
+  pass to `make_mask` to create the pixel mask.
+* `bandpass_mask = LowPass(3000)` — Operator which performs
+  Fourier-space masking.
+* `fiducial_θ = (;)` — NamedTuple of keyword arguments passed to
+  `camb()` for the fiducial model.
+* `seed = nothing` — Specific seed for the simulation.
+* `L = LenseFlow` — Lensing operator.
+
+Returns a named tuple of `(;f, f̃, ϕ, n, ds, Cℓ, proj)`.
+
+
 """
 function load_sim(;
     
     # basic configuration
     θpix,
-    θpix_data = θpix,
     Nside,
     pol,
     T = Float32,
     storage = Array,
-    Nbatch = nothing,
+    Nbatch = 1,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -166,13 +215,15 @@ function load_sim(;
     G = nothing,
     Nϕ_fac = 2,
     L = LenseFlow,
-    ∂mode = fourier∂
 
 )
     
+    # projection
+    Ny, Nx = Nside .* (1,1)
+    proj = ProjLambert(;Ny, Nx, θpix, T, storage)
 
     # the biggest ℓ on the 2D fourier grid
-    ℓmax = round(Int,ceil(√2*fieldinfo(Flat(θpix=θpix,Nside=Nside)).nyq)+1)
+    ℓmax = round(Int,ceil(√2*proj.nyquist)+1)
     
     # CMB Cℓs
     if (rfid != nothing)
@@ -199,43 +250,30 @@ function load_sim(;
     
     # some things which depend on whether we chose :I, :P, or :IP
     pol = Symbol(pol)
-    S,ks,F,F̂,nF = @match pol begin
-        :I  => (S0,  (:TT,),            FlatMap,    FlatFourier,    1)
-        :P  => (S2,  (:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
-        :IP => (S02, (:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
+    ks,F,F̂,nF = @match pol begin
+        :I  => ((:TT,),            FlatMap,    FlatFourier,    1)
+        :P  => ((:EE,:BB),         FlatQUMap,  FlatEBFourier,  2)
+        :IP => ((:TT,:EE,:BB,:TE), FlatIQUMap, FlatIEBFourier, 3)
         _   => throw(ArgumentError("`pol` should be one of :I, :P, or :IP"))
     end
     
-    # pixelization
-    Pix = Flat(Nside=Nside, θpix=θpix, ∂mode=∂mode)
-    if (θpix_data == θpix)
-        Pix_data = Pix
-        P = 1
-    else
-        Pix_data = Flat(Nside=Nside.÷(θpix_data÷θpix), θpix=θpix_data, ∂mode=∂mode)
-        P = FuncOp(
-            op  = f -> ud_grade(f, θpix_data, deconv_pixwin=false, anti_aliasing=false),
-            opᴴ = f -> ud_grade(f, θpix,      deconv_pixwin=false, anti_aliasing=false)
-        )
-    end
-    
     # covariances
-    Cϕ₀ = adapt(storage, Cℓ_to_Cov(Pix,      T, S0, (Cℓ.total.ϕϕ)))
-    Cfs = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.unlensed_scalar[k] for k in ks)...))
-    Cft = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.tensor[k]          for k in ks)...))
-    Cf̃  = adapt(storage, Cℓ_to_Cov(Pix,      T, S,  (Cℓ.total[k]           for k in ks)...))
-    Cn̂  = adapt(storage, Cℓ_to_Cov(Pix_data, T, S,  (Cℓn[k]                for k in ks)...))
+    Cϕ₀ = Cℓ_to_Cov(:I,  proj, (Cℓ.total.ϕϕ))
+    Cfs = Cℓ_to_Cov(pol, proj, (Cℓ.unlensed_scalar[k] for k in ks)...)
+    Cft = Cℓ_to_Cov(pol, proj, (Cℓ.tensor[k]          for k in ks)...)
+    Cf̃  = Cℓ_to_Cov(pol, proj, (Cℓ.total[k]           for k in ks)...)
+    Cn̂  = Cℓ_to_Cov(pol, proj, (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
     Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
     if (M == nothing)
-        Mfourier = adapt(storage, Cℓ_to_Cov(Pix_data, T, S, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1))
+        Mfourier = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F{Pix_data}(repeated(T.(make_mask(Nside.÷(θpix_data÷θpix),θpix_data; pixel_mask_kwargs...).Ix),nF)...)))
+            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
         else
-            Mpix = 1
+            Mpix = I
         end
         M = Mfourier * Mpix
         if (M̂ == nothing)
@@ -252,7 +290,7 @@ function load_sim(;
     
     # beam
     if (B == nothing)
-        B = adapt(storage, Cℓ_to_Cov(Pix, T, S, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1))
+        B = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1)
     end
     if (B̂ == nothing)
         B̂ = B
@@ -262,16 +300,16 @@ function load_sim(;
     Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
 
     # put everything in DataSet
-    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, P, L=Lϕ)
+    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
     
     # simulate data
-    @unpack ds,f,f̃,ϕ,n = resimulate(ds, rng=rng, seed=seed)
+    @unpack ds,f,f̃,ϕ,n = resimulate(ds; rng, seed)
 
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds,(pol in (:P,:IP) ? :EB : :TT)).Nϕ / Nϕ_fac
-        G₀ = @. nan2zero(sqrt(1 + 2/($Cϕ()/Nϕ)))
+        Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
+        G₀ = sqrt(I + Nϕ * pinv(Cϕ()))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end
     if (D == nothing)
@@ -279,17 +317,17 @@ function load_sim(;
         ds.D = ParamDependentOp(
             function (;r=r₀, _...)
                 Cfr = Cf(;r=r)
-                sqrt(Diagonal(diag(Cfr) .+ σ²len .+ 2*diag(Cn̂)) * pinv(Cfr))
+                sqrt((Cfr + I*σ²len + 2*Cn̂) * pinv(Cfr))
             end,
         )
     end
 
-    if Nbatch != nothing
-        ds.d = identity.(batch(ds.d, Nbatch))
-        ds.L = alloc_cache(L(identity.(batch(zero(diag(Cϕ)), Nbatch))), ds.d)
+    if Nbatch > 1
+        ds.d *= batch(ones(Int,Nbatch))
+        ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     
-    return adapt(storage, (;f, f̃, ϕ, n, ds, ds₀=ds(), T, P=Pix, Cℓ, L))
+    return (;f, f̃, ϕ, n, ds, ds₀=ds(), Cℓ, proj)
     
 end
 

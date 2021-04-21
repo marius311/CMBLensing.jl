@@ -10,3 +10,8 @@ services:
     hostname: localhost
     environment:
      - PORT=${PORT:-8888}
+    # uncomment to mount local files into container for easier development:
+    # volumes: 
+    #  - "./src:/home/cosmo/CMBLensing/src"
+    #  - "./docs/src:/home/cosmo/CMBLensing/docs/src"
+    #  - "/home/cosmo/.julia"
