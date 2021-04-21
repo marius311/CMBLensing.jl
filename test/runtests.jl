@@ -39,7 +39,7 @@ Nsides_big = [(128,128), (64,128), (128,64)]
 
 Random.seed!(1)
 
-has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
+has_batched_fft = (FFTW.fftw_provider != :mkl) || (storage != Array)
 
 ##
 
