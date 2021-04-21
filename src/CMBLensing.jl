@@ -19,12 +19,8 @@ using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
 using JLD2: jldopen, JLDWriteSession
-<<<<<<< HEAD
 import KahanSummation
 using LaTeXStrings
-=======
-using KahanSummation
->>>>>>> master
 using Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op

@@ -15,7 +15,8 @@ function tick_locations(Npix, θpix)
     θticks = δθ:δθ:θ₊
     θticks = [-reverse(θticks); 0;  θticks]
     pixticks = (θticks .+ (θpix * Npix / 60 / 2)) .* (60 / θpix)
-    latex_θticks = [L"%$i \degree" for i in θticks]
+    #latex_θticks = [L"%$i ^\circ" for i in θticks]
+    latex_θticks = [L"%$i ^\circ" for i in θticks]
     pixticks, latex_θticks
 end
 
@@ -51,11 +52,11 @@ end
     # colorbar
     colorbar_title --> L"\mu \mathrm{K~amin}"
 
-    arr = Array(m[:Ix]) .* data_scale
-    clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
+    arr = Array(m[:Ix])
+    clim = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
     clims := (-clim, clim)
-    #title := L"\mathrm{Map}~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
-    arr
+    title := L"\mathrm{Map}~(x, y)~[%$Nx \times %$Ny~@~%$θpix ^\prime]"
+    Array(m[:Ix])
 end
 
 @recipe function _(m::FlatS2)
@@ -74,34 +75,34 @@ end
     xlims --> (1, Nx) # this is because the default settings add padding in the x direction
     ylims --> (1, Ny) # there is probably a better way of turning that off
 
-    xticks := tick_locations(Nx, θpix)
-    yticks := tick_locations(Ny, θpix)
-    tick_direction := :out
+    #xticks := tick_locations(Nx, θpix)
+    #yticks := tick_locations(Ny, θpix)
+    #tick_direction := :out
 
     # labeling
     xguide --> L"x"
     yguide --> L"y"
 
     # colorbar
-    #colorbar_title --> L"\mu \mathrm{K~amin}"
+    colorbar_title --> L"\mu \mathrm{K~amin}"
 
     @series begin 
         subplot := 1
         arr = Array(m[:Ex])
-        clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
+        clim = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
         clims := (-clim, clim)
         framestyle --> :box 
-        #title := L"E~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
+        title := L"E~(x, y)~[%$Nx \times %$Ny~@~%$θpix ^\prime]"
         arr
     end
 
     @series begin
         subplot := 2
         arr = Array(m[:Bx])
-        clim = floor(Int, quantile(abs.(arr[@. !isnan(arr)][:]),0.999))
+        clim = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
         clims := (-clim, clim)
         framestyle --> :box 
-        #title := L"B~(x, y)~[%$Nx \times %$Ny~@~%$θpix\prime]"
+        title := L"B~(x, y)~[%$Nx \times %$Ny~@~%$θpix ^\prime]"
         arr
     end
 end
@@ -111,8 +112,9 @@ end
     xguide --> L"\ell"
     yguide --> L"\frac{\ell(\ell + 1)}{2\pi} C_\ell~[\mathrm{\mu ~K}^2]"
 
-    xscale --> :log10
+    #xscale --> :log10
     yscale --> :log10
 
     ℓ, Cℓ(ℓ)
 end
+
