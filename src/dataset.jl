@@ -70,7 +70,7 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(θ::NamedTuple) 
+function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
         (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v

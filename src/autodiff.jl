@@ -65,7 +65,7 @@ Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothin
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
-@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(θ)), θ)
 @adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * Zfac(L) * pinv(L)',)
 
 # basis conversion

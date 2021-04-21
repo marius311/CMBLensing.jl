@@ -135,7 +135,7 @@ Basis(f::Field) = f
 basis(f::F) where {F<:Field} = basis(F)
 basis(::Type{<:Field{B}}) where {B<:Basis} = B
 basis(::Type{<:Field}) = Basis
-
+basis(::AbstractVector) = Basis
 
 ### printing
 typealias(::Type{B}) where {B<:Basis} = string(B.name.name)

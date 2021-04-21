@@ -1,29 +1,29 @@
 
 """
-    mix(f, ϕ,                ds::DataSet)
-    mix(f, ϕ, θ::NamedTuple, ds::DataSet)
+    mix(f, ϕ,    ds::DataSet)
+    mix(f, ϕ, θ, ds::DataSet)
     
 Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potential
 `ϕ`, given the definition of the mixing matrices in `ds` evaluated at parameters
 `θ` (or at fiducial values if no `θ` provided).
 """
 mix(f, ϕ, ds::DataSet) = mix(f,ϕ,NamedTuple(),ds)
-function mix(f, ϕ, θ::NamedTuple, ds::DataSet)
+function mix(f, ϕ, θ, ds::DataSet)
     @unpack D,G,L = ds(θ)
     L(ϕ)*D*f, G*ϕ
 end
 
 
 """
-    unmix(f°, ϕ°,                ds::DataSet)
-    unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
+    unmix(f°, ϕ°,    ds::DataSet)
+    unmix(f°, ϕ°, θ, ds::DataSet)
 
 Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed
 lensing potential `ϕ°`, given the definition of the mixing matrices in `ds`
 evaluated at parameters `θ` (or at fiducial values if no `θ` provided). 
 """
 unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,NamedTuple(),ds)
-function unmix(f°, ϕ°, θ::NamedTuple, ds::DataSet)
+function unmix(f°, ϕ°, θ, ds::DataSet)
     @unpack D,G,L = ds(θ)
     ϕ = G\ϕ°
     D\(L(ϕ)\f°), ϕ
@@ -31,8 +31,8 @@ end
 
 
 @doc doc"""
-    lnP(t, fₜ, ϕₜ,                ds::DataSet)
-    lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet)
+    lnP(t, fₜ, ϕₜ,    ds::DataSet)
+    lnP(t, fₜ, ϕₜ, θ, ds::DataSet)
 
 Compute the log posterior probability in the joint parameterization as a
 function of the field, $f_t$, the lensing potential, $\phi_t$, and possibly some
@@ -49,10 +49,10 @@ also include any Jacobian determinant terms that depend on $\theta$.
 The argument `ds` should be a `DataSet` and stores the masks, data, etc...
 needed to construct the posterior. 
 """
-lnP(t, fₜ, ϕₜ,                ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
-lnP(t, fₜ, ϕₜ, θ::NamedTuple, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
+lnP(t, fₜ, ϕₜ,    ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
+lnP(t, fₜ, ϕₜ, θ, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
 
-function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
+function lnP(::Val{t}, fₜ, ϕ, θ, ds::DataSet) where {t}
     
     @unpack Cn,Cf,Cϕ,L,M,B,d = ds
     
@@ -69,7 +69,7 @@ function lnP(::Val{t}, fₜ, ϕ, θ::NamedTuple, ds::DataSet) where {t}
 
 end
 
-function lnP(::Val{:mix}, f°, ϕ°, θ::NamedTuple, ds::DataSet)
+function lnP(::Val{:mix}, f°, ϕ°, θ, ds::DataSet)
     lnP(Val(0), unmix(f°,ϕ°,θ,ds)..., θ, ds) - logdet(ds.D,θ) - logdet(ds.G,θ)
 end
 
