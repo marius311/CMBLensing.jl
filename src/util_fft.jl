@@ -29,7 +29,7 @@ m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
-copy_if_fftw(x) = FFTW.fftw_provider==:fftw ? copy(x) : x
+copy_if_fftw(x) = FFTW.fftw_vendor==:fftw ? copy(x) : x
 
 
 """
