@@ -119,7 +119,6 @@ function MAP_joint(
     θ :: NamedTuple, 
     ds :: DataSet; 
     nsteps = 20,
-    lbfgs_rank = 5, 
     Nϕ = :qe,
     ϕstart = nothing,
     fstart = nothing,
@@ -127,6 +126,13 @@ function MAP_joint(
     progress::Bool = true,
     verbosity = (0,0),
     linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5),
+    lbfgs_rank = 5, 
+    optimizer = OptimKit.LBFGS(
+        lbfgs_rank; 
+        maxiter = nsteps, 
+        verbosity = verbosity[1], 
+        linesearch = linesearch
+    ),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
@@ -161,7 +167,7 @@ function MAP_joint(
     )
     f°, = mix(f, ϕ, dsθ)
     lastϕ = nothing
-    push!(history, select((;f,f°,ϕ,∇ϕ_lnP=nothing,χ²=nothing,lnP=nothing,argmaxf_lnP_history), history_keys))
+    push!(history, select((;f,f°,ϕ,∇ϕ_lnP=nothing,χ²=nothing,lnP=nothing,α=nothing,argmaxf_lnP_history), history_keys))
 
     # objective function (with gradient) to maximize
     @⌛ function objective(ϕ; need_gradient=true)
@@ -187,9 +193,14 @@ function MAP_joint(
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
         values = [("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))]
-        hasproperty(linesearch, :α) && push!(values, ("α", linesearch.α))
+        if hasproperty(optimizer.linesearch, :α)
+            @unpack α = optimizer.linesearch
+            push!(values, ("α", α))
+        else
+            α = nothing
+        end
         next!(pbar, showvalues=values)
-        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2,argmaxf_lnP_history), history_keys))
+        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
             !isnothing(lastϕ) &&
@@ -203,15 +214,10 @@ function MAP_joint(
     end
 
     # run optimization
-    ϕ, = @⌛ optimize(
+    ϕ, = @⌛ OptimKit.optimize(
         objective,
         Map(ϕ),
-        OptimKit.LBFGS(
-            lbfgs_rank; 
-            maxiter = nsteps, 
-            verbosity = verbosity[1], 
-            linesearch = linesearch
-        ); 
+        optimizer;
         finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),
         precondition = (_,η)->Map(Hϕ⁻¹*η),
@@ -225,6 +231,101 @@ end
 
 OptimKit._scale!(η::Field, β) = η .*= β
 OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
+
+
+using Optim
+
+function MAP_joint_update(
+    θ :: NamedTuple, 
+    ds :: DataSet; 
+    nsteps = 20,
+    Nϕ = :qe,
+    ϕstart = nothing,
+    fstart = nothing,
+    ϕtol = nothing,
+    αtol = 1e-8,
+    nburnin_update_hessian = 10,
+    progress::Bool = true,
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
+    quasi_sample = false,
+    preconditioner = :diag,
+    history_keys = (:lnP,),
+    aggressive_gc = fieldinfo(ds.d).Nx>=1024 & fieldinfo(ds.d).Ny>=1024,
+)
+
+    dsθ = copy(ds(θ))
+    dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
+
+    ϕ = Map(isnothing(ϕstart) ? zero(diag(ds.Cϕ)) : ϕstart)
+    T = eltype(ϕ)
+    
+    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
+    # from quadratic estimate
+    if (Nϕ == :qe)
+        Nϕ = quadratic_estimate(dsθ).Nϕ/2
+    end
+    Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
+
+    history = []
+    argmaxf_lnP_kwargs = (
+        which = (quasi_sample==false) ? :wf : :sample,
+        preconditioner = preconditioner,
+        conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...),
+    )
+    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
+    ProgressMeter.update!(pbar)
+
+    f = prevf = prevϕ = prev_∇ϕ_lnP = nothing
+ 
+    for step = 1:nsteps
+
+        # f step
+        isa(quasi_sample,Int) && seed!(global_rng_for(ϕ), quasi_sample)
+        (f, argmaxf_lnP_history) = @⌛ argmaxf_lnP(
+            ϕ, θ, dsθ;
+            fstart = prevf, 
+            argmaxf_lnP_kwargs...
+        )
+        aggressive_gc && cuda_gc()
+
+        # ϕ step
+        f°, = mix(f, ϕ, dsθ)
+        ∇ϕ_lnP, = @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)
+        s = Hϕ⁻¹ * ∇ϕ_lnP
+        αmax = 0.9 * get_max_lensing_step(ϕ, s)
+        soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
+            @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ-α*s,dsθ))))
+        end
+        α = soln.minimizer
+        ϕ -= α * s
+        
+        # finalize
+        χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
+        χ² = sum(unbatch(χ²s))
+        values = [("step",step), ("χ²",χ²s), ("α",α), ("Ncg",length(argmaxf_lnP_history))]
+        next!(pbar, showvalues=values)
+        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
+        if (
+            !isnothing(ϕtol) &&
+            !isnothing(prevϕ) &&
+            sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - prevϕ))) / sqrt(2length(ϕ)))) < ϕtol
+        )
+            break
+        else
+            if step > nburnin_update_hessian
+                Hϕ⁻¹_unsmooth = Diagonal(abs.(Fourier(ϕ - prevϕ) ./ Fourier(∇ϕ_lnP - prev_∇ϕ_lnP)))
+                Hϕ⁻¹ = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(Hϕ⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
+            end
+            prevf, prevϕ, prev_∇ϕ_lnP = f, ϕ, ∇ϕ_lnP
+        end
+
+    end
+
+    ProgressMeter.finish!(pbar)
+
+    f, ϕ, history
+
+end
 
 
 

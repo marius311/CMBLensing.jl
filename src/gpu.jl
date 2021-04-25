@@ -4,7 +4,7 @@ using CUDA: cufunc, curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using CUDA.CUSOLVER: CuQR
 
-export cuda_gc, gpu, @gpu!, @cu!
+export cuda_gc, gpu
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
@@ -23,34 +23,12 @@ global_rng_for(::Type{<:CuArray}) = curand_rng()
 # handy conversion functions and macros
 @doc doc"""
 
-    @gpu! x y
-
-Equivalent to `x = gpu(x)`, `y = gpu(y)`, etc... for any number of
-listed variables. See [`gpu`](@ref).
-"""
-macro gpu!(vars...)
-    :(begin; $((:($(esc(var)) = gpu($(esc(var)))) for var in vars)...); nothing; end)
-end
-@doc doc"""
-
     gpu(x)
 
 Recursively moves x to GPU, but unlike `CUDA.cu`, doesn't also convert
 to Float32. Equivalent to `adapt_structure(CuArray, x)`. Returns nothing.
 """
 gpu(x) = adapt_structure(CuArray, x)
-
-
-@doc doc"""
-
-    @cu! x y
-    
-Equivalent to `x = cu(x)`, `y = cu(y)`, etc... for any number of
-listed variables. See `CUDA.cu`. Returns nothing.
-"""
-macro cu!(vars...)
-    :(begin; $((:($(esc(var)) = cu($(esc(var)))) for var in vars)...); nothing; end)
-end
 
 
 
@@ -154,6 +132,7 @@ Gargbage collect and reclaim GPU memory (technically should never be
 needed to do this by hand, but sometimes helps with GPU OOM errors)
 """
 function cuda_gc()
+    isdefined(Main,:Out) && empty!(Main.Out)
     GC.gc(true)
     CUDA.reclaim()
 end

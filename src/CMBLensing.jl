@@ -68,7 +68,7 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, animate,
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,

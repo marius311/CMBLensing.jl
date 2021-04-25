@@ -457,7 +457,11 @@ end
     end
     bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
-
+function cov_to_Cℓ(C::DiagOp{<:FlatS0}; kwargs...)
+    @unpack Nx, Ny, Δx = diag(C)
+    α = Nx*Ny/Δx^2
+    get_Cℓ(sqrt.(diag(C)); kwargs...)*sqrt(α)
+end
 
 
 
