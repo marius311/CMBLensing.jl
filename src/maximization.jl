@@ -3,7 +3,7 @@
 
 @doc doc"""
     argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
-    argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
+    argmaxf_lnP(ϕ, θ, ds::DataSet; kwargs...)
     argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
     
 Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
@@ -20,11 +20,11 @@ Keyword arguments:
 
 """
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
-    θ::NamedTuple,
+    θ,
     ds::DataSet; 
     which = :wf, 
     fstart = nothing, 

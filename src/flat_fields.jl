@@ -553,8 +553,8 @@ function get_Cℓ(f₁::FlatS0, f₂::FlatS0=f₁; Δℓ=50, ℓedges=0:Δℓ:16
     ℓmask = (ℓmag .> minimum(ℓedges)) .&  (ℓmag .< maximum(ℓedges))
     L = ℓmag[ℓmask]
     CLobs = 1/α .* real.(dot.(
-        adapt(Array{Float64},f₁)[:Il, full_plane=true][ℓmask], 
-        adapt(Array{Float64},f₂)[:Il, full_plane=true][ℓmask]
+        adapt(Array,f₁)[:Il, full_plane=true][ℓmask], 
+        adapt(Array,f₂)[:Il, full_plane=true][ℓmask]
     ))
     w = @. nan2zero((2*Cℓfid(L)^2/(2L+1))^-1)
     

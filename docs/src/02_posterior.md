@@ -8,9 +8,9 @@ jupyter:
       format_version: '1.2'
       jupytext_version: 1.4.1
   kernelspec:
-    display_name: Julia 1.5.3
+    display_name: Julia 1.6.0
     language: julia
-    name: julia-1.5
+    name: julia-1.6
 ---
 
 # The Lensing Posterior

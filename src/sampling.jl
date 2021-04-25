@@ -386,12 +386,12 @@ end
     @pack! state = ϕ°, ΔH, accept
 end
 
-function hmc_step(U::Function, x, Λ; symp_kwargs, progress, always_accept)
+function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, progress, always_accept)
     local ΔH, accept
     for kwargs in symp_kwargs
         p = simulate(Λ)
         (ΔH, xtest) = symplectic_integrate(
-            x, p, Λ, U;
+            x, p, Λ, U, δUδx;
             progress = (progress==:verbose),
             kwargs...
         )
