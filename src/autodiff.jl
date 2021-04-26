@@ -1,6 +1,7 @@
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
+Zygote.accum(a::FieldTuple, b::FieldTuple) = Zygote.accum.(a,b)
 # this may create a LazyBinaryOp, unlike Zygote's
 Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 

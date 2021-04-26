@@ -427,3 +427,11 @@ string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout
 
 import NamedTupleTools
 NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
+
+@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
+    using ComponentArrays
+    # a Zygote-compatible conversion of ComponentVector to a NamedTuple
+    Base.convert(::Type{NamedTuple}, x::ComponentVector) = NamedTuple{keys(x)}([x[k] for k in keys(x)])
+    @adjoint Base.convert(::Type{NamedTuple}, x::ComponentVector) = convert(NamedTuple, x), Δ -> (nothing, ComponentArray(Δ))
+end
+

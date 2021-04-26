@@ -70,7 +70,7 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(θ::NamedTuple) 
+function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
         (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v
@@ -230,7 +230,7 @@ function load_sim(;
         @warn "`rfid` will be removed in a future version. Use `fiducial_θ=(r=...,)` instead."
         fiducial_θ = merge(fiducial_θ,(r=rfid,))
     end
-    Aϕ₀ = get(fiducial_θ, :Aϕ, 1)
+    Aϕ₀ = T(get(fiducial_θ, :Aϕ, 1))
     fiducial_θ = Base.structdiff(fiducial_θ, NamedTuple{(:Aϕ,)}) # remove Aϕ key if present
     if (Cℓ == nothing)
         Cℓ = camb(;fiducial_θ..., ℓmax=ℓmax)
@@ -241,7 +241,7 @@ function load_sim(;
             error("ℓmax of `Cℓ` argument should be higher than $ℓmax for this configuration.")
         end
     end
-    r₀ = Cℓ.params.r
+    r₀ = T(Cℓ.params.r)
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
     if (Cℓn == nothing)
@@ -264,7 +264,7 @@ function load_sim(;
     Cf̃  = Cℓ_to_Cov(pol, proj, (Cℓ.total[k]           for k in ks)...)
     Cn̂  = Cℓ_to_Cov(pol, proj, (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
+    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + (T(r)/r₀)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
