@@ -45,7 +45,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray, SizedArray
 using Statistics
 using StatsBase
-using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
+using TimerOutputs: @timeit, get_defaulttimer, reset_timer!, disable_timer!
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd

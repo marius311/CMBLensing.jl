@@ -381,6 +381,10 @@ macro show⌛(ex)
     end
 end
 
+@init if Threads.nthreads() > 1
+    disable_timer!(get_defaulttimer())
+end
+
 
 
 # used in a couple of places to create a Base.promote_rule-like system
