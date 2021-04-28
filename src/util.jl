@@ -227,6 +227,18 @@ cpu(x) = adapt_structure(Array, x)
 
 @doc doc"""
 
+    @cpu! x y
+
+Equivalent to `x = cpu(x)`, `y = cpu(y)`, etc... for any number of
+listed variables. See [`cpu`](@ref).
+"""
+macro cpu!(vars...)
+    :(begin; $((:($(esc(var)) = cpu($(esc(var)))) for var in vars)...); nothing; end)
+end
+
+
+@doc doc"""
+
     gpu(x)
 
 Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
@@ -369,6 +381,10 @@ macro show⌛(ex)
     end
 end
 
+@init if Threads.nthreads() > 1
+    disable_timer!(get_defaulttimer())
+end
+
 
 
 # used in a couple of places to create a Base.promote_rule-like system
@@ -415,3 +431,11 @@ string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout
 
 import NamedTupleTools
 NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
+
+@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
+    using ComponentArrays
+    # a Zygote-compatible conversion of ComponentVector to a NamedTuple
+    Base.convert(::Type{NamedTuple}, x::ComponentVector) = NamedTuple{keys(x)}([x[k] for k in keys(x)])
+    @adjoint Base.convert(::Type{NamedTuple}, x::ComponentVector) = convert(NamedTuple, x), Δ -> (nothing, ComponentArray(Δ))
+end
+

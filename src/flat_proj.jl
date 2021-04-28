@@ -24,10 +24,15 @@ end
 real_type(T) = promote_type(real(T), Float32)
 @init @require Unitful="1986cc42-f94f-5a68-af5c-568840ba703d" real_type(::Type{<:Unitful.Quantity{T}}) where {T} = real_type(T)
 
+# for CuArray-backed fields, each GPU needs to have a copy of the
+# ProjLambert quantities in its own memory, so we need to memoize per "deviceid"
+# gpu-specialized version of this in gpu.jl 
+_deviceid(::Any) = 0
+
 ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) = 
     ProjLambert(Ny, Nx, Float64(θpix), Float64.(center), real_type(T), storage)
 
-@memoize function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, storage) where {T}
+@memoize function ProjLambert(Ny, Nx, θpix, center, ::Type{T}, storage, dev=_deviceid(storage)) where {T}
 
     Δx           = T(deg2rad(θpix/60))
     Δℓx          = T(2π/(Nx*Δx))
@@ -36,9 +41,9 @@ ProjLambert(;Ny, Nx, θpix=1, center=(0,0), T=Float32, storage=Array) =
     Ωpix         = T(Δx^2)
     ℓy           = adapt(storage, (ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy)[1:Ny÷2+1])
     ℓx           = adapt(storage, (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx))
-    ℓmag         = @. sqrt(ℓx'^2 + ℓy^2)
-    ϕ            = @. angle(ℓx' + im*ℓy)
-    sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
+    ℓmag         = adapt(storage, (@. sqrt(ℓx'^2 + ℓy^2)))
+    ϕ            = adapt(storage, (@. angle(ℓx' + im*ℓy)))
+    sin2ϕ, cos2ϕ = adapt(storage, (@. sin(2ϕ), cos(2ϕ)))
     if iseven(Ny)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end

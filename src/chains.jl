@@ -200,17 +200,24 @@ end
 
 
 
-struct GetDistKDE
+# an N-dimensional getdist Kernel Density Estimate
+struct GetDistKDE{N}
     kde
 end
-(k::GetDistKDE)(x) = k.kde(x)
+(k::GetDistKDE)(x...) = k.kde(x...)
 
 """
-    kde(samples; [boundary=(min,max), normalize="integral" or "max"])
+    kde(samples::AbstractVector; [boundary=(min,max), normalize="integral" or "max"])
+    kde(samples::AbstractMatrix; [boundary=[(min1,max1),(min2,max2)], normalize="integral" or "max", smooth_scale_2D])
 
-Return a Kernel Density Estimate for a set of samples. The return
-object is a function which can be evaluated anywhere to compute the
-PDF. Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
+Return a Kernel Density Estimate for a set of 1D or 2D samples. The
+return object is a function which can be evaluated anywhere to compute
+the PDF. If provided, `boundary` specifies a hard upper/lower bound
+for the 1 or 2 or parameters, `normalize` specifies whether to
+normalize the PDF to unit integral or unit maximum, and
+`smooth_scale_2D` specifies how much smoothing to do for the 2D case.
+
+Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
 which must be installed.
 """
 function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral")
@@ -219,5 +226,20 @@ function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="int
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
     )
-    GetDistKDE(kde.get1DDensity(0).normalize(normalize))
+    GetDistKDE{1}(kde.get1DDensity(0).normalize(normalize))
+end
+
+function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothing)), normalize="integral", smooth_scale_2D=nothing)
+    if size(samples,1) == 2
+        samples = samples'
+    elseif size(samples,2) != 2
+        error("KDE only supports 1 or 2 dimensional samples.")
+    end
+    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist.chains.print_load_details = false
+    kde = getdist.MCSamples(;
+        samples, weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])
+    )
+    density_kwargs = isnothing(smooth_scale_2D) ? () : (;smooth_scale_2D)
+    GetDistKDE{2}(kde.get2DDensity(0, 1; density_kwargs...).normalize(normalize))
 end

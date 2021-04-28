@@ -333,8 +333,8 @@ end
 
         f = maybegpu(FlatMap(rand(Nside...)))
         
-        @test                  @inferred(MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
-        @test_throws Exception           MidPass(100,200) .* Diagonal(        f)
+        @test                  (MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
+        @test_throws Exception  MidPass(100,200) .* Diagonal(        f)
 
     end
     
@@ -404,7 +404,7 @@ end;
         ]
             
             Ny,Nx = Nside
-            Ixs = collect(rand(Nside...) for i=1:Npol)
+            Ixs = collect(maybegpu(rand(Nside...)) for i=1:Npol)
             Ils = rfft.(Ixs)
             f,g,h = @repeated(maybegpu(FMap(Ixs...)),3)
             v = @SVector[f,f]

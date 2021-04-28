@@ -31,16 +31,26 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 	end
 	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
 
-	# KDE
-	@eval function ($plot)(f::Function, k::GetDistKDE, args...; kwargs...)
+	# 1D KDE
+	@eval function ($plot)(f::Function, k::GetDistKDE{1}, args...; kwargs...)
 	    ($plot)(k.kde.x, f.(k.kde.P), args...; kwargs...)
 	end
-	@eval ($plot)(k::GetDistKDE, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
-
+	@eval ($plot)(k::GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
 
 end
 
+# 2D KDE
+function plot(k::GetDistKDE{2}, args...; color=nothing, kwargs...)
+	@unpack colors = pyimport("matplotlib")
+	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels([0.95,0.68]); Inf]
+	if color == nothing
+		color = gca()._get_lines.get_next_color()
+	end
+	contourf(args...; colors=[(colors.to_rgb(color)..., α) for α in (0.4, 0.8)], kwargs...)
+	contour(args...;  colors=color, kwargs...)
+end
 
+# Cℓ band
 function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
@@ -127,7 +137,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# annonate
     if cbar
-		colorbar(cax,ax=ax)
+		colorbar(cax,ax=ax,pad=0.01)
 	end
     ax.set_title(title, y=1)
     if ticklabels
@@ -269,14 +279,17 @@ end
 ### chains
 
 """
-    plot_kde(samples; [boundary=(min,max), normalize="integral" or "max"])
+    plot_kde(samples; [boundary, normalize, smooth_scale_2D], kwargs...)
 
-Plot a Kernel Density Estimate PDF for a set of samples. Based on
-Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html),
-which must be installed. Extra keyword arguments are passed to the
-underlying call to `plot`.
+Plot a Kernel Density Estimate PDF for a set of 1D or 2D samples.
+`boundary`, `normalize`, and `smooth_scale_2D` keyword arguments are
+passed to to the underlying call to [`kde`](@ref), and all others are
+passed to the underlying call to `plot`.
+
+Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
+which must be installed. 
 """
-function plot_kde(samples; boundary=(nothing,nothing), normalize="integral", kwargs...)
-    k = kde(samples; boundary, normalize)
-    plot(k.kde.x, k.kde.P; kwargs...)
+function plot_kde(samples; boundary=nothing, normalize=nothing, smooth_scale_2D=nothing, kwargs...)
+	kde_kwargs = filter(!isnothing∘last, Dict(pairs((;boundary,normalize,smooth_scale_2D))))
+    plot(kde(samples; kde_kwargs...); kwargs...)
 end

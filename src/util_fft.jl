@@ -17,19 +17,25 @@ FFTW_TIMELIMIT = 5
 
 # a set of wrapper FFT functions which use a @memoize'd plan
 _fft_arr_type(arr) = basetype(typeof(parent(arr)))
-m_rfft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...) * arr
-m_irfft(arr::AbstractArray{Complex{T},N}, d, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, d, size(arr)[2:end]...) \ arr
-m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
-m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(dst)...), copy_if_fftw(arr))
-@memoize function m_plan_rfft(::Type{A}, dims::Dims, sz...) where {T, N, A<:AbstractArray{T,N}, Dims}
+m_rfft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)) * arr
+m_irfft(arr::AbstractArray{Complex{T},N}, d, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, (d, size(arr)[2:end]...)) \ arr
+m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)), arr)
+m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(dst)), copy_if_fftw(arr))
+@memoize function m_plan_rfft(::Type{A}, dims::Dims, sz) where {T, N, A<:Array{T,N}, Dims}
     FFTW.set_num_threads(FFTW_NUM_THREADS)
-    plan_rfft(
-        A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...
-    ) #:: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
+    plan_rfft(A(undef, sz...), dims; timelimit=FFTW_TIMELIMIT)
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
 copy_if_fftw(x) = FFTW.fftw_vendor==:fftw ? copy(x) : x
+
+@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
+    using .CUDA
+    copy_if_fftw(x::CuArray) = x
+    @memoize function m_plan_rfft(::Type{A}, dims::Dims, sz, dev=deviceid()) where {T, N, A<:CuArray{T,N}, Dims}
+        plan_rfft(A(undef, sz...), dims)
+    end
+end
 
 
 """

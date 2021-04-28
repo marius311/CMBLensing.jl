@@ -3,7 +3,7 @@
 
 @doc doc"""
     argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
-    argmaxf_lnP(ϕ, θ::NamedTuple, ds::DataSet; kwargs...)
+    argmaxf_lnP(ϕ, θ, ds::DataSet; kwargs...)
     argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
     
 Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
@@ -20,11 +20,11 @@ Keyword arguments:
 
 """
 argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ::NamedTuple, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
-    θ::NamedTuple,
+    θ,
     ds::DataSet; 
     which = :wf, 
     fstart = nothing, 
@@ -126,6 +126,7 @@ function MAP_joint(
     ϕtol = nothing,
     progress::Bool = true,
     verbosity = (0,0),
+    linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5),
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
@@ -163,8 +164,11 @@ function MAP_joint(
     push!(history, select((;f,f°,ϕ,∇ϕ_lnP=nothing,χ²=nothing,lnP=nothing,argmaxf_lnP_history), history_keys))
 
     # objective function (with gradient) to maximize
-    @⌛ function objective(ϕ)
-        @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1])
+    @⌛ function objective(ϕ; need_gradient=true)
+        (
+            @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ,dsθ)))), 
+            need_gradient ? @⌛(gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]) : nothing
+        )
     end
     # function to compute after each optimization iteration, which
     # recomputes the best-fit f given the current ϕ
@@ -182,7 +186,9 @@ function MAP_joint(
         ∇ϕ_lnP .= @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)[1]
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        next!(pbar, showvalues=[("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))])
+        values = [("step",i), ("χ²",χ²s), ("Ncg",length(argmaxf_lnP_history))]
+        hasproperty(linesearch, :α) && push!(values, ("α", linesearch.α))
+        next!(pbar, showvalues=values)
         push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,lnP=-χ²/2,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
@@ -204,7 +210,7 @@ function MAP_joint(
             lbfgs_rank; 
             maxiter = nsteps, 
             verbosity = verbosity[1], 
-            linesearch = OptimKit.HagerZhangLineSearch(verbosity=verbosity[2], maxiter=5)
+            linesearch = linesearch
         ); 
         finalize!,
         inner = (_,ξ1,ξ2)->sum(unbatch(dot(ξ1,ξ2))),

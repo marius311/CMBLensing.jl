@@ -4,7 +4,7 @@ module CMBLensing
 using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
-using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel
+using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
@@ -45,7 +45,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray, SizedArray
 using Statistics
 using StatsBase
-using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
+using TimerOutputs: @timeit, get_defaulttimer, reset_timer!, disable_timer!
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd
@@ -68,7 +68,7 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, animate,
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
@@ -82,7 +82,7 @@ export
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    mean_std_and_errors, MidPass, mix, nan2zero, new_dataset, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,

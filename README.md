@@ -9,11 +9,11 @@
 CMBLensing.jl is a next-generation tool for analysis of the lensed Cosmic Microwave Background. It is written in [Julia](https://julialang.org/) and transparently callable from Python.
 
 
-At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the CMB lensing problem. It also contains tools to quickly manipulate and process CMB maps, set up modified posteriors, and take gradients using automatic differentation.
+At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the CMB lensing problem. It also contains tools to quickly manipulate and process CMB maps, set up modified posteriors, and take gradients using automatic differentiation.
 
 ### Highlights
-* Fully Nvidia GPU compatible (speedups over CPU are currently 3x-10x, depending on the problem size and hardware).
-* Automatic differentation (via [Zygote.jl](https://fluxml.ai/Zygote.jl/)) provides for-free gradients of your custom posteriors.
+* Fully Nvidia GPU compatible (1-2 order of magnitude speedups over CPU, depending on the problem size and hardware).
+* Automatic differentiation (via [Zygote.jl](https://fluxml.ai/Zygote.jl/)) provides for-free gradients of your custom posteriors.
 * Includes the following algorithms to lense a map:
     * `LenseFlow` ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
     * `Taylens` ([Næss & Louis 2013](https://arxiv.org/abs/1307.0719))
@@ -29,14 +29,14 @@ The best place to get started is to read the [documentation](https://cosmicmar.c
 
 Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). 
 
-You can also clone the repostiory and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommented to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
+You can also clone the repostiory and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommended to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
 
 
 ## Installation
 
 ### Requirements
 
-* Julia 1.5
+* Julia 1.6
 * _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
 * _(recommended)_ FFTW.jl built with [`JULIA_FFTW_PROVIDER=MKL`](https://juliamath.github.io/FFTW.jl/stable/#Installation-1) for faster CPU FFTs 
 * _(recommended)_ Python 3 + matplotlib (used for plotting)

@@ -1,6 +1,7 @@
 
 # this does basis promotion, unlike Zygote's default for AbstractArrays
 Zygote.accum(a::Field, b::Field) = a+b
+Zygote.accum(a::FieldTuple, b::FieldTuple) = Zygote.accum.(a,b)
 # this may create a LazyBinaryOp, unlike Zygote's
 Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 
@@ -65,7 +66,7 @@ Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothin
 @adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
-@adjoint logdet(L::ParamDependentOp, θ) = Zygote._pullback(θ->logdet(L(;θ...)), θ)
+@adjoint logdet(L::ParamDependentOp, θ) = Zygote.pullback((L,θ)->logdet(L(θ)), L, θ)
 @adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * Zfac(L) * pinv(L)',)
 
 # basis conversion
@@ -109,9 +110,8 @@ end
 @adjoint function *(x::FieldOrOpRowVector, y::FieldVector)
     z = x * y
     # when x is a vector of Fields
-    back(Δ) = (Δ * y', x' * Δ)
-    # when x is a vector of Diagonals. in this case, Δ * basis(Δ)(y)' create an
-    # OuterProdOp in the same basis as the Diagonals in x
+    back(Δ::Real) = ((Δ * y)', x' * Δ)
+    # when x is a vector of Diagonals. in this case, Δ * basis(Δ)(y)'
     back(Δ::Field{B}) where {B} = (Δ * basis(Δ)(y)'), (x' * Δ)
     z, back
 end

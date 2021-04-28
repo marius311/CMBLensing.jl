@@ -1,28 +1,8 @@
 
 
-abstract type DataSet{DS} end
+abstract type DataSet end
 
-getproperty(ds::DS, k::Symbol) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? getfield(ds, k) : getproperty(getfield(ds, :_super), k)
-setproperty!(ds::DS, k::Symbol, v) where {DS<:DataSet{<:DataSet}} = 
-    hasfield(DS, k) ? setfield!(ds, k, v) : setproperty!(getfield(ds, :_super), k, v)
-propertynames(ds::DS) where {DS<:DataSet} = propertynames(DS)
-propertynames(::Type{DS}) where {DS′<:DataSet, DS<:DataSet{DS′}} = 
-    union(propertynames(DS′), fieldnames(DS))
-propertynames(::Type{DS}) where {DS<:DataSet{Nothing}} = fieldnames(DS)
-
-function new_dataset(::Type{DS}; kwargs...) where {DS′<:DataSet, DS<:DataSet{DS′}}
-    kw  = Dict(k => v for (k,v) in kwargs if   k in fieldnames(DS))
-    kw′ = Dict(k => v for (k,v) in kwargs if !(k in fieldnames(DS)))
-    DS(; kw..., _super=new_dataset(DS′; kw′...))
-end
-
-function new_dataset(::Type{DS}; kwargs...) where {DS<:DataSet{Nothing}}
-    DS(; kwargs...)
-end
-
-copy(ds::DS) where {DS<:DataSet} = 
-    DS(((k==:_super ? copy(v) : v) for (k,v) in pairs(fields(ds)))...)
+copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
 
 hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
 
@@ -33,10 +13,6 @@ function show(io::IO, ds::DataSet)
         println(io, line)
     end
 end
-
-
-# needed until fix to https://github.com/FluxML/Zygote.jl/issues/685
-Zygote.grad_mut(ds::DataSet) = Ref{Any}((;(propertynames(ds) .=> nothing)...))
 
 
 # util for distributing a singleton global dataset to workers
@@ -68,7 +44,7 @@ _distributed_dataset_hash = nothing
 
 
 # Stores variables needed to construct the posterior
-@kwdef mutable struct BaseDataSet <: DataSet{Nothing}
+@kwdef mutable struct BaseDataSet <: DataSet
     d                # data
     Cϕ               # ϕ covariance
     Cf               # unlensed field covariance
@@ -94,7 +70,7 @@ function subblock(ds::DS, block) where {DS<:DataSet}
     end...)
 end
 
-function (ds::DataSet)(θ::NamedTuple) 
+function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
         (v isa Union{ParamDependentOp,DataSet}) ? v(θ) : v
@@ -254,7 +230,7 @@ function load_sim(;
         @warn "`rfid` will be removed in a future version. Use `fiducial_θ=(r=...,)` instead."
         fiducial_θ = merge(fiducial_θ,(r=rfid,))
     end
-    Aϕ₀ = get(fiducial_θ, :Aϕ, 1)
+    Aϕ₀ = T(get(fiducial_θ, :Aϕ, 1))
     fiducial_θ = Base.structdiff(fiducial_θ, NamedTuple{(:Aϕ,)}) # remove Aϕ key if present
     if (Cℓ == nothing)
         Cℓ = camb(;fiducial_θ..., ℓmax=ℓmax)
@@ -265,7 +241,7 @@ function load_sim(;
             error("ℓmax of `Cℓ` argument should be higher than $ℓmax for this configuration.")
         end
     end
-    r₀ = Cℓ.params.r
+    r₀ = T(Cℓ.params.r)
     
     # noise Cℓs (these are non-debeamed, hence beamFWHM=0 below; the beam comes in via the B operator)
     if (Cℓn == nothing)
@@ -288,7 +264,7 @@ function load_sim(;
     Cf̃  = Cℓ_to_Cov(pol, proj, (Cℓ.total[k]           for k in ks)...)
     Cn̂  = Cℓ_to_Cov(pol, proj, (Cℓn[k]                for k in ks)...)
     if (Cn == nothing); Cn = Cn̂; end
-    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + T(r/r₀)*Cft))
+    Cf = ParamDependentOp((;r=r₀,   _...)->(Cfs + (T(r)/r₀)*Cft))
     Cϕ = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(T(Aϕ) * Cϕ₀))
     
     # data mask
