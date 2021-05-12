@@ -236,8 +236,8 @@ OptimKit._add!(η::Field, ξ::Field, β) = η .+= β .* ξ
 using Optim
 
 function MAP_joint_update(
-    θ :: NamedTuple, 
-    ds :: DataSet; 
+    θ, 
+    ds :: DataSet;
     nsteps = 20,
     Nϕ = :qe,
     ϕstart = nothing,

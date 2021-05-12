@@ -228,7 +228,7 @@ function (L::ParamDependentOp)(θ::NamedTuple)
 end
 (L::ParamDependentOp)(;θ...) = L((;θ...))
 @init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using ComponentArrays
+    using .ComponentArrays
     (L::ParamDependentOp)(θ::ComponentArray) = L(convert(NamedTuple, θ))
     (L::Union{FieldOp,UniformScaling})(::ComponentArray) = L
 end
