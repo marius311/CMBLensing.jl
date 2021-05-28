@@ -116,14 +116,14 @@ function resimulate!(
             ϕ = simulate(Cϕ; Nbatch, rng, seed)
         end
         if isnothing(f)
-            f = simulate(Cf; Nbatch, rng, seed=(seed==nothing ? nothing : seed+1))
+            f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
         end
         f̃ = L(ϕ)*f
     else
         f = ϕ = nothing
     end
     if isnothing(n)
-        n = simulate(Cn; rng, seed=(seed==nothing ? nothing : seed+2))
+        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
     end
 
     ds.d = d = M*B*f̃ + n
