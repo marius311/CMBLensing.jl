@@ -96,8 +96,8 @@ Keyword arguments:
   tolerance. `ϕtol` is roughly the relative per-pixel standard
   deviation between changes to `ϕ` and draws from the `ϕ` prior.
   Values in the range $10^{-2}-10^{-4}$ are reasonable. 
-* `lbfgs_rank = 5` — The maximum rank of the LBFGS approximation to
-   the Hessian.
+* `nburnin_update_hessian = 10` — How many steps to wait before
+  starting to do diagonal updates to the Hessian
 * `conjgrad_kwargs = (;)` — Passed to the inner call to
   [`conjugate_gradient`](@ref).
 * `progress = true` — Whether to show the progress bar.
@@ -115,7 +115,7 @@ contains the history of steps during the run.
 
 """
 MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
-function MAP_joint_update(
+function MAP_joint(
     θ, 
     ds :: DataSet;
     nsteps = 20,
@@ -176,7 +176,7 @@ function MAP_joint_update(
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
             @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ-α*s,dsθ))))
         end
-        α = soln.minimizer
+        α = T(soln.minimizer)
         ϕ -= α * s
         
         # finalize
