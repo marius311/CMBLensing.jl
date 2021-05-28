@@ -29,7 +29,7 @@ using Markdown
 using Measurements
 using Memoization
 using NamedTupleTools: select, delete
-using OptimKit
+using Optim
 using Pkg
 using Printf
 using ProgressMeter
