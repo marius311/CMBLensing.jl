@@ -441,3 +441,40 @@ NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
     end
 end
 
+
+
+# https://github.com/JuliaLang/julia/issues/41030
+@init @eval Base function start_worker_task!(worker_tasks, exec_func, chnl, batch_size=nothing)
+    t = @async begin
+        retval = nothing
+
+        try
+            if isa(batch_size, Number)
+                while isopen(chnl)
+                    # The mapping function expects an array of input args, as it processes
+                    # elements in a batch.
+                    batch_collection=Any[]
+                    n = 0
+                    for exec_data in chnl
+                        push!(batch_collection, exec_data)
+                        n += 1
+                        (n == batch_size) && break
+                    end
+                    if n > 0
+                        exec_func(batch_collection)
+                    end
+                end
+            else
+                for exec_data in chnl
+                    exec_func(exec_data...)
+                end
+            end
+        catch e
+            close(chnl)
+            Base.display_error(stderr, Base.catch_stack())
+            retval = e
+        end
+        retval
+    end
+    push!(worker_tasks, t)
+end
