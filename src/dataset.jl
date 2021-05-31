@@ -58,6 +58,7 @@ _distributed_dataset_hash = nothing
     D  = I           # mixing matrix for mixed parametrization
     G  = I           # reparametrization for ϕ
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
+    Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
 end
 
 function subblock(ds::DS, block) where {DS<:DataSet}
@@ -307,8 +308,8 @@ function load_sim(;
 
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
+    ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
         G₀ = sqrt(I + Nϕ * pinv(Cϕ()))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end

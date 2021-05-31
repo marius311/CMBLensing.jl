@@ -192,6 +192,7 @@ function sample_joint(
     nfilewrite = 5,
     nsavemaps = 1,
     filename = nothing,
+    resume = nothing,
     ϕstart = :prior,
     θstart = :prior,
     θrange = NamedTuple(),
@@ -200,11 +201,12 @@ function sample_joint(
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     preconditioner = :diag,
     nhmc = 1,
+    nburnin_always_accept = 10,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
     progress = false,
-    storage = basetype(fieldinfo(ds.d).M),
+    storage = ds.d.storage,
     grid_and_sample_kwargs = (;),
     kwargs...
 )
@@ -227,6 +229,9 @@ function sample_joint(
     if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
+    if (isfile(filename) && isnothing(resume))
+        error("'$filename' exists so must specify `resume=true` or `resume=false`.")
+    end
     
     # seed
     @everywhere @eval CMBLensing seed!(global_rng_for($storage))
@@ -235,7 +240,7 @@ function sample_joint(
     set_distributed_dataset(ds)
 
     # initialize chains
-    if (filename != nothing) && isfile(filename)
+    if (filename != nothing) && isfile(filename) && resume
 
         @info "Resuming chain at $filename"
         local chunks_index, prev_chunks
@@ -372,7 +377,7 @@ end
     f = argmaxf_lnP(
         z_other..., ds;
         which = :sample, 
-        guess = ismissing(f) ? nothing : f, 
+        fstart = ismissing(f) ? nothing : f, 
         preconditioner = preconditioner, 
         conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
     )
