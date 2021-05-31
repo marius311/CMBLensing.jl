@@ -71,48 +71,6 @@ Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
 Random.randn!(rng::MersenneTwister, A::CuArray) = 
     (A .= adapt(CuArray, randn!(rng, adapt(Array, A))))
 
-# CUDA makes some copies here as a workaround for JuliaGPU/CuArrays.jl#345 &
-# NVIDIA/cuFFT#2714055 but it doesn't appear to be needed in the R2C case, and
-# in the C2R case we pre-allocate the memory only once (via memoization) as well
-# as doing the copy asynchronously
-import CUDA.CUFFT: unsafe_execute!
-using CUDA.CUFFT: rCuFFTPlan, cufftReal, cufftComplex, CUFFT_R2C, cufftExecR2C, cufftExecC2R, CUFFT_C2R, unsafe_copyto!, CuDefaultStream, pointer
-
-plan_buffer(x) = plan_buffer(eltype(x),size(x))
-@memoize plan_buffer(T,dims) = CuArray{T}(undef,dims...)
-
-function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
-                            x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
-                            ) where {K,N}
-    @assert plan.xtype == CUFFT_R2C
-    cufftExecR2C(plan, x, y)
-end
-function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
-                            x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
-                            ) where {K,N}
-    @assert plan.xtype == CUFFT_C2R
-    cufftExecC2R(plan, unsafe_copyto!(pointer(plan_buffer(x)),pointer(x),length(x),async=true,stream=CuDefaultStream()), y)
-end
-
-# monkey-patched version of https://github.com/JuliaGPU/CUDA.jl/pull/436
-# until it hits a release
-using CUDA.CURAND: curandSetPseudoRandomGeneratorSeed, curandSetGeneratorOffset, 
-    CURAND_STATUS_ALLOCATION_FAILED, CURAND_STATUS_PREEXISTING_FAILURE, CURAND_STATUS_SUCCESS,
-    unsafe_curandGenerateSeeds, throw_api_error, @retry_reclaim, RNG
-
-function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
-    curandSetPseudoRandomGeneratorSeed(rng, seed)
-    curandSetGeneratorOffset(rng, offset)
-    res = @retry_reclaim err->isequal(err, CURAND_STATUS_ALLOCATION_FAILED) ||
-                              isequal(err, CURAND_STATUS_PREEXISTING_FAILURE) begin
-        unsafe_curandGenerateSeeds(rng)
-    end
-    if res != CURAND_STATUS_SUCCESS
-        throw_api_error(res)
-    end
-    return
-end
-
 
 """
     cuda_gc()
