@@ -13,7 +13,7 @@ struct CMBLensingMPMProblem <: AbstractMPMProblem
 end
 
 function CMBLensingMPMProblem(ds; parameterization=0, MAP_joint_kwargs=(;))
-    CMBLensingMPMProblem(ds,parameterization,MAP_joint_kwargs)
+    CMBLensingMPMProblem(ds, parameterization, MAP_joint_kwargs)
 end
 
 
@@ -36,4 +36,8 @@ end
 
 function mpm(prob::CMBLensingMPMProblem, θ₀; kwargs...)
     mpm(prob, prob.ds.d, θ₀; kwargs...)
+end
+
+function mpm(ds::DataSet, θ₀; parameterization=0, MAP_joint_kwargs=(;), kwargs...)
+    mpm(CMBLensingMPMProblem(ds; parameterization, MAP_joint_kwargs), θ₀; kwargs...)
 end
