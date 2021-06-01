@@ -206,7 +206,7 @@ function sample_joint(
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
     progress = false,
-    storage = ds.d.storage,
+    storage = nothing,
     grid_and_sample_kwargs = (;),
     kwargs...
 )
@@ -236,8 +236,8 @@ function sample_joint(
     # seed
     @everywhere @eval CMBLensing seed!(global_rng_for($storage))
 
-    # distributed dataset object to workers once
-    set_distributed_dataset(ds)
+    # distribute the dataset object to workers once
+    set_distributed_dataset(ds, storage)
 
     # initialize chains
     if (filename != nothing) && isfile(filename) && resume
