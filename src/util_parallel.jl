@@ -20,7 +20,8 @@ _mpi_rank() = nothing
     function init_MPI_workers(;
         stdout_to_master = false, 
         stderr_to_master = false,
-        transport = get(ENV,"JULIA_MPI_TRANSPORT","TCP")
+        transport = get(ENV,"JULIA_MPI_TRANSPORT","TCP"),
+        print_info = true,
     )
         
         if !MPI.Initialized()
@@ -38,10 +39,11 @@ _mpi_rank() = nothing
             )
             
             if @isdefined(CUDA) && CUDA.functional()
-                assign_GPU_workers()
-            else
-                println(worker_info())
+                assign_GPU_workers(;print_info=false)
             end
+
+            print_info && proc_info()
+
         end
 
     end
@@ -58,7 +60,7 @@ Assign each Julia worker process a unique GPU using `CUDA.device!`.
 Workers may be distributed across different hosts, and each host can have
 multiple GPUs.
 """
-function assign_GPU_workers()
+function assign_GPU_workers(;print_info=true)
     @everywhere @eval Main using Distributed, CMBLensing
     master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
     accessible_gpus = Dict(map(workers()) do id
@@ -79,16 +81,17 @@ function assign_GPU_workers()
         error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
     end)
     @everywhere workers() device!($assignments[myid()])
-    println(worker_info())
+    print_info && proc_info()
 end
 
 
 """
-    worker_info()
+    proc_info()
 
-Returns string showing info about assigned workers.
+Returns string showing info about available processes.
 """
-function worker_info()
+function proc_info()
+    @eval Main using Distributed
     lines = @eval Main map(procs()) do id
         @fetchfrom id begin
             info = ["myid = $id"]
@@ -98,5 +101,5 @@ function worker_info()
             " ("*join(info, ", ")*")"
         end
     end
-    join(["Worker info:"; lines], "\n")
+    @info join(["Processes:"; lines], "\n")
 end
