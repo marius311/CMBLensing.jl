@@ -444,7 +444,7 @@ end
 
 
 # https://github.com/JuliaLang/julia/issues/41030
-@init @eval Base function start_worker_task!(worker_tasks, exec_func, chnl, batch_size=nothing)
+@init ccall(:jl_generating_output,Cint,())!=1 && @eval Base function start_worker_task!(worker_tasks, exec_func, chnl, batch_size=nothing)
     t = @async begin
         retval = nothing
 
