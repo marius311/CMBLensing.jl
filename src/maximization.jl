@@ -123,8 +123,8 @@ function MAP_joint(
     ϕstart = nothing,
     fstart = nothing,
     ϕtol = nothing,
-    αtol = 1e-8,
-    nburnin_update_hessian = 10,
+    αtol = 1e-4,
+    nburnin_update_hessian = Inf,
     progress::Bool = true,
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     quasi_sample = false,
@@ -171,18 +171,19 @@ function MAP_joint(
         # ϕ step
         f°, = mix(f, ϕ, dsθ)
         ∇ϕ_lnP, = @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)
-        s = Hϕ⁻¹ * ∇ϕ_lnP
-        αmax = 0.9 * get_max_lensing_step(ϕ, s)
+        s = -(Hϕ⁻¹ * ∇ϕ_lnP)
+        αmax = 0.5 * get_max_lensing_step(ϕ, s)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ-α*s,dsθ))))
+            χ² = @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ+α*s,dsθ))))
+            isnan(χ²) ? T(α/αmax) * prevfloat(T(Inf)) : χ² # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
-        ϕ -= α * s
+        ϕ += α * s
         
         # finalize
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        values = [("step",step), ("χ²",χ²s), ("α",α), ("Ncg",length(argmaxf_lnP_history))]
+        values = [("step",step), ("χ²",χ²s), ("α",α), ("CG","$(length(argmaxf_lnP_history)) iterations"), ("Linesearch","$(soln.iterations) bisections")]
         next!(pbar, showvalues=values)
         push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
         if (
