@@ -130,7 +130,7 @@ function MAP_joint(
     quasi_sample = false,
     preconditioner = :diag,
     history_keys = (:lnP,),
-    aggressive_gc = fieldinfo(ds.d).Nx>=1024 & fieldinfo(ds.d).Ny>=1024,
+    aggressive_gc = (length(ds.d) >= 1024^2)
 )
 
     dsθ = copy(ds(θ))
@@ -237,7 +237,8 @@ function MAP_marg(
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
-    aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
+    pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
+    aggressive_gc = (length(ds.d) >= 512^2)
 )
     
     (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
