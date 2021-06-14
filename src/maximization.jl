@@ -183,8 +183,13 @@ function MAP_joint(
         # finalize
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        values = [("step",step), ("χ²",χ²s), ("α",α), ("CG","$(length(argmaxf_lnP_history)) iterations"), ("Linesearch","$(soln.iterations) bisections")]
-        next!(pbar, showvalues=values)
+        next!(pbar, showvalues = [
+            ("step",       step), 
+            ("χ²",         χ²s), 
+            ("α",          α), 
+            ("CG",         "$(length(argmaxf_lnP_history)) iterations"), 
+            ("Linesearch", "$(soln.iterations) bisections")
+        ])
         push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
@@ -224,7 +229,6 @@ function MAP_marg(
     θ,
     ds :: DataSet;
     ϕstart = nothing,
-    Nϕ = :qe,
     nsteps = 10, 
     nsteps_with_meanfield_update = 4,
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
@@ -236,43 +240,92 @@ function MAP_marg(
     aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
 )
     
-    mod(Nsims+1,nworkers())==0 || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+    (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+    (ds.d.Nbatch == Nbatch == 1) || error("MAP_marg for batched fields not implemented")
 
-    ds = (@set ds.G = I)
     dsθ = ds(θ)
-    @unpack Cϕ,d = dsθ
+    dsθ.G = I # MAP_marg is invariant to G so avoid wasted computation
+    set_distributed_dataset(dsθ)
+    @unpack Cϕ, Nϕ, d, Cf, Cn, L = dsθ
+    Hϕ⁻¹ = pinv(pinv(Cϕ) + pinv(Nϕ))
     T = real(eltype(d))
     
-    # compute approximate inverse ϕ Hessian used in gradient descent,
-    # possibly from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
-
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
-    tr = []
-    state = nothing
-    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
-    ProgressMeter.update!(pbar)
+    f_sims = [simulate(Cf; Nbatch) for i=1:Nsims÷Nbatch]
+    n_sims = [simulate(Cn; Nbatch) for i=1:Nsims÷Nbatch]
+    f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
+    f_wf_prev = nothing
+    ḡ = nothing
 
-    for i=1:nsteps
-        aggressive_gc && cuda_gc()
-        g, state = δlnP_δϕ(
-            ϕ, θ, ds;
-            use_previous_MF = i>nsteps_with_meanfield_update,
-            progress = false, return_state = true, previous_state = state,
-            Nsims, Nbatch, weights, conjgrad_kwargs, aggressive_gc
-        )
-        ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr, @dict(i,g,ϕ))
-        next!(pbar, showvalues=[
-            ("step",i), 
-            ("Ncg (data)", length(state.gQD.history)), 
-            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
-            ("α",α)
-        ])
+    tr = []
+
+    if progress
+        pbar = Progress(nsteps*(Nsims+1), 0.1, "MAP_marg: ")
+        ProgressMeter.update!(pbar)
+        update_pbar = RemoteChannel(()->Channel{Bool}(), 1)
+        @async while take!(update_pbar)
+            next!(pbar)
+        end
     end
 
-    set_distributed_dataset(nothing) # free memory, which got used inside δlnP_δϕ
+    # gradient of the joint posterior w.r.t. ϕ at the MAP estimate of f
+    function gMAP(Lϕ, dsθ, f_wf_prev)
+        f_wf, history = argmaxf_lnP(
+            Lϕ, θ, dsθ;
+            which = :wf,
+            fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
+            conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
+        )
+        aggressive_gc && cuda_gc()
+        g, = gradient(ϕ -> lnP(0, f_wf, ϕ, dsθ), getϕ(Lϕ))
+        progress && put!(update_pbar, true)
+        (;g, f_wf, history)
+    end
+
+    
+    for step = 1:nsteps
+
+        aggressive_gc && cuda_gc()
+
+        # generate simulated data for the current ϕ
+        Lϕ = L(ϕ)
+        d_sims = map(f_sims, n_sims) do f,n
+            resimulate(dsθ, f̃=Lϕ*f, n=n).d
+        end
+
+        # gradient of data and mean-field sims
+        if step > nsteps_with_meanfield_update
+            gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev)
+            f_wf_prev = gMAP_data.f_wf
+        else
+            gMAP_data, gMAP_sims = peel(pmap([dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do d, f_wf_prev
+                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev)
+            end)
+            ḡ = mean(map(gMAP_sims) do gMAP
+                mean(unbatch(gMAP.g))
+            end)
+            f_wf_sims_prev = getindex.(gMAP_sims,:f_wf)
+        end
+    
+        # final total posterior gradient, including gradient of the prior
+        g = gMAP_data.g - ḡ - Cϕ\ϕ
+
+        # take step
+        ϕ += T(α) * Hϕ⁻¹ * g
+
+        # log progress
+        push!(tr, (;step, g, ϕ))
+        # next!(pbar, showvalues=[
+        #     ("step",      step), 
+        #     ("α",         α),
+        #     ("CG (data)", "$(length(gMAP_data.history)) iterations"),
+        #     ("CG (sims)", (step <= nsteps_with_meanfield_update) ? "$(length(first(gMAP_sims).history)) iterations" : "0 iterations (MF not updated)"),
+        # ])
+
+        
+    end
+
+    set_distributed_dataset(nothing) # free memory
     
     return ϕ, tr
 
