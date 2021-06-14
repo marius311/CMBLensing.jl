@@ -130,7 +130,7 @@ function MAP_joint(
     quasi_sample = false,
     preconditioner = :diag,
     history_keys = (:lnP,),
-    aggressive_gc = (length(ds.d) >= 1024^2)
+    aggressive_gc = false
 )
 
     dsθ = copy(ds(θ))
@@ -238,7 +238,7 @@ function MAP_marg(
     Nbatch = 1,
     progress::Bool = true,
     pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
-    aggressive_gc = (length(ds.d) >= 512^2)
+    aggressive_gc = false
 )
     
     (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
@@ -261,29 +261,10 @@ function MAP_marg(
     tr = []
 
     if progress
-        pbar = Progress(nsteps*(Nsims+1), 0.1, "MAP_marg: ")
+        pbar = DistributedProgress(nsteps_with_meanfield_update*Nsims + nsteps, 0.1, "MAP_marg: ")
         ProgressMeter.update!(pbar)
-        update_pbar = RemoteChannel(()->Channel{Bool}(), 1)
-        @async while take!(update_pbar)
-            next!(pbar)
-        end
     end
 
-    # gradient of the joint posterior w.r.t. ϕ at the MAP estimate of f
-    function gMAP(Lϕ, dsθ, f_wf_prev)
-        f_wf, history = argmaxf_lnP(
-            Lϕ, θ, dsθ;
-            which = :wf,
-            fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
-            conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
-        )
-        aggressive_gc && cuda_gc()
-        g, = gradient(ϕ -> lnP(0, f_wf, ϕ, dsθ), getϕ(Lϕ))
-        progress && put!(update_pbar, true)
-        (;g, f_wf, history)
-    end
-
-    
     for step = 1:nsteps
 
         aggressive_gc && cuda_gc()
@@ -295,12 +276,30 @@ function MAP_marg(
         end
 
         # gradient of data and mean-field sims
+
+        function gMAP(Lϕ, dsθ, f_wf_prev, i)
+            f_wf, history = argmaxf_lnP(
+                Lϕ, θ, dsθ;
+                which = :wf,
+                fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
+                conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
+            )
+            aggressive_gc && cuda_gc()
+            g, = gradient(ϕ -> lnP(0, f_wf, ϕ, dsθ), getϕ(Lϕ))
+            progress && next!(pbar, showvalues=[
+                ("step", step),
+                ("α",    α),
+                ("CG ($(i==0 ? "data" : "sim $i"))", "$(length(history)) iterations"),
+            ])
+            (;g, f_wf, history)
+        end
+
         if step > nsteps_with_meanfield_update
-            gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev)
+            gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev, 0)
             f_wf_prev = gMAP_data.f_wf
         else
-            gMAP_data, gMAP_sims = peel(pmap([dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do d, f_wf_prev
-                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev)
+            gMAP_data, gMAP_sims = peel(pmap(0:Nsims, [dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do i, d, f_wf_prev
+                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev, i)
             end)
             ḡ = mean(map(gMAP_sims) do gMAP
                 mean(unbatch(gMAP.g))
@@ -314,15 +313,7 @@ function MAP_marg(
         # take step
         ϕ += T(α) * Hϕ⁻¹ * g
 
-        # log progress
         push!(tr, (;step, g, ϕ))
-        # next!(pbar, showvalues=[
-        #     ("step",      step), 
-        #     ("α",         α),
-        #     ("CG (data)", "$(length(gMAP_data.history)) iterations"),
-        #     ("CG (sims)", (step <= nsteps_with_meanfield_update) ? "$(length(first(gMAP_sims).history)) iterations" : "0 iterations (MF not updated)"),
-        # ])
-
         
     end
 
