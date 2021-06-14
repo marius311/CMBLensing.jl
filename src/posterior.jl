@@ -7,7 +7,7 @@ Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potentia
 `ϕ`, given the definition of the mixing matrices in `ds` evaluated at parameters
 `θ` (or at fiducial values if no `θ` provided).
 """
-mix(f, ϕ, ds::DataSet) = mix(f,ϕ,NamedTuple(),ds)
+mix(f, ϕ, ds::DataSet) = mix(f,ϕ,(;),ds)
 function mix(f, ϕ, θ, ds::DataSet)
     @unpack D,G,L = ds(θ)
     L(ϕ)*D*f, G*ϕ
@@ -22,7 +22,7 @@ Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed
 lensing potential `ϕ°`, given the definition of the mixing matrices in `ds`
 evaluated at parameters `θ` (or at fiducial values if no `θ` provided). 
 """
-unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,NamedTuple(),ds)
+unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,(;),ds)
 function unmix(f°, ϕ°, θ, ds::DataSet)
     @unpack D,G,L = ds(θ)
     ϕ = G\ϕ°
@@ -49,8 +49,8 @@ also include any Jacobian determinant terms that depend on $\theta$.
 The argument `ds` should be a `DataSet` and stores the masks, data, etc...
 needed to construct the posterior. 
 """
-lnP(t, fₜ, ϕₜ,    ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, NamedTuple(), ds)
-lnP(t, fₜ, ϕₜ, θ, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, θ,            ds)
+lnP(t, fₜ, ϕₜ,    ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, (;), ds)
+lnP(t, fₜ, ϕₜ, θ, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ,  θ,  ds)
 
 function lnP(::Val{t}, fₜ, ϕ, θ, ds::DataSet) where {t}
     

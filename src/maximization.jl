@@ -19,8 +19,8 @@ Keyword arguments:
 * `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
 
 """
-argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
+argmaxf_lnP(ϕ::Field,    ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), (;), ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d),   θ, ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
@@ -114,7 +114,7 @@ quasi-sample) field, `ϕ` is the lensing potential, and `history`
 contains the history of steps during the run. 
 
 """
-MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
+MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
 function MAP_joint(
     θ, 
     ds :: DataSet;
@@ -224,7 +224,7 @@ Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
 """
-MAP_marg(ds::DataSet; kwargs...) = MAP_marg(NamedTuple(), ds; kwargs...)
+MAP_marg(ds::DataSet; kwargs...) = MAP_marg((;), ds; kwargs...)
 function MAP_marg(
     θ,
     ds :: DataSet;

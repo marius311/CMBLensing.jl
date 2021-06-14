@@ -195,7 +195,7 @@ function sample_joint(
     resume = nothing,
     ϕstart = :prior,
     θstart = :prior,
-    θrange = NamedTuple(),
+    θrange = (;),
     pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     preconditioner = :diag,
