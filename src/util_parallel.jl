@@ -109,7 +109,6 @@ end
 
 struct DistributedProgress <: ProgressMeter.AbstractProgress
     channel :: RemoteChannel{Channel{Any}}
-    pbar :: Progress
 end
 
 function DistributedProgress(args...; kwargs...)
@@ -122,7 +121,7 @@ function DistributedProgress(args...; kwargs...)
         end
         finish!(pbar)
     end
-    DistributedProgress(channel, pbar)
+    DistributedProgress(channel)
 end
 
 ProgressMeter.next!(pbar::DistributedProgress, args...; kwargs...) = put!(pbar.channel, (ProgressMeter.next!, args, kwargs))
