@@ -83,5 +83,5 @@ StaticArrays = "0.12.1, 1.0"
 StatsBase = "0.32, 0.33"
 TimerOutputs = "0.5"
 UnPack = "1"
-Zygote = "0.6.9"
+Zygote = "0.6.9 - 0.6.11" # https://github.com/JuliaGPU/CUDA.jl/issues/982
 julia = "1.6"
