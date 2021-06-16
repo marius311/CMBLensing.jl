@@ -457,14 +457,19 @@ end
     end
     bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
-
+function cov_to_Cℓ(C::DiagOp{<:FlatS0}; kwargs...)
+    @unpack Nx, Ny, Δx = diag(C)
+    α = Nx*Ny/Δx^2
+    get_Cℓ(sqrt.(diag(C)); kwargs...)*sqrt(α)
+end
 
 
 
 
 ### spin adjoints
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:FlatField{B}}
-    FlatMap(dropdims(sum(a.f.arr .* b.arr, dims=3), dims=((a.f.Nbatch>1 || b.Nbatch>1) ? 3 : ())), get_metadata_strict(a, b))
+    r = sum(a.f.arr .* b.arr, dims=3)
+    FlatMap(dropdims(r, dims=(ndims(r)==3 ? 3 : ())), get_metadata_strict(a, b))
 end
 function mul!(dst::FlatMap, a::SpinAdjoint{F}, b::F) where {F<:FlatField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
     dst.arr .= reshape(sum(a.f.arr .* b.arr, dims=3), size(dst.arr))

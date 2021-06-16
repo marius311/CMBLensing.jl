@@ -12,7 +12,7 @@ using Combinatorics
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
-    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
 using FileIO
 using FFTW
 using InteractiveUtils
@@ -29,7 +29,6 @@ using Markdown
 using Measurements
 using Memoization
 using NamedTupleTools: select, delete
-using OptimKit
 using Pkg
 using Printf
 using ProgressMeter
@@ -68,7 +67,7 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, animate,
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
     argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
     CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
     diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
@@ -77,8 +76,8 @@ export
     firsthalf, fixed_white_noise, FlatEB, FlatEBFourier, FlatEBMap, FlatField, 
     FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap,
     FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0,
-    FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, FuncOp, get_Cℓ,
-    get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
+    FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, FuncOp, get_max_lensing_step,
+    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,

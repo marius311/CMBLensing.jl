@@ -17,7 +17,7 @@ end
 
 # util for distributing a singleton global dataset to workers
 """
-    set_distributed_dataset(ds)
+    set_distributed_dataset(ds, [storage])
     get_distributed_dataset()
 
 Sometimes it's more performant to distribute a DataSet object to
@@ -28,12 +28,14 @@ part of closures. This provides that functionality. Use
 global DataSet and `get_distributed_dataset()` from any process to
 retrieve it. Repeated calls will not resend `ds` if it hasn't changed
 (based on `hash(ds)`) and if no new workers have been added since the
-last send.
+last send. The optional argument `storage` will also adapt the dataset
+to a particular storage on the workers, and can be a symbol, e.g.
+`:CuArray`, in the case that CUDA is not loaded on the master process.
 """
-function set_distributed_dataset(ds)
-    h = hash((procs(), ds))
+function set_distributed_dataset(ds, storage=nothing)
+    h = hash((procs(), ds, storage))
     if h != _distributed_dataset_hash
-        @everywhere @eval CMBLensing _distributed_dataset = $ds
+        @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
         global _distributed_dataset_hash = h
     end
     nothing
@@ -58,6 +60,7 @@ _distributed_dataset_hash = nothing
     D  = I           # mixing matrix for mixed parametrization
     G  = I           # reparametrization for ϕ
     L  = LenseFlow   # lensing operator, possibly cached for memory reuse
+    Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
 end
 
 function subblock(ds::DS, block) where {DS<:DataSet}
@@ -206,7 +209,7 @@ function load_sim(;
 
     # theory
     Cℓ = nothing,
-    fiducial_θ = NamedTuple(),
+    fiducial_θ = (;),
     rfid = nothing,
     
     rng = global_rng_for(storage),
@@ -307,8 +310,8 @@ function load_sim(;
 
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
+    ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
     if (G == nothing)
-        Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
         G₀ = sqrt(I + Nϕ * pinv(Cϕ()))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end

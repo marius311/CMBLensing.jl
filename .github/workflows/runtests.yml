@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.5', '1.6', '1.7-nightly']
+        julia-version: ['1.6', '1.7-nightly']
         os: [ubuntu-latest]
         JULIA_FFTW_PROVIDER: ['MKL','FFTW']
       fail-fast: false

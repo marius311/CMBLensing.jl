@@ -192,25 +192,26 @@ function sample_joint(
     nfilewrite = 5,
     nsavemaps = 1,
     filename = nothing,
+    resume = nothing,
     ϕstart = :prior,
     θstart = :prior,
-    θrange = NamedTuple(),
-    pmap = (myid() in workers() ? map : pmap),
-    pool = default_worker_pool(),
+    θrange = (;),
+    pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     preconditioner = :diag,
     nhmc = 1,
+    nburnin_always_accept = 10,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
     progress = false,
-    storage = basetype(fieldinfo(ds.d).M),
+    storage = nothing,
     grid_and_sample_kwargs = (;),
     kwargs...
 )
 
     # rundat is a Dict with all the args and kwargs minus a few removed ones
-    rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap, :pool), init=Base.@locals()), kwargs)
+    rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap), init=Base.@locals()), kwargs)
     rundat[:Nbatch] = batch_length(ds.d)
 
     # dont adapt things passed in kwargs when we adapt the state dict
@@ -227,15 +228,18 @@ function sample_joint(
     if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
+    if (isfile(filename) && isnothing(resume))
+        error("'$filename' exists so must specify `resume=true` or `resume=false`.")
+    end
     
     # seed
     @everywhere @eval CMBLensing seed!(global_rng_for($storage))
 
-    # distributed dataset object to workers once
-    set_distributed_dataset(ds)
+    # distribute the dataset object to workers once
+    set_distributed_dataset(ds, storage)
 
     # initialize chains
-    if (filename != nothing) && isfile(filename)
+    if (filename != nothing) && isfile(filename) && resume
 
         @info "Resuming chain at $filename"
         local chunks_index, prev_chunks
@@ -251,7 +255,7 @@ function sample_joint(
 
         chunks_index = step = 1
 
-        states = pmap(map(copy,repeated(rundat,nchains))) do state
+        states = pmap(map(copy, repeated(rundat, nchains))) do state
             state = _adapt(storage, state)
             for gibbs_initialize! in gibbs_initializers
                 gibbs_initialize!(state, get_distributed_dataset())
@@ -280,7 +284,7 @@ function sample_joint(
         
         setindex!.(states, step, :step)
 
-        state₁, = states = pmap(pool, states) do state
+        state₁, = states = pmap(states) do state
             
             state = @⌛ _adapt(storage, state)
             @unpack step, pbar_dict = state
@@ -372,7 +376,7 @@ end
     f = argmaxf_lnP(
         z_other..., ds;
         which = :sample, 
-        guess = ismissing(f) ? nothing : f, 
+        fstart = ismissing(f) ? nothing : f, 
         preconditioner = preconditioner, 
         conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
     )
