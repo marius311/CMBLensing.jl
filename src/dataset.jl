@@ -209,7 +209,7 @@ function load_sim(;
 
     # theory
     Cℓ = nothing,
-    fiducial_θ = NamedTuple(),
+    fiducial_θ = (;),
     rfid = nothing,
     
     rng = global_rng_for(storage),

@@ -19,8 +19,8 @@ Keyword arguments:
 * `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
 
 """
-argmaxf_lnP(ϕ::Field,                ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), NamedTuple(), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), θ,            ds; kwargs...)
+argmaxf_lnP(ϕ::Field,    ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), (;), ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d),   θ, ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
@@ -114,7 +114,7 @@ quasi-sample) field, `ϕ` is the lensing potential, and `history`
 contains the history of steps during the run. 
 
 """
-MAP_joint(ds::DataSet; kwargs...) = MAP_joint(NamedTuple(), ds; kwargs...)
+MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
 function MAP_joint(
     θ, 
     ds :: DataSet;
@@ -123,14 +123,14 @@ function MAP_joint(
     ϕstart = nothing,
     fstart = nothing,
     ϕtol = nothing,
-    αtol = 1e-8,
-    nburnin_update_hessian = 10,
+    αtol = 1e-4,
+    nburnin_update_hessian = Inf,
     progress::Bool = true,
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     quasi_sample = false,
     preconditioner = :diag,
     history_keys = (:lnP,),
-    aggressive_gc = fieldinfo(ds.d).Nx>=1024 & fieldinfo(ds.d).Ny>=1024,
+    aggressive_gc = false
 )
 
     dsθ = copy(ds(θ))
@@ -171,19 +171,25 @@ function MAP_joint(
         # ϕ step
         f°, = mix(f, ϕ, dsθ)
         ∇ϕ_lnP, = @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)
-        s = Hϕ⁻¹ * ∇ϕ_lnP
-        αmax = 0.9 * get_max_lensing_step(ϕ, s)
+        s = -(Hϕ⁻¹ * ∇ϕ_lnP)
+        αmax = 0.5 * get_max_lensing_step(ϕ, s)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ-α*s,dsθ))))
+            χ² = @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ+α*s,dsθ))))
+            isnan(χ²) ? T(α/αmax) * prevfloat(T(Inf)) : χ² # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
-        ϕ -= α * s
+        ϕ += α * s
         
         # finalize
         χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
         χ² = sum(unbatch(χ²s))
-        values = [("step",step), ("χ²",χ²s), ("α",α), ("Ncg",length(argmaxf_lnP_history))]
-        next!(pbar, showvalues=values)
+        next!(pbar, showvalues = [
+            ("step",       step), 
+            ("χ²",         χ²s), 
+            ("α",          α), 
+            ("CG",         "$(length(argmaxf_lnP_history)) iterations"), 
+            ("Linesearch", "$(soln.iterations) bisections")
+        ])
         push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
@@ -218,12 +224,11 @@ Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
 """
-MAP_marg(ds::DataSet; kwargs...) = MAP_marg(NamedTuple(), ds; kwargs...)
+MAP_marg(ds::DataSet; kwargs...) = MAP_marg((;), ds; kwargs...)
 function MAP_marg(
     θ,
     ds :: DataSet;
     ϕstart = nothing,
-    Nϕ = :qe,
     nsteps = 10, 
     nsteps_with_meanfield_update = 4,
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
@@ -232,46 +237,87 @@ function MAP_marg(
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
-    aggressive_gc = fieldinfo(ds.d).Nx >=512 & fieldinfo(ds.d).Ny >=512
+    pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
+    aggressive_gc = false
 )
     
-    mod(Nsims+1,nworkers())==0 || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+    (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
+    (ds.d.Nbatch == Nbatch == 1) || error("MAP_marg for batched fields not implemented")
 
-    ds = (@set ds.G = I)
     dsθ = ds(θ)
-    @unpack Cϕ,d = dsθ
+    dsθ.G = I # MAP_marg is invariant to G so avoid wasted computation
+    set_distributed_dataset(dsθ)
+    @unpack Cϕ, Nϕ, d, Cf, Cn, L = dsθ
+    Hϕ⁻¹ = pinv(pinv(Cϕ) + pinv(Nϕ))
     T = real(eltype(d))
     
-    # compute approximate inverse ϕ Hessian used in gradient descent,
-    # possibly from quadratic estimate
-    if (Nϕ == :qe); Nϕ = quadratic_estimate(dsθ).Nϕ/2; end
-    Hϕ⁻¹ = (Nϕ == nothing) ? Cϕ : pinv(pinv(Cϕ) + pinv(Nϕ))
-
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
-    tr = []
-    state = nothing
-    pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_marg: ")
-    ProgressMeter.update!(pbar)
+    f_sims = [simulate(Cf; Nbatch) for i=1:Nsims÷Nbatch]
+    n_sims = [simulate(Cn; Nbatch) for i=1:Nsims÷Nbatch]
+    f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
+    f_wf_prev = nothing
+    ḡ = nothing
 
-    for i=1:nsteps
-        aggressive_gc && cuda_gc()
-        g, state = δlnP_δϕ(
-            ϕ, θ, ds;
-            use_previous_MF = i>nsteps_with_meanfield_update,
-            progress = false, return_state = true, previous_state = state,
-            Nsims, Nbatch, weights, conjgrad_kwargs, aggressive_gc
-        )
-        ϕ += T(α) * Hϕ⁻¹ * g
-        push!(tr, @dict(i,g,ϕ))
-        next!(pbar, showvalues=[
-            ("step",i), 
-            ("Ncg (data)", length(state.gQD.history)), 
-            ("Ncg (sims)", i<=nsteps_with_meanfield_update ? length(first(state.gQD_sims).history) : "0 (MF not updated)"),
-            ("α",α)
-        ])
+    tr = []
+
+    if progress
+        pbar = DistributedProgress(nsteps_with_meanfield_update*Nsims + nsteps, 0.1, "MAP_marg: ")
+        ProgressMeter.update!(pbar)
     end
 
-    set_distributed_dataset(nothing) # free memory, which got used inside δlnP_δϕ
+    for step = 1:nsteps
+
+        aggressive_gc && cuda_gc()
+
+        # generate simulated data for the current ϕ
+        Lϕ = L(ϕ)
+        d_sims = map(f_sims, n_sims) do f,n
+            resimulate(dsθ, f̃=Lϕ*f, n=n).d
+        end
+
+        # gradient of data and mean-field sims
+
+        function gMAP(Lϕ, dsθ, f_wf_prev, i)
+            f_wf, history = argmaxf_lnP(
+                Lϕ, θ, dsθ;
+                which = :wf,
+                fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
+                conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
+            )
+            aggressive_gc && cuda_gc()
+            g, = gradient(ϕ -> lnP(0, f_wf, ϕ, dsθ), getϕ(Lϕ))
+            progress && next!(pbar, showvalues=[
+                ("step", step),
+                ("α",    α),
+                ("CG ($(i==0 ? "data" : "sim $i"))", "$(length(history)) iterations"),
+            ])
+            (;g, f_wf, history)
+        end
+
+        if step > nsteps_with_meanfield_update
+            gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev, 0)
+            f_wf_prev = gMAP_data.f_wf
+        else
+            gMAP_data, gMAP_sims = peel(pmap(0:Nsims, [dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do i, d, f_wf_prev
+                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev, i)
+            end)
+            ḡ = mean(map(gMAP_sims) do gMAP
+                mean(unbatch(gMAP.g))
+            end)
+            f_wf_sims_prev = getindex.(gMAP_sims,:f_wf)
+        end
+    
+        # final total posterior gradient, including gradient of the prior
+        g = gMAP_data.g - ḡ - Cϕ\ϕ
+
+        # take step
+        ϕ += T(α) * Hϕ⁻¹ * g
+
+        push!(tr, (;step, g, ϕ))
+        
+    end
+
+    set_distributed_dataset(nothing) # free memory
     
     return ϕ, tr
 

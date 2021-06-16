@@ -147,6 +147,7 @@ function adapt_structure(storage, proj::ProjLambert{T}) where {T}
     T′ = eltype(storage)
     ProjLambert(;Ny, Nx, θpix, T=(T′==Any ? T : real(T′)), storage)
 end
+adapt_structure(::Nothing, proj::ProjLambert{T}) where {T} = proj
 
 
 

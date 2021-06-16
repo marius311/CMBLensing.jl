@@ -12,7 +12,7 @@ using Combinatorics
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
-    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
 using FileIO
 using FFTW
 using InteractiveUtils

@@ -103,3 +103,27 @@ function proc_info()
     end
     @info join(["Processes:"; lines], "\n")
 end
+
+
+# a ProgressMeter that can be advanced from any remote worker
+
+struct DistributedProgress <: ProgressMeter.AbstractProgress
+    channel :: RemoteChannel{Channel{Any}}
+end
+
+function DistributedProgress(args...; kwargs...)
+    pbar = Progress(args...; kwargs...)
+    channel = RemoteChannel(()->Channel(), 1)
+    @async begin
+        while (x = take!(channel)) != nothing
+            func, args, kwargs = x
+            func(pbar, args...; kwargs...)
+        end
+        finish!(pbar)
+    end
+    DistributedProgress(channel)
+end
+
+ProgressMeter.next!(pbar::DistributedProgress, args...; kwargs...) = put!(pbar.channel, (ProgressMeter.next!, args, kwargs))
+ProgressMeter.update!(pbar::DistributedProgress, args...; kwargs...) = put!(pbar.channel, (ProgressMeter.update!, args, kwargs))
+ProgressMeter.finish!(pbar::DistributedProgress, args...; kwargs...) = (put!(pbar.channel, nothing); close(pbar.channel))
