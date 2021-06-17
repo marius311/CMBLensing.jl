@@ -8,7 +8,10 @@ export cuda_gc, gpu
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
+# printing
 typealias(::Type{CuArray{T,N}}) where {T,N} = "CuArray{$T,$N}"
+Base.print_array(io::IO, X::Diagonal{<:Any,<:CuBaseField}) = Base.print_array(io, cpu(X))
+
 
 # a function version of @cuda which can be referenced before CUDA is
 # loaded as long as it exists by run-time (unlike the macro @cuda which must
