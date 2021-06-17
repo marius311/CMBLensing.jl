@@ -19,11 +19,13 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
+using FileIO
 using FFTW
 using FiniteDifferences
 using LinearAlgebra
 using Random
 using Random: default_rng
+using Serialization
 using SparseArrays
 using Test
 using Zygote
@@ -66,6 +68,7 @@ has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
     end
 
 end
+
 ##
 
 @testset "Flat" begin 
@@ -94,9 +97,14 @@ end
                 local f
                 @test (f = F(args...; kwargs...)) isa F
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
+                @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
+                @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+
             end
         
         end
+
+        rm(".test_field.jld2", force=true)
     
     end
 
@@ -112,7 +120,7 @@ end
         ]
 
             @test basis(@inferred(Bout(Bin(f)))) == Bout
-            # @test Bin(Bout(Bin(f))) == f
+            @test Bin(Bout(Bin(f))) ≈ f
 
         end
     end
@@ -272,33 +280,6 @@ end
         @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
     end
 end
-
-##
-
-# @testset "FlatS02" begin
-    
-#     @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
-
-#         ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(maybegpu(FlatMap(rand(Nside2D...))))) for i=1:4]
-#         L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
-#         f = maybegpu(IEBFourier(FlatIEBMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...))))
-
-#         @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
-#         @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
-#         @test @inferred(L * L) isa FlatIEBCov
-#         @test @inferred(L + L) isa FlatIEBCov
-#         @test L * Diagonal(f) isa FlatIEBCov
-#         @test Diagonal(f) * L isa FlatIEBCov
-#         @test_broken @inferred L * Diagonal(f)
-#         @test @inferred(diag(L)) isa FlatIEBFourier
-#         @test @inferred(L + I) isa FlatIEBCov
-#         @test @inferred(2 * L) isa FlatIEBCov
-#         @test @inferred(similar(L)) isa FlatIEBCov
-#         @test (L .= 2L) isa FlatIEBCov
-
-#     end
-
-# end
 
 ##
 
