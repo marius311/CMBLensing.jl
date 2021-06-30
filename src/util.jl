@@ -264,7 +264,9 @@ end
 struct LazyPyImport
     pkg
 end
-getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s)
+function getproperty(p::LazyPyImport, s::Symbol)
+    Base.@invokelatest(getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s))
+end
 
 @doc doc"""
 

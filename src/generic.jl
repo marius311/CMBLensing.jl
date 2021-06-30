@@ -5,12 +5,20 @@
 abstract type Basis end
 abstract type Basislike <: Basis end
 
-struct DerivBasis <: Basislike end # Basis in which derivatives are sparse for a given field
+# the basis in which derivatives are sparse for a given field
+struct DerivBasis <: Basislike end
 const Ð! = DerivBasis
 const Ð  = DerivBasis
-struct LenseBasis <: Basislike end # Basis in which lensing is a pixel remapping for a given field
+
+# the basis in which lensing is a pixel remapping for a given field
+struct LenseBasis <: Basislike end
 const Ł! = LenseBasis
 const Ł  = LenseBasis
+
+# the nearest harmonic basis, e.g. for anything QU its QUFourier and
+# for anything EB its EBFourier
+abstract type HarmonicBasis <: Basislike end
+
 
 ## fields
 abstract type Field{B<:Basis,T} <: AbstractVector{T} end
@@ -55,13 +63,59 @@ const IEBFourier = Basis3Prod{ 𝐈, 𝐄𝐁, Fourier }
 # handy for picking out anything Map/Fourier
 const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
 
-# for printing
-for F in ["QUMap", "EBMap", "QUFourier", "EBFourier", "IQUMap", "IEBMap", "IQUFourier", "IEBFourier"]
-    @eval typealias(::Type{$(Symbol(F))}) = $F
+
+# handy aliases
+basis_aliases = [
+    "Map"        => Map,
+    "Fourier"    => Fourier,
+    "QUMap"      => QUMap,
+    "QUFourier"  => QUFourier,
+    "EBMap"      => EBMap,
+    "EBFourier"  => EBFourier,
+    "IQUMap"     => IQUMap,
+    "IQUFourier" => IQUFourier,
+    "IEBMap"     => IEBMap,
+    "IEBFourier" => IEBFourier,
+    "S0"         => Union{Map,Fourier},
+    "QU"         => Union{QUMap,QUFourier},
+    "EB"         => Union{EBMap,EBFourier},
+    "S2Map"      => Union{QUMap,EBMap},
+    "S2Fourier"  => Union{QUFourier,EBFourier},
+    "S2"         => Union{QUMap,QUFourier,EBMap,EBFourier},
+    "IQU"        => Union{IQUMap,IQUFourier},
+    "IEB"        => Union{IEBMap,IEBFourier},
+    "S02Map"     => Union{IQUMap,IEBMap},
+    "S02Fourier" => Union{IQUFourier,IEBFourier},
+    "S02"        => Union{IQUMap,IQUFourier,IEBMap,IEBFourier},
+    "Field"      => Any
+]
+
+# Enumerates all the fields types like FlatMap, FlatFourier, etc...
+# for a field_name like "Flat" and a bound on the M type parameter in
+# BaseField{B,M,T,A}. Note: the seemingly-redundant <:AbstractArray{T}
+# in the argument (which is enforced in BaseField anyway) is there to
+# help prevent method ambiguities
+function make_field_aliases(field_root, M_bound; export_names=true)
+    for (basis_alias, B) in basis_aliases
+        F = Symbol(field_root, basis_alias)
+        if isconcretetype(B)
+            @eval const $F{       M<:$M_bound, T, A<:AbstractArray{T}} = BaseField{$B, M, T, A}
+        else
+            @eval const $F{B<:$B, M<:$M_bound, T, A<:AbstractArray{T}} = BaseField{B,  M, T, A}
+        end
+        if export_names
+            @eval export $F
+        end
+    end
 end
 
+# for printing
+for (alias,B) in basis_aliases
+    if isconcretetype(B)
+        @eval typealias(::Type{$B}) = $alias
+    end
+end
 
-### basis
 
 ## generic promotion rules which might change basis
 basis_promotion_rules = Dict(

@@ -60,7 +60,7 @@ function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 end
 
 
-### plotting FlatFields
+### plotting CartesianFields
 
 plotsize₀ = 4
 
@@ -190,7 +190,7 @@ function plot(
 	cmap = nothing,
 	return_all = false, 
 	kwargs...
-) where {F<:FlatField}
+) where {F<:CartesianField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
     fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
@@ -207,10 +207,10 @@ function plot(
 	
 end
 
-default_which(::AbstractVecOrMat{<:FlatS0})  = [:Ix]
-default_which(::AbstractVecOrMat{<:FlatS2})  = [:Ex :Bx]
-default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
-function default_which(fs::AbstractVecOrMat{<:FlatField})
+default_which(::AbstractVecOrMat{<:CartesianS0})  = [:Ix]
+default_which(::AbstractVecOrMat{<:CartesianS2})  = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
+function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try
         ensuresame((default_which([f]) for f in fs)...)
     catch x
@@ -219,15 +219,15 @@ function default_which(fs::AbstractVecOrMat{<:FlatField})
 end
 
 
-### animations of FlatFields
+### animations of CartesianFields
 
 @doc doc"""
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:FlatField}; kwargs...) = animate([f]; kwargs...)
+animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:FlatField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
@@ -260,7 +260,21 @@ end
 
 ### plotting HealpixFields
 
-plot(f::HealpixMap; kwargs...) = hp.mollview(collect(f.arr); cmap="RdBu_r", kwargs...)
+function plot(f::HealpixMap; kwargs...)
+	hp.projview(
+		collect(f.arr);
+		cmap                  = "RdBu_r", 
+		graticule             = true,
+		graticule_labels      = true,
+		xlabel                = L"\phi",
+		ylabel                = L"\theta",
+		custom_ytick_labels   = ["$(θ)°" for θ in 150:-30:30],
+		latitude_grid_spacing = 30,
+		cb_orientation        = "vertical",
+		projection_type       = "mollweide",
+		kwargs...
+	)
+end
 
 
 
