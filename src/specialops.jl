@@ -308,5 +308,8 @@ end
 @auto_adjoint (*)(L::LazyBinaryOp{*}, f::Field) = L.X * (L.Y * f)
 @auto_adjoint (\)(L::LazyBinaryOp{*}, f::Field) = L.Y \ (L.X \ f)
 @auto_adjoint (*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
+
+# misc
+getindex(L::LazyBinaryOp, i::Int) = i==1 ? L.X : i==2 ? L.Y : error("Can only index LazyBinaryOp by 1 or 2")
 adapt_structure(to, L::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,L.X), adapt(to,L.Y))
 hash(L::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(L), L.X, L.Y), init=h)
