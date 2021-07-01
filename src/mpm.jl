@@ -2,7 +2,7 @@
 # interface with MPMEstimate.jl
 
 using .MPMEstimate: AbstractMPMProblem
-import .MPMEstimate: ∇θ_logP, sample_x_z, ẑ_at_θ, mpm
+import .MPMEstimate: ∇θ_logLike, sample_x_z, ẑ_at_θ, mpm
 
 export CMBLensingMPMProblem
 
@@ -17,9 +17,18 @@ function CMBLensingMPMProblem(ds; parameterization=0, MAP_joint_kwargs=(;))
 end
 
 
-function ∇θ_logP(prob::CMBLensingMPMProblem, d, θ, (f,ϕ)) 
-    @unpack ds = prob
-    gradient(θ -> lnP(prob.parameterization, f, ϕ, θ, @set(ds.d=d)), θ)[1]
+function ∇θ_logLike(prob::CMBLensingMPMProblem, d, θ, (f,ϕ)) 
+    @unpack ds, parameterization = prob
+    @set! ds.d = d
+    if parameterization == 0
+        gradient(θ -> lnP(parameterization, f, ϕ, θ, ds), θ)[1]
+    elseif parameterization == 1
+        f̃ = ds.L(ϕ)*f
+        gradient(θ -> lnP(parameterization, f̃, ϕ, θ, ds), θ)[1]
+    elseif parameterization == :mix
+        f°, ϕ° = mix(f, ϕ, θ, ds)
+        gradient(θ -> lnP(parameterization, f°, ϕ°, θ, ds), θ)[1]
+    end
 end
 
 function sample_x_z(prob::CMBLensingMPMProblem, rng::AbstractRNG, θ) 
