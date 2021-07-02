@@ -1,9 +1,14 @@
 
-struct ProjEquiRect{T} <: CartesianProj
+struct ProjEquiRect{T, V<:AbstractVector{T}} <: CartesianProj
     Ny    :: Int
     Nx    :: Int
     θspan :: Tuple{Float64,Float64}
     ϕspan :: Tuple{Float64,Float64}
+
+    # x-direction mapping to ℓ modes
+    nyquist_x :: T
+    Δℓx       :: T
+    ℓx        :: V
 
     storage
 
@@ -11,8 +16,16 @@ struct ProjEquiRect{T} <: CartesianProj
 
 end
 
+
 # make EquiRectMap, EquiRectFourier, etc... type aliases
 make_field_aliases("EquiRect",  ProjEquiRect)
+
+# some extra Bases only relevant for EquiRect
+struct AzFourier <: Basis end
+make_field_aliases("EquiRect",  ProjEquiRect, basis_aliases=[
+    "AzFourier" => AzFourier,
+])
+
 
 # for printing
 typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
@@ -23,11 +36,19 @@ function ProjEquiRect(;Ny, Nx, θspan, ϕspan, T=Float32, storage=Array)
 end
 
 @memoize function ProjEquiRect(Ny, Nx, θspan, ϕspan, ::Type{T}, storage) where {T}
+    
     # TODO: precompute block diagonal transform matrices here and
     # store them in the constructed object. note that this function is
-    # memoized so its only actually called once, so the transform
-    # matrices are only computed once. 
-    ProjEquiRect{T}(Ny, Nx, θspan, ϕspan, storage)
+    # memoized so its only actually called once, and its arguments
+    # should be everything that uniquely defined a ProjEquiRect
+    
+    Δx        = T(abs(-(ϕspan...))/Nx)
+    Δℓx       = T(2π/(Nx*Δx))
+    nyquist_x = T(2π/(2Δx))
+    ℓx        = adapt(storage, (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx)[1:Ny÷2+1])
+
+    ProjEquiRect(Ny, Nx, T.(θspan), T.(ϕspan), nyquist_x, Δℓx, ℓx, storage)
+
 end
 
 typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
@@ -38,12 +59,26 @@ function Base.summary(io::IO, f::EquiRectField)
 end
 
 
-# ### basis conversion
+### basis conversion
 
-# TODO: write the basis conversion rules, like Fourier(f::EquiRectMap)
-# = .... see proj_lambert for list of things to implement. May want to
-# create some new bases like PartialFourier or something if we want to
-# be able to do an FFT in the ϕ direction separately.
+AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+
+# TODO: remaining conversion rules
+
+
+### block-diagonal operator
+
+struct BlockDiagEquiRectAzFourier{T, A<:AbstractArray{T}} <: ImplicitOp{T}
+    block_matrix :: A
+end
+
+*(B::BlockDiagEquiRectAzFourier, f::EquiRectS0) = B * AzFourier(f)
+function *(B::BlockDiagEquiRectAzFourier, f::EquiRectAzFourier)
+    # TODO: implement multiplication
+    error("not implemented")
+end
+
 
 ### promotion
 

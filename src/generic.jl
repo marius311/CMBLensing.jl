@@ -95,7 +95,7 @@ basis_aliases = [
 # BaseField{B,M,T,A}. Note: the seemingly-redundant <:AbstractArray{T}
 # in the argument (which is enforced in BaseField anyway) is there to
 # help prevent method ambiguities
-function make_field_aliases(field_root, M_bound; export_names=true)
+function make_field_aliases(field_root, M_bound; export_names=true, basis_aliases=basis_aliases)
     for (basis_alias, B) in basis_aliases
         F = Symbol(field_root, basis_alias)
         if isconcretetype(B)

@@ -69,10 +69,10 @@ import Statistics: std
 
 export
     @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
-    argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
-    CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
-    diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
-    FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
+    argmaxf_lnP, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    BlockDiagEquiRectAzFourier, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
+    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
     firsthalf, fixed_white_noise, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
