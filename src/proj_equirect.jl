@@ -1,5 +1,6 @@
 
 struct ProjEquiRect{T, V<:AbstractVector{T}} <: CartesianProj
+
     Ny    :: Int
     Nx    :: Int
     θspan :: Tuple{Float64,Float64}
@@ -11,8 +12,6 @@ struct ProjEquiRect{T, V<:AbstractVector{T}} <: CartesianProj
     ℓx        :: V
 
     storage
-
-    # TODO: add block diagonal harmonic transform matrices here
 
 end
 
@@ -79,6 +78,7 @@ QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.meta
 
 struct BlockDiagEquiRect{B<:Basis, T, A<:AbstractArray{T}} <: ImplicitOp{T}
     block_matrix :: A
+    # TODO: make BlockDiagEquiRect specific to a given ProjEquiRect object
 end
 BlockDiagEquiRect{B}(block_matrix::A) where {B<:Basis, T, A<:AbstractArray{T}} = BlockDiagEquiRect{B,T,A}(block_matrix)
 
