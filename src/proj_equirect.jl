@@ -22,8 +22,13 @@ make_field_aliases("EquiRect",  ProjEquiRect)
 
 # some extra Bases only relevant for EquiRect
 struct AzFourier <: Basis end
+const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
+const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
+
 make_field_aliases("EquiRect",  ProjEquiRect, basis_aliases=[
-    "AzFourier" => AzFourier,
+    "AzFourier"    => AzFourier,
+    "QUAzFourier"  => QUAzFourier,
+    "IQUAzFourier" => IQUAzFourier,
 ])
 
 
@@ -64,17 +69,27 @@ end
 AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
 Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
 
+QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+
 # TODO: remaining conversion rules
 
 
 ### block-diagonal operator
 
-struct BlockDiagEquiRectAzFourier{T, A<:AbstractArray{T}} <: ImplicitOp{T}
+struct BlockDiagEquiRect{B<:Basis, T, A<:AbstractArray{T}} <: ImplicitOp{T}
     block_matrix :: A
 end
+BlockDiagEquiRect{B}(block_matrix::A) where {B<:Basis, T, A<:AbstractArray{T}} = BlockDiagEquiRect{B,T,A}(block_matrix)
 
-*(B::BlockDiagEquiRectAzFourier, f::EquiRectS0) = B * AzFourier(f)
-function *(B::BlockDiagEquiRectAzFourier, f::EquiRectAzFourier)
+*(L::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = L * B(f)
+
+function *(B::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
+    # TODO: implement multiplication
+    error("not implemented")
+end
+
+function *(B::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
     # TODO: implement multiplication
     error("not implemented")
 end
