@@ -480,3 +480,7 @@ end
     end
     push!(worker_tasks, t)
 end
+
+
+real_type(T) = promote_type(real(T), Float32)
+@init @require Unitful="1986cc42-f94f-5a68-af5c-568840ba703d" real_type(::Type{<:Unitful.Quantity{T}}) where {T} = real_type(T)

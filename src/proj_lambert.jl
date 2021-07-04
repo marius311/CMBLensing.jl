@@ -41,9 +41,6 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     cos2ϕ     :: M
 end
 
-real_type(T) = promote_type(real(T), Float32)
-@init @require Unitful="1986cc42-f94f-5a68-af5c-568840ba703d" real_type(::Type{<:Unitful.Quantity{T}}) where {T} = real_type(T)
-
 ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) = 
     ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), storage)
 

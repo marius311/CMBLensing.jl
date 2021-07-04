@@ -29,7 +29,7 @@ typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
 
 
 function ProjEquiRect(;Ny, Nx, θspan, ϕspan, T=Float32, storage=Array)
-    ProjEquiRect(Ny, Nx, θspan, ϕspan, T, storage)
+    ProjEquiRect(Ny, Nx, θspan, ϕspan, real_type(T), storage)
 end
 
 @memoize function ProjEquiRect(Ny, Nx, θspan, ϕspan, ::Type{T}, storage) where {T}
