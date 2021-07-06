@@ -64,3 +64,45 @@ getproperty(f::CartesianField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::CartesianField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::CartesianField, ::Val{:T})      = eltype(f)
 getproperty(f::CartesianField, ::Val{:proj})   = getfield(f, :metadata)
+
+
+### indices
+function getindex(f::CartesianS0, k::Symbol; full_plane=false)
+    maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
+    @match k begin
+        :I  => f
+        :Ix => Map(f).Ix
+        :Il => maybe_unfold(Fourier(f).Il)
+        _   => throw(ArgumentError("Invalid CartesianS0 index: $k"))
+    end
+end
+function getindex(f::CartesianS2{Basis2Prod{B₁,B₂}}, k::Symbol; full_plane=false) where {B₁,B₂}
+    maybe_unfold = (full_plane && k in [:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
+    B = @match k begin
+        (:P)         => identity
+        (:E  || :B)  => Basis2Prod{𝐄𝐁,B₂}
+        (:Q  || :U)  => Basis2Prod{𝐐𝐔,B₂}
+        (:Ex || :Bx) => Basis2Prod{𝐄𝐁,Map}
+        (:El || :Bl) => Basis2Prod{𝐄𝐁,Fourier}
+        (:Qx || :Ux) => Basis2Prod{𝐐𝐔,Map}
+        (:Ql || :Ul) => Basis2Prod{𝐐𝐔,Fourier}
+        _ => throw(ArgumentError("Invalid CartesianS2 index: $k"))
+    end
+    maybe_unfold(getproperty(B(f),k))
+end
+function getindex(f::CartesianS02{Basis3Prod{B₁,B₂,B₃}}, k::Symbol; full_plane=false) where {B₁,B₂,B₃}
+    maybe_unfold = (full_plane && k in [:Il,:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
+    B = @match k begin
+        (:I  || :P)  => identity
+        (:E  || :B)  => Basis3Prod{𝐈,𝐄𝐁,B₃}
+        (:Q  || :U)  => Basis3Prod{𝐈,𝐐𝐔,B₃}
+        (:Ix)        => Basis3Prod{𝐈,B₂,Map}
+        (:Il)        => Basis3Prod{𝐈,B₂,Fourier}
+        (:Ex || :Bx) => Basis3Prod{𝐈,𝐄𝐁,Map}
+        (:El || :Bl) => Basis3Prod{𝐈,𝐄𝐁,Fourier}
+        (:Qx || :Ux) => Basis3Prod{𝐈,𝐐𝐔,Map}
+        (:Ql || :Ul) => Basis3Prod{𝐈,𝐐𝐔,Fourier}
+        _ => throw(ArgumentError("Invalid CartesianS02 index: $k"))
+    end
+    maybe_unfold(getproperty(B(f),k))
+end

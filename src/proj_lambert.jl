@@ -225,70 +225,6 @@ end
 
 
 
-### indices
-function getindex(f::LambertS0, k::Symbol; full_plane=false)
-    maybe_unfold = full_plane ? x->unfold(x,fieldinfo(f).Ny) : identity
-    @match k begin
-        :I  => f
-        :Ix => Map(f).Ix
-        :Il => maybe_unfold(Fourier(f).Il)
-        _   => throw(ArgumentError("Invalid LambertS0 index: $k"))
-    end
-end
-function getindex(f::LambertS2{Basis2Prod{B₁,B₂}}, k::Symbol; full_plane=false) where {B₁,B₂}
-    maybe_unfold = (full_plane && k in [:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
-    B = @match k begin
-        (:P)         => identity
-        (:E  || :B)  => Basis2Prod{𝐄𝐁,B₂}
-        (:Q  || :U)  => Basis2Prod{𝐐𝐔,B₂}
-        (:Ex || :Bx) => Basis2Prod{𝐄𝐁,Map}
-        (:El || :Bl) => Basis2Prod{𝐄𝐁,Fourier}
-        (:Qx || :Ux) => Basis2Prod{𝐐𝐔,Map}
-        (:Ql || :Ul) => Basis2Prod{𝐐𝐔,Fourier}
-        _ => throw(ArgumentError("Invalid LambertS2 index: $k"))
-    end
-    maybe_unfold(getproperty(B(f),k))
-end
-function getindex(f::LambertS02{Basis3Prod{B₁,B₂,B₃}}, k::Symbol; full_plane=false) where {B₁,B₂,B₃}
-    maybe_unfold = (full_plane && k in [:Il,:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
-    B = @match k begin
-        (:I  || :P)  => identity
-        (:E  || :B)  => Basis3Prod{𝐈,𝐄𝐁,B₃}
-        (:Q  || :U)  => Basis3Prod{𝐈,𝐐𝐔,B₃}
-        (:Ix)        => Basis3Prod{𝐈,B₂,Map}
-        (:Il)        => Basis3Prod{𝐈,B₂,Fourier}
-        (:Ex || :Bx) => Basis3Prod{𝐈,𝐄𝐁,Map}
-        (:El || :Bl) => Basis3Prod{𝐈,𝐄𝐁,Fourier}
-        (:Qx || :Ux) => Basis3Prod{𝐈,𝐐𝐔,Map}
-        (:Ql || :Ul) => Basis3Prod{𝐈,𝐐𝐔,Fourier}
-        _ => throw(ArgumentError("Invalid LambertS02 index: $k"))
-    end
-    maybe_unfold(getproperty(B(f),k))
-end
-function getindex(D::DiagOp{<:LambertEBFourier}, k::Symbol)
-    @unpack El, Bl, metadata = diag(D)
-    @unpack sin2ϕ, cos2ϕ = fieldinfo(diag(D))
-    f = @match k begin
-        (:QQ)        => LambertFourier((@. Bl*sin2ϕ^2 + El*cos2ϕ^2),   metadata)
-        (:QU || :UQ) => LambertFourier((@. (El - Bl) * sin2ϕ * cos2ϕ), metadata)
-        (:UU)        => LambertFourier((@. Bl*cos2ϕ^2 + El*sin2ϕ^2),   metadata)
-        _            => getproperty(D.diag, k)
-    end
-    Diagonal(f)
-end
-function getindex(L::BlockDiagIEB{<:Any,<:LambertField}, k::Symbol)
-    @match k begin
-        :IP => L
-        :I => L.ΣTE[1,1]
-        :E => L.ΣTE[2,2]
-        :B => L.ΣB
-        :P => Diagonal(LambertEBFourier(L[:E].diag, L[:B].diag))
-        (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
-        _ => throw(ArgumentError("Invalid BlockDiagIEB index: $k"))
-    end
-end
-
-
 ### basis conversion
 ## spin-0
 Fourier(f::LambertMap) = LambertFourier(m_rfft(f.arr, (1,2)), f.metadata)
@@ -348,10 +284,22 @@ IEBMap(f::LambertIQUFourier) = f |> IEBFourier |> IEBMap
 IQUMap(f′::LambertIQUMap, f::LambertIQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
 IQUFourier(f′::LambertIQUFourier, f::LambertIQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
-# spin-0 bases applied to spin-2 and spin-(0,2)
+## spin-0 bases applied to spin-2 and spin-(0,2)
 Fourier(f::LambertField{B}) where {B<:BasisProd} = Fourier(B)(f)
 Map(f::LambertField{B}) where {B<:BasisProd} = Map(B)(f)
 
+## for diagonal operator
+function getindex(D::DiagOp{<:LambertEBFourier}, k::Symbol)
+    @unpack El, Bl, metadata = diag(D)
+    @unpack sin2ϕ, cos2ϕ = fieldinfo(diag(D))
+    f = @match k begin
+        (:QQ)        => LambertFourier((@. Bl*sin2ϕ^2 + El*cos2ϕ^2),   metadata)
+        (:QU || :UQ) => LambertFourier((@. (El - Bl) * sin2ϕ * cos2ϕ), metadata)
+        (:UU)        => LambertFourier((@. Bl*cos2ϕ^2 + El*sin2ϕ^2),   metadata)
+        _            => getproperty(D.diag, k)
+    end
+    Diagonal(f)
+end
 
 
 ### dot products

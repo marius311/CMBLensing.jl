@@ -45,11 +45,14 @@ abstract type BasisProd{Bs} <: Basis end
 struct Basis2Prod{B₁,B₂}    <: BasisProd{Tuple{B₁,B₂}} end
 struct Basis3Prod{B₁,B₂,B₃} <: BasisProd{Tuple{B₁,B₂,B₃}} end
 
-struct Map     <: Basis end
-struct Fourier <: Basis end
-struct 𝐈       <: Basis end
-struct 𝐐𝐔      <: Basis end
-struct 𝐄𝐁      <: Basis end
+abstract type S0Basis <: Basis end
+abstract type PolBasis <: Basis end
+
+struct Map     <: S0Basis end
+struct Fourier <: S0Basis end
+struct 𝐈       <: PolBasis end
+struct 𝐐𝐔      <: PolBasis end
+struct 𝐄𝐁      <: PolBasis end
 
 const QUMap      = Basis2Prod{    𝐐𝐔, Map     }
 const EBMap      = Basis2Prod{    𝐄𝐁, Map     }
@@ -65,7 +68,7 @@ const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
 
 
 # handy aliases
-basis_aliases = [
+basis_aliases = OrderedDict(
     "Map"        => Map,
     "Fourier"    => Fourier,
     "QUMap"      => QUMap,
@@ -76,27 +79,27 @@ basis_aliases = [
     "IQUFourier" => IQUFourier,
     "IEBMap"     => IEBMap,
     "IEBFourier" => IEBFourier,
-    "S0"         => Union{Map,Fourier},
-    "QU"         => Union{QUMap,QUFourier},
-    "EB"         => Union{EBMap,EBFourier},
-    "S2Map"      => Union{QUMap,EBMap},
-    "S2Fourier"  => Union{QUFourier,EBFourier},
-    "S2"         => Union{QUMap,QUFourier,EBMap,EBFourier},
-    "IQU"        => Union{IQUMap,IQUFourier},
-    "IEB"        => Union{IEBMap,IEBFourier},
-    "S02Map"     => Union{IQUMap,IEBMap},
-    "S02Fourier" => Union{IQUFourier,IEBFourier},
-    "S02"        => Union{IQUMap,IQUFourier,IEBMap,IEBFourier},
+    "S0"         => S0Basis,
+    "QU"         => Basis2Prod{   𝐐𝐔        , <:S0Basis},
+    "EB"         => Basis2Prod{   𝐄𝐁        , <:S0Basis},
+    "S2Map"      => Basis2Prod{   <:PolBasis, Map},
+    "S2Fourier"  => Basis2Prod{   <:PolBasis, Fourier},
+    "S2"         => Basis2Prod{   <:PolBasis, <:S0Basis},
+    "IQU"        => Basis3Prod{𝐈, 𝐐𝐔        , <:S0Basis},
+    "IEB"        => Basis3Prod{𝐈, 𝐄𝐁        , <:S0Basis},
+    "S02Map"     => Basis3Prod{𝐈, <:PolBasis, Map},
+    "S02Fourier" => Basis3Prod{𝐈, <:PolBasis, Fourier},
+    "S02"        => Basis3Prod{𝐈, <:PolBasis, <:S0Basis},
     "Field"      => Any
-]
+)
 
 # Enumerates all the fields types like FlatMap, FlatFourier, etc...
 # for a field_name like "Flat" and a bound on the M type parameter in
 # BaseField{B,M,T,A}. Note: the seemingly-redundant <:AbstractArray{T}
 # in the argument (which is enforced in BaseField anyway) is there to
 # help prevent method ambiguities
-function make_field_aliases(field_root, M_bound; export_names=true, basis_aliases=basis_aliases)
-    for (basis_alias, B) in basis_aliases
+function make_field_aliases(field_root, M_bound; export_names=true, extra_aliases=Dict())
+    for (basis_alias, B) in merge(basis_aliases, extra_aliases)
         F = Symbol(field_root, basis_alias)
         if isconcretetype(B)
             @eval const $F{       M<:$M_bound, T, A<:AbstractArray{T}} = BaseField{$B, M, T, A}
@@ -192,7 +195,7 @@ basis(::Type{<:Field}) = Basis
 basis(::AbstractVector) = Basis
 
 ### printing
-typealias(::Type{B}) where {B<:Basis} = string(B.name.name)
+typealias(::Type{B}) where {B<:Basis} = string(B)
 Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
 Base.isempty(::ImplicitOp) = true
 Base.isempty(::ImplicitField) = true

@@ -1,34 +1,27 @@
 
-struct ProjEquiRect{T, V<:AbstractVector{T}} <: CartesianProj
+struct ProjEquiRect{T} <: CartesianProj
 
     Ny    :: Int
     Nx    :: Int
     θspan :: Tuple{Float64,Float64}
     ϕspan :: Tuple{Float64,Float64}
 
-    # x-direction mapping to ℓ modes
-    nyquist_x :: T
-    Δℓx       :: T
-    ℓx        :: V
-
     storage
 
 end
 
 
-# make EquiRectMap, EquiRectFourier, etc... type aliases
-make_field_aliases("EquiRect",  ProjEquiRect)
-
 # some extra Bases only relevant for EquiRect
-struct AzFourier <: Basis end
+struct AzFourier <: S0Basis end
 const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
 const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
 
-make_field_aliases("EquiRect",  ProjEquiRect, basis_aliases=[
+# make EquiRectMap, EquiRectFourier, etc... type aliases
+make_field_aliases("EquiRect",  ProjEquiRect, extra_aliases=OrderedDict(
     "AzFourier"    => AzFourier,
     "QUAzFourier"  => QUAzFourier,
     "IQUAzFourier" => IQUAzFourier,
-])
+))
 
 
 # for printing
@@ -46,12 +39,11 @@ end
     # memoized so its only actually called once, and its arguments
     # should be everything that uniquely defined a ProjEquiRect
     
-    Δx        = T(abs(-(ϕspan...))/Nx)
-    Δℓx       = T(2π/(Nx*Δx))
-    nyquist_x = T(2π/(2Δx))
-    ℓx        = adapt(storage, (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx)[1:Ny÷2+1])
+    # span is always (low, high)
+    θspan = (Float64.(sort(collect(θspan)))...,)
+    ϕspan = (Float64.(sort(collect(ϕspan)))...,)
 
-    ProjEquiRect(Ny, Nx, T.(θspan), T.(ϕspan), nyquist_x, Δℓx, ℓx, storage)
+    ProjEquiRect{T}(Ny, Nx, θspan, ϕspan, storage)
 
 end
 
@@ -70,6 +62,10 @@ Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
 
 QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
 QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+
+IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+
 
 # TODO: remaining conversion rules
 

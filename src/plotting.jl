@@ -62,8 +62,6 @@ end
 
 ### plotting CartesianFields
 
-plotsize₀ = 4
-
 pretty_name(s) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
 pretty_name(::Val{s}, b::Val) where {s} = "$s "*pretty_name(b)
 pretty_name(::Val{:x}) = "Map"
@@ -71,7 +69,7 @@ pretty_name(::Val{:l}) = "Fourier"
 
 function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, ticklabels=true, axeslabels=false, kwargs...)
     
-	@unpack Nx, Ny, θpix = fieldinfo(f)
+	@unpack Nx, Ny = fieldinfo(f)
 	ismap = endswith(string(k), "x")
 	
 	# default values
@@ -81,7 +79,11 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		else
 			title = pretty_name(k)
 		end
-		title *= " ($(Ny)x$(Nx) @ $(θpix)')"
+		if f isa LambertField
+			title *= " ($(Ny)x$(Nx) @ $(f.θpix)')"
+		elseif f isa EquiRectField
+			title *= " ($(Ny)x$(Nx))"
+		end
 	end
 	if vlim == nothing 
 		vlim = ismap ? :sym : :asym
@@ -123,7 +125,11 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# make the plot
 	if ismap
-		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
+		if f isa LambertField
+			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
+		elseif f isa EquiRectField
+			extent = rad2deg.([f.ϕspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 	end
@@ -148,8 +154,13 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 			ax.xaxis.set_major_formatter(MyFmt())
 			ax.yaxis.set_major_formatter(MyFmt())
 			if axeslabels
-				ax.set_xlabel("RA")
-				ax.set_ylabel("Dec")
+				if f isa LambertField
+					ax.set_xlabel("x")
+					ax.set_ylabel("y")
+				elseif f isa EquiRectField
+					ax.set_xlabel(L"\phi")
+					ax.set_ylabel(L"\theta")
+				end
 			end
 		else
 	        ax.set_xlabel(raw"$\ell_x$")
@@ -182,7 +193,7 @@ end
 
 function plot(
 	fs :: AbstractVecOrMat{F}; 
-	plotsize = plotsize₀, 
+	plotsize = 4,
 	which = default_which(fs), 
 	title = nothing, 
 	vlim = nothing, 
@@ -193,7 +204,8 @@ function plot(
 ) where {F<:CartesianField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
-    fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
+    figsize = plotsize .* [1.4 * n * fs[1].Nx / fs[1].Ny, m]
+	fig,axs = subplots(m, n; figsize, squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
 	

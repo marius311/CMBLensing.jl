@@ -83,6 +83,18 @@ simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=nothing) =
 *(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = L * D
 +(U::UniformScaling{<:Scalar}, L::BlockDiagIEB) = L + U
 *(λ::Scalar, L::BlockDiagIEB) = L * λ
+# indexing
+function getindex(L::BlockDiagIEB, k::Symbol)
+    @match k begin
+        :IP => L
+        :I => L.ΣTE[1,1]
+        :E => L.ΣTE[2,2]
+        :B => L.ΣB
+        :P => Diagonal(CartesianEBFourier(L[:E].diag, L[:B].diag))
+        (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
+        _ => throw(ArgumentError("Invalid BlockDiagIEB index: $k"))
+    end
+end
 
 
 
