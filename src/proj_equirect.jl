@@ -34,12 +34,7 @@ end
 
 @memoize function ProjEquiRect(Ny, Nx, θspan, ϕspan, ::Type{T}, storage) where {T}
     
-    # TODO: precompute block diagonal transform matrices here and
-    # store them in the constructed object. note that this function is
-    # memoized so its only actually called once, and its arguments
-    # should be everything that uniquely defined a ProjEquiRect
-    
-    # span is always (low, high)
+    # make span always be (low, high)
     θspan = (Float64.(sort(collect(θspan)))...,)
     ϕspan = (Float64.(sort(collect(ϕspan)))...,)
 
