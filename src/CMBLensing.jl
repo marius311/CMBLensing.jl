@@ -46,6 +46,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
 using Statistics
 using StatsBase
 using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
+using Tullio
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd

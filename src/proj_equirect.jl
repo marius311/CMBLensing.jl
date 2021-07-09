@@ -43,6 +43,11 @@ end
     θspan = (Float64.(sort(collect(θspan)))...,)
     ϕspan = (Float64.(sort(collect(ϕspan)))...,)
 
+    ϕspan_ratio = 2π / abs(-(ϕspan...))
+    if !(ϕspan_ratio ≈ round(Int, ϕspan_ratio))
+        error("ϕspan=$ϕspan must span integer multiple of 2π")
+    end
+
     ProjEquiRect{T}(Ny, Nx, θspan, ϕspan, storage)
 
 end
@@ -72,22 +77,72 @@ IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.m
 
 ### block-diagonal operator
 
-struct BlockDiagEquiRect{B<:Basis, T, A<:AbstractArray{T}} <: ImplicitOp{T}
-    block_matrix :: A
-    # TODO: make BlockDiagEquiRect specific to a given ProjEquiRect object
+struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} <: ImplicitOp{T}
+    blocks :: A
+    blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
+    proj :: P
 end
-BlockDiagEquiRect{B}(block_matrix::A) where {B<:Basis, T, A<:AbstractArray{T}} = BlockDiagEquiRect{B,T,A}(block_matrix)
+function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
+    BlockDiagEquiRect{B,P,T,A}(block_matrix, Ref{A}(), proj)
+end
+
+size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
+
+function sqrt(L::BlockDiagEquiRect{B}) where {B}
+    if !isassigned(L.blocks_sqrt)
+        L.blocks_sqrt[] = mapslices(sqrt, L.blocks, dims=(1,2))
+    end
+    BlockDiagEquiRect{B}(L.blocks_sqrt[], L.proj)
+end
 
 *(L::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = L * B(f)
 
 function *(B::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
-    # TODO: implement multiplication
-    error("not implemented")
+    promote_metadata_strict(B.proj, f.proj) # ensure same projection
+    EquiRectAzFourier(@tullio(Bf[p,iₘ] := B.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
 end
 
 function *(B::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
-    # TODO: implement multiplication
+    # TODO: implement S2 multiplication
     error("not implemented")
+end
+
+function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
+    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
+end
+
+function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
+    @unpack Ny, Nx, θspan = L.proj
+    z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
+    sqrt(L) * z
+end
+
+
+
+### covariance operators
+
+# can't depend on Legendre.jl since its not in the general registry
+Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} = 
+    error("You must run `using Legendre` for this method to be available.")
+
+@init @require Legendre="7642852e-7f09-11e9-134e-0940411082b6" begin
+
+    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
+        @unpack Ny, Nx, θspan, ϕspan = proj
+        ϕspan_ratio = round(Int, 2π / abs(-(ϕspan...)))
+        Cℓ = T.(nan2zero.(Cℓ[0:ℓmax]))
+        Nm = Nx÷2+1
+        θs = T.(range(reverse(θspan)..., length=Ny))
+        λ = T.(Legendre.λlm(0:ℓmax, 0:ϕspan_ratio*(Nm-1), cos.(θs))[:,:,1:ϕspan_ratio:end])
+        @tullio blocks[p,q,iₘ] := λ[p,ℓ,iₘ] * λ[q,ℓ,iₘ] * Cℓ[ℓ] * (iₘ==1 ? 2 : 4)
+        BlockDiagEquiRect{AzFourier}(blocks, proj)
+    end
+
+    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
+        error("Not implemented")
+        # TODO: implement building S2 covariance
+    end
+
 end
 
 
@@ -155,9 +210,9 @@ end
 function adapt_structure(storage, proj::ProjEquiRect{T}) where {T}
     # TODO: make sure these are consistent with any arguments that
     # were added to the memoized constructor
-    @unpack Ny, Nx = proj
+    @unpack Ny, Nx, θspan, ϕspan = proj
     T′ = eltype(storage)
-    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), storage)
+    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), θspan, ϕspan, storage)
 end
 adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
 
