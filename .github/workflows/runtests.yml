@@ -21,7 +21,7 @@ jobs:
           version: ${{ matrix.julia-version }}
       - run: >
           sudo apt-get install --no-install-recommends gfortran python3-setuptools python3-wheel
-          && pip3 install camb
+          && pip3 install camb healpy
       - uses: julia-actions/julia-runtest@master
         timeout-minutes: 20
         continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}

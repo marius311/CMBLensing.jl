@@ -8,15 +8,18 @@
 #    run-time
 #
 
-abstract type FieldMetadata end
+abstract type Proj end
+broadcastable(proj::Proj) = Ref(proj)
 
-struct BaseField{B, M<:FieldMetadata, T, A<:AbstractArray{T}} <: Field{B, T}
+struct BaseField{B, M<:Proj, T, A<:AbstractArray{T}} <: Field{B, T}
     arr :: A
     metadata :: M
-    function (::Type{F})(arr::A, metadata::M) where {B,M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
-        new{B,M,T,A}(arr, metadata)
+    function (::Type{F})(arr::A, metadata::M) where {B,M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
+        new{B,M,T,A}(arr, metadata) :: F
     end
 end
+
+typealias_def(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = "BaseField{$(typealias(B)),$(typealias(A)),$(typealias(M))}"
 
 
 ## array interface
@@ -128,9 +131,60 @@ getproperty(f::BaseField,  ::Val{:metadata})   = getfield(f,:metadata)
 getproperty(f::BaseField,  ::Val{s}) where {s} = getfield(getfield(f,:metadata),s)
 propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.metadata))...)
 
-## other CMBLensing-specific
+
+## CMBLensing-specific stuff
 global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
 fieldinfo(f::BaseField) = f # for backwards compatibility
 get_storage(f::BaseField) = typeof(f.arr)
 adapt_structure(to, f::BaseField{B}) where {B} = BaseField{B}(adapt(to, f.arr), adapt(to, f.metadata))
 hash(f::BaseField, h::UInt64) = foldr(hash, (typeof(f), cpu(f.arr), f.metadata), init=h)
+
+# 
+default_proj(::Type{F}) where {F<:BaseField{<:Any,<:Proj}} = Base.unwrap_unionall(F).parameters[2].ub
+make_field_aliases("Base", Proj)
+
+### basis-like definitions
+LenseBasis(::Type{<:BaseS0})    = Map
+LenseBasis(::Type{<:BaseS2})    = QUMap
+LenseBasis(::Type{<:BaseS02})   = IQUMap
+DerivBasis(::Type{<:BaseS0})    = Fourier
+DerivBasis(::Type{<:BaseS2})    = QUFourier
+DerivBasis(::Type{<:BaseS02})   = IQUFourier
+HarmonicBasis(::Type{<:BaseS0}) = Fourier
+HarmonicBasis(::Type{<:BaseQU}) = QUFourier
+HarmonicBasis(::Type{<:BaseEB}) = EBFourier
+
+
+# useful for enumerating some cases below and in plotting
+_sub_components = [
+    (:BaseMap,        (:Ix=>:, :I=>:)),
+    (:BaseFourier,    (:Il=>:, :I=>:)),
+    (:BaseQUMap,      (:Qx=>1, :Ux=>2, :Q =>1, :U=>2, :P=>:)),
+    (:BaseQUFourier,  (:Ql=>1, :Ul=>2, :Q =>1, :U=>2, :P=>:)),
+    (:BaseEBMap,      (:Ex=>1, :Bx=>2, :E =>1, :B=>2, :P=>:)),
+    (:BaseEBFourier,  (:El=>1, :Bl=>2, :E =>1, :B=>2, :P=>:)),
+    (:BaseIQUMap,     (:Ix=>1, :Qx=>2, :Ux=>3, :I=>1, :Q=>2, :U=>3, :P=>2:3, :IP=>:)),
+    (:BaseIQUFourier, (:Il=>1, :Ql=>2, :Ul=>3, :I=>1, :Q=>2, :U=>3, :P=>2:3, :IP=>:)),
+    (:BaseIEBMap,     (:Ix=>1, :Ex=>2, :Bx=>3, :I=>1, :E=>2, :B=>3, :P=>2:3, :IP=>:)),
+    (:BaseIEBFourier, (:Il=>1, :El=>2, :Bl=>3, :I=>1, :E=>2, :B=>3, :P=>2:3, :IP=>:)),
+]
+
+# sub-components like f.Ix, f.Q, f.P, etc...
+for (F, props) in _sub_components
+    for (k, I) in props
+        if String(k)[end] in "xl"
+            if I == (:)
+                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = getfield(f,:arr)
+            else
+                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = view(getfield(f,:arr), pol_slice(f,$I)...)
+            end
+        else
+            if I == (:)
+                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = f
+            else
+                B = (k == :P) ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]
+                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = BaseField{$B}(_reshape_batch(view(getfield(f,:arr), pol_slice(f,$I)...)), f.metadata)
+            end
+        end
+    end
+end
