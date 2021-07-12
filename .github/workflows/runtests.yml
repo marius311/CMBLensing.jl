@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.6', '1.7-nightly']
+        julia-version: ['1.6', '1.7.0-beta3']
         os: [ubuntu-latest]
         JULIA_FFTW_PROVIDER: ['MKL','FFTW']
       fail-fast: false
@@ -24,6 +24,6 @@ jobs:
           && pip3 install camb
       - uses: julia-actions/julia-runtest@master
         timeout-minutes: 20
-        continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}
+        # continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}
         env:
           JULIA_FFTW_PROVIDER: ${{ matrix.JULIA_FFTW_PROVIDER }}
