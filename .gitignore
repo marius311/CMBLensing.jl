@@ -8,6 +8,7 @@ gitignore
 .vscode
 dat
 scratch
+!scratch/equirect1.jl
 **Untitled*.ipynb
 nb/
 paper2/
