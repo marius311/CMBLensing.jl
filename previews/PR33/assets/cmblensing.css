@@ -1,0 +1,13 @@
+pre.language-output {
+    background-color: white;
+}
+
+@font-face {
+    font-family: 'DejaVuSansMono';
+    src: url("DejaVuSansMono.ttf");
+}
+
+pre, code, kbd {
+  font-family: 'DejaVuSansMono', Monaco, courier, monospace;
+  font-size: 0.90em;
+}

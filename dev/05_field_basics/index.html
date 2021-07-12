@@ -1,171 +1,163 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Field Basics · CMBLensing.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/cmblensing.css" rel="stylesheet" type="text/css"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">CMBLensing.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">CMBLensing.jl</a></li><li><a class="tocitem" href="../01_lense_a_map/">Lensing a flat-sky map</a></li><li><a class="tocitem" href="../02_posterior/">The Lensing Posterior</a></li><li><a class="tocitem" href="../03_joint_MAP_example/">MAP estimation</a></li><li><a class="tocitem" href="../04_from_python/">Calling from Python</a></li><li class="is-active"><a class="tocitem" href>Field Basics</a><ul class="internal"><li><a class="tocitem" href="#Base-Fields-1"><span>Base Fields</span></a></li><li><a class="tocitem" href="#Diagonal-operators-1"><span>Diagonal operators</span></a></li><li><a class="tocitem" href="#Field-Tuples-1"><span>Field Tuples</span></a></li><li><a class="tocitem" href="#Field-Vectors-1"><span>Field Vectors</span></a></li><li><a class="tocitem" href="#Basis-Conversion-1"><span>Basis Conversion</span></a></li><li><a class="tocitem" href="#Properties-and-indices-1"><span>Properties and indices</span></a></li></ul></li><li><a class="tocitem" href="../06_gpu/">GPU</a></li><li><a class="tocitem" href="../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"></nav><div class="docs-right"><a class="docs-right" href="https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/05_field_basics.ipynb"><img src="https://mybinder.org/badge_logo.svg"/></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Field-Basics-1"><a class="docs-heading-anchor" href="#Field-Basics-1">Field Basics</a><a class="docs-heading-anchor-permalink" href="#Field-Basics-1" title="Permalink"></a></h1><pre class="language-julia"><code class="language-julia">using CMBLensing</code></pre><h2 id="Base-Fields-1"><a class="docs-heading-anchor" href="#Base-Fields-1">Base Fields</a><a class="docs-heading-anchor-permalink" href="#Base-Fields-1" title="Permalink"></a></h2><p>The basic building blocks of CMBLensing.jl are CMB &quot;fields&quot;, like temperature, Q or U polarization, or the lensing potential <span>$\phi$</span>. These types are all encompassed by the abstract type <code>Field</code>, with some concrete examples including <code>FlatMap</code> for a flat-sky map projection, or <code>FlatQUMap</code> for Q/U polarization, etc...</p><p><code>Flat</code> fields are just thin wrappers around Julia arrays, e.g.</p><pre class="language-julia"><code class="language-julia">Ix = rand(2,2)</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Float64,2}:
- 0.825511  0.678621
- 0.771156  0.0395162</code></pre><pre class="language-julia"><code class="language-julia">f = FlatMap(Ix)</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.8255110897741278
- 0.7711559841144537
- 0.6786207916928546
- 0.039516239705099654</code></pre><p>When displayed, you can see the pixels in the 2x2 map have been splayed out into a length-4 array. This is intentional, as even though the maps themselves are two-dimensional, it is extremely useful conceptually to think of fields as vectors (which they are, in fact, as they form an <a href="https://en.wikipedia.org/wiki/Vector_space">abstract vector space</a>). This tie to vector spaces is deeply rooted in CMBLensing, to the extent that <code>Field</code> objects are a subtype of Julia&#39;s own <code>AbstractVector</code> type, </p><pre class="language-julia"><code class="language-julia">f isa AbstractVector</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>The data itself, however, is still stored as the original 2x2 matrix, and can be accessed as follows,</p><pre class="language-julia"><code class="language-julia">f.Ix</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Float64,2}:
- 0.825511  0.678621
- 0.771156  0.0395162</code></pre><p>But since <code>Fields</code> are vectors, they can be tranposed,</p><pre class="language-julia"><code class="language-julia">f&#39;</code></pre><pre class="language-output"><code class="language-output">1×4 LinearAlgebra.Adjoint{Float64,FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}}:
- 0.825511  0.771156  0.678621  0.0395162</code></pre><p>inner products can be computed,</p><pre class="language-julia"><code class="language-julia">f&#39; * f</code></pre><pre class="language-output"><code class="language-output">1.7382378232938673</code></pre><p>and they can be added with each other as well as multiplied by scalars,</p><pre class="language-julia"><code class="language-julia">2*f+f</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 2.4765332693223834
- 2.3134679523433612
- 2.0358623750785636
- 0.11854871911529896</code></pre><h2 id="Diagonal-operators-1"><a class="docs-heading-anchor" href="#Diagonal-operators-1">Diagonal operators</a><a class="docs-heading-anchor-permalink" href="#Diagonal-operators-1" title="Permalink"></a></h2><p>Vector spaces have linear operators which act on the vectors. Linear operators correpsond to matrices, thus for a map with <span>$N$</span> total pixels, a general linear operator would be an <span>$N$</span>-by-<span>$N$</span> matrix, which for even modest map sizes becomes far too large to actually store. Thus, an important class of linear operators are ones which are diagonal, since these can actually be stored. CMBLensing uses Julia&#39;s builtin <code>Diagonal</code> to represent these. <code>Diagonal(f)</code> takes a vector <code>f</code> and puts it on the diagonal of the matrix:</p><pre class="language-julia"><code class="language-julia">Diagonal(f)</code></pre><pre class="language-output"><code class="language-output">4×4 Diagonal{Float64,FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}}:
- 0.825511   ⋅         ⋅         ⋅ 
-  ⋅        0.771156   ⋅         ⋅ 
-  ⋅         ⋅        0.678621   ⋅ 
-  ⋅         ⋅         ⋅        0.0395162</code></pre><p>Multiplying this operator by the original map is then a matrix-vector product:</p><pre class="language-julia"><code class="language-julia">Diagonal(f) * f</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.6814685593400681
- 0.5946815518355316
- 0.46052617891783676
- 0.0015615332004308945</code></pre><p>Note that this is also equal to the the pointwise multiplication of <code>f</code> with itself:</p><pre class="language-julia"><code class="language-julia">f .* f</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.6814685593400681
- 0.5946815518355316
- 0.46052617891783676
- 0.0015615332004308945</code></pre><h2 id="Field-Tuples-1"><a class="docs-heading-anchor" href="#Field-Tuples-1">Field Tuples</a><a class="docs-heading-anchor-permalink" href="#Field-Tuples-1" title="Permalink"></a></h2><p>You can put <code>Fields</code> together into tuples. For example, </p><pre class="language-julia"><code class="language-julia">a = FlatMap(rand(2,2))
-b = FlatMap(rand(2,2));</code></pre><pre class="language-julia"><code class="language-julia">FieldTuple(a,b)</code></pre><pre class="language-output"><code class="language-output">8-element Field2Tuple{CMBLensing.BasisTuple{Tuple{Map,Map}}, Float64}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097
- 0.6503015833027286
- 0.49222225045542634
- 0.6542850889432619
- 0.5009276241237057</code></pre><p>The components can also have names:</p><pre class="language-julia"><code class="language-julia">ft = FieldTuple(a=a, b=b)</code></pre><pre class="language-output"><code class="language-output">8-element Field2Tuple{(:a, :b), CMBLensing.BasisTuple{Tuple{Map,Map}}, Float64}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097
- 0.6503015833027286
- 0.49222225045542634
- 0.6542850889432619
- 0.5009276241237057</code></pre><p>which can be accessed later:</p><pre class="language-julia"><code class="language-julia">ft.a</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097</code></pre><p><code>FieldTuples</code> have all of the same behavior of individual fields. Indeed, spin fields like QU or IQU are simply special <code>FieldTuples</code>:</p><pre class="language-julia"><code class="language-julia">fqu = FlatQUMap(a,b)
-fqu isa FieldTuple</code></pre><pre class="language-output"><code class="language-output">true</code></pre><h2 id="Field-Vectors-1"><a class="docs-heading-anchor" href="#Field-Vectors-1">Field Vectors</a><a class="docs-heading-anchor-permalink" href="#Field-Vectors-1" title="Permalink"></a></h2><p><em>in progress</em></p><h2 id="Basis-Conversion-1"><a class="docs-heading-anchor" href="#Basis-Conversion-1">Basis Conversion</a><a class="docs-heading-anchor-permalink" href="#Basis-Conversion-1" title="Permalink"></a></h2><p>All fields are tagged as to which basis they are stored in. You can convert them to other bases by calling the basis type on them:</p><pre class="language-julia"><code class="language-julia">f</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.8255110897741278
- 0.7711559841144537
- 0.6786207916928546
- 0.039516239705099654</code></pre><pre class="language-julia"><code class="language-julia">f′ = Fourier(f)</code></pre><pre class="language-output"><code class="language-output">4-element FlatFourier{2×2 map, 1′ pixels, fourier∂, Array{Complex{Float64},2}}:
-  2.3148041052865356 + 0.0im
-   0.693459657647429 + 0.0im
-  0.8785300424906273 + 0.0im
- -0.5847494463280809 + 0.0im</code></pre><p>Basis conversion is usually done automatically for you. E.g. here <code>f′</code> is automatically converted to a <code>FlatMap</code> before addition:</p><pre class="language-julia"><code class="language-julia">f + f′</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 1.6510221795482556
- 1.5423119682289075
- 1.3572415833857092
- 0.07903247941019925</code></pre><p>A key feature of <code>Diagonal</code> operators is they convert the field they are acting on to the right basis before multiplication:</p><pre class="language-julia"><code class="language-julia">Diagonal(f) * f′</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.6814685593400681
- 0.5946815518355316
- 0.46052617891783676
- 0.001561533200430892</code></pre><p>A <code>FlatMap</code> times a <code>FlatFourier</code> doesn&#39;t have a natural linear algebra meaning so its an error:</p><pre class="language-julia"><code class="language-julia">f * f′</code></pre><pre class="language-none"><code class="language-none">MethodError: no method matching *(::FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}, ::FlatFourier{2×2 map, 1′ pixels, fourier∂, Array{Complex{Float64},2}})
-Closest candidates are:
-  *(::Any, ::Any, !Matched::Any, !Matched::Any...) at operators.jl:538
-  *(!Matched::ChainRulesCore.One, ::Any) at /home/cosmo/.julia/packages/ChainRulesCore/UayCG/src/differential_arithmetic.jl:98
-  *(!Matched::PyCall.PyObject, ::Any) at /home/cosmo/.julia/packages/PyCall/BcTLp/src/pyoperators.jl:13
-  ...
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Field Basics · CMBLensing.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/cmblensing.css" rel="stylesheet" type="text/css"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">CMBLensing.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">CMBLensing.jl</a></li><li><a class="tocitem" href="../01_lense_a_map/">Lensing a flat-sky map</a></li><li><a class="tocitem" href="../02_posterior/">The Lensing Posterior</a></li><li><a class="tocitem" href="../03_joint_MAP_example/">MAP estimation</a></li><li><a class="tocitem" href="../04_from_python/">Calling from Python</a></li><li class="is-active"><a class="tocitem" href>Field Basics</a><ul class="internal"><li><a class="tocitem" href="#Base-Fields-1"><span>Base Fields</span></a></li><li><a class="tocitem" href="#Diagonal-operators-1"><span>Diagonal operators</span></a></li><li><a class="tocitem" href="#Field-Tuples-1"><span>Field Tuples</span></a></li><li><a class="tocitem" href="#Field-Vectors-1"><span>Field Vectors</span></a></li><li><a class="tocitem" href="#Basis-Conversion-1"><span>Basis Conversion</span></a></li><li><a class="tocitem" href="#Properties-and-indices-1"><span>Properties and indices</span></a></li></ul></li><li><a class="tocitem" href="../06_gpu/">GPU</a></li><li><a class="tocitem" href="../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"></nav><div class="docs-right"><a class="docs-right" href="https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/05_field_basics.ipynb"><img src="https://mybinder.org/badge_logo.svg"/></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Field-Basics-1"><a class="docs-heading-anchor" href="#Field-Basics-1">Field Basics</a><a class="docs-heading-anchor-permalink" href="#Field-Basics-1" title="Permalink"></a></h1><pre class="language-julia"><code class="language-julia">using CMBLensing</code></pre><h2 id="Base-Fields-1"><a class="docs-heading-anchor" href="#Base-Fields-1">Base Fields</a><a class="docs-heading-anchor-permalink" href="#Base-Fields-1" title="Permalink"></a></h2><p>The basic building blocks of CMBLensing.jl are CMB &quot;fields&quot;, like temperature, Q or U polarization, or the lensing potential <span>$\phi$</span>. These types are all encompassed by the abstract type <code>Field</code>, with some concrete examples including <code>FlatMap</code> for a flat-sky map projection, or <code>FlatQUMap</code> for Q/U polarization, etc...</p><p><code>Flat</code> fields are just thin wrappers around Julia arrays, e.g.</p><pre class="language-julia"><code class="language-julia">Ix = rand(2,2)</code></pre><pre class="language-output"><code class="language-output">2×2 Matrix{Float64}:
+ 0.426216  0.826974
+ 0.708171  0.764695</code></pre><pre class="language-julia"><code class="language-julia">f = FlatMap(Ix)</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.4262158194119219
+ 0.7081713066496178
+ 0.8269736363234763
+ 0.7646953796006595</code></pre><p>When displayed, you can see the pixels in the 2x2 map have been splayed out into a length-4 array. This is intentional, as even though the maps themselves are two-dimensional, it is extremely useful conceptually to think of fields as vectors (which they are, in fact, as they form an <a href="https://en.wikipedia.org/wiki/Vector_space">abstract vector space</a>). This tie to vector spaces is deeply rooted in CMBLensing, to the extent that <code>Field</code> objects are a subtype of Julia&#39;s own <code>AbstractVector</code> type, </p><pre class="language-julia"><code class="language-julia">f isa AbstractVector</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>The data itself, however, is still stored as the original 2x2 matrix, and can be accessed as follows,</p><pre class="language-julia"><code class="language-julia">f.Ix</code></pre><pre class="language-output"><code class="language-output">2×2 Matrix{Float64}:
+ 0.426216  0.826974
+ 0.708171  0.764695</code></pre><p>But since <code>Fields</code> are vectors, they can be tranposed,</p><pre class="language-julia"><code class="language-julia">f&#39;</code></pre><pre class="language-output"><code class="language-output">1×4 adjoint(::FlatMap{Array{Float64, 2},ProjLambert{Float64}}) with eltype Float64:
+ 0.426216  0.708171  0.826974  0.764695</code></pre><p>inner products can be computed,</p><pre class="language-julia"><code class="language-julia">f&#39; * f</code></pre><pre class="language-output"><code class="language-output">1.9518109430354729</code></pre><p>and they can be added with each other as well as multiplied by scalars,</p><pre class="language-julia"><code class="language-julia">2*f+f</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 1.2786474582357656
+ 2.1245139199488534
+ 2.480920908970429
+ 2.2940861388019784</code></pre><h2 id="Diagonal-operators-1"><a class="docs-heading-anchor" href="#Diagonal-operators-1">Diagonal operators</a><a class="docs-heading-anchor-permalink" href="#Diagonal-operators-1" title="Permalink"></a></h2><p>Vector spaces have linear operators which act on the vectors. Linear operators correpsond to matrices, thus for a map with <span>$N$</span> total pixels, a general linear operator would be an <span>$N$</span>-by-<span>$N$</span> matrix, which for even modest map sizes becomes far too large to actually store. Thus, an important class of linear operators are ones which are diagonal, since these can actually be stored. CMBLensing uses Julia&#39;s builtin <code>Diagonal</code> to represent these. <code>Diagonal(f)</code> takes a vector <code>f</code> and puts it on the diagonal of the matrix:</p><pre class="language-julia"><code class="language-julia">Diagonal(f)</code></pre><pre class="language-output"><code class="language-output">4×4 Diagonal{Float64, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}:
+ 0.426216   ⋅         ⋅         ⋅ 
+  ⋅        0.708171   ⋅         ⋅ 
+  ⋅         ⋅        0.826974   ⋅ 
+  ⋅         ⋅         ⋅        0.764695</code></pre><p>Multiplying this operator by the original map is then a matrix-vector product:</p><pre class="language-julia"><code class="language-julia">Diagonal(f) * f</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.181659924716976
+ 0.501506599561827
+ 0.6838853951740732
+ 0.5847590235825967</code></pre><p>Note that this is also equal to the the pointwise multiplication of <code>f</code> with itself:</p><pre class="language-julia"><code class="language-julia">f .* f</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.181659924716976
+ 0.501506599561827
+ 0.6838853951740732
+ 0.5847590235825967</code></pre><h2 id="Field-Tuples-1"><a class="docs-heading-anchor" href="#Field-Tuples-1">Field Tuples</a><a class="docs-heading-anchor-permalink" href="#Field-Tuples-1" title="Permalink"></a></h2><p>You can put <code>Fields</code> together into tuples. For example, </p><pre class="language-julia"><code class="language-julia">a = FlatMap(rand(2,2))
+b = FlatMap(rand(2,2));</code></pre><pre class="language-julia"><code class="language-julia">FieldTuple(a,b)</code></pre><pre class="language-output"><code class="language-output">8-element Field-2-Tuple{FlatMap{Array{Float64, 2},ProjLambert{Float64}}, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905
+ 0.841044682845983
+ 0.6480850413410659
+ 0.5018892220242646
+ 0.18942875234593148</code></pre><p>The components can also have names:</p><pre class="language-julia"><code class="language-julia">ft = FieldTuple(a=a, b=b)</code></pre><pre class="language-output"><code class="language-output">8-element Field-(a,b)-Tuple{FlatMap{Array{Float64, 2},ProjLambert{Float64}}, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905
+ 0.841044682845983
+ 0.6480850413410659
+ 0.5018892220242646
+ 0.18942875234593148</code></pre><p>which can be accessed later:</p><pre class="language-julia"><code class="language-julia">ft.a</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905</code></pre><p><code>FieldTuples</code> have all of the same behavior of individual fields. Indeed, spin fields like QU or IQU are simply special <code>FieldTuples</code>:</p><pre class="language-julia"><code class="language-julia">fqu = FlatQUMap(a,b)
+fqu isa FieldTuple</code></pre><pre class="language-output"><code class="language-output">false</code></pre><h2 id="Field-Vectors-1"><a class="docs-heading-anchor" href="#Field-Vectors-1">Field Vectors</a><a class="docs-heading-anchor-permalink" href="#Field-Vectors-1" title="Permalink"></a></h2><p><em>in progress</em></p><h2 id="Basis-Conversion-1"><a class="docs-heading-anchor" href="#Basis-Conversion-1">Basis Conversion</a><a class="docs-heading-anchor-permalink" href="#Basis-Conversion-1" title="Permalink"></a></h2><p>All fields are tagged as to which basis they are stored in. You can convert them to other bases by calling the basis type on them:</p><pre class="language-julia"><code class="language-julia">f</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.4262158194119219
+ 0.7081713066496178
+ 0.8269736363234763
+ 0.7646953796006595</code></pre><pre class="language-julia"><code class="language-julia">f′ = Fourier(f)</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatFourier{Array{ComplexF64, 2},ProjLambert{Float64}}:
+   2.7260561419856755 + 0.0im
+ -0.21967723051487908 + 0.0im
+  -0.4572818898625961 + 0.0im
+ -0.34423374396051276 + 0.0im</code></pre><p>Basis conversion is usually done automatically for you. E.g. here <code>f′</code> is automatically converted to a <code>FlatMap</code> before addition:</p><pre class="language-julia"><code class="language-julia">f + f′</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.8524316388238438
+ 1.4163426132992356
+ 1.6539472726469526
+ 1.529390759201319</code></pre><p>A key feature of <code>Diagonal</code> operators is they convert the field they are acting on to the right basis before multiplication:</p><pre class="language-julia"><code class="language-julia">Diagonal(f) * f′</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.181659924716976
+ 0.501506599561827
+ 0.6838853951740732
+ 0.5847590235825967</code></pre><p>A <code>FlatMap</code> times a <code>FlatFourier</code> doesn&#39;t have a natural linear algebra meaning so its an error:</p><pre class="language-julia"><code class="language-julia">f * f′</code></pre><pre class="language-none"><code class="language-none">MethodError: no method matching *(::FlatMap{Array{Float64, 2},ProjLambert{Float64}}, ::FlatFourier{Array{ComplexF64, 2},ProjLambert{Float64}})
 
 
 
 Stacktrace:
 
- [1] top-level scope at In[21]:1
+ [1] top-level scope
 
- [2] include_string(::Function, ::Module, ::String, ::String) at ./loading.jl:1091
+   @ In[21]:1
 
- [3] execute_code(::String, ::String) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:27
+ [2] eval
 
- [4] execute_request(::ZMQ.Socket, ::IJulia.Msg) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:86
+   @ ./boot.jl:360 [inlined]
 
- [5] #invokelatest#1 at ./essentials.jl:710 [inlined]
+ [3] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
 
- [6] invokelatest at ./essentials.jl:709 [inlined]
-
- [7] eventloop(::ZMQ.Socket) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/eventloop.jl:8
-
- [8] (::IJulia.var&quot;#15#18&quot;)() at ./task.jl:356</code></pre><h2 id="Properties-and-indices-1"><a class="docs-heading-anchor" href="#Properties-and-indices-1">Properties and indices</a><a class="docs-heading-anchor-permalink" href="#Properties-and-indices-1" title="Permalink"></a></h2><p><code>FlatMap</code> and <code>FlatFourier</code> can be indexed directly like arrays. If given 1D indices, this is the index into the vector representation:</p><pre class="language-julia"><code class="language-julia">f</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.8255110897741278
- 0.7711559841144537
- 0.6786207916928546
- 0.039516239705099654</code></pre><pre class="language-julia"><code class="language-julia">f[1], f[2], f[3], f[4]</code></pre><pre class="language-output"><code class="language-output">(0.8255110897741278, 0.7711559841144537, 0.6786207916928546, 0.039516239705099654)</code></pre><pre class="language-julia"><code class="language-julia">f[5]</code></pre><pre class="language-none"><code class="language-none">BoundsError: attempt to access 2×2 Array{Float64,2} at index [5]
+   @ Base ./loading.jl:1094</code></pre><pre class="language-output"><code class="language-output">┌ Error: Error showing method candidates, aborted
+│   exception = (ErrorException(&quot;invoke: argument type error&quot;), Union{Ptr{Nothing}, Base.InterpreterIP}[Ptr{Nothing} @0x00007fc3c5822859, Ptr{Nothing} @0x00007fc3c58a8c63, Ptr{Nothing} @0x00007fc3b0c418f6, Ptr{Nothing} @0x00007fc3b0c4190f, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b7363ac6, Ptr{Nothing} @0x00007fc3b0c417f9, Ptr{Nothing} @0x00007fc3b0c41885, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b76a2914, Ptr{Nothing} @0x00007fc3b0bd0153, Ptr{Nothing} @0x00007fc3b0bd03b5, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b6f8fb07, Ptr{Nothing} @0x00007fc3b6f8fbaa, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b75aa0ea, Ptr{Nothing} @0x00007fc3b0c40fbf, Ptr{Nothing} @0x00007fc3b0c41021, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b0c402f7, Ptr{Nothing} @0x00007fc3b0c40b47, Ptr{Nothing} @0x00007fc3b0c40bac, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b0c39712, Ptr{Nothing} @0x00007fc3b0c3d598, Ptr{Nothing} @0x00007fc3b0c3f06c, Ptr{Nothing} @0x00007fc3b0c3f177, Ptr{Nothing} @0x00007fc3b0c3f1e3, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3c58a8526, Ptr{Nothing} @0x00007fc3b0c3893e, Ptr{Nothing} @0x00007fc3b0c389c3, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3c58aa808, Ptr{Nothing} @0x00007fc3b0c38732, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3c58aa808, Ptr{Nothing} @0x00007fc3b0c385c8, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b0c2e2e4, Ptr{Nothing} @0x00007fc3b0c2e591, Ptr{Nothing} @0x00007fc3b0c2e5f5, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3b0bc6719, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3c58a8526, Ptr{Nothing} @0x00007fc3b0b9036e, Ptr{Nothing} @0x00007fc3b0b9059e, Ptr{Nothing} @0x00007fc3b0b905bc, Ptr{Nothing} @0x00007fc3c5897719, Ptr{Nothing} @0x00007fc3c58b884a, Ptr{Nothing} @0x0000000000000000])
+└ @ Base errorshow.jl:329</code></pre><h2 id="Properties-and-indices-1"><a class="docs-heading-anchor" href="#Properties-and-indices-1">Properties and indices</a><a class="docs-heading-anchor-permalink" href="#Properties-and-indices-1" title="Permalink"></a></h2><p><code>FlatMap</code> and <code>FlatFourier</code> can be indexed directly like arrays. If given 1D indices, this is the index into the vector representation:</p><pre class="language-julia"><code class="language-julia">f</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.4262158194119219
+ 0.7081713066496178
+ 0.8269736363234763
+ 0.7646953796006595</code></pre><pre class="language-julia"><code class="language-julia">f[1], f[2], f[3], f[4]</code></pre><pre class="language-output"><code class="language-output">(0.4262158194119219, 0.7081713066496178, 0.8269736363234763, 0.7646953796006595)</code></pre><pre class="language-julia"><code class="language-julia">f[5]</code></pre><pre class="language-none"><code class="language-none">BoundsError: attempt to access 2×2 Matrix{Float64} at index [5]
 
 
 
 Stacktrace:
 
- [1] getindex at ./array.jl:809 [inlined]
+ [1] getindex
 
- [2] getindex(::FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}, ::Int64) at /home/cosmo/CMBLensing/src/flat_s0.jl:53
+   @ ./array.jl:801 [inlined]
 
- [3] top-level scope at In[24]:1
+ [2] getindex(f::FlatMap{Array{Float64, 2},ProjLambert{Float64}}, I::Int64)
 
- [4] include_string(::Function, ::Module, ::String, ::String) at ./loading.jl:1091
+   @ CMBLensing ~/CMBLensing/src/base_fields.jl:28
 
- [5] execute_code(::String, ::String) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:27
+ [3] top-level scope
 
- [6] execute_request(::ZMQ.Socket, ::IJulia.Msg) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:86
+   @ In[24]:1
 
- [7] #invokelatest#1 at ./essentials.jl:710 [inlined]
+ [4] eval
 
- [8] invokelatest at ./essentials.jl:709 [inlined]
+   @ ./boot.jl:360 [inlined]
 
- [9] eventloop(::ZMQ.Socket) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/eventloop.jl:8
+ [5] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
 
- [10] (::IJulia.var&quot;#15#18&quot;)() at ./task.jl:356</code></pre><p>Or with a 2D index, this indexes directly into the 2D map:</p><pre class="language-julia"><code class="language-julia">f[1,1], f[2,1], f[1,2], f[2,2]</code></pre><pre class="language-output"><code class="language-output">(0.8255110897741278, 0.7711559841144537, 0.6786207916928546, 0.039516239705099654)</code></pre><p><em>Note:</em> there is no overhead to indexing <code>f</code> in this way as compared to working directly on the underlying array.</p><p>For other fields which are built on <code>FieldTuples</code>, 1D indexing will instead index the tuple indices:</p><pre class="language-julia"><code class="language-julia">ft</code></pre><pre class="language-output"><code class="language-output">8-element Field2Tuple{(:a, :b), CMBLensing.BasisTuple{Tuple{Map,Map}}, Float64}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097
- 0.6503015833027286
- 0.49222225045542634
- 0.6542850889432619
- 0.5009276241237057</code></pre><pre class="language-julia"><code class="language-julia">ft[1]</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097</code></pre><pre class="language-julia"><code class="language-julia">ft[2]</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.6503015833027286
- 0.49222225045542634
- 0.6542850889432619
- 0.5009276241237057</code></pre><pre class="language-julia"><code class="language-julia">ft[3]</code></pre><pre class="language-none"><code class="language-none">BoundsError: attempt to access NamedTuple{(:a, :b),Tuple{FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}},FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}}}
-  at index [3]
+   @ Base ./loading.jl:1094</code></pre><p>Or with a 2D index, this indexes directly into the 2D map:</p><pre class="language-julia"><code class="language-julia">f[1,1], f[2,1], f[1,2], f[2,2]</code></pre><pre class="language-output"><code class="language-output">(0.4262158194119219, 0.7081713066496178, 0.8269736363234763, 0.7646953796006595)</code></pre><p><em>Note:</em> there is no overhead to indexing <code>f</code> in this way as compared to working directly on the underlying array.</p><p>For other fields which are built on <code>FieldTuples</code>, 1D indexing will instead index the tuple indices:</p><pre class="language-julia"><code class="language-julia">ft</code></pre><pre class="language-output"><code class="language-output">8-element Field-(a,b)-Tuple{FlatMap{Array{Float64, 2},ProjLambert{Float64}}, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905
+ 0.841044682845983
+ 0.6480850413410659
+ 0.5018892220242646
+ 0.18942875234593148</code></pre><pre class="language-julia"><code class="language-julia">ft[1]</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905</code></pre><pre class="language-julia"><code class="language-julia">ft[2]</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{Array{Float64, 2},ProjLambert{Float64}}:
+ 0.841044682845983
+ 0.6480850413410659
+ 0.5018892220242646
+ 0.18942875234593148</code></pre><pre class="language-julia"><code class="language-julia">ft[3]</code></pre><pre class="language-none"><code class="language-none">BoundsError: attempt to access NamedTuple{(:a, :b), Tuple{FlatMap{Array{Float64, 2},ProjLambert{Float64}}, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}} at index [3]
 
 
 
 Stacktrace:
 
- [1] getindex at ./namedtuple.jl:112 [inlined]
+ [1] getindex
 
- [2] getindex(::Field2Tuple{(:a, :b), CMBLensing.BasisTuple{Tuple{Map,Map}}, Float64}, ::Int64) at /home/cosmo/CMBLensing/src/field_tuples.jl:47
+   @ ./namedtuple.jl:117 [inlined]
 
- [3] top-level scope at In[29]:1
+ [2] getindex(f::Field-(a,b)-Tuple{FlatMap{Array{Float64, 2},ProjLambert{Float64}}, FlatMap{Array{Float64, 2},ProjLambert{Float64}}}, i::Int64)
 
- [4] include_string(::Function, ::Module, ::String, ::String) at ./loading.jl:1091
+   @ CMBLensing ~/CMBLensing/src/field_tuples.jl:31
 
- [5] execute_code(::String, ::String) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:27
+ [3] top-level scope
 
- [6] execute_request(::ZMQ.Socket, ::IJulia.Msg) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/execute_request.jl:86
+   @ In[29]:1
 
- [7] #invokelatest#1 at ./essentials.jl:710 [inlined]
+ [4] eval
 
- [8] invokelatest at ./essentials.jl:709 [inlined]
+   @ ./boot.jl:360 [inlined]
 
- [9] eventloop(::ZMQ.Socket) at /home/cosmo/.julia/packages/IJulia/a1SNk/src/eventloop.jl:8
+ [5] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
 
- [10] (::IJulia.var&quot;#15#18&quot;)() at ./task.jl:356</code></pre><p>To get the underlying data arrays, use the object&#39;s properties:</p><pre class="language-julia"><code class="language-julia">f.Ix</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Float64,2}:
- 0.825511  0.678621
- 0.771156  0.0395162</code></pre><p>You can always find out what properties are available by typing <code>f.&lt;Tab&gt;</code>. For example, if you typed <code>ft</code> then hit <code>&lt;Tab&gt;</code> you&#39;d get:</p><pre class="language-julia"><code class="language-julia">ft |&gt; propertynames</code></pre><pre class="language-output"><code class="language-output">(:fs, :a, :b)</code></pre><p>For a <code>FieldTuple</code> like the <code>FlatQUMap</code> object, <code>fqu</code>, you can get each individual Q or U field:</p><pre class="language-julia"><code class="language-julia">fqu.Q</code></pre><pre class="language-output"><code class="language-output">4-element FlatMap{2×2 map, 1′ pixels, fourier∂, Array{Float64,2}}:
- 0.39168660134452304
- 0.49315208816312617
- 0.3498350159820478
- 0.5590404582145097</code></pre><p>Or <code>fqu.Qx</code> which is shorthand for <code>fqu.Q.Ix</code>:</p><pre class="language-julia"><code class="language-julia">fqu.Q.Ix === fqu.Qx</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>If you convert <code>f</code> to Fourier space, it would have the <code>Il</code> property to get the Fourier coefficients of the <span>$I$</span> component:</p><pre class="language-julia"><code class="language-julia">Fourier(f).Il</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Complex{Float64},2}:
-  2.3148+0.0im    0.87853+0.0im
- 0.69346+0.0im  -0.584749+0.0im</code></pre><p>For convenience, you can index fields with brackets <code>[]</code> and any necessary conversions will be done automatically:</p><pre class="language-julia"><code class="language-julia">f[:Il]</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Complex{Float64},2}:
-  2.3148+0.0im    0.87853+0.0im
- 0.69346+0.0im  -0.584749+0.0im</code></pre><p>This works between any bases. For example. <code>fqu</code> is originally <code>QUMap</code> but we can convert to <code>EBFourier</code> and get the <code>El</code> coefficients:</p><pre class="language-julia"><code class="language-julia">fqu[:El]</code></pre><pre class="language-output"><code class="language-output">2×2 Array{Complex{Float64},2}:
-  -1.79371-0.0im    0.0240368+0.0im
- -0.310671+0.0im  -0.00472187+0.0im</code></pre><p>The general rule to keep in mind for these two ways of accessing the underlying data is:</p><ul><li><strong>Properties</strong> (i.e. <code>f.Ix</code>) are type-stable and get you the underlying data arrays, even recursively from special <code>FieldTuples</code> like <code>FlatQUMap</code>, etc... If these arrays are modified, they affect the original field.</li><li><strong>Indices</strong> (i.e. <code>f[:Ix]</code>) are not type-stable, and may or may not be one of the underlying data arrays (because a basis conversion may have been performed). They should be used for getting (not setting) data, and in non-performance-critical code. </li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../04_from_python/">« Calling from Python</a><a class="docs-footer-nextpage" href="../06_gpu/">GPU »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 6 November 2020 00:34">Friday 6 November 2020</span>. Using Julia version 1.5.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+   @ Base ./loading.jl:1094</code></pre><p>To get the underlying data arrays, use the object&#39;s properties:</p><pre class="language-julia"><code class="language-julia">f.Ix</code></pre><pre class="language-output"><code class="language-output">2×2 Matrix{Float64}:
+ 0.426216  0.826974
+ 0.708171  0.764695</code></pre><p>You can always find out what properties are available by typing <code>f.&lt;Tab&gt;</code>. For example, if you typed <code>ft</code> then hit <code>&lt;Tab&gt;</code> you&#39;d get:</p><pre class="language-julia"><code class="language-julia">ft |&gt; propertynames</code></pre><pre class="language-output"><code class="language-output">(:fs, :a, :b)</code></pre><p>For a <code>FieldTuple</code> like the <code>FlatQUMap</code> object, <code>fqu</code>, you can get each individual Q or U field:</p><pre class="language-julia"><code class="language-julia">fqu.Q</code></pre><pre class="language-output"><code class="language-output">4-element 2×2-pixel 1.0′-resolution FlatMap{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Int64}, true},ProjLambert{Float64}}:
+ 0.46066112880867216
+ 0.10538865496406813
+ 0.5968951943796064
+ 0.2983128151833905</code></pre><p>Or <code>fqu.Qx</code> which is shorthand for <code>fqu.Q.Ix</code>:</p><pre class="language-julia"><code class="language-julia">fqu.Q.Ix === fqu.Qx</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>If you convert <code>f</code> to Fourier space, it would have the <code>Il</code> property to get the Fourier coefficients of the <span>$I$</span> component:</p><pre class="language-julia"><code class="language-julia">Fourier(f).Il</code></pre><pre class="language-output"><code class="language-output">2×2 Matrix{ComplexF64}:
+   2.72606+0.0im  -0.457282+0.0im
+ -0.219677+0.0im  -0.344234+0.0im</code></pre><p>For convenience, you can index fields with brackets <code>[]</code> and any necessary conversions will be done automatically:</p><pre class="language-julia"><code class="language-julia">f[:Il]</code></pre><pre class="language-output"><code class="language-output">2×2 Matrix{ComplexF64}:
+   2.72606+0.0im  -0.457282+0.0im
+ -0.219677+0.0im  -0.344234+0.0im</code></pre><p>This works between any bases. For example. <code>fqu</code> is originally <code>QUMap</code> but we can convert to <code>EBFourier</code> and get the <code>El</code> coefficients:</p><pre class="language-julia"><code class="language-julia">fqu[:El]</code></pre><pre class="language-output"><code class="language-output">2×2 view(::Array{ComplexF64, 3}, :, :, 1) with eltype ComplexF64:
+ -1.46126-0.0im  0.329158+0.0im
+ 0.653855+0.0im  0.119501+0.0im</code></pre><p>The general rule to keep in mind for these two ways of accessing the underlying data is:</p><ul><li><strong>Properties</strong> (i.e. <code>f.Ix</code>) are type-stable and get you the underlying data arrays, even recursively from special <code>FieldTuples</code> like <code>FlatQUMap</code>, etc... If these arrays are modified, they affect the original field.</li><li><strong>Indices</strong> (i.e. <code>f[:Ix]</code>) are not type-stable, and may or may not be one of the underlying data arrays (because a basis conversion may have been performed). They should be used for getting (not setting) data, and in non-performance-critical code. </li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../04_from_python/">« Calling from Python</a><a class="docs-footer-nextpage" href="../06_gpu/">GPU »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Monday 12 July 2021 19:59">Monday 12 July 2021</span>. Using Julia version 1.6.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
