@@ -128,7 +128,8 @@ ensure1d(x) = (x,)
 
 # https://discourse.julialang.org/t/dispatching-on-the-result-of-unwrap-unionall-seems-weird/25677
 # has some background related to this function. we can simplify this in 1.6
-function typealias(t)
+typealias(t::UnionAll) = sprint(io -> Base.show(io, t))
+function typealias(t::DataType)
     if isconcretetype(t)
         ta = typealias_def(t)
         if !isnothing(ta)
