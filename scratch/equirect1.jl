@@ -1,20 +1,184 @@
 
 # Modules
 # ==============================
-using LinearAlgebra
-using FFTW
 using Tullio 
 using PyPlot
 using BenchmarkTools
 using ProgressMeter
+using LinearAlgebra
+using FFTW
 FFTW.set_num_threads(Threads.nthreads())
-using LBblocks: @sblock # from github.com/EthanAnderes/LBblocks.jl
 
 using CMBLensing
+using CMBLensing: Basis, Proj
 using CirculantCov: βcovSpin2, βcovSpin0, geoβ, 
-multPP̄, multPP, periodize, Jperm
+multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
+
+# LATER: remove LBblock dependence
+using LBblocks: @sblock # https://github.com/EthanAnderes/LBblocks.jl
 
 hide_plots = true
+
+
+# Methods ...
+# =======================================
+
+## Basis type
+
+abstract type Ring <: Basis end
+
+abstract type Ring▫   <: Ring  end
+abstract type Ring▫S0 <: Ring▫ end
+abstract type Ring▫S2 <: Ring▫ end
+
+abstract type RingMap   <: Ring    end
+abstract type RingMapS0 <: RingMap end
+abstract type RingMapS2 <: RingMap end
+
+## Pixel type 
+
+struct AzEq{T<:Real} <: Proj
+    nθ :: Int
+    nφ :: Int
+    θ  :: Vector{T}
+    φ  :: Vector{T}
+    Ω  :: Vector{T}
+    Δθ :: Vector{T}
+    freq_mult :: Int
+
+    function AzEq(;
+            nθnφ::Tuple{Int,Int}, 
+            θspan::Tuple{T,T}, 
+            φspan::Tuple{T,T}, 
+            cosθEq::Bool = false, # default to θEq
+        ) where T<:Real
+
+        @assert Int(2π / φspan[2]) isa Int
+        @assert θspan[1] < θspan[2]
+        @assert φspan[1] < φspan[2]
+
+        nθ, nφ  = nθnφ
+
+        if cosθEq
+            znorth = cos.(θspan[1])
+            zsouth = cos.(θspan[2])
+            θpix∂  = acos.(range(znorth, zsouth, length=nθ+1))
+        else
+            θpix∂   = T.(θspan[1] .+ (θspan[2] - θspan[1])*(0:nθ)/nθ)
+        end
+        Δθ = diff(θpix∂)
+        θ  = θpix∂[2:end] .- Δθ/2    
+        
+        freq_mult = Int(2π / φspan[2])
+        φ = T.(φspan[1] .+ (φspan[2] - φspan[1])*(0:nφ-1)/nφ) 
+        
+        Ω  = @. (φ[2] - φ[1]) * abs(cos(θpix∂[1:end-1]) - cos(θpix∂[2:end]))
+        return new{T}(nθ, nφ, θ, φ, Ω, Δθ, freq_mult)
+    end
+
+end
+
+
+
+## basis conversion
+
+# Is there some guarentee/requirment that the conversion happens within the same Proj? 
+# I guess I'm making it a requirement by the conversion definitions below.
+
+# I'm partly confused how the BasisField type and the Proj type interact.
+# For example, would there ever be a case when one would use RingMapS0 
+# without the corresponding AzEq
+
+# Working understanding:
+# • The field type parameter AzEq <: Proj tells you what the metadata is
+# • The field type parameter Ring <: Basis tells you what the dual Basis is
+
+## TODO: incorperate planned ffts
+
+function (::Type{BR▫})(fmap::BaseField{RingMapS0, <:AzEq}) where {BR▫<:BaseField{Ring▫S0}}
+    nφ = fmap.metadata.nφ
+    BR▫(rfft(fmap.arr, 2) ./ √nφ, fmap.metadata)
+end
+
+function (::Type{BRM})(f▫::BaseField{Ring▫S0, <:AzEq}) where {BRM<:BaseField{RingMapS0}}
+    nφ = f▫.metadata.nφ
+    BRM(irfft(f▫.arr, nφ, 2) .* √nφ, f▫.metadata)
+end
+
+function (::Type{BR▫})(pmap::BaseField{RingMapS2, <:AzEq}) where {BR▫<:BaseField{Ring▫S2}}
+    nθ = pmap.metadata.nθ
+    nφ = pmap.metadata.nφ
+    Upmap = fft(pmap.arr, 2) ./ √nφ
+    p▫    = similar(Upmap, 2nθ, nφ÷2+1)
+    for ℓ = 1:nφ÷2+1
+        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
+            p▫[1:nθ, ℓ]     .= Upmap[:,ℓ]
+            p▫[nθ+1:2nθ, ℓ] .= conj.(Upmap[:,ℓ])
+        else 
+            p▫[1:nθ, ℓ]     .= Upmap[:,ℓ]
+            p▫[nθ+1:2nθ, ℓ] .= conj.(Upmap[:,Jperm(ℓ,nφ)])
+        end
+    end
+    BR▫(p▫, pmap.metadata)
+end
+
+function (::Type{BRM})(p▫::BaseField{Ring▫S2, <:AzEq}) where {BRM<:BaseField{RingMapS2}}
+    nθₓ2, nφ½₊1 = size(p▫.arr)
+    nθ = p▫.metadata.nθ
+    nφ = p▫.metadata.nφ
+    @assert nφ½₊1 == nφ÷2+1
+    @assert 2nθ   == nθₓ2
+
+    pθk = similar(p▫, nθ, nφ)
+    for ℓ = 1:nφ½₊1
+        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
+            pθk[:,ℓ] .= p▫[1:nθ,ℓ] 
+        else 
+            pθk[:,ℓ]  .= p▫[1:nθ,ℓ]     
+            pθk[:,Jperm(ℓ,nφ)] .= conj.(p▫[nθ+1:2nθ,ℓ])
+        end
+    end 
+    BRM(ifft(pθk, 2) .* √nφ, p▫.metadata)
+end
+
+# Do I need these??
+function (::Type{BR▫})(p▫::BaseField{<:Ring▫, <:AzEq}) where {R▫<:Ring▫, BR▫<:BaseField{R▫}}
+    p▫
+end
+
+function (::Type{BRM})(pmap::BaseField{<:RingMap, <:AzEq}) where {RM<:RingMap, BRM<:BaseField{RM}}
+    pmap
+end
+
+## f[:] -> map storage array... 
+## This is in XFields.jl and I really like it.
+# just adding it here temporarily 
+
+Base.getindex(f::BaseField{RingMapS0}, ::Colon) = f.arr
+Base.getindex(f::BaseField{RingMapS2}, ::Colon) = f.arr
+Base.getindex(f::BaseField{Ring▫S0},   ::Colon) = BaseField{RingMapS0}(f).arr
+Base.getindex(f::BaseField{Ring▫S2},   ::Colon) = BaseField{RingMapS2}(f).arr
+
+Base.getindex(f::BaseField{RingMapS0}, ::typeof(!)) = BaseField{Ring▫S0}(f).arr
+Base.getindex(f::BaseField{RingMapS2}, ::typeof(!)) = BaseField{Ring▫S2}(f).arr
+Base.getindex(f::BaseField{Ring▫S0},   ::typeof(!)) = f.arr
+Base.getindex(f::BaseField{Ring▫S2},   ::typeof(!)) = f.arr
+
+#-
+
+function tulliomult(M▫, f::BaseField{RS0}) where {RS0 <: Union{RingMapS0, Ring▫S0}}
+    m▫ = BaseField{Ring▫S0}(f).arr
+    @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
+    BaseField{Ring▫S0}(n▫, f.metadata)
+end
+
+function tulliomult(M▫, f::BaseField{RS2}) where {RS2 <: Union{RingMapS2, Ring▫S2}}
+    m▫ = BaseField{Ring▫S2}(f).arr
+    @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
+    BaseField{Ring▫S2}(n▫, f.metadata)
+end
+
+
 
 # Spectral densities
 # ==============================
@@ -28,6 +192,7 @@ hide_plots = true
 	for cl in (CEEℓ, CBBℓ, CΦΦℓ)
 		cl[.!isfinite.(cl)] .= 0
 	end
+
 	return ℓ, CEEℓ, CBBℓ, CΦΦℓ
 end
 
@@ -47,31 +212,19 @@ end
 # Pixel grid
 # ==============================
 
-θ, φ, Ω, Δθ, nθ, nφ, freq_mult = @sblock let 
-    freq_mult = 3
-    nθ, nφ    = (200, 768)
-    θnorth∂, θsouth∂ = (2.7, 2.9)
-    φleft∂, φright∂  = (0.0, 2π/freq_mult)
+pj = AzEq(
+    nθnφ   = (200, 768), 
+    θspan  = (2.7, 2.9), 
+    φspan  = (0.0, 2π/4), 
+    cosθEq = false,
+)
 
-    θpix∂   = θnorth∂ .+ (θsouth∂ - θnorth∂)*(0:nθ)/nθ  |> collect
-    ## --- or -------
-    ## znorth = cos.(θnorth∂)
-    ## zsouth = cos.(θsouth∂)
-    ## θpix∂ = acos.(range(znorth, zsouth, length=nθ+1))
-    ## --------------
-    Δθ = diff(θpix∂)
-    θ = θpix∂[2:end] .- Δθ/2    
-    φ  = φleft∂ .+ (φright∂ - φleft∂)*(0:nφ-1)/nφ  |> collect    
-    Ω   = @. (φ[2] - φ[1]) * abs(cos(θpix∂[1:end-1]) - cos(θpix∂[2:end]))
 
-    return θ, φ, Ω, Δθ, nθ, nφ, freq_mult
-end;
-
-@show extrema(@. rad2deg(√Ω)*60) 
+@show extrema(@. rad2deg(√pj.Ω)*60) 
 
 # Plot √Ωpix over ring θ's 
 
-@sblock let θ, φ, Ω, Δθ, hide_plots
+@sblock let θ=pj.θ, φ=pj.φ, Ω=pj.Ω, Δθ=pj.Δθ, hide_plots
     hide_plots && return
     fig,ax = subplots(1)
     ax.plot(θ, (@. rad2deg(√Ω)*60), label="sqrt pixel area (arcmin)")
@@ -82,18 +235,17 @@ end;
 end
 
 
-#  
+# Block diagonal cov matrices
 # ==============================
 
-EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ, φ, freq_mult
+EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ, freq_mult=pj.freq_mult
 
     nθ, nφ = length(θ), length(φ)
     nφ2π  = nφ*freq_mult
     φ2π   = 2π*(0:nφ2π-1)/nφ2π |> collect
 
-    ## TODO: improve the adjustable resolution to help with periodicity
-    covβEB   = βcovSpin2(ℓ, CEEℓ, CBBℓ)
-    covβPhi  = βcovSpin0(ℓ, CΦΦℓ)
+    covβEB   = βcovSpin2(ℓ, CEEℓ, CBBℓ, ngrid=50_000)
+    covβPhi  = βcovSpin0(ℓ, CΦΦℓ,       ngrid=50_000)
 
     ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
     EBγⱼₖ   = zeros(ComplexF64, nφ)
@@ -111,7 +263,7 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ, φ, freq_mult
             θ1, θ2 = θ[j], θ[k]
             β      = geoβ.(θ1, θ2, φ2π[1], φ2π)
 
-            covΦΦ̄   = covβPhi(β)  |> complex
+            covΦΦ̄  = covβPhi(β) 
             covPP̄, covPP = covβEB(β)  
             covPP̄ .*= multPP̄.(θ1, θ2, φ2π[1], φ2π)
             covPP .*= multPP.(θ1, θ2, φ2π[1], φ2π)
@@ -144,57 +296,7 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ, φ, freq_mult
 end;
 
 
-
-
-# Methods for preping map arrays for ring transform mult
-# =======================================
-
-# Real spin0 maps have an implicit pairing with primal and dual frequency
-# so we instead construct nφ÷2+1 vectors of length nθ 
-spin0_to_▫(fmap::AbstractMatrix{<:Real}) = rfft(fmap, 2)    ./ √(size(fmap)[2])
-
-▫_to_spin0(f▫::AbstractMatrix, nφ::Int)   = irfft(f▫, nφ, 2) .* √nφ
-
-# Complex spin2 maps get frequency paired with dual frequency 
-# to make nφ÷2+1 vectors of length 2nθ 
-function spin2_to_▫(pmap::AbstractMatrix{<:Complex})
-    nθ, nφ = size(pmap)
-	Upmap  = fft(pmap, 2) ./ √nφ
-    p▫     = similar(Upmap, 2nθ, nφ÷2+1)
-    for ℓ = 1:nφ÷2+1
-        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
-            p▫[1:nθ, ℓ]     .= Upmap[:,ℓ]
-            p▫[nθ+1:2nθ, ℓ] .= conj.(Upmap[:,ℓ])
-        else 
-            p▫[1:nθ, ℓ]     .= Upmap[:,ℓ]
-            p▫[nθ+1:2nθ, ℓ] .= conj.(Upmap[:,Jperm(ℓ,nφ)])
-        end
-    end
-    p▫
-end
-
-function ▫_to_spin2(p▫::AbstractMatrix, nφ::Int) where To 
-    nθₓ2, nφ½₊1   = size(p▫)
-    @assert nφ½₊1 == nφ÷2+1
-    @assert iseven(nθₓ2)
-    nθ  = nθₓ2÷2
-
-    pθk = similar(p▫, nθ, nφ)
-    for ℓ = 1:nφ½₊1
-        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
-            pθk[:,ℓ] .= p▫[1:nθ,ℓ] 
-        else 
-            pθk[:,ℓ]  .= p▫[1:nθ,ℓ]     
-            pθk[:,Jperm(ℓ,nφ)] .= conj.(p▫[nθ+1:2nθ,ℓ])
-        end
-    end 
-    ifft(pθk, 2) .* √nφ
-end
-
-
-# Test simulation of ϕmap, Qmap, Umap
-# =======================================
-
+# why the numerical non-positive def?
 
 EB▫½, Phi▫½ = @sblock let EB▫, Phi▫ 
     EB▫½  = similar(EB▫)
@@ -209,58 +311,46 @@ EB▫½, Phi▫½ = @sblock let EB▫, Phi▫
     EB▫½, Phi▫½
 end
 
-ϕ▫′ = spin0_to_▫(randn(Float64, nθ, nφ))
-P▫′ = spin2_to_▫(randn(ComplexF64, nθ, nφ))
 
-@tullio ϕ▫[i,m] :=  Phi▫½[i,j,m] * ϕ▫′[j,m]
-@tullio P▫[i,m] :=  EB▫½[i,j,m]  * P▫′[j,m]
+# Test simulation of ϕmap, Qmap, Umap
+# =======================================
 
-ϕmap = ▫_to_spin0(ϕ▫, nφ)
-Pmap = ▫_to_spin2(P▫, nφ)
+# Field sims
 
-Qmap = real.(Pmap)
-Umap = imag.(Pmap)
+ϕ′ = BaseField{RingMapS0}(randn(Float64, pj.nθ, pj.nφ), pj)
+P′ = BaseField{RingMapS2}(randn(ComplexF64, pj.nθ, pj.nφ), pj)
 
-ϕmap |> matshow; colorbar()
-Qmap |> matshow; colorbar()
-Umap |> matshow; colorbar()
+# Test conversion
+
+@show BaseField{Ring▫S0}(ϕ′) isa BaseField{Ring▫S0}
+@show BaseField{Ring▫S2}(P′) isa BaseField{Ring▫S2}
+
+# How do I get this to work?
+
+2 * BaseField{Ring▫S0}(ϕ′) + ϕ′
+2 * BaseField{Ring▫S2}(P′) + P′
+
+
+# TODO: figure out the right way to reduce the above code duple with a Spin 
+# agnostic fourier ring constructor
+
+
+ϕsim = tulliomult(Phi▫½,  ϕ′)
+Psim = tulliomult(EB▫½, P′)
+
+ϕmap = ϕsim[:]
+Qmap = real.(Psim[:])
+Umap = imag.(Psim[:])
+
+ϕmap  |> matshow; colorbar()
+Qmap  |> matshow; colorbar()
+Umap  |> matshow; colorbar()
 
 
 
 # TODO:
 # =======================================
-# • Need to make sure the sign of U matches CMBLensing
-# • Get the array stuff into fields
 # • Figure out the m_fft transform stuff ... how to get unitary version
-# • Why are we fixing a theta gridding in ProjEquiRect{T}?
+# • Need to make sure the sign of U matches CMBLensing
+#   ... probably just need a negative spin 2 option in CirculantCov
 # • Figure out how to get Block field operators and all the stuff to go with it 
-
-# 
-# =======================================
-
-
-
-# using Revise, CMBLensing, Images, TestImages, PyPlot
-
-# arr = imresize(Images.gray.(float.(testimage("fabio_gray"))), (100,236));
-
-# f = LambertMap(arr, θpix=10, rotator=(0,40,10))
-# plot(f, vlim=[(0,1)]);
-
-# h = project(f => ProjHealpix(512))
-# plot(h);
-
-# f′ = project(h => f.proj)
-# plot([f′ f (f-f′)])
-
-# f = EquiRectMap(arr, θspan = deg2rad.(180 .+ (-40,-70)), ϕspan = deg2rad.((-10,90)))
-# imshow(f.arr); # no special plot function for EquiRectMaps implemented yet
-
-# h = project(f => ProjHealpix(512))
-# plot(h);
-
-# f′ = project(h => f.proj)
-# figure(figsize=(15,5))
-# subplot(131).imshow(f′.arr)
-# subplot(132).imshow(f.arr)
-# subplot(133).imshow((f-f′).arr);
