@@ -17,19 +17,25 @@ FFTW_TIMELIMIT = 5
 
 # a set of wrapper FFT functions which use a @memoize'd plan
 _fft_arr_type(arr) = basetype(typeof(parent(arr)))
-m_rfft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...) * arr
-function m_irfft(arr::AbstractArray{Complex{T},N}, d, dims) where {T,N}
+m_rfft(arr::AbstractArray{T,N}, dims) where {T<:Real,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...) * arr
+function m_irfft(arr::AbstractArray{T,N}, d, dims) where {T,N}
     output_size = size(arr)
     @set! output_size[first(dims)] = d
-    m_plan_rfft(_fft_arr_type(arr){T,N}, dims, output_size...) \ arr
+    m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, output_size...) \ arr
 end
-m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
-m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(dst)...), copy_if_fftw(arr))
+m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T<:Real,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
+m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, size(dst)...), copy_if_fftw(arr))
+m_fft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) * arr
+m_ifft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) \ arr
+m_fft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...), complex(arr))
+m_ifft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...), complex(arr))
 @memoize function m_plan_rfft(::Type{A}, dims::Dims, sz...) where {T, N, A<:AbstractArray{T,N}, Dims}
     FFTW.set_num_threads(FFTW_NUM_THREADS)
-    plan_rfft(
-        A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...
-    ) #:: FFTW.rFFTWPlan{T,-1,false,N,Dims} # type assert to help inference in @memoized function
+    plan_rfft(A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
+end
+@memoize function m_plan_fft(::Type{A}, dims::Dims, sz...) where {T, N, A<:AbstractArray{T,N}, Dims}
+    FFTW.set_num_threads(FFTW_NUM_THREADS)
+    plan_fft(A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
