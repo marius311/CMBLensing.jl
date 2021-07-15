@@ -1,8 +1,8 @@
 # Why the type parameter T?
 struct ProjEquiRect{T} <: CartesianProj
 
-    nθ    :: Int
-    nφ    :: Int
+    Ny    :: Int
+    Nx    :: Int
     θspan :: Tuple{Float64,Float64}
     φspan :: Tuple{Float64,Float64}
 
@@ -28,11 +28,11 @@ make_field_aliases("EquiRect",  ProjEquiRect, extra_aliases=OrderedDict(
 typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
 
 
-function ProjEquiRect(;nθ, nφ, θspan, φspan, T=Float32, storage=Array)
-    ProjEquiRect(nθ, nφ, θspan, φspan, real_type(T), storage)
+function ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float32, storage=Array)
+    ProjEquiRect(Ny, Nx, θspan, φspan, real_type(T), storage)
 end
 
-@memoize function ProjEquiRect(nθ, nφ, θspan, φspan, ::Type{T}, storage) where {T}
+@memoize function ProjEquiRect(Ny, Nx, θspan, φspan, ::Type{T}, storage) where {T}
     
     # make span always be (low, high)
     θspan = (Float64.(sort(collect(θspan)))...,)
@@ -43,28 +43,28 @@ end
         error("φspan=$φspan must span integer multiple of 2π")
     end
 
-    ProjEquiRect{T}(nθ, nφ, θspan, φspan, storage)
+    ProjEquiRect{T}(Ny, Nx, θspan, φspan, storage)
 
 end
 
 typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
 function Base.summary(io::IO, f::EquiRectField)
-    @unpack nθ,nφ,Nbatch = f
-    print(io, "$(length(f))-element $nθ×$nφ$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
+    @unpack Ny,Nx,Nbatch = f
+    print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
     Base.showarg(io, f, true)
 end
 
 
 ### basis conversion
 
-AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.nφ, (2,)), f.metadata)
-
-QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.nφ, (2,)), f.metadata)
-
-IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.nφ, (2,)), f.metadata)
+# AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+# Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+# 
+# QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+# QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+# 
+# IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
+# IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
 
 
 # TODO: remaining conversion rules
@@ -81,7 +81,7 @@ function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:Proj
     BlockDiagEquiRect{B,P,T,A}(block_matrix, Ref{A}(), proj)
 end
 
-size(L::BlockDiagEquiRect) = (fill(L.proj.nφ * L.proj.nθ, 2)...,)
+size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 
 function sqrt(L::BlockDiagEquiRect{B}) where {B}
     if !isassigned(L.blocks_sqrt)
@@ -107,8 +107,8 @@ function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
 end
 
 function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-    @unpack nθ, nφ, θspan = L.proj
-    z = EquiRectMap(randn(rng, T, nθ, nφ) .* sqrt.(sin.(range(θspan..., length=nθ))), L.proj)
+    @unpack Ny, Nx, θspan = L.proj
+    z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
     sqrt(L) * z
 end
 
@@ -123,11 +123,11 @@ Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} =
 @init @require Legendre="7642852e-7f09-11e9-134e-0940411082b6" begin
 
     function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
-        @unpack nθ, nφ, θspan, φspan = proj
+        @unpack Ny, Nx, θspan, φspan = proj
         φspan_ratio = round(Int, 2π / abs(-(φspan...)))
         Cℓ = T.(nan2zero.(Cℓ[0:ℓmax]))
-        Nm = nφ÷2+1
-        θs = T.(range(reverse(θspan)..., length=nθ))
+        Nm = Nx÷2+1
+        θs = T.(range(reverse(θspan)..., length=Ny))
         λ = T.(Legendre.λlm(0:ℓmax, 0:φspan_ratio*(Nm-1), cos.(θs))[:,:,1:φspan_ratio:end])
         @tullio blocks[p,q,iₘ] := λ[p,ℓ,iₘ] * λ[q,ℓ,iₘ] * Cℓ[ℓ] * (iₘ==1 ? 2 : 4)
         BlockDiagEquiRect{AzFourier}(blocks, proj)
@@ -148,8 +148,8 @@ end
 function promote_metadata_strict(metadata₁::ProjEquiRect{T₁}, metadata₂::ProjEquiRect{T₂}) where {T₁,T₂}
 
     if (
-        metadata₁.nθ    === metadata₂.nθ    &&
-        metadata₁.nφ    === metadata₂.nφ    &&
+        metadata₁.Ny    === metadata₂.Ny    &&
+        metadata₁.Nx    === metadata₂.Nx    &&
         metadata₁.θspan === metadata₂.θspan &&   
         metadata₁.φspan === metadata₂.φspan   
     )
@@ -160,8 +160,8 @@ function promote_metadata_strict(metadata₁::ProjEquiRect{T₁}, metadata₂::P
         
     else
         error("""Can't broadcast two fields with the following differing metadata:
-        1: $(select(fields(metadata₁),(:nθ,:nφ,:θspan,:φspan)))
-        2: $(select(fields(metadata₂),(:nθ,:nφ,:θspan,:φspan)))
+        1: $(select(fields(metadata₁),(:Ny,:Nx,:θspan,:φspan)))
+        2: $(select(fields(metadata₂),(:Ny,:Nx,:θspan,:φspan)))
         """)
     end
 
@@ -205,9 +205,9 @@ end
 function adapt_structure(storage, proj::ProjEquiRect{T}) where {T}
     # TODO: make sure these are consistent with any arguments that
     # were added to the memoized constructor
-    @unpack nθ, nφ, θspan, φspan = proj
+    @unpack Ny, Nx, θspan, φspan = proj
     T′ = eltype(storage)
-    ProjEquiRect(;nθ, nφ, T=(T′==Any ? T : real(T′)), θspan, φspan, storage)
+    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), θspan, φspan, storage)
 end
 adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
 
