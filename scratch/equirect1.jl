@@ -10,8 +10,8 @@ using FFTW
 FFTW.set_num_threads(Threads.nthreads())
 
 using CMBLensing
-import CMBLensing: Map, AzFourier, QUAzFourier, QUMap
-using CirculantCov: βcovSpin2, βcovSpin0, geoβ, 
+import CMBLensing: Map, AzFourier, QUAzFourier, QUMap, m_fft, m_rfft, m_irfft,  m_ifft
+using CirculantCov: βcovSpin2, βcovSpin0, geoβ,
 multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
 
 ## LATER: remove LBblock dependence
@@ -23,27 +23,25 @@ hide_plots = true
 
 # Methods ...
 # =======================================
-
-
 function AzFourier(f::EquiRectMap)
     nφ = f.Nx
-    EquiRectAzFourier(rfft(f.arr, 2) ./ √nφ, f.metadata)
+    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.metadata)
 end
 
 function Map(f::EquiRectAzFourier)
     nφ = f.Nx
-    EquiRectMap(irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
+    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
 end
 
 function QUAzFourier(f::EquiRectQUMap)
     nθ, nφ = f.Ny, f.Nx
-    Uf = fft(f.arr, 2) ./ √nφ
+    Uf = m_fft(f.arr, 2) ./ √nφ
     f▫ = similar(Uf, 2nθ, nφ÷2+1)
     for ℓ = 1:nφ÷2+1
         if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
             f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
             f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
-        else 
+        else
             f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
             f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
         end
@@ -60,30 +58,32 @@ function QUMap(f::EquiRectQUAzFourier)
     pθk = similar(f.arr, nθ, nφ)
     for ℓ = 1:nφ½₊1
         if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
-            pθk[:,ℓ] .= f.arr[1:nθ,ℓ] 
-        else 
-            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]     
+            pθk[:,ℓ] .= f.arr[1:nθ,ℓ]
+        else
+            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]
             pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
         end
-    end 
-    EquiRectQUMap(ifft(pθk, 2) .* √nφ, f.metadata)
+    end
+    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
 end
 
 
-function tulliomult(M▫, f::Union{EquiRectAzFourier, EquiRectMap}) 
+CMBLensing.promote_basis_generic_rule(::Map, ::AzFourier) = Map()
+CMBLensing.promote_basis_generic_rule(::QUMap, ::QUAzFourier) = QUMap()
+
+
+# EquiRectS0 ...
+function tulliomult(M▫, f::Union{EquiRectAzFourier, EquiRectMap})
     m▫ = AzFourier(f).arr
     @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
     EquiRectAzFourier(n▫, f.metadata)
 end
-
+# EquiRectS2 
 function tulliomult(M▫, f::Union{EquiRectQUAzFourier, EquiRectQUMap})
     m▫ = QUAzFourier(f).arr
     @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
     EquiRectQUAzFourier(n▫, f.metadata)
 end
-
-
-
 
 # Quick test
 # ============================
@@ -152,7 +152,7 @@ end
 # Are there generic method names that I'm supposed to overload like pix(pj) ...?
 
 
-
+# TODO: Put these into Proj ...
 θ, φ, Ω, freq_mult, Δθ = @sblock let pj, T = Float64, cosθEq=false
 
     nθ, nφ = pj.Ny, pj.Nx
@@ -259,7 +259,6 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ, φ, freq_mult
     return EB▫, Phi▫
 end;
 
-
 #-
 
 EB▫½, Phi▫½ = @sblock let EB▫, Phi▫ 
@@ -286,7 +285,7 @@ end;
 
 # Field sim unit noise
 
-ϕ′ = EquiRectMap(randn(Float64, pj.Ny, pj.Nx), pj)
+ϕ′ = EquiRectMap(  randn(Float64, pj.Ny, pj.Nx),    pj)
 P′ = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj)
 
 # Test conversion
@@ -309,16 +308,16 @@ Umap = imag.(QUMap(Psim).arr)
 Qmap  |> matshow; colorbar()
 Umap  |> matshow; colorbar()
 
+#-
+
+gradient(x-> dot(Map(x), Map(x)), ϕsim)[1]
 
 
 # TODO:
 # =======================================
-# • Figure out the m_fft transform stuff ... how to get unitary version
-# • Need to make sure the sign of U matches CMBLensing
-#   ... probably just need a negative spin 2 option in CirculantCov
-# • Figure out how to get Block field operators and all the stuff to go with it 
-
-
+# • unitary version (look into later ) 
+# • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 
+# • Block field operators and all the stuff to go with it
 
 # Random Notes
 # =======================================
