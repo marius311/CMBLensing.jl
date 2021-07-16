@@ -26,18 +26,17 @@ hide_plots = true
 
 
 function AzFourier(f::EquiRectMap)
-    nφ = f.metadata.Nx
+    nφ = f.Nx
     EquiRectAzFourier(rfft(f.arr, 2) ./ √nφ, f.metadata)
 end
 
 function Map(f::EquiRectAzFourier)
-    nφ = f.metadata.Nx
+    nφ = f.Nx
     EquiRectMap(irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
 end
 
 function QUAzFourier(f::EquiRectQUMap)
-    nθ = f.metadata.Ny
-    nφ = f.metadata.Nx
+    nθ, nφ = f.Ny, f.Nx
     Uf = fft(f.arr, 2) ./ √nφ
     f▫ = similar(Uf, 2nθ, nφ÷2+1)
     for ℓ = 1:nφ÷2+1
@@ -54,8 +53,7 @@ end
 
 function QUMap(f::EquiRectQUAzFourier)
     nθₓ2, nφ½₊1 = size(f.arr)
-    nθ = f.metadata.Ny
-    nφ = f.metadata.Nx
+    nθ, nφ = f.Ny, f.Nx
     @assert nφ½₊1 == nφ÷2+1
     @assert 2nθ   == nθₓ2
 
@@ -90,6 +88,10 @@ P′ = QUAzFourier(P)   # the printing of the size is wrong ...
 
 2 * ϕ + ϕ′
 2 * P + P′
+
+
+
+
 
 
 
