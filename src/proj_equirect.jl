@@ -59,10 +59,10 @@ end
 
 # AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
 # Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
-# 
+
 # QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
 # QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
-# 
+
 # IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
 # IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
 
