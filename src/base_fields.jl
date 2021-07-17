@@ -15,9 +15,14 @@ struct BaseField{B, M<:Proj, T, A<:AbstractArray{T}} <: Field{B, T}
     arr :: A
     metadata :: M
     function (::Type{F})(arr::A, metadata::M) where {B,M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
+        check_field_consistency(B(), arr, metadata)
         new{B,M,T,A}(arr, metadata) :: F
     end
 end
+
+# can be overrriden for specific types to check things like the
+# dimensions of arr being consistent with metadata, etc...
+check_field_consistency(::Any, ::Any, ::Any) = ()
 
 typealias_def(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} = "BaseField{$(typealias(B)),$(typealias(A)),$(typealias(M))}"
 

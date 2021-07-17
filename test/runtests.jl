@@ -99,6 +99,7 @@ end
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
                 @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
                 @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+                @test_throws ErrorException F(args..., ProjLambert(Nx=Nx+1, Ny=Ny+1))
 
             end
         
