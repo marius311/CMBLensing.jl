@@ -14,8 +14,6 @@ function show(io::IO, ds::DataSet)
     end
 end
 
-
-# util for distributing a singleton global dataset to workers
 """
     set_distributed_dataset(ds, [storage])
     get_distributed_dataset()
@@ -44,35 +42,6 @@ get_distributed_dataset() = _distributed_dataset
 _distributed_dataset = nothing
 _distributed_dataset_hash = nothing
 
-
-# Stores variables needed to construct the posterior
-@kwdef mutable struct BaseDataSet <: DataSet
-    d                # data
-    Cϕ               # ϕ covariance
-    Cf               # unlensed field covariance
-    Cf̃ = nothing     # lensed field covariance (not always needed)
-    Cn               # noise covariance
-    Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  = I           # user mask
-    M̂  = M           # approximate user mask, diagonal in same basis as Cf
-    B  = I           # beam and instrumental transfer functions
-    B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
-    D  = I           # mixing matrix for mixed parametrization
-    G  = I           # reparametrization for ϕ
-    L  = LenseFlow   # lensing operator, possibly cached for memory reuse
-    Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
-end
-
-function subblock(ds::DS, block) where {DS<:DataSet}
-    DS(map(collect(pairs(fields(ds)))) do (k,v)
-        @match (k,v) begin
-            ((:Cϕ || :G || :L), v)              => v
-            (_, L::Union{Nothing,FuncOp,Real})  => L
-            (_, L)                              => getindex(L,block)
-        end
-    end...)
-end
-
 function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
@@ -81,8 +50,34 @@ function (ds::DataSet)(θ)
 end
 (ds::DataSet)(;θ...) = ds((;θ...))
 
-
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
+
+
+
+### Concrete DataSet objects
+
+@kwdef mutable struct NoLensingDataSet <: DataSet
+    d                # data
+    Cf               # unlensed field covariance
+    Cn               # noise covariance
+    Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
+    M  = I           # user mask
+    M̂  = M           # approximate user mask, diagonal in same basis as Cf
+    B  = I           # beam and instrumental transfer functions
+    B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
+end
+
+@composite @kwdef mutable struct BaseDataSet <: DataSet
+    NoLensingDataSet...
+    Cϕ               # ϕ covariance
+    Cf̃ = nothing     # lensed field covariance (not always needed)
+    D  = I           # mixing matrix for mixed parametrization
+    G  = I           # reparametrization for ϕ
+    L  = LenseFlow   # lensing operator, possibly cached for memory reuse
+    Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
+end
+
+
 
 
 @doc doc"""
@@ -134,6 +129,30 @@ function resimulate!(
     (;ds,f,ϕ,n,f̃,d)
     
 end
+
+
+function resimulate!(
+    ds::NoLensingDataSet; 
+    f=nothing, n=nothing,
+    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
+    rng=global_rng_for(ds.d), seed=nothing
+)
+
+    @unpack M,B,Cf,Cn,d = ds()
+    
+    if isnothing(f)
+        f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
+    end
+    if isnothing(n)
+        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
+    end
+
+    ds.d = d = M*B*f + n
+    
+    (;ds,f,n,d)
+    
+end
+
 
 
 @doc doc"""
@@ -334,4 +353,16 @@ function load_sim(;
     
 end
 
-@deprecate load_sim_dataset(args...; kwargs...) load_sim(args...; kwargs...)
+
+function load_nolensing_sim(; 
+    lensed_covariance = false, 
+    lensed_data = false,
+    L = lensed_data ? LenseFlow : I,
+    kwargs...
+)
+    @unpack f, f̃, ϕ, n, ds, ds₀, Cℓ, proj = load_sim(; L, kwargs...)
+    @unpack d, Cf, Cf̃, Cn, Cn̂, M, M̂, B, B̂ = ds
+    Cf_nl = lensed_covariance ? Cf̃ : Cf
+    ds_nl = NoLensingDataSet(; d, Cf=Cf_nl, Cn, Cn̂, M, M̂, B, B̂)
+    (;f, f̃, ϕ, n, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
+end

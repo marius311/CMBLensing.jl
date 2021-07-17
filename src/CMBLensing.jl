@@ -9,6 +9,7 @@ using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
 using Combinatorics
+using CompositeStructs
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
@@ -80,7 +81,7 @@ export
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
-    load_chains, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
+    load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
     resimulate, RK4Solver, sample_joint, shiftℓ, 

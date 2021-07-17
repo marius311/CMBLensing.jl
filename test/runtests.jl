@@ -19,11 +19,13 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
+using FileIO
 using FFTW
 using FiniteDifferences
 using LinearAlgebra
 using Random
 using Random: default_rng
+using Serialization
 using SparseArrays
 using Test
 using Zygote
@@ -57,15 +59,8 @@ has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
         @test occursin("pixel",sprint(show, MIME("text/plain"), f))
     end
     
-    for m in ((), (MIME("text/plain"),))
-        # unionall types: (the presence of "where" indicates printing correctly
-        # forwarded to the default behavior)
-        @test occursin("where",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
-        @test occursin("where",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
-        @test occursin("where",sprint(show, m..., FlatQUMap))
-    end
-
 end
+
 ##
 
 @testset "Flat" begin 
@@ -94,9 +89,14 @@ end
                 local f
                 @test (f = F(args...; kwargs...)) isa F
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
+                @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
+                @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+
             end
         
         end
+
+        rm(".test_field.jld2", force=true)
     
     end
 
@@ -112,7 +112,7 @@ end
         ]
 
             @test basis(@inferred(Bout(Bin(f)))) == Bout
-            # @test Bin(Bout(Bin(f))) == f
+            @test Bin(Bout(Bin(f))) ≈ f
 
         end
     end
@@ -272,33 +272,6 @@ end
         @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
     end
 end
-
-##
-
-# @testset "FlatS02" begin
-    
-#     @testset "Nside = $Nside" for (Nside,Nside2D) in Nsides
-
-#         ΣTT, ΣTE, ΣEE, ΣBB = [Diagonal(Fourier(maybegpu(FlatMap(rand(Nside2D...))))) for i=1:4]
-#         L = FlatIEBCov(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
-#         f = maybegpu(IEBFourier(FlatIEBMap(rand(Nside2D...),rand(Nside2D...),rand(Nside2D...))))
-
-#         @test (sqrt(L) * @inferred(@inferred(sqrt(L)) * f)) ≈ (L * f)
-#         @test (L * @inferred(@inferred(pinv(L)) * f)) ≈ f
-#         @test @inferred(L * L) isa FlatIEBCov
-#         @test @inferred(L + L) isa FlatIEBCov
-#         @test L * Diagonal(f) isa FlatIEBCov
-#         @test Diagonal(f) * L isa FlatIEBCov
-#         @test_broken @inferred L * Diagonal(f)
-#         @test @inferred(diag(L)) isa FlatIEBFourier
-#         @test @inferred(L + I) isa FlatIEBCov
-#         @test @inferred(2 * L) isa FlatIEBCov
-#         @test @inferred(similar(L)) isa FlatIEBCov
-#         @test (L .= 2L) isa FlatIEBCov
-
-#     end
-
-# end
 
 ##
 
@@ -540,7 +513,7 @@ end
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
-    @testset "$L" for (L,rtol) in [(BilinearLens,0.4), (LenseFlow,1e-2)]
+    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.1)]
 
         @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
@@ -548,7 +521,6 @@ end
                 
                 proj = ProjLambert(;Ny,Nx,T,storage)
 
-                ε = sqrt(eps(T))
                 Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
                 @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
                 
@@ -562,8 +534,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
 
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
@@ -575,8 +546,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
                 
             end
 
@@ -618,7 +588,7 @@ end
             δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
             @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
+            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=130)
             @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
             
         end

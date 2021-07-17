@@ -1,4 +1,6 @@
 
+### generic DataSet
+
 """
     mix(f, ϕ,    ds::DataSet)
     mix(f, ϕ, θ, ds::DataSet)
@@ -76,3 +78,24 @@ end
 # can be specialized for specific DataSet types:
 nonCMB_data_components(θ, ds::DataSet) = 0
 lnPriorθ(θ, ds::DataSet) = 0
+
+
+## NoLensingDataSet
+
+lnP(   f,    ds::NoLensingDataSet) = lnP(f, (;), ds)
+lnP(_, f, θ, ds::NoLensingDataSet) = lnP(f, θ,   ds)
+
+function lnP(f, θ, ds::NoLensingDataSet)
+    
+    @unpack Cn,Cf,M,B,d = ds
+    
+    Δ = d - M(θ)*B(θ)*f - nonCMB_data_components(θ,ds)
+    (
+        -(1//2) * (
+            Δ'*pinv(Cn(θ))*Δ + logdet(Cn,θ) +
+            f'*pinv(Cf(θ))*f + logdet(Cf,θ)
+        ) 
+        + lnPriorθ(θ,ds)
+    )
+
+end

@@ -162,6 +162,11 @@ function Base.summary(io::IO, x::ImplicitField)
     Base.showarg(io, x, true)
 end
 
+# without this, *sometimes* IJulia doesnt print the field types right, but I dont really understand it
+@init @require IJulia="7073ff75-c697-5162-941a-fcdaad2a7d2a" begin
+    Base.show(io::IOContext{IOBuffer}, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
+end
+
 
 ### logdet
 

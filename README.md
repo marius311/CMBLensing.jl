@@ -36,7 +36,7 @@ You can also clone the repostiory and open the notebooks in [docs/src](https://g
 
 ### Requirements
 
-* Julia 1.6
+* Julia 1.6+
 * _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
 * _(recommended)_ FFTW.jl built with [`JULIA_FFTW_PROVIDER=MKL`](https://juliamath.github.io/FFTW.jl/stable/#Installation-1) for faster CPU FFTs 
 * _(recommended)_ Python 3 + matplotlib (used for plotting)
