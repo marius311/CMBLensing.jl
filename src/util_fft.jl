@@ -39,7 +39,7 @@ end
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
-copy_if_fftw(x) = (x isa Array && FFTW.fftw_vendor == :fftw) ? copy(x) : x
+copy_if_fftw(x) = (x isa Array && fftw_provider() == "fftw") ? copy(x) : x
 
 
 """
@@ -139,3 +139,6 @@ function rfft_degeneracy_fac(n)
         [1; fill(2,n÷2)]
     end
 end 
+
+# this switched names & return type somewhere near FFTW 1.3 so need this for backwards compatibility
+fftw_provider() = isdefined(FFTW, :fftw_vendor) ? string(FFTW.fftw_vendor) : FFTW.fftw_provider
