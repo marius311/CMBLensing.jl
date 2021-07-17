@@ -213,7 +213,7 @@ function MAP_joint(
 
 end
 
-
+MAP_joint(θ, ds::NoLensingDataSet; kwargs...) = (argmaxf_lnP(I, θ, ds; kwargs...), nothing)
 
 
 @doc doc"""
