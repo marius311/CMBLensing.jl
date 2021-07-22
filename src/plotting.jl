@@ -1,7 +1,7 @@
 
 using .PyPlot
 using .PyPlot.PyCall
-import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
+import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between, imshow
 
 
 ### overloaded 1D plotting
@@ -57,6 +57,37 @@ function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,
 		args...; kwargs...
 	)
+end
+
+### imshow overloading for arrays (similar to matshow)
+
+# ex.
+# ```
+# fig, ax = subplots(2)
+# A |> imshow(-, fig, ax[1])
+# B |> imshow(-, fig, ax[2])
+# ```
+# ... or ...
+# 
+# ```
+# fig, ax = subplots(2)
+# imshow(A, fig, ax[1])
+# imshow(B, fig, ax[2])
+# ```
+
+
+function imshow(A::Matrix, fig::Figure, ax; vmin=nothing, vmax=nothing, shrink=0.7, pad=0.015)
+    imshow(-, fig, ax; vmin, vmax, shrink, pad)(A)
+end
+
+function imshow(::typeof(-), fig::Figure, ax; vmin=nothing, vmax=nothing, shrink=0.7, pad=0.015)
+    function (A::Matrix)
+        img = ax.imshow(A, vmin=vmin, vmax=vmax)
+        ax.axis("off")
+        fig.colorbar(img, ax=ax, shrink=shrink, pad=pad)
+        fig.tight_layout()
+        img
+    end
 end
 
 

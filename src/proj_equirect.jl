@@ -1,4 +1,6 @@
-# Why the type parameter T?
+# Type defs
+# ================================================
+
 struct ProjEquiRect{T} <: CartesianProj
 
     Ny    :: Int
@@ -10,22 +12,43 @@ struct ProjEquiRect{T} <: CartesianProj
 
 end
 
+struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} <: ImplicitOp{T}
+    blocks :: A
+    blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
+    proj :: P
+end
 
-# some extra Bases only relevant for EquiRect
 struct AzFourier <: S0Basis end
 const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
 const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
 
-# make EquiRectMap, EquiRectFourier, etc... type aliases
-make_field_aliases("EquiRect",  ProjEquiRect, extra_aliases=OrderedDict(
-    "AzFourier"    => AzFourier,
-    "QUAzFourier"  => QUAzFourier,
-    "IQUAzFourier" => IQUAzFourier,
-))
+# Type Alias
+# ================================================
 
+make_field_aliases(
+    "EquiRect",  ProjEquiRect, 
+    extra_aliases=OrderedDict(
+        "AzFourier"    => AzFourier,
+        "QUAzFourier"  => QUAzFourier,
+        "IQUAzFourier" => IQUAzFourier,
+        # This doesn't work ???
+        # "EquiRectS0"   => Union{EquiRectMap, EquiRectAzFourier},
+        # "EquiRectS2"   => Union{EquiRectQUMap, EquiRectQUAzFourier},
+    ),
+)
 
-# for printing
+# This also gives an error ... so something below automatically defines
+# EquiRectS0 and EquiRectS2 someplace
+#
+# const EquiRectS0 = Union{EquiRectMap, EquiRectAzFourier}
+# const EquiRectS2 = Union{EquiRectQUMap, EquiRectQUAzFourier}
+
 typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
+
+typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
+
+# Proj 
+# ================================================
 
 
 function ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float32, storage=Array)
@@ -47,7 +70,6 @@ end
 
 end
 
-typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
     print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
@@ -55,28 +77,97 @@ function Base.summary(io::IO, f::EquiRectField)
 end
 
 
-### basis conversion
+# Field Basis
+# ================================================
+# NOTE: I still don't fully understand what AzFourer, Map ... etc is. 
+# EquiRectAzFourier, EquiRectQUAzFourier ... seem to be aliases for a base field type.
+# Are then AzFourier, Map just methods for making the conversion? Why not use the 
+# field types themselfs for the conversion?
 
-# AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-# Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+# CirculantCov: βcovSpin2, βcovSpin0, geoβ,
+#multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
 
-# QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-# QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+# @init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
+# 
+# 
+# end
 
-# IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-# IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
+"""
+From CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493"...
+Jperm(ℓ::Int, n::Int) return the column number in the J matrix U^2
+where U is unitary FFT. The J matrix looks like this:
 
+|1   0|
+|  / 1|
+| / / |
+|0 1  |
 
-# TODO: remaining conversion rules
+"""
+function Jperm end
 
-
-### block-diagonal operator
-
-struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} <: ImplicitOp{T}
-    blocks :: A
-    blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
-    proj :: P
+function Jperm(ℓ::Int, n::Int)
+    @assert 1 <= ℓ <= n
+    ℓ==1 ? 1 : n - ℓ + 2
 end
+
+# AzFourier <-> Map
+function AzFourier(f::EquiRectMap)
+    nφ = f.Nx
+    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.metadata)
+end
+
+function Map(f::EquiRectAzFourier)
+    nφ = f.Nx
+    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
+end
+
+# QUAzFourier <-> QUMap
+function QUAzFourier(f::EquiRectQUMap)
+    nθ, nφ = f.Ny, f.Nx
+    Uf = m_fft(f.arr, 2) ./ √nφ
+    f▫ = similar(Uf, 2nθ, nφ÷2+1)
+    for ℓ = 1:nφ÷2+1
+        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
+            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
+            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
+        else
+            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
+            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
+        end
+    end
+    EquiRectQUAzFourier(f▫, f.metadata)
+end
+
+function QUMap(f::EquiRectQUAzFourier)
+    nθₓ2, nφ½₊1 = size(f.arr)
+    nθ, nφ = f.Ny, f.Nx
+    @assert nφ½₊1 == nφ÷2+1
+    @assert 2nθ   == nθₓ2
+
+    pθk = similar(f.arr, nθ, nφ)
+    for ℓ = 1:nφ½₊1
+        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
+            pθk[:,ℓ] .= f.arr[1:nθ,ℓ]
+        else
+            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]
+            pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
+        end
+    end
+    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
+end
+
+
+
+Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
+Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
+
+Base.getindex(f::EquiRectS0, ::Colon) = Map(f).arr
+Base.getindex(f::EquiRectS2, ::Colon) = QUMap(f).arr
+
+
+# block-diagonal operator
+# ================================================
+
 function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
     BlockDiagEquiRect{B,P,T,A}(block_matrix, Ref{A}(), proj)
 end
@@ -113,8 +204,8 @@ function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{
 end
 
 
-
-### covariance operators
+# covariance operators
+# ================================================
 
 # can't depend on Legendre.jl since its not in the general registry
 Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} = 
@@ -141,7 +232,12 @@ Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} =
 end
 
 
-### promotion
+# promotion
+# ================================================
+
+promote_basis_generic_rule(::Map, ::AzFourier) = Map()
+
+promote_basis_generic_rule(::QUMap, ::QUAzFourier) = QUMap()
 
 # used in broadcasting to decide the resulting metadata when
 # broadcasting over two fields

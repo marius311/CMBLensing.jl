@@ -19,58 +19,10 @@ using LBblocks: @sblock # https://github.com/EthanAnderes/LBblocks.jl
 
 hide_plots = true
 
-
+using Test
 
 # Methods ...
 # =======================================
-function AzFourier(f::EquiRectMap)
-    nφ = f.Nx
-    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.metadata)
-end
-
-function Map(f::EquiRectAzFourier)
-    nφ = f.Nx
-    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
-end
-
-function QUAzFourier(f::EquiRectQUMap)
-    nθ, nφ = f.Ny, f.Nx
-    Uf = m_fft(f.arr, 2) ./ √nφ
-    f▫ = similar(Uf, 2nθ, nφ÷2+1)
-    for ℓ = 1:nφ÷2+1
-        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
-            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
-            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
-        else
-            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
-            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
-        end
-    end
-    EquiRectQUAzFourier(f▫, f.metadata)
-end
-
-function QUMap(f::EquiRectQUAzFourier)
-    nθₓ2, nφ½₊1 = size(f.arr)
-    nθ, nφ = f.Ny, f.Nx
-    @assert nφ½₊1 == nφ÷2+1
-    @assert 2nθ   == nθₓ2
-
-    pθk = similar(f.arr, nθ, nφ)
-    for ℓ = 1:nφ½₊1
-        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
-            pθk[:,ℓ] .= f.arr[1:nθ,ℓ]
-        else
-            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]
-            pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
-        end
-    end
-    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
-end
-
-
-CMBLensing.promote_basis_generic_rule(::Map, ::AzFourier) = Map()
-CMBLensing.promote_basis_generic_rule(::QUMap, ::QUAzFourier) = QUMap()
-
 
 # EquiRectS0 ...
 function tulliomult(M▫, f::Union{EquiRectAzFourier, EquiRectMap})
@@ -89,10 +41,10 @@ end
 # ============================
 
 pj = CMBLensing.ProjEquiRect(;
-    Ny=200, # nθ
-    Nx=768, # nφ
-    θspan  = (2.7, 2.9), 
-    φspan  = (0.0, 2π/4), 
+    Ny = 200, # nθ
+    Nx = 768, # nφ
+    θspan = (2.7, 2.9), 
+    φspan = (0.0, 2π/4), 
 )
 
 #-
@@ -285,52 +237,43 @@ end;
 
 # Field sim unit noise
 
-ϕ′ = EquiRectMap(  randn(Float64, pj.Ny, pj.Nx),    pj)
+ϕ′ = EquiRectMap(  randn(Float64,    pj.Ny, pj.Nx), pj)
 P′ = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj)
 
 # Test conversion
 
-AzFourier(ϕ′)
-QUAzFourier(P′)
+@test AzFourier(ϕ′) isa EquiRectAzFourier
+@test QUAzFourier(P′) isa EquiRectQUAzFourier
+
+@test all(Map(AzFourier(ϕ′)).arr .≈ ϕ′[:])
+@test all(QUMap(QUAzFourier(P′)).arr .≈ P′[:])
+
 
 # generate simulation 
 
 ϕsim = tulliomult(Phi▫½,  ϕ′)
 Psim = tulliomult(EB▫½, P′)
 
-# plot
+# plot maps of the simulated fields
 
-ϕmap = Map(ϕsim).arr
-Qmap = real.(QUMap(Psim).arr)
-Umap = imag.(QUMap(Psim).arr)
+@sblock let ϕsim, Psim, hide_plots=false
+    hide_plots && return
+    fig,ax = subplots(3)
+    ϕsim[:] |> imshow(-, fig, ax[1])
+    Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
+    Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+    return nothing
+end
 
-ϕmap  |> matshow; colorbar()
-Qmap  |> matshow; colorbar()
-Umap  |> matshow; colorbar()
+
 
 #-
 
-gradient(x-> dot(Map(x), Map(x)), ϕsim)[1]
+# gradient(x-> dot(Map(x), Map(x)), ϕsim)[1]
 
 
 # TODO:
 # =======================================
-# • unitary version (look into later ) 
 # • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 
 # • Block field operators and all the stuff to go with it
-
-# Random Notes
-# =======================================
-
-#  basis conversion: 
-# Is there some guarentee/requirment that the conversion happens within the same Proj? 
-# I guess I'm making it a requirement by the conversion definitions below.
-
-# I'm partly confused how the BasisField type and the Proj type interact.
-# For example, would there ever be a case when one would use RingMapS0 
-# without the corresponding AzEq
-
-# Working understanding:
-# * The field type parameter AzEq <: Proj tells you what the metadata is
-# * The field type parameter Ring <: Basis tells you what the dual Basis is
 
