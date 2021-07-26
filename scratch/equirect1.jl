@@ -1,3 +1,5 @@
+## Literate.notebook("equirect1.jl"; execute=false) 
+
 
 # Modules
 # ==============================
@@ -24,47 +26,95 @@ using Test
 # Methods ...
 # =======================================
 
-# EquiRectS0 ...
+# EquiRectS0:
 function tulliomult(M▫, f::Union{EquiRectAzFourier, EquiRectMap})
     m▫ = AzFourier(f).arr
     @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
     EquiRectAzFourier(n▫, f.metadata)
 end
-# EquiRectS2 
+# EquiRectS2: 
 function tulliomult(M▫, f::Union{EquiRectQUAzFourier, EquiRectQUMap})
     m▫ = QUAzFourier(f).arr
     @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
     EquiRectQUAzFourier(n▫, f.metadata)
 end
 
-# Quick test
+# Set the grid geometry
 # ============================
 
-pj = CMBLensing.ProjEquiRect(;
-    Ny = 200, # nθ
-    Nx = 768, # nφ
-    θspan = (2.7, 2.9), 
-    φspan = (0.0, 2π/4), 
-)
+pj = @sblock let 
+
+    φ, φ∂ = CMBLensing.φ_grid(; φspan=(0.0, 2π/4), N=768)
+    ## φ, φ∂ = CMBLensing.φ_grid(; φspan=(0.0, 2π/4), N=1024)
+
+    θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 1270, type=:equicosθ)
+    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 512, type=:healpix)
+    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 2372, type=:equiθ)
+
+    CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
+end;
+
+#-
+
+@test pj.Ny == length(pj.θ)
+@test pj.Nx == length(pj.φ)
+
+#-
+
+# This makes a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
+# which should be strictly increasting. 
+∂θ∂ = vcat(vcat(pj.θ∂[1:end-1]', pj.θ')[:],  pj.θ∂[end])
+@test all(diff(∂θ∂) .> 0)
+
+
+#- 
+
+let θ∂ = [pi/2, 3pi/4, pi]
+    Ω = 2π .* diff(.- cos.(θ∂))
+    @test sum(Ω) ≈ 4pi/2
+end
+
+#-
+
+@show extrema(@. rad2deg(√pj.Ω)*60) 
+
+# Plot √Ωpix over ring θ's 
+
+@sblock let pj, hide_plots
+    hide_plots && return
+    fig,ax = subplots(1)
+    ax.plot(pj.θ, rad2deg.(.√pj.Ω)*60, label="sqrt pixel area (arcmin)")
+    ax.plot(pj.θ, rad2deg.(diff(pj.θ∂))*60, label="Δθ (arcmin)")
+    ax.set_xlabel(L"polar coordinate $\theta$")
+    ax.legend()
+    return nothing
+end
+
+# Quick test
+# ============================
 
 #-
 
 ϕ = EquiRectMap(randn(Float64, pj.Ny, pj.Nx), pj)
-P = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj)
+P = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj);
 
 #-
 
 ϕ′ = AzFourier(ϕ)    
-P′ = QUAzFourier(P)   
+P′ = QUAzFourier(P);   
 
-# the printing of the size is wrong 
+#- 
+
+@test AzFourier(ϕ′) isa EquiRectAzFourier
+@test QUAzFourier(P′) isa EquiRectQUAzFourier
+
+@test all(Map(AzFourier(ϕ′)).arr .≈ ϕ′[:])
+@test all(QUMap(QUAzFourier(P′)).arr .≈ P′[:])
 
 #-
 
 2 * ϕ + ϕ′
-2 * P + P′
-
-
+2 * P + P′;
 
 # Spectral densities
 # ==============================
@@ -95,66 +145,11 @@ end
 	return nothing
 end
 
-# Pixel grid
-# ==============================
-
-
-# Now we don't have pj.freq_mult, pj.θ, ... etc
-# What is the CMBLensing way to get grid features out of pj?
-# Are there generic method names that I'm supposed to overload like pix(pj) ...?
-
-
-# TODO: Put these into Proj ...
-θ, φ, Ω, freq_mult, Δθ = @sblock let pj, T = Float64, cosθEq=false
-
-    nθ, nφ = pj.Ny, pj.Nx
-    θspan = pj.θspan
-    φspan = pj.φspan
-
-    @assert Int(2π / φspan[2]) isa Int
-    @assert θspan[1] < θspan[2]
-    @assert φspan[1] < φspan[2]
-
-    if cosθEq
-        znorth = cos.(θspan[1])
-        zsouth = cos.(θspan[2])
-        θpix∂  = acos.(range(znorth, zsouth, length=nθ+1))
-    else
-        θpix∂   = T.(θspan[1] .+ (θspan[2] - θspan[1])*(0:nθ)/nθ)
-    end
-    Δθ = diff(θpix∂)
-    θ  = θpix∂[2:end] .- Δθ/2    
-    
-    freq_mult = Int(2π / φspan[2])
-    φ = T.(φspan[1] .+ (φspan[2] - φspan[1])*(0:nφ-1)/nφ) 
-    
-    Ω  = @. (φ[2] - φ[1]) * abs(cos(θpix∂[1:end-1]) - cos(θpix∂[2:end]))
-    θ, φ, Ω, freq_mult, Δθ
-end;
-
-
-@show extrema(@. rad2deg(√Ω)*60) 
-
-# Plot √Ωpix over ring θ's 
-
-@sblock let θ, φ, Ω, Δθ, hide_plots
-    hide_plots && return
-    fig,ax = subplots(1)
-    ax.plot(θ, (@. rad2deg(√Ω)*60), label="sqrt pixel area (arcmin)")
-    ax.plot(θ, (@. rad2deg(Δθ)*60), label="Δθ (arcmin)")
-    ax.set_xlabel(L"polar coordinate $\theta$")
-    ax.legend()
-    return nothing
-end
-
 
 # Block diagonal cov matrices
 # ==============================
 
-
-
-
-EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ, φ, freq_mult
+EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ, freq_mult=pj.φspan_ratio
 
     nθ, nφ = length(θ), length(φ)
     nφ2π  = nφ*freq_mult
@@ -231,49 +226,35 @@ EB▫½, Phi▫½ = @sblock let EB▫, Phi▫
     EB▫½, Phi▫½
 end;
 
-
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
 # Field sim unit noise
 
 ϕ′ = EquiRectMap(  randn(Float64,    pj.Ny, pj.Nx), pj)
-P′ = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj)
-
-# Test conversion
-
-@test AzFourier(ϕ′) isa EquiRectAzFourier
-@test QUAzFourier(P′) isa EquiRectQUAzFourier
-
-@test all(Map(AzFourier(ϕ′)).arr .≈ ϕ′[:])
-@test all(QUMap(QUAzFourier(P′)).arr .≈ P′[:])
-
+P′ = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj);
 
 # generate simulation 
 
 ϕsim = tulliomult(Phi▫½,  ϕ′)
-Psim = tulliomult(EB▫½, P′)
+Psim = tulliomult(EB▫½, P′);
 
 # plot maps of the simulated fields
 
-@sblock let ϕsim, Psim, hide_plots=false
+@sblock let ϕsim, Psim, hide_plots
     hide_plots && return
-    fig,ax = subplots(3)
-    ϕsim[:] |> imshow(-, fig, ax[1])
+    fig,ax = subplots(3,figsize=(9,9))
+    ϕsim[:]  |> imshow(-, fig, ax[1])
     Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
     Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return nothing
 end
 
-
-
 #-
 
 # gradient(x-> dot(Map(x), Map(x)), ϕsim)[1]
 
-
 # TODO:
 # =======================================
-# • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 
 # • Block field operators and all the stuff to go with it
-
+# • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 

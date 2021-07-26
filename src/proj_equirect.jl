@@ -3,11 +3,17 @@
 
 struct ProjEquiRect{T} <: CartesianProj
 
-    Ny    :: Int
-    Nx    :: Int
-    θspan :: Tuple{Float64,Float64}
-    φspan :: Tuple{Float64,Float64}
-
+    Ny          :: Int
+    Nx          :: Int
+    θspan       :: Tuple{Float64,Float64}
+    φspan       :: Tuple{Float64,Float64}
+    φspan_ratio ::Int
+    θ           :: Vector{Float64} 
+    φ           :: Vector{Float64} 
+    θ∂          :: Vector{Float64} 
+    φ∂          :: Vector{Float64} 
+    Ω           :: Vector{Float64} 
+    
     storage
 
 end
@@ -31,17 +37,8 @@ make_field_aliases(
         "AzFourier"    => AzFourier,
         "QUAzFourier"  => QUAzFourier,
         "IQUAzFourier" => IQUAzFourier,
-        # This doesn't work ???
-        # "EquiRectS0"   => Union{EquiRectMap, EquiRectAzFourier},
-        # "EquiRectS2"   => Union{EquiRectQUMap, EquiRectQUAzFourier},
     ),
 )
-
-# This also gives an error ... so something below automatically defines
-# EquiRectS0 and EquiRectS2 someplace
-#
-# const EquiRectS0 = Union{EquiRectMap, EquiRectAzFourier}
-# const EquiRectS2 = Union{EquiRectQUMap, EquiRectQUAzFourier}
 
 typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
 
@@ -51,30 +48,107 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
 # ================================================
 
 
-function ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float32, storage=Array)
-    ProjEquiRect(Ny, Nx, θspan, φspan, real_type(T), storage)
+function θ_healpix_j_Nside(j_Nside) 
+    0 < j_Nside < 1  ? acos(1-abs2(j_Nside)/3)      :
+    1 ≤ j_Nside ≤ 3  ? acos(2*(2-j_Nside)/3)        :
+    3 < j_Nside < 4  ? acos(-(1-abs2(4-j_Nside)/3)) : 
+    error("argument ∉ (0,4)")
 end
 
-@memoize function ProjEquiRect(Ny, Nx, θspan, φspan, ::Type{T}, storage) where {T}
+θ_healpix(Nside) = θ_healpix_j_Nside.((1:4Nside-1)/Nside)
+
+θ_equicosθ(N)    = acos.( ((N-1):-1:-(N-1))/N )
+
+θ_equiθ(N)       = π*(1:N-1)/N
+
+function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
+    @assert N > 0
+    @assert 0 < θspan[1] < θspan[2] < π
+
+    # θgrid′ is the full grid from 0 to π
+    if type==:equiθ
+        θgrid′ = θ_equiθ(N)
+    elseif type==:equicosθ
+        θgrid′ = θ_equicosθ(N)
+    elseif type==:healpix
+        θgrid′ = θ_healpix(N)
+    else
+        error("`type` is not valid. Options include `:equiθ`, `:equicosθ` or `:healpix`")
+    end 
+
+    # θgrid′′ subsets θgrid′ to be within θspan
+    # δ½south′′ and δ½north′′ are the arclength midpoints to the adjacent pixel
+    θgrid′′   = θgrid′[θspan[1] .≤ θgrid′ .≤ θspan[2]]
+    δ½south′′ = (circshift(θgrid′′,-1)  .- θgrid′′) ./ 2
+    δ½north′′ = (θgrid′′ .- circshift(θgrid′′,1)) ./ 2   
     
-    # make span always be (low, high)
-    θspan = (Float64.(sort(collect(θspan)))...,)
-    φspan = (Float64.(sort(collect(φspan)))...,)
+    # now restrict to the interior of the range of θgrid′′
+    θ       = θgrid′′[2:end-1]
+    δ½south = δ½south′′[2:end-1]
+    δ½north = δ½north′′[2:end-1]
+    # Δθ      = @. δ½south + δ½north
+    # Δz      = @. cos(θ - δ½north) - cos(θ + δ½south)
+
+    # These are the pixel boundaries along polar
+    # so length(θ∂) == length(θ)+1
+    θ∂ = vcat(θ[1] .- δ½north[1], θ .+ δ½south)
+
+    θ, θ∂
+end 
+
+
+function φ_grid(;φspan::Tuple{T,T}, N::Int) where T<:Real
+
+    @assert N > 0
+    # TODO: relax this condition ...
+    @assert 0 <= φspan[1] < φspan[2] <= 2π 
+
+    φ∂    = collect(φspan[1] .+ (φspan[2] - φspan[1])*(0:N)/N)
+    Δφ    = φ∂[2] - φ∂[1]
+    φ     = φ∂[1:end-1] .+ Δφ/2
+    
+    φ, φ∂
+end
+
+function ProjEquiRect(θ, φ, θ∂, φ∂, ::Type{T}, storage) where {T}
+    
+    Ny, Nx = length(θ), length(φ)
+    θspan = (θ∂[1], θ∂[end])
+    φspan = (φ∂[1], φ∂[end])
+    Ω  = (φ∂[2] .- φ∂[1]) .* diff(.- cos.(θ∂))
 
     φspan_ratio = 2π / abs(-(φspan...))
     if !(φspan_ratio ≈ round(Int, φspan_ratio))
-        error("φspan=$φspan must span integer multiple of 2π")
+        error("φspan=$φspan must span an interval that has width 2π/(integer)")
     end
 
-    ProjEquiRect{T}(Ny, Nx, θspan, φspan, storage)
+    ProjEquiRect{T}(Ny, Nx, θspan, φspan, φspan_ratio, θ, φ, θ∂, φ∂, Ω, storage)
 
 end
 
-function Base.summary(io::IO, f::EquiRectField)
-    @unpack Ny,Nx,Nbatch = f
-    print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
-    Base.showarg(io, f, true)
+function ProjEquiRect(;θ, φ, θ∂, φ∂, T=Float32, storage=Array)
+    ProjEquiRect(θ, φ, θ∂, φ∂, real_type(T), storage)
 end
+
+
+# function ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float32, storage=Array)
+#     ProjEquiRect(Ny, Nx, θspan, φspan, real_type(T), storage)
+# end
+
+# @memoize function ProjEquiRect(Ny, Nx, θspan, φspan, ::Type{T}, storage) where {T}
+#     
+#     # make span always be (low, high)
+#     θspan = (Float64.(sort(collect(θspan)))...,)
+#     φspan = (Float64.(sort(collect(φspan)))...,)
+# 
+#     φspan_ratio = 2π / abs(-(φspan...))
+#     if !(φspan_ratio ≈ round(Int, φspan_ratio))
+#         error("φspan=$φspan must span integer multiple of 2π")
+#     end
+# 
+#     ProjEquiRect{T}(Ny, Nx, θspan, φspan, storage)
+# 
+# end
 
 
 # Field Basis
@@ -163,6 +237,27 @@ Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
 
 Base.getindex(f::EquiRectS0, ::Colon) = Map(f).arr
 Base.getindex(f::EquiRectS2, ::Colon) = QUMap(f).arr
+
+
+function Base.summary(io::IO, f::EquiRectField)
+    @unpack Ny,Nx,Nbatch = f
+    print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
+    Base.showarg(io, f, true)
+end
+
+function Base.summary(io::IO, f::EquiRectAzFourier)
+    @unpack Ny,Nx,Nbatch = f
+    print(io, "$(length(f))-element $Ny×$(Nx÷2+1)$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
+    Base.showarg(io, f, true)
+end
+
+function Base.summary(io::IO, f::EquiRectQUAzFourier)
+    @unpack Ny,Nx,Nbatch = f
+    print(io, "$(length(f))-element $(2Ny)×$(Nx÷2+1)$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
+    Base.showarg(io, f, true)
+end
+
+
 
 
 # block-diagonal operator
