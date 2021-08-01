@@ -66,6 +66,22 @@ const IEBFourier = Basis3Prod{ 𝐈, 𝐄𝐁, Fourier }
 # handy for picking out anything Map/Fourier
 const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
 
+# used in implmenting things like f.Ix, f.Q, etc.. for fields
+@generated function pol_index(::B, ::Val{k}) where {B,k}
+    i = @match B() begin
+        _::Map         => @match k begin (:Ix||:I) => 1 end
+        _::Fourier     => @match k begin (:Il||:I) => 1 end
+        _::QUMap       => @match k begin (:Qx||:Q) => 1; (:Ux||:U) => 2 end
+        _::QUFourier   => @match k begin (:Ql||:Q) => 1; (:Ul||:U) => 2 end
+        _::EBMap       => @match k begin (:Ex||:E) => 1; (:Bx||:B) => 2 end
+        _::EBFourier   => @match k begin (:El||:E) => 1; (:Bl||:B) => 2 end
+        _::IQUMap      => @match k begin (:Ix||:I) => 1; (:Qx||:Q) => 2; (:Ux||:U) => 3 end
+        _::IQUFourier  => @match k begin (:Il||:I) => 1; (:Ql||:Q) => 2; (:Ul||:U) => 3 end
+        _::IEBMap      => @match k begin (:Ix||:I) => 1; (:Ex||:E) => 2; (:Bx||:B) => 3 end
+        _::IEBFourier  => @match k begin (:Il||:I) => 1; (:El||:E) => 2; (:Bl||:B) => 3 end
+    end
+    i == nothing ? error("A $B doesn't have a $k property") : i
+end
 
 # handy aliases
 basis_aliases = OrderedDict(
