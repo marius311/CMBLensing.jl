@@ -599,4 +599,45 @@ end
 
 ##
 
+@testset "Projections" begin
+    
+    Cℓ = camb()
+    L = LenseFlow{RK4Solver{7}}
+    T = Float64
+
+    @testset "Nside = $Nside" for Nside in Nsides_big
+
+        @testset "pol = $pol" for pol in (:I,:P)
+            
+            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
+                Cℓ       = Cℓ,
+                θpix     = 3,
+                Nside    = Nside,
+                T        = T,
+                beamFWHM = 3,
+                pol      = pol,
+                storage  = storage,
+                rng      = default_rng(),
+                pixel_mask_kwargs = (edge_padding_deg=1,)
+            )
+            @unpack Cf,Cϕ = ds₀
+            f°,ϕ° = mix(f,ϕ,ds)
+
+            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
+            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
+
+            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
+
+            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
+            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
+            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
+            
+        end
+        
+    end
+
+end
+
+##
+
 end
