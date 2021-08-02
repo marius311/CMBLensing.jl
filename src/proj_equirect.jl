@@ -17,9 +17,10 @@ struct ProjEquiRect{T} <: CartesianProj
 
 end
 
-struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} <: ImplicitOp{T}
+# Turning off ImplicitOp{T} ... since it seems to classify BlockDiagEquiRect as a AbstractMatrix
+struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} #  <: ImplicitOp{T}
     blocks :: A
-    blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
+    ## blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
     proj :: P
 end
 
@@ -85,8 +86,6 @@ function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
     θ       = θgrid′′[2:end-1]
     δ½south = δ½south′′[2:end-1]
     δ½north = δ½north′′[2:end-1]
-    # Δθ      = @. δ½south + δ½north
-    # Δz      = @. cos(θ - δ½north) - cos(θ + δ½south)
 
     # These are the pixel boundaries along polar
     # so length(θ∂) == length(θ)+1
@@ -95,17 +94,17 @@ function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
     θ, θ∂
 end 
 
-
+# `φ_grid` Slated for removal or upgraded to include CirculantCov methods 
+# that allow φspans of the form `(5.3,1.1)` and `(1.1,5.3)`, the latter 
+# denoting the long way around the observational sphere. 
+#
 # function φ_grid(;φspan::Tuple{T,T}, N::Int) where T<:Real
-
 #     @assert N > 0
 #     # TODO: relax this condition ...
 #     @assert 0 <= φspan[1] < φspan[2] <= 2π 
-
 #     φ∂    = collect(φspan[1] .+ (φspan[2] - φspan[1])*(0:N)/N)
 #     Δφ    = φ∂[2] - φ∂[1]
 #     φ     = φ∂[1:end-1] .+ Δφ/2
-    
 #     φ, φ∂
 # end
 
@@ -115,11 +114,6 @@ end
     θspan = (θ∂[1], θ∂[end])
     φspan = (φ∂[1], φ∂[end])
     Ω  = (φ∂[2] .- φ∂[1]) .* diff(.- cos.(θ∂))
-
-    # φspan_ratio = 2π / abs(-(φspan...))
-    # if !(φspan_ratio ≈ round(Int, φspan_ratio))
-    #     error("φspan=$φspan must span an interval that has width 2π/(integer)")
-    # end
 
     ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θ∂, φ∂, Ω, storage)
 
@@ -133,11 +127,6 @@ end
 
 # Field Basis
 # ================================================
-# NOTE: I still don't fully understand what AzFourer, Map ... etc is. 
-# EquiRectAzFourier, EquiRectQUAzFourier ... seem to be aliases for a base field type.
-# Are then AzFourier, Map just methods for making the conversion? Why not use the 
-# field types themselfs for the conversion?
-
 # CirculantCov: βcovSpin2, βcovSpin0, geoβ,
 #multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
 
@@ -242,40 +231,108 @@ end
 # block-diagonal operator
 # ================================================
 
+
 function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
-    BlockDiagEquiRect{B,P,T,A}(block_matrix, Ref{A}(), proj)
+    BlockDiagEquiRect{B,P,T,A}(block_matrix, proj)
 end
 
-size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
-
-function sqrt(L::BlockDiagEquiRect{B}) where {B}
-    if !isassigned(L.blocks_sqrt)
-        L.blocks_sqrt[] = mapslices(sqrt, L.blocks, dims=(1,2))
+# Allows construction by a vector of blocks
+function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractMatrix{T}}
+    block_matrix = Array{T}(undef, size(vector_of_blocks[1])..., length(vector_of_blocks))
+    for b in eachindex(vector_of_blocks)
+        block_matrix[:,:,b] .= vector_of_blocks[b]
     end
-    BlockDiagEquiRect{B}(L.blocks_sqrt[], L.proj)
+    BlockDiagEquiRect{B}(block_matrix, proj)
 end
 
-*(L::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = L * B(f)
 
-function *(B::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
-    promote_metadata_strict(B.proj, f.proj) # ensure same projection
-    EquiRectAzFourier(@tullio(Bf[p,iₘ] := B.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
+# ## make BlockDiagEquiRect an iterable over the last index
+# ... so that 
+#     `M½ = BlockDiagEquiRect{AzFourier}(sqrt.(Hermitian.(M)), M.proj)`
+# works
+Base.parent(M::BlockDiagEquiRect) = M.blocks # for convienience
+Base.length(M::BlockDiagEquiRect) = size(parent(M),3)
+Base.eltype(::Type{BlockDiagEquiRect{B,P,T}}) where {B,P,T} = T 
+Base.firstindex(M::BlockDiagEquiRect) = 1
+Base.lastindex(M::BlockDiagEquiRect) = length(M)
+Base.iterate(M::BlockDiagEquiRect) = (Σ=parent(M) ; isempty(Σ) ? nothing : (Σ[:,:,1],1))
+Base.iterate(M::BlockDiagEquiRect, st) = st+1 > length(M) ? nothing : (parent(M)[:,:,st+1],  st+1)
+
+function Base.getindex(M::BlockDiagEquiRect, i::Int) 
+    1 <= i <= length(M) || throw(BoundsError(M, i))
+    return parent(M)[:,:,i]
 end
 
-function *(B::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
-    # TODO: implement S2 multiplication
-    error("not implemented")
+function Base.setindex!(M::BlockDiagEquiRect, m::Matrix, i::Int)
+    1 <= i <= length(M) || throw(BoundsError(M, i))  
+    setindex!(parent(M)[:,:,i], m)
 end
 
-function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
+# ## Mult (this one is different than M * f since )
+
+*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
+
+function *(M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    EquiRectAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
 end
 
-function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-    @unpack Ny, Nx, θspan = L.proj
-    z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
-    sqrt(L) * z
+function *(M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
 end
+
+# ## map, e.g. map((Bℓ,fℓ)->sqrt(Bℓ)*fℓ, BlkDiag, field) -> field
+
+function Base.map(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::F) where {F<:EquiRectAzFourier}
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    Mfarr = similar(f.arr)
+    for (Mfc, Mc, fc) in zip(eachcol(Mfarr), M, eachcol(f.arr))
+        Mfc = fun(Mc, fc)
+    end
+    EquiRectAzFourier(Mfarr, f.metadata)
+end 
+
+
+function Base.map(fun::Function, M::BlockDiagEquiRect{QUAzFourier}, f::F) where {F<:EquiRectQUAzFourier}
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    Mfarr = similar(f.arr)
+    for (Mfc, Mc, fc) in zip(eachcol(Mfarr), M, eachcol(f.arr))
+        Mfc = fun(Mc, fc)
+    end
+    EquiRectQUAzFourier(Mfarr, f.metadata)
+end 
+
+# ## I don't understand this yet ??
+# function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
+#     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
+# end
+
+
+# # Question: does this need to match the pixel space size or the size of the
+# # matrix operator in the primal-dual stacked fourier domain
+# size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
+
+# function sqrt(L::BlockDiagEquiRect{B}) where {B}
+#     if !isassigned(L.blocks_sqrt)
+#         L.blocks_sqrt[] = mapslices(sqrt, L.blocks, dims=(1,2))
+#     end
+#     BlockDiagEquiRect{B}(L.blocks_sqrt[], L.proj)
+# end
+
+# function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
+#     @unpack Ny, Nx, θspan = L.proj
+#     z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
+#     sqrt(L) * z
+# end
+
+
+# function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
+#     @unpack Ny, Nx, θspan = L.proj
+#     z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
+#     sqrt(L) * z
+# end
+
 
 
 # covariance operators

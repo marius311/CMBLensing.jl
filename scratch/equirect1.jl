@@ -12,32 +12,15 @@ using FFTW
 FFTW.set_num_threads(Threads.nthreads())
 
 using CMBLensing
-import CMBLensing: Map, AzFourier, QUAzFourier, QUMap, m_fft, m_rfft, m_irfft,  m_ifft
 import CirculantCov as CC # https://github.com/EthanAnderes/CirculantCov.jl
 
+using Test
 
 ## LATER: remove LBblock dependence
 using LBblocks: @sblock # https://github.com/EthanAnderes/LBblocks.jl
 
-hide_plots = true
+hide_plots = false
 
-using Test
-
-# Methods ...
-# =======================================
-
-# EquiRectS0:
-function tulliomult(M▫, f::Union{EquiRectAzFourier, EquiRectMap})
-    m▫ = AzFourier(f).arr
-    @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
-    EquiRectAzFourier(n▫, f.metadata)
-end
-# EquiRectS2: 
-function tulliomult(M▫, f::Union{EquiRectQUAzFourier, EquiRectQUMap})
-    m▫ = QUAzFourier(f).arr
-    @tullio n▫[i,m] :=  M▫[i,j,m] * m▫[j,m]
-    EquiRectQUAzFourier(n▫, f.metadata)
-end
 
 # Set the grid geometry
 # ============================
@@ -119,8 +102,8 @@ P′ = QUAzFourier(P);
 
 #-
 
-2 * ϕ + ϕ′
-2 * P + P′;
+@inferred 2 * ϕ + ϕ′
+@inferred 2 * P + P′;
 
 # Spectral densities
 # ==============================
@@ -192,38 +175,80 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
     return EB▫, Phi▫
 end;
 
-#-
 
-EB▫½, Phi▫½ = @sblock let EB▫, Phi▫ 
-    EB▫½  = similar(EB▫)
-    Phi▫½ = similar(Phi▫)
-    for b in axes(EB▫,3)
-        ## EB▫½[:,:,b]  .= sqrt(Hermitian(EB▫[:,:,b]))
-        ## Phi▫½[:,:,b] .= sqrt(Symmetric(Phi▫[:,:,b]))
-        ## ... or ...
-        try
-            EB▫½[:,:,b]  .= Matrix(cholesky(Hermitian(EB▫[:,:,b])).L)
-            Phi▫½[:,:,b] .= Matrix(cholesky(Symmetric(Phi▫[:,:,b])).L)
-        catch
-            @show b
-            break
-        end
-    end
-    EB▫½, Phi▫½
-end;
+# TODO: add summary for BlockDiagEquiRect
+
+EB▪   = BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
+Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj);
+
+
+# Testing out indexing
+
+@sblock let EB▪, Phi▪, idx = 2, hide_plots
+    hide_plots && return
+    fig,ax = subplots(1,2,figsize=(9,5))
+    EB▪[idx]   .|> abs |> imshow(-, fig, ax[1])
+    Phi▪[idx]  .|> abs |> imshow(-, fig, ax[2])
+    return nothing
+end
+
+
+# Testing out indexing
+
+@sblock let EB▪, Phi▪, idx1 = 2, idx2 = 40, hide_plots
+    hide_plots && return
+    fig,ax = subplots(1,2,figsize=(9,5))
+    ax[1].semilogy(eigen(Hermitian(EB▪[idx1])).values)
+    ax[1].semilogy(eigen(Hermitian(EB▪[idx2])).values)
+    ax[2].semilogy(eigen(Symmetric(Phi▪[idx1])).values)
+    ax[2].semilogy(eigen(Symmetric(Phi▪[idx2])).values)
+    return nothing
+end
+
 
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-# Field sim unit noise
+# Why can't I get this to dispatch to proj_equirect.jl ??
 
-ϕ′ = EquiRectMap(  randn(Float64,    pj.Ny, pj.Nx), pj)
-P′ = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj);
+ϕsim = map(Phi▪, EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj) ) do M, v 
+    cholesky(Symmetric(M)).L * v
+end;
+
+# Why can't I get this to dispatch to proj_equirect.jl ??
+
+Psim = map(EB▪, EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj)) do M, v 
+    cholesky(Hermitian(M)).L * v
+end;
+
+# plot maps of the simulated fields.
+# Currently turned off since the above are not working like I want
+
+## @sblock let ϕsim, Psim, hide_plots
+##     hide_plots && return
+##     fig,ax = subplots(3,figsize=(9,9))
+##     ϕsim[:]  |> imshow(-, fig, ax[1])
+##     Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
+##     Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+##     return nothing
+## end
+
+
+# Simulation with pre-computed sqrt 
+# =======================================
+
+EB▪½  = map(EB▪) do M 
+    Matrix(sqrt(Hermitian(M)))
+end |> x->BlockDiagEquiRect{QUAzFourier}(x,pj)
+
+Phi▪½  = map(Phi▪) do M 
+    Matrix(sqrt(Hermitian(M)))
+end |> x->BlockDiagEquiRect{AzFourier}(x,pj);
 
 # generate simulation 
 
-ϕsim = tulliomult(Phi▫½,  ϕ′)
-Psim = tulliomult(EB▫½, P′);
+ϕsim = Phi▪½ * EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
+Psim = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
 
 # plot maps of the simulated fields
 
@@ -236,11 +261,8 @@ Psim = tulliomult(EB▫½, P′);
     return nothing
 end
 
-#-
 
-# gradient(x-> dot(Map(x), Map(x)), ϕsim)[1]
 
 # TODO:
 # =======================================
-# • Block field operators and all the stuff to go with it
 # • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 
