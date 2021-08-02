@@ -7,7 +7,6 @@ struct ProjEquiRect{T} <: CartesianProj
     Nx          :: Int
     θspan       :: Tuple{Float64,Float64}
     φspan       :: Tuple{Float64,Float64}
-    φspan_ratio ::Int
     θ           :: Vector{Float64} 
     φ           :: Vector{Float64} 
     θ∂          :: Vector{Float64} 
@@ -97,32 +96,32 @@ function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
 end 
 
 
-function φ_grid(;φspan::Tuple{T,T}, N::Int) where T<:Real
+# function φ_grid(;φspan::Tuple{T,T}, N::Int) where T<:Real
 
-    @assert N > 0
-    # TODO: relax this condition ...
-    @assert 0 <= φspan[1] < φspan[2] <= 2π 
+#     @assert N > 0
+#     # TODO: relax this condition ...
+#     @assert 0 <= φspan[1] < φspan[2] <= 2π 
 
-    φ∂    = collect(φspan[1] .+ (φspan[2] - φspan[1])*(0:N)/N)
-    Δφ    = φ∂[2] - φ∂[1]
-    φ     = φ∂[1:end-1] .+ Δφ/2
+#     φ∂    = collect(φspan[1] .+ (φspan[2] - φspan[1])*(0:N)/N)
+#     Δφ    = φ∂[2] - φ∂[1]
+#     φ     = φ∂[1:end-1] .+ Δφ/2
     
-    φ, φ∂
-end
+#     φ, φ∂
+# end
 
-function ProjEquiRect(θ, φ, θ∂, φ∂, ::Type{T}, storage) where {T}
+@memoize function ProjEquiRect(θ, φ, θ∂, φ∂, ::Type{T}, storage) where {T}
     
     Ny, Nx = length(θ), length(φ)
     θspan = (θ∂[1], θ∂[end])
     φspan = (φ∂[1], φ∂[end])
     Ω  = (φ∂[2] .- φ∂[1]) .* diff(.- cos.(θ∂))
 
-    φspan_ratio = 2π / abs(-(φspan...))
-    if !(φspan_ratio ≈ round(Int, φspan_ratio))
-        error("φspan=$φspan must span an interval that has width 2π/(integer)")
-    end
+    # φspan_ratio = 2π / abs(-(φspan...))
+    # if !(φspan_ratio ≈ round(Int, φspan_ratio))
+    #     error("φspan=$φspan must span an interval that has width 2π/(integer)")
+    # end
 
-    ProjEquiRect{T}(Ny, Nx, θspan, φspan, φspan_ratio, θ, φ, θ∂, φ∂, Ω, storage)
+    ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θ∂, φ∂, Ω, storage)
 
 end
 
@@ -130,25 +129,6 @@ function ProjEquiRect(;θ, φ, θ∂, φ∂, T=Float32, storage=Array)
     ProjEquiRect(θ, φ, θ∂, φ∂, real_type(T), storage)
 end
 
-
-# function ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float32, storage=Array)
-#     ProjEquiRect(Ny, Nx, θspan, φspan, real_type(T), storage)
-# end
-
-# @memoize function ProjEquiRect(Ny, Nx, θspan, φspan, ::Type{T}, storage) where {T}
-#     
-#     # make span always be (low, high)
-#     θspan = (Float64.(sort(collect(θspan)))...,)
-#     φspan = (Float64.(sort(collect(φspan)))...,)
-# 
-#     φspan_ratio = 2π / abs(-(φspan...))
-#     if !(φspan_ratio ≈ round(Int, φspan_ratio))
-#         error("φspan=$φspan must span integer multiple of 2π")
-#     end
-# 
-#     ProjEquiRect{T}(Ny, Nx, θspan, φspan, storage)
-# 
-# end
 
 
 # Field Basis
@@ -229,7 +209,6 @@ function QUMap(f::EquiRectQUAzFourier)
     end
     EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
 end
-
 
 
 Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr

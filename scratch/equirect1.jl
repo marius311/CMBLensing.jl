@@ -13,8 +13,8 @@ FFTW.set_num_threads(Threads.nthreads())
 
 using CMBLensing
 import CMBLensing: Map, AzFourier, QUAzFourier, QUMap, m_fft, m_rfft, m_irfft,  m_ifft
-using CirculantCov: βcovSpin2, βcovSpin0, geoβ,
-multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
+import CirculantCov as CC # https://github.com/EthanAnderes/CirculantCov.jl
+
 
 ## LATER: remove LBblock dependence
 using LBblocks: @sblock # https://github.com/EthanAnderes/LBblocks.jl
@@ -44,31 +44,37 @@ end
 
 pj = @sblock let 
 
-    φ, φ∂ = CMBLensing.φ_grid(; φspan=(0.0, 2π/4), N=768)
-    ## φ, φ∂ = CMBLensing.φ_grid(; φspan=(0.0, 2π/4), N=1024)
+    φspan = (5.3, CC.in_0_2π(5.3 + 2π/3))
+    φ     = CC.fraccircle(φspan[1], φspan[2], 768)
+    Δφ    = CC.counterclock_Δφ(φ[1], φ[2])
+    φ∂    = vcat(φ, CC.in_0_2π(φ[end] + Δφ))
 
-    θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 1270, type=:equicosθ)
+    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 1270, type=:equicosθ)
     ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 512, type=:healpix)
-    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 2372, type=:equiθ)
+    θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 2372, type=:equiθ)
 
+    ## TODO: when computing Ω use CC.counterclock_Δφ(φ[1], φ[2])
+    ## to handle the edge case that φ[1] < 2π & φ[2] > 0
     CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
 end;
 
 #-
 
+# Testing:
 @test pj.Ny == length(pj.θ)
 @test pj.Nx == length(pj.φ)
 
 #-
 
-# This makes a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
-# which should be strictly increasting. 
+# Testing: make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
+# and test that it is strictly increasing. 
 ∂θ∂ = vcat(vcat(pj.θ∂[1:end-1]', pj.θ')[:],  pj.θ∂[end])
 @test all(diff(∂θ∂) .> 0)
 
 
 #- 
 
+# Testing:
 let θ∂ = [pi/2, 3pi/4, pi]
     Ω = 2π .* diff(.- cos.(θ∂))
     @test sum(Ω) ≈ 4pi/2
@@ -149,19 +155,14 @@ end
 # Block diagonal cov matrices
 # ==============================
 
-EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ, freq_mult=pj.φspan_ratio
+EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
 
     nθ, nφ = length(θ), length(φ)
-    nφ2π  = nφ*freq_mult
-    φ2π   = 2π*(0:nφ2π-1)/nφ2π |> collect
 
-    covβEB   = βcovSpin2(ℓ, CEEℓ, CBBℓ, ngrid=50_000)
-    covβPhi  = βcovSpin0(ℓ, CΦΦℓ,       ngrid=50_000)
+    Γ_Phi  = CC.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CΦΦℓ; ngrid=50_000)
+    ΓC_EB  = CC.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)
 
     ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
-    EBγⱼₖ   = zeros(ComplexF64, nφ)
-    EBξⱼₖ   = zeros(ComplexF64, nφ)
-    Phiγⱼₖ  = zeros(ComplexF64, nφ)
 
     T     = ComplexF64 # ComplexF32
     rT    = real(T)
@@ -171,30 +172,15 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ, 
     prgss = Progress(nθ, 1, "EB▫, Phi▫")
     for k = 1:nθ
         for j = 1:nθ
-            θ1, θ2 = θ[j], θ[k]
-            β      = geoβ.(θ1, θ2, φ2π[1], φ2π)
-
-            covΦΦ̄  = covβPhi(β) 
-            covPP̄, covPP = covβEB(β)  
-            covPP̄ .*= multPP̄.(θ1, θ2, φ2π[1], φ2π)
-            covPP .*= multPP.(θ1, θ2, φ2π[1], φ2π)
-            
-            ## periodize and restrict from φ2π to φ
-            covΦΦ̄′   = periodize(covΦΦ̄, freq_mult)   
-            covPP̄′   = periodize(covPP̄, freq_mult)       
-            covPP′   = periodize(covPP, freq_mult)
-  
-            mul!(Phiγⱼₖ,  ptmW, covΦΦ̄′)
-            mul!(EBγⱼₖ,   ptmW, covPP̄′)
-            mul!(EBξⱼₖ,   ptmW, covPP′)
-
-            @inbounds for ℓ = 1:nφ÷2+1
-                Jℓ = Jperm(ℓ, nφ) # ℓ==1 ? 1 : nφ - ℓ + 2
-                Phi▫[j,  k,    ℓ] = real(Phiγⱼₖ[ℓ])
-                EB▫[j,   k,    ℓ] = EBγⱼₖ[ℓ]
-                EB▫[j,   k+nθ, ℓ] = EBξⱼₖ[ℓ]
-                EB▫[j+nθ,k,    ℓ] = conj(EBξⱼₖ[Jℓ])
-                EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖ[Jℓ])
+            Phiγⱼₖℓ⃗  = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Phi,  ptmW)
+            EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CC.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
+            for ℓ = 1:nφ÷2+1
+                Jℓ = CC.Jperm(ℓ, nφ)
+                Phi▫[j,k, ℓ] = real(Phiγⱼₖℓ⃗[ℓ])
+                EB▫[j,   k   , ℓ]   = EBγⱼₖℓ⃗[ℓ]
+                EB▫[j,   k+nθ, ℓ]   = EBξⱼₖℓ⃗[ℓ]
+                EB▫[j+nθ,k   , ℓ]   = conj(EBξⱼₖℓ⃗[Jℓ])
+                EB▫[j+nθ,k+nθ, ℓ]   = conj(EBγⱼₖℓ⃗[Jℓ])
             end
         end
         next!(prgss)
