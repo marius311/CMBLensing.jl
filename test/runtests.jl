@@ -611,44 +611,64 @@ end
 
 ##
 
-@testset "Projections" begin
-    
+@testset "EquiRect" begin
+
+    θspan = deg2rad.((140,110))
+    ϕspan = deg2rad.((-10,90))
     Cℓ = camb()
-    L = LenseFlow{RK4Solver{7}}
-    T = Float64
 
-    @testset "Nside = $Nside" for Nside in Nsides_big
+    @testset "Nside=$Nside" for Nside in Nsides
 
-        @testset "pol = $pol" for pol in (:I,:P)
-            
-            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
-                Cℓ       = Cℓ,
-                θpix     = 3,
-                Nside    = Nside,
-                T        = T,
-                beamFWHM = 3,
-                pol      = pol,
-                storage  = storage,
-                rng      = default_rng(),
-                pixel_mask_kwargs = (edge_padding_deg=1,)
-            )
-            @unpack Cf,Cϕ = ds₀
-            f°,ϕ° = mix(f,ϕ,ds)
+        local f0, f2, Cf0, Cf2
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
+        # constructor doesnt error
+        @test (f0 = EquiRectMap(rand(Nside...); θspan, ϕspan)) isa EquiRectMap
+        @test (f2 = EquiRectQUMap(rand(Nside...), rand(Nside...); θspan, ϕspan)) isa EquiRectQUMap
 
-            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
+        # transform
+        @test Map(AzFourier(f0)) ≈ f0
+        @test QUMap(QUAzFourier(f2)) ≈ f2
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
-            
-        end
+        # dot product independent of basis
+        @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
+        @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
+
+        # creating block-diagonal covariance operators
+        @test (Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)) isa BlockDiagEquiRect
+        @test (Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)) isa BlockDiagEquiRect
+
+        # sqrt
+        @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0)
+        @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2)
+
+        # simulation
+        @test simulate(Cf0) isa EquiRectS0
+        @test simulate(Cf2) isa EquiRectS2
         
+        # pinv
+        @test (pinv(Cf0) * Cf0 * f0) ≈ Cf0
+        @test (pinv(Cf2) * Cf2 * f2) ≈ Cf2
+        
+        # logdet
+        @test logdet(Cf0) isa Real
+        @test logdet(Cf2) isa Real
+
+        # adjoint
+        g0 = simulate(Cf0)
+        g2 = simulate(Cf2)
+        @test g0' * (Cf0 * g0) ≈ (g0' * Cf0) * g0
+        @test g2' * (Cf2 * g2) ≈ (g2' * Cf2) * g2
+        
+        # gradients
+        @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
+        @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
+        @test_real_gradient(α -> logdet(α * Cf0), 0)
+        @test_real_gradient(α -> logdet(α * Cf2), 0)
+
     end
 
 end
+
 
 ##
 
