@@ -614,7 +614,7 @@ end
 @testset "EquiRect" begin
 
     θspan = deg2rad.((140,110))
-    ϕspan = deg2rad.((-10,90))
+    φspan = deg2rad.((-10,90))
     Cℓ = camb()
 
     @testset "Nside=$Nside" for Nside in Nsides
@@ -622,8 +622,8 @@ end
         local f0, f2, Cf0, Cf2
 
         # constructor doesnt error
-        @test (f0 = EquiRectMap(rand(Nside...); θspan, ϕspan)) isa EquiRectMap
-        @test (f2 = EquiRectQUMap(rand(Nside...), rand(Nside...); θspan, ϕspan)) isa EquiRectQUMap
+        @test (f0 = EquiRectMap(rand(Nside...); θspan, φspan)) isa EquiRectMap
+        @test (f2 = EquiRectQUMap(rand(Nside...), rand(Nside...); θspan, φspan)) isa EquiRectQUMap
 
         # transform
         @test Map(AzFourier(f0)) ≈ f0
@@ -656,8 +656,8 @@ end
         # adjoint
         g0 = simulate(Cf0)
         g2 = simulate(Cf2)
-        @test g0' * (Cf0 * g0) ≈ (g0' * Cf0) * g0
-        @test g2' * (Cf2 * g2) ≈ (g2' * Cf2) * g2
+        @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0
+        @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2
         
         # gradients
         @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
