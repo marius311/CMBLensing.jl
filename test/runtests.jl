@@ -613,14 +613,19 @@ end
 
 @testset "EquiRect" begin
 
-    θspan = deg2rad.((140,110))
-    φspan = deg2rad.((-10,90))
+    θspan = (π/2 .- deg2rad.((-40,-70)))
+    φspan = deg2rad.((0,120))
     Cℓ = camb()
 
-    @testset "Nside=$Nside" for Nside in Nsides
+    @testset "Nside = $Nside" for Nside in Nsides_big
 
         local f0, f2, Cf0, Cf2
 
+        @test begin
+            proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-50,50)))
+            proj.Ny == proj.Nx == 128
+        end
+    
         # constructor doesnt error
         @test (f0 = EquiRectMap(rand(Nside...); θspan, φspan)) isa EquiRectMap
         @test (f2 = EquiRectQUMap(rand(Nside...), rand(Nside...); θspan, φspan)) isa EquiRectQUMap

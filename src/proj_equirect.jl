@@ -76,16 +76,16 @@ function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
         error("`type` is not valid. Options include `:equiθ`, `:equicosθ` or `:healpix`")
     end 
 
-    # θgrid′′ subsets θgrid′ to be within θspan
-    # δ½south′′ and δ½north′′ are the arclength midpoints to the adjacent pixel
-    θgrid′′   = θgrid′[θspan[1] .≤ θgrid′ .≤ θspan[2]]
-    δ½south′′ = (circshift(θgrid′′,-1)  .- θgrid′′) ./ 2
-    δ½north′′ = (θgrid′′ .- circshift(θgrid′′,1)) ./ 2   
+    # θgrid″ subsets θgrid′ to be within θspan
+    # δ½south″ and δ½north″ are the arclength midpoints to the adjacent pixel
+    θgrid″   = θgrid′[θspan[1] .≤ θgrid′ .≤ θspan[2]]
+    δ½south″ = (circshift(θgrid″,-1)  .- θgrid″) ./ 2
+    δ½north″ = (θgrid″ .- circshift(θgrid″,1)) ./ 2   
     
-    # now restrict to the interior of the range of θgrid′′
-    θ       = θgrid′′[2:end-1]
-    δ½south = δ½south′′[2:end-1]
-    δ½north = δ½north′′[2:end-1]
+    # now restrict to the interior of the range of θgrid″
+    θ       = θgrid″[2:end-1]
+    δ½south = δ½south″[2:end-1]
+    δ½north = δ½north″[2:end-1]
 
     # These are the pixel boundaries along polar
     # so length(θ∂) == length(θ)+1
@@ -119,8 +119,27 @@ end
 
 end
 
-function ProjEquiRect(;θ, φ, θ∂, φ∂, T=Float32, storage=Array)
+function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
+
+    arg_error() = error("Constructor takes either (θ, φ, θ∂, φ∂) or (Ny, Nx, θspan, φspan) keyword arguments.")
+    
+    if all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂)))
+        !any(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan))) || arg_error()
+        @unpack (θ, φ, θ∂, φ∂) = kwargs
+    elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
+        !all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂))) || arg_error()
+        @unpack (Ny, Nx, θspan, φspan) = kwargs
+        φ  = @ondemand(CirculantCov.fraccircle)(φspan[1], φspan[2], Nx)
+        Δφ = @ondemand(CirculantCov.counterclock_Δφ)(φ[1], φ[2])
+        φ∂ = vcat(φ, @ondemand(CirculantCov.in_0_2π)(φ[end] + Δφ))
+        θ, θ∂ = θ_grid(; θspan, N=Ny, type=:equiθ)
+        @show θ
+    else
+        arg_error()
+    end
+
     ProjEquiRect(θ, φ, θ∂, φ∂, real_type(T), storage)
+
 end
 
 
