@@ -27,7 +27,7 @@ hide_plots = false
 
 pj = @sblock let 
 
-    φspan = (5.3, CC.in_0_2π(5.3 + 2π/3))
+    φspan = CC.in_0_2π.(deg2rad.((-60, 60))) # (5.3, CC.in_0_2π(5.3 + 2π/3))
     φ     = CC.fraccircle(φspan[1], φspan[2], 768)
     Δφ    = CC.counterclock_Δφ(φ[1], φ[2])
     φ∂    = vcat(φ, CC.in_0_2π(φ[end] + Δφ))
@@ -187,8 +187,8 @@ Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj);
 @sblock let EB▪, Phi▪, idx = 2, hide_plots
     hide_plots && return
     fig,ax = subplots(1,2,figsize=(9,5))
-    EB▪[idx]   .|> abs |> imshow(-, fig, ax[1])
-    Phi▪[idx]  .|> abs |> imshow(-, fig, ax[2])
+    EB▪.blocks[:,:,idx]   .|> abs |> imshow(-, fig, ax[1])
+    Phi▪.blocks[:,:,idx] .|> abs |> imshow(-, fig, ax[2])
     return nothing
 end
 
@@ -198,52 +198,65 @@ end
 @sblock let EB▪, Phi▪, idx1 = 2, idx2 = 40, hide_plots
     hide_plots && return
     fig,ax = subplots(1,2,figsize=(9,5))
-    ax[1].semilogy(eigen(Hermitian(EB▪[idx1])).values)
-    ax[1].semilogy(eigen(Hermitian(EB▪[idx2])).values)
-    ax[2].semilogy(eigen(Symmetric(Phi▪[idx1])).values)
-    ax[2].semilogy(eigen(Symmetric(Phi▪[idx2])).values)
+    ax[1].semilogy(eigen(Hermitian(EB▪.blocks[:,:,idx1])).values)
+    ax[1].semilogy(eigen(Hermitian(EB▪.blocks[:,:,idx2])).values)
+    ax[2].semilogy(eigen(Symmetric(Phi▪.blocks[:,:,idx1])).values)
+    ax[2].semilogy(eigen(Symmetric(Phi▪.blocks[:,:,idx2])).values)
     return nothing
 end
+
+# Test the vector of matrices constructor 
+
+EB▪′  = BlockDiagEquiRect{QUAzFourier}([EB▫[:,:,i] for i in axes(EB▫,3)], pj)
+@test EB▪′.blocks == EB▪.blocks
+
+#-
+
+Phi▪′  = BlockDiagEquiRect{QUAzFourier}([Phi▫[:,:,i] for i in axes(Phi▫,3)], pj)
+@test Phi▪′.blocks == Phi▪.blocks
+
 
 
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-# Why can't I get this to dispatch to proj_equirect.jl ??
 
-ϕsim = map(Phi▪, EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj) ) do M, v 
-    cholesky(Symmetric(M)).L * v
+ϕsim = let spin0_white_noise = EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
+    CMBLensing.mapblocks(Phi▪, spin0_white_noise) do M, v 
+        cholesky(Symmetric(M)).L * v
+    end
+end;    
+
+Psim = let spin2_white_noise = EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj)
+    CMBLensing.mapblocks(EB▪, spin2_white_noise) do M, v 
+        cholesky(Hermitian(M)).L * v
+    end
 end;
 
-# Why can't I get this to dispatch to proj_equirect.jl ??
-
-Psim = map(EB▪, EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj)) do M, v 
-    cholesky(Hermitian(M)).L * v
-end;
 
 # plot maps of the simulated fields.
-# Currently turned off since the above are not working like I want
 
-## @sblock let ϕsim, Psim, hide_plots
-##     hide_plots && return
-##     fig,ax = subplots(3,figsize=(9,9))
-##     ϕsim[:]  |> imshow(-, fig, ax[1])
-##     Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
-##     Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
-##     return nothing
-## end
+@sblock let ϕsim, Psim, hide_plots
+    hide_plots && return
+    fig,ax = subplots(3,figsize=(9,9))
+    ϕsim[:]  |> imshow(-, fig, ax[1])
+    Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
+    Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+    return nothing
+end
 
 
 # Simulation with pre-computed sqrt 
 # =======================================
 
-EB▪½  = map(EB▪) do M 
-    Matrix(sqrt(Hermitian(M)))
-end |> x->BlockDiagEquiRect{QUAzFourier}(x,pj)
 
-Phi▪½  = map(Phi▪) do M 
+EB▪½  = CMBLensing.mapblocks(EB▪) do M 
     Matrix(sqrt(Hermitian(M)))
-end |> x->BlockDiagEquiRect{AzFourier}(x,pj);
+end
+
+Phi▪½  = CMBLensing.mapblocks(Phi▪) do M 
+    Matrix(sqrt(Hermitian(M)))
+end;
 
 # generate simulation 
 
@@ -265,4 +278,7 @@ end
 
 # TODO:
 # =======================================
-# • Need to make sure the sign of U matches CMBLensing ... probably just need a negative spin 2 option in CirculantCov 
+# • Need to make sure the sign of U matches CMBLensing 
+#   ... probably just need a negative spin 2 option in CirculantCov 
+# • add + and adjoint to the linear algebra methods for BlockDiagEquiRect's
+# • get tests working, including incorperating CirculantCov.jl stuff with @ondemand

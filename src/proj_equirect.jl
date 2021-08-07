@@ -17,8 +17,7 @@ struct ProjEquiRect{T} <: CartesianProj
 
 end
 
-# Turning off ImplicitOp{T} ... since it seems to classify BlockDiagEquiRect as a AbstractMatrix
-struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} #  <: ImplicitOp{T}
+struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}  <: ImplicitOp{T}
     blocks :: A
     ## blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
     proj :: P
@@ -46,7 +45,6 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
 
 # Proj 
 # ================================================
-
 
 function θ_healpix_j_Nside(j_Nside) 
     0 < j_Nside < 1  ? acos(1-abs2(j_Nside)/3)      :
@@ -129,7 +127,9 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
     elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
         !all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂))) || arg_error()
         @unpack (Ny, Nx, θspan, φspan) = kwargs
-        φ  = @ondemand(CirculantCov.fraccircle)(φspan[1], φspan[2], Nx)
+        # the convention for Circulant Cov is that φ ∈ (0,2π] 
+        φspan′ = ( @ondemand(CirculantCov.in_0_2π)(φspan[1]), @ondemand(CirculantCov.in_0_2π)(φspan[2]) )
+        φ  = @ondemand(CirculantCov.fraccircle)(φspan′[1], φspan′[2], Nx)
         Δφ = @ondemand(CirculantCov.counterclock_Δφ)(φ[1], φ[2])
         φ∂ = vcat(φ, @ondemand(CirculantCov.in_0_2π)(φ[end] + Δφ))
         θ, θ∂ = θ_grid(; θspan, N=Ny, type=:equiθ)
@@ -218,13 +218,11 @@ function QUMap(f::EquiRectQUAzFourier)
     EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
 end
 
-
 Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
 Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
 
 Base.getindex(f::EquiRectS0, ::Colon) = Map(f).arr
 Base.getindex(f::EquiRectS2, ::Colon) = QUMap(f).arr
-
 
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
@@ -244,12 +242,10 @@ function Base.summary(io::IO, f::EquiRectQUAzFourier)
     Base.showarg(io, f, true)
 end
 
-
-
-
 # block-diagonal operator
 # ================================================
 
+# ## Constructors
 
 function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
     BlockDiagEquiRect{B,P,T,A}(block_matrix, proj)
@@ -264,30 +260,7 @@ function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:Ba
     BlockDiagEquiRect{B}(block_matrix, proj)
 end
 
-
-# ## make BlockDiagEquiRect an iterable over the last index
-# ... so that 
-#     `M½ = BlockDiagEquiRect{AzFourier}(sqrt.(Hermitian.(M)), M.proj)`
-# works
-Base.parent(M::BlockDiagEquiRect) = M.blocks # for convienience
-Base.length(M::BlockDiagEquiRect) = size(parent(M),3)
-Base.eltype(::Type{BlockDiagEquiRect{B,P,T}}) where {B,P,T} = T 
-Base.firstindex(M::BlockDiagEquiRect) = 1
-Base.lastindex(M::BlockDiagEquiRect) = length(M)
-Base.iterate(M::BlockDiagEquiRect) = (Σ=parent(M) ; isempty(Σ) ? nothing : (Σ[:,:,1],1))
-Base.iterate(M::BlockDiagEquiRect, st) = st+1 > length(M) ? nothing : (parent(M)[:,:,st+1],  st+1)
-
-function Base.getindex(M::BlockDiagEquiRect, i::Int) 
-    1 <= i <= length(M) || throw(BoundsError(M, i))
-    return parent(M)[:,:,i]
-end
-
-function Base.setindex!(M::BlockDiagEquiRect, m::Matrix, i::Int)
-    1 <= i <= length(M) || throw(BoundsError(M, i))  
-    setindex!(parent(M)[:,:,i], m)
-end
-
-# ## Mult (this one is different than M * f since )
+# ## Linear Algebra basics 
 
 *(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
@@ -301,35 +274,83 @@ function *(M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
     EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
 end
 
-# ## map, e.g. map((Bℓ,fℓ)->sqrt(Bℓ)*fℓ, BlkDiag, field) -> field
+# TODO: Figure out how reduce duplication so I can define methods like this ...
 
-function Base.map(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::F) where {F<:EquiRectAzFourier}
+# function *(M::BlockDiagEquiRect{T}, f::EquiRect{T}) where {T<:Az}
+# ...
+
+# ## mapblocks for fun.(Mblocks,eachcol(f))
+
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
+    mapblocks(fun, M, B(f))
+end
+
+function mapblocks(fun::Function, M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     Mfarr = similar(f.arr)
-    for (Mfc, Mc, fc) in zip(eachcol(Mfarr), M, eachcol(f.arr))
-        Mfc = fun(Mc, fc)
-    end
-    EquiRectAzFourier(Mfarr, f.metadata)
-end 
-
-
-function Base.map(fun::Function, M::BlockDiagEquiRect{QUAzFourier}, f::F) where {F<:EquiRectQUAzFourier}
-    promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    Mfarr = similar(f.arr)
-    for (Mfc, Mc, fc) in zip(eachcol(Mfarr), M, eachcol(f.arr))
-        Mfc = fun(Mc, fc)
+    for i ∈ axes(M.blocks,3)
+        Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
     end
     EquiRectQUAzFourier(Mfarr, f.metadata)
 end 
 
-# ## I don't understand this yet ??
+function mapblocks(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    Mfarr = similar(f.arr)
+    for i ∈ axes(M.blocks,3)
+        Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
+    end
+    EquiRectAzFourier(Mfarr, f.metadata)
+end 
+
+# ## mapblocks for fun.(Mblocks...)
+
+function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:Basis}
+    map(M->promote_metadata_strict(M.proj, Ms[1].proj), Ms) 
+    BlockDiagEquiRect{B}(
+        map(i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), axes(Ms[1].blocks,3)),
+        Ms[1].proj,
+    )
+end 
+
+# ## Other methods 
+
+function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
+    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
+end
+
 # function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
 #     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
 # end
 
 
-# # Question: does this need to match the pixel space size or the size of the
-# # matrix operator in the primal-dual stacked fourier domain
+
+# ## make BlockDiagEquiRect an iterable over the last index
+# ... so that 
+#     `M½ = BlockDiagEquiRect{AzFourier}(sqrt.(Hermitian.(M)), M.proj)`
+# works
+# Base.parent(M::BlockDiagEquiRect) = M.blocks # for convienience
+# Base.length(M::BlockDiagEquiRect) = size(parent(M),3)
+# Base.eltype(::Type{BlockDiagEquiRect{B,P,T}}) where {B,P,T} = T 
+# Base.firstindex(M::BlockDiagEquiRect) = 1
+# Base.lastindex(M::BlockDiagEquiRect) = length(M)
+# Base.iterate(M::BlockDiagEquiRect) = (Σ=parent(M) ; isempty(Σ) ? nothing : (Σ[:,:,1],1))
+# Base.iterate(M::BlockDiagEquiRect, st) = st+1 > length(M) ? nothing : (parent(M)[:,:,st+1],  st+1)
+
+# function Base.getindex(M::BlockDiagEquiRect, i::Int) 
+#     1 <= i <= length(M) || throw(BoundsError(M, i))
+#     return parent(M)[:,:,i]
+# end
+
+# function Base.setindex!(M::BlockDiagEquiRect, m::Matrix, i::Int)
+#     1 <= i <= length(M) || throw(BoundsError(M, i))  
+#     setindex!(parent(M)[:,:,i], m)
+# end
+
+
+
+
+
 # size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 
 # function sqrt(L::BlockDiagEquiRect{B}) where {B}
@@ -345,14 +366,11 @@ end
 #     sqrt(L) * z
 # end
 
-
 # function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
 #     @unpack Ny, Nx, θspan = L.proj
 #     z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
 #     sqrt(L) * z
 # end
-
-
 
 # covariance operators
 # ================================================

@@ -614,7 +614,7 @@ end
 @testset "EquiRect" begin
 
     θspan = (π/2 .- deg2rad.((-40,-70)))
-    φspan = deg2rad.((0,120))
+    φspan = deg2rad.((-60,60))
     Cℓ = camb()
 
     @testset "Nside = $Nside" for Nside in Nsides_big
@@ -622,7 +622,9 @@ end
         local f0, f2, Cf0, Cf2
 
         @test begin
-            proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-50,50)))
+            ## proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-50,50)))
+            ## TODO: replace ↓ with ↑ after removing the check of integer fraction
+            proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-60,60)))
             proj.Ny == proj.Nx == 128
         end
     
