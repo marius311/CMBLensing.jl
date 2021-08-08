@@ -70,8 +70,8 @@ import Statistics: std
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
-    argmaxf_lnP, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
+    animate, argmaxf_lnP, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
     BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
@@ -146,6 +146,10 @@ include("autodiff.jl")
 # gpu
 is_gpu_backed(x) = false
 @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
+
+# PPL
+include("distributions.jl")
+include("simpleppl.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
