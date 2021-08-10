@@ -622,10 +622,20 @@ end
         local f0, f2, Cf0, Cf2
 
         @test begin
-            ## proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-50,50)))
-            ## TODO: replace ↓ with ↑ after removing the check of integer fraction
-            proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.((-60,60)))
-            proj.Ny == proj.Nx == 128
+            φspanᵒ = (-50, 50)
+            proj = ProjEquiRect(Ny=128, Nx=128, θspan=(π/2 .- deg2rad.((-40,-70))), φspan=deg2rad.(φspanᵒ) )
+            
+            @test proj.Ny == proj.Nx == length(proj.θ) == length(proj.φ) == 128 
+
+            # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
+            # and test that it is strictly increasing. 
+            ∂θ∂ = vcat(vcat(proj.θ∂[1:end-1]', proj.θ')[:],  proj.θ∂[end])
+            @test all(diff(∂θ∂) .> 0)
+
+            projΔφpix   = rem2pi(proj.φ[2]-proj.φ[1],   RoundDown)
+            projΔφspan  = rem2pi(proj.φ[end]-proj.φ[1], RoundDown) + projΔφpix
+            inputΔφspan = deg2rad.(φspanᵒ) |> x->rem2pi(x[end]-x[1], RoundDown)
+            @test Δφspan == inputΔφspan
         end
     
         # constructor doesnt error

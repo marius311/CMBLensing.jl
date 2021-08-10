@@ -46,72 +46,13 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
 # Proj 
 # ================================================
 
-function θ_healpix_j_Nside(j_Nside) 
-    0 < j_Nside < 1  ? acos(1-abs2(j_Nside)/3)      :
-    1 ≤ j_Nside ≤ 3  ? acos(2*(2-j_Nside)/3)        :
-    3 < j_Nside < 4  ? acos(-(1-abs2(4-j_Nside)/3)) : 
-    error("argument ∉ (0,4)")
-end
-
-θ_healpix(Nside) = θ_healpix_j_Nside.((1:4Nside-1)/Nside)
-
-θ_equicosθ(N)    = acos.( ((N-1):-1:-(N-1))/N )
-
-θ_equiθ(N)       = π*(1:N-1)/N
-
-function θ_grid(;θspan::Tuple{T,T}, N::Int, type=:equiθ) where T<:Real
-    @assert N > 0
-    @assert 0 < θspan[1] < θspan[2] < π
-
-    # θgrid′ is the full grid from 0 to π
-    if type==:equiθ
-        θgrid′ = θ_equiθ(N)
-    elseif type==:equicosθ
-        θgrid′ = θ_equicosθ(N)
-    elseif type==:healpix
-        θgrid′ = θ_healpix(N)
-    else
-        error("`type` is not valid. Options include `:equiθ`, `:equicosθ` or `:healpix`")
-    end 
-
-    # θgrid″ subsets θgrid′ to be within θspan
-    # δ½south″ and δ½north″ are the arclength midpoints to the adjacent pixel
-    θgrid″   = θgrid′[θspan[1] .≤ θgrid′ .≤ θspan[2]]
-    δ½south″ = (circshift(θgrid″,-1)  .- θgrid″) ./ 2
-    δ½north″ = (θgrid″ .- circshift(θgrid″,1)) ./ 2   
-    
-    # now restrict to the interior of the range of θgrid″
-    θ       = θgrid″[2:end-1]
-    δ½south = δ½south″[2:end-1]
-    δ½north = δ½north″[2:end-1]
-
-    # These are the pixel boundaries along polar
-    # so length(θ∂) == length(θ)+1
-    θ∂ = vcat(θ[1] .- δ½north[1], θ .+ δ½south)
-
-    θ, θ∂
-end 
-
-# `φ_grid` Slated for removal or upgraded to include CirculantCov methods 
-# that allow φspans of the form `(5.3,1.1)` and `(1.1,5.3)`, the latter 
-# denoting the long way around the observational sphere. 
-#
-# function φ_grid(;φspan::Tuple{T,T}, N::Int) where T<:Real
-#     @assert N > 0
-#     # TODO: relax this condition ...
-#     @assert 0 <= φspan[1] < φspan[2] <= 2π 
-#     φ∂    = collect(φspan[1] .+ (φspan[2] - φspan[1])*(0:N)/N)
-#     Δφ    = φ∂[2] - φ∂[1]
-#     φ     = φ∂[1:end-1] .+ Δφ/2
-#     φ, φ∂
-# end
-
 @memoize function ProjEquiRect(θ, φ, θ∂, φ∂, ::Type{T}, storage) where {T}
     
     Ny, Nx = length(θ), length(φ)
     θspan = (θ∂[1], θ∂[end])
     φspan = (φ∂[1], φ∂[end])
-    Ω  = (φ∂[2] .- φ∂[1]) .* diff(.- cos.(θ∂))
+
+    Ω  = rem2pi(φ∂[2] .- φ∂[1], RoundDown) .* diff(.- cos.(θ∂))
 
     ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θ∂, φ∂, Ω, storage)
 
@@ -127,12 +68,8 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
     elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
         !all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂))) || arg_error()
         @unpack (Ny, Nx, θspan, φspan) = kwargs
-        # the convention for Circulant Cov is that φ ∈ (0,2π] 
-        φspan′ = ( @ondemand(CirculantCov.in_0_2π)(φspan[1]), @ondemand(CirculantCov.in_0_2π)(φspan[2]) )
-        φ  = @ondemand(CirculantCov.fraccircle)(φspan′[1], φspan′[2], Nx)
-        Δφ = @ondemand(CirculantCov.counterclock_Δφ)(φ[1], φ[2])
-        φ∂ = vcat(φ, @ondemand(CirculantCov.in_0_2π)(φ[end] + Δφ))
-        θ, θ∂ = θ_grid(; θspan, N=Ny, type=:equiθ)
+        θ, θ∂ = @ondemand(CirculantCov.θ_grid)(; θspan, N=Ny, type=:equiθ)
+        φ, φ∂ = @ondemand(CirculantCov.φ_grid)(; φspan, N=Nx)
         @show θ
     else
         arg_error()

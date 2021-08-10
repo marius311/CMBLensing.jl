@@ -12,6 +12,7 @@ using FFTW
 FFTW.set_num_threads(Threads.nthreads())
 
 using CMBLensing
+using CirculantCov
 import CirculantCov as CC # https://github.com/EthanAnderes/CirculantCov.jl
 
 using Test
@@ -25,19 +26,15 @@ hide_plots = false
 # Set the grid geometry
 # ============================
 
+
 pj = @sblock let 
 
-    φspan = CC.in_0_2π.(deg2rad.((-60, 60))) # (5.3, CC.in_0_2π(5.3 + 2π/3))
-    φ     = CC.fraccircle(φspan[1], φspan[2], 768)
-    Δφ    = CC.counterclock_Δφ(φ[1], φ[2])
-    φ∂    = vcat(φ, CC.in_0_2π(φ[end] + Δφ))
+    ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equicosθ)
+    ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=2048, type=:healpix)
+    θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equiθ)
 
-    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 1270, type=:equicosθ)
-    ## θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 512, type=:healpix)
-    θ, θ∂ = CMBLensing.θ_grid(; θspan=(2.3,2.7), N= 2372, type=:equiθ)
+    φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-60, 60)), N=1024)
 
-    ## TODO: when computing Ω use CC.counterclock_Δφ(φ[1], φ[2])
-    ## to handle the edge case that φ[1] < 2π & φ[2] > 0
     CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
 end;
 
