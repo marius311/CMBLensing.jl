@@ -13,17 +13,22 @@ function argmaxf_logpdf(
     @unpack d, Cf, B̂, M̂, Cn̂ = ds
     zero_f = zero(diag(Cf))
 
-    # we solve A*x = b where A & b are computed from appropriate
-    # gradients of the logpdf in such as a way that the solution
-    # always gives the Wiener filter, independent of what the logpdf
-    # may be for this DataSet
-    b,  = gradient(f -> logpdf(ds; f, d=d,       z...), zero_f)
-    a₀, = gradient(f -> logpdf(ds; f, d=zero(d), z...), zero_f)
-    A = FuncOp(f -> gradient(f -> logpdf(ds; f, d=zero(d), z...), f)[1] - a₀)
+    # brittle (but working) performance hack until we switch to Diffractor (see also flowops.jl)
+    task_local_storage(:AD_constants, keys(z)) do 
 
-    # eventually something generic like: A_preconditioner = preconditioner(ds)[:f]
-    A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
-    conjugate_gradient(A_preconditioner, A, b, zero_f; conjgrad_kwargs...)
+        # we solve A*x = b where A & b are computed from appropriate
+        # gradients of the logpdf in such as a way that the solution
+        # always gives the Wiener filter, independent of what the logpdf
+        # may be for this DataSet
+        b,  = gradient(f -> logpdf(ds; f, d=d,       z...), zero_f)
+        a₀, = gradient(f -> logpdf(ds; f, d=zero(d), z...), zero_f)
+        A = FuncOp(f -> gradient(f -> logpdf(ds; f, d=zero(d), z...), f)[1] - a₀)
+
+        # eventually something generic like: A_preconditioner = preconditioner(ds)[:f]
+        A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+        conjugate_gradient(A_preconditioner, A, b, zero_f; conjgrad_kwargs...)
+
+    end
 
 end
 
