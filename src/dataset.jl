@@ -78,81 +78,21 @@ end
 end
 
 
-
-
-@doc doc"""
-    resimulate(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
-
-Make a new DataSet with the data replaced by a simulation. Keyword
-argument fields will be used instead of new simulations, if they are
-provided. 
-
-Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
-"""
-resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
-
-@doc doc"""
-    resimulate!(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
-
-Replace the data in this DataSet in-place with a simulation. Keyword
-argument fields will be used instead of new simulations, if they are
-provided. 
-
-Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
-"""
-function resimulate!(
-    ds::DataSet; 
-    f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
-    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
-    rng=global_rng_for(ds.d), seed=nothing
-)
-
-    @unpack M,B,L,Cϕ,Cf,Cn,d = ds()
-    
-    if isnothing(f̃)
-        if isnothing(ϕ)
-            ϕ = simulate(Cϕ; Nbatch, rng, seed)
-        end
-        if isnothing(f)
-            f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
-        end
-        f̃ = L(ϕ)*f
-    else
-        f = ϕ = nothing
-    end
-    if isnothing(n)
-        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
-    end
-
-    ds.d = d = M*B*f̃ + n
-    
-    (;ds,f,ϕ,n,f̃,d)
-    
+@fwdmodel function (ds::BaseDataSet)(; f, ϕ, θ=(;), d)
+    @unpack Cf, Cϕ, Cn, L, M, B = ds
+    f ~ MvNormal(0, Cf(θ))
+    ϕ ~ MvNormal(0, Cϕ(θ))
+    μ = M(θ) * B(θ) * (L(ϕ) * f)
+    d ~ MvNormal(μ, Cn(θ))
 end
 
 
-function resimulate!(
-    ds::NoLensingDataSet; 
-    f=nothing, n=nothing,
-    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
-    rng=global_rng_for(ds.d), seed=nothing
-)
-
-    @unpack M,B,Cf,Cn,d = ds()
-    
-    if isnothing(f)
-        f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
-    end
-    if isnothing(n)
-        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
-    end
-
-    ds.d = d = M*B*f + n
-    
-    (;ds,f,n,d)
-    
+@fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d)
+    @unpack Cf, Cn, M, B = ds
+    f ~ MvNormal(0, Cf(θ))
+    μ = M(θ) * B(θ) * f
+    d ~ MvNormal(μ, Cn(θ))
 end
-
 
 
 @doc doc"""

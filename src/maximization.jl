@@ -1,80 +1,30 @@
 
 ## wiener filter
 
-@doc doc"""
-    argmaxf_lnP(ϕ,                ds::DataSet; kwargs...)
-    argmaxf_lnP(ϕ, θ, ds::DataSet; kwargs...)
-    argmaxf_lnP(Lϕ,               ds::DataSet; kwargs...)
-    
-Computes either the Wiener filter at fixed $\phi$, or a sample from this slice
-along the posterior.
-
-Keyword arguments: 
-
-* `which` — `:wf`, `:sample`, or `fluctuation` to compute 1) the Wiener filter,
-  i.e. the best-fit of $\mathcal{P}(f\,|\,\phi,d)$, 2) a sample from
-  $\mathcal{P}(f\,|\,\phi,d)$, or 3) a sample minus the Wiener filter, i.e. the
-  fluctuation on top of the mean.
-* `fstart` — starting guess for `f` for the conjugate gradient solver
-* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
-
-"""
-argmaxf_lnP(ϕ::Field,    ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), (;), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d),   θ, ds; kwargs...)
-
-function argmaxf_lnP(
-    Lϕ, 
-    θ,
-    ds::DataSet; 
+function argmaxf_logpdf(
+    ds :: DataSet,
+    z; 
     which = :wf, 
     fstart = nothing, 
     preconditioner = :diag, 
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
     
-    @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂ = ds(θ)
-    
-    Δ = d - nonCMB_data_components(θ,ds)
-    b = 0
-    if (which in (:wf, :sample))
-        b += Lϕ'*B'*M'*(Cn\Δ)
-    end
-    if (which in (:fluctuation, :sample))
-        ξf = simulate(Cf; d.Nbatch)
-        ξn = simulate(Cn; d.Nbatch)
-        b += Cf\ξf + Lϕ'*B'*M'*(Cn\ξn)
-    end
-    
-    A_diag  = pinv(Cf) +     B̂'*M̂'*pinv(Cn̂)*M̂*B̂
-    A_zeroϕ = pinv(Cf) +     B'*M'*pinv(Cn̂)*M*B
-    A       = pinv(Cf) + Lϕ'*B'*M'*pinv(Cn)*M*B*Lϕ
-    
-    A_preconditioner = @match preconditioner begin
-        :diag  => A_diag
-        :zeroϕ => FuncOp(op⁻¹ = (b -> (conjugate_gradient(A_diag, A_zeroϕ, b, zero(b); conjgrad_kwargs.tol))))
-        _      => error("Unrecognized preconditioner='$preconditioner'")
-    end
-    
-    conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero(b) : fstart); conjgrad_kwargs...)
-    
-end
+    @unpack d, Cf, B̂, M̂, Cn̂ = ds
+    zero_f = zero(diag(Cf))
 
+    # we solve A*x = b where A & b are computed from appropriate
+    # gradients of the logpdf in such as a way that the solution
+    # always gives the Wiener filter, independent of what the logpdf
+    # may be for this DataSet
+    b,  = gradient(f -> logpdf(ds; f, d=d,       z...), zero_f)
+    a₀, = gradient(f -> logpdf(ds; f, d=zero(d), z...), zero_f)
+    A = FuncOp(f -> gradient(f -> logpdf(ds; f, d=zero(d), z...), f)[1] - a₀)
 
-@doc doc"""
-    Σ(ϕ::Field,  ds; [conjgrad_kwargs])
-    Σ(Lϕ,        ds; [conjgrad_kwargs])
-    
-An operator for the data covariance, `Cn + M*B*L*Cf*L'*B'*M'`, which can
-applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
-`conjugate_gradient`.
-"""
-Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
-function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
-    @unpack d,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
-    SymmetricFuncOp(
-        op   = x -> (Cn + M*B*Lϕ*Cf*Lϕ'*B'*M')*x,
-        op⁻¹ = x -> conjugate_gradient((Cn̂ .+ M̂*B̂*Cf*B̂'*M̂'), Σ(Lϕ, ds), x; conjgrad_kwargs...)
-    )
+    # eventually something generic like: A_preconditioner = preconditioner(ds)[:f]
+    A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+    conjugate_gradient(A_preconditioner, A, b, zero_f; conjgrad_kwargs...)
+
 end
 
 

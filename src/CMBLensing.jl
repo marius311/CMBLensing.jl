@@ -130,12 +130,19 @@ include("bilinearlens.jl")
 function animate end
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
+# PPL
+include("distributions.jl")
+include("simpleppl.jl")
+
 # sampling and maximizing the posteriors
 include("dataset.jl")
 include("posterior.jl")
 include("maximization.jl")
 include("sampling.jl")
 include("chains.jl")
+
+# deprecated stuff
+include("deprecated.jl")
 
 # other estimates
 include("quadratic_estimate.jl")
@@ -146,10 +153,6 @@ include("autodiff.jl")
 # gpu
 is_gpu_backed(x) = false
 @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
-
-# PPL
-include("distributions.jl")
-include("simpleppl.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
