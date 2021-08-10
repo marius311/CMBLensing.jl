@@ -253,7 +253,7 @@ is by default the appropriate one depending on if `Σ` is backed by `Array` or
 
 The `seed` argument can also be used to seed the `rng`.
 """
-function simulate(Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...)
+function simulate(Σ::FieldOp; rng=global_rng_for(Σ), seed=nothing, kwargs...)
     isnothing(seed) || seed!(rng, seed)
     simulate(rng, Σ; kwargs...)
 end
