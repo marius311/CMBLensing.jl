@@ -145,11 +145,14 @@ function QUMap(f::EquiRectQUAzFourier)
     EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.proj)
 end
 
+# QUESTION: Any interest in keeping these? 
+# I use them a lot while I'm playing around and testing but ..
+# f[:] conflicts with the AbstractArray characterization and 
+# 
 Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
 Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
-
-Base.getindex(f::EquiRectS0, ::Colon) = Map(f).arr
-Base.getindex(f::EquiRectS2, ::Colon) = QUMap(f).arr
+Base.getindex(f::EquiRectS0, ::Colon)     = Map(f).arr
+Base.getindex(f::EquiRectS2, ::Colon)     = QUMap(f).arr
 
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
@@ -194,28 +197,18 @@ end
 
 Base.:*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
-function Base.:*(M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
+function Base.:*(M::BlockDiagEquiRect{B}, f::F) where {B<:Basis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    EquiRectAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
-end
-
-function Base.:*(M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
-    promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
+    F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
 # M' * f
 
 Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
-function Base.:*(M::Adjoint{T, BlockDiagEquiRect{AzFourier}}, f::EquiRectAzFourier) where T
+function Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::F) where {T, B<:Basis, F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
-    EquiRectAzFourier(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
-end
-
-function Base.:*(M::Adjoint{T, BlockDiagEquiRect{QUAzFourier}}, f::EquiRectQUAzFourier) where T
-    promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
-    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
+    F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
 
 # ## Linear Algebra: tullio accelerated (operator, operator)
@@ -297,28 +290,24 @@ end
 
 # ## mapblocks 
 
-# for operations like fun.(Mblocks,eachcol(f))
+# QUESTION: Is it possible to 
+
+# for operations like fun.(Mblocks, eachcol(f))
 
 function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
     mapblocks(fun, M, B(f))
 end
 
-function mapblocks(fun::Function, M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::F) where {B<:Basis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     Mfarr = similar(f.arr)
-    for i ∈ axes(M.blocks,3)
-        Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
+    y_    = eachcol(Mfarr)
+    x_    = eachcol(f.arr)
+    Mb_   = eachslice(M.blocks; dims = 3) 
+    for (y, x, Mb) in zip(y_, x_, Mb_)
+        y .= fun(Mb, x)
     end
-    EquiRectQUAzFourier(Mfarr, f.proj)
-end 
-
-function mapblocks(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
-    promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    Mfarr = similar(f.arr)
-    for i ∈ axes(M.blocks,3)
-        Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
-    end
-    EquiRectAzFourier(Mfarr, f.proj)
+    F(Mfarr, f.proj)
 end 
 
 # for operations like fun.(Mblocks...)
@@ -327,31 +316,48 @@ function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:Basis}
     map(M->promote_metadata_strict(M.proj, Ms[1].proj), Ms) 
     BlockDiagEquiRect{B}(
         map(
-            i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), 
+            i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), # This looks miserable:(
             axes(Ms[1].blocks,3),
         ),
         Ms[1].proj,
     )
 end 
 
-# TODO: add simulate
-
 # ## Other methods 
 
 function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
 end
-# function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-#     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
-# end
 
 # TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
 
-
-
-
 # Turning this on to see if it helps testing with ≈
 size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
+
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
+    @unpack Ny, Nx = M.proj
+    spin0_whitepix_mat = randn(T, M.proj.Ny, M.proj.Nx) # Note: T should be real here. Do we add T<:Real to method sig? 
+    spin0_whitepix_fld = EquiRectMap(spin0_whitepix_mat, M.proj)
+    mapblocks(M, spin0_whitepix_fld) do Mb, vb 
+        sqrt(Hermitian(Mb)) * vb
+    end
+end
+
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}) where {T}
+    @unpack Ny, Nx = M.proj
+    spin2_whitepix_mat = randn(Complex{T}, M.proj.Ny, M.proj.Nx)
+    spin2_whitepix_fld = EquiRectQUMap(spin2_whitepix_mat, M.proj)
+    mapblocks(M, spin2_whitepix_fld) do Mb, vb 
+        sqrt(Hermitian(Mb)) * vb
+    end
+end
+
+#TODO: it would be nice to have a simulate method that produced white noise ... 
+
+
+# function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
+#     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
+# end
 
 # function sqrt(L::BlockDiagEquiRect{B}) where {B}
 #     if !isassigned(L.blocks_sqrt)
@@ -366,11 +372,7 @@ size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 #     sqrt(L) * z
 # end
 
-# function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-#     @unpack Ny, Nx, θspan = L.proj
-#     z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
-#     sqrt(L) * z
-# end
+
 
 # covariance operators
 # ================================================

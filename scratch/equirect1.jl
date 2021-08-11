@@ -8,6 +8,7 @@ using PyPlot
 using BenchmarkTools
 using ProgressMeter
 using LinearAlgebra
+using Random
 using FFTW
 FFTW.set_num_threads(Threads.nthreads())
 
@@ -39,24 +40,9 @@ pj = @sblock let
     CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
 end;
 
-
-#-
-
-# Testing:
-@test pj.Ny == length(pj.θ)
-@test pj.Nx == length(pj.φ)
-
-#-
-
-# Testing: make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
-# and test that it is strictly increasing. 
-∂θ∂ = vcat(vcat(pj.θ∂[1:end-1]', pj.θ')[:],  pj.θ∂[end])
-@test all(diff(∂θ∂) .> 0)
-
-
 #- 
 
-# Testing:
+# Testing: just to verify the formula for Ω
 let θ∂ = [pi/2, 3pi/4, pi]
     Ω = 2π .* diff(.- cos.(θ∂))
     @test sum(Ω) ≈ 4pi/2
@@ -77,32 +63,6 @@ end
     ax.legend()
     return nothing
 end
-
-# Quick test
-# ============================
-
-#-
-
-ϕ = EquiRectMap(randn(Float64, pj.Ny, pj.Nx), pj)
-P = EquiRectQUMap(randn(ComplexF64, pj.Ny, pj.Nx), pj);
-
-#-
-
-ϕ′ = AzFourier(ϕ)    
-P′ = QUAzFourier(P);   
-
-#- 
-
-@test AzFourier(ϕ′) isa EquiRectAzFourier
-@test QUAzFourier(P′) isa EquiRectQUAzFourier
-
-@test all(Map(AzFourier(ϕ′)).arr .≈ ϕ′[:])
-@test all(QUMap(QUAzFourier(P′)).arr .≈ P′[:])
-
-#-
-
-@inferred 2 * ϕ + ϕ′
-@inferred 2 * P + P′;
 
 # Spectral densities
 # ==============================
@@ -219,72 +179,65 @@ Phi▪′  = BlockDiagEquiRect{QUAzFourier}([Phi▫[:,:,i] for i in axes(Phi▫,
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-
-ϕsim = let spin0_white_noise = EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
-    CMBLensing.mapblocks(Phi▪, spin0_white_noise) do M, v 
-        ## cholesky(Symmetric(M)).L * v # works
-        Matrix(sqrt(Symmetric(M))) * v  # works
-    end
-end;    
-
-Psim = let spin2_white_noise = EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj)
-    CMBLensing.mapblocks(EB▪, spin2_white_noise) do M, v 
-        ## cholesky(Hermitian(M)).L * v   # doesn't work .. why??
-        Matrix(sqrt(Hermitian(M))) * v  # works
-    end
-end;
+f0 = CMBLensing.simulate(MersenneTwister(), Phi▪)
+f2 = CMBLensing.simulate(MersenneTwister(), EB▪)
 
 
 # plot maps of the simulated fields.
 
-@sblock let ϕsim, Psim, hide_plots
+@sblock let f0, f2, hide_plots
     hide_plots && return
     fig,ax = subplots(3,figsize=(9,9))
-    ϕsim[:]  |> imshow(-, fig, ax[1])
-    Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
-    Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+    f0[:]  |> imshow(-, fig, ax[1])
+    f2[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
+    f2[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return nothing
 end
 
-# used later for tests 
+# Test for correct Fourier symmetry in monopole and nyquist f2 
 
-f0  = ϕsim
-f2  = Psim
+let f2kk = f2[!], f2xx = f2[:]
+
+    v = f2kk[1:end÷2,1]
+    w = f2kk[end÷2+1:end,1]
+    @test v ≈ conj.(w)
+
+    if iseven(size(f2xx,2))
+        v′ = f2kk[1:end÷2,end]
+        w′ = f2kk[end÷2+1:end,end]
+        @test v′ ≈ conj.(w′)
+    end
+
+end
 
 
 # Simulation with pre-computed sqrt 
 # =======================================
 
 
-EB▪½  = CMBLensing.mapblocks(EB▪) do M 
-    Matrix(sqrt(Hermitian(M)))
-end
-
 Phi▪½  = CMBLensing.mapblocks(Phi▪) do M 
     Matrix(sqrt(Hermitian(M)))
 end;
 
+EB▪½  = CMBLensing.mapblocks(EB▪) do M 
+    Matrix(sqrt(Hermitian(M)))
+end
+
 # generate simulation 
 
-ϕsim = Phi▪½ * EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
-Psim = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
+g0 = Phi▪½ * EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
+g2 = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
 
 # plot maps of the simulated fields
 
-@sblock let ϕsim, Psim, hide_plots
+@sblock let g0, g2, hide_plots
     hide_plots && return
     fig,ax = subplots(3,figsize=(9,9))
-    ϕsim[:]  |> imshow(-, fig, ax[1])
-    Psim[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
-    Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+    g0[:]  |> imshow(-, fig, ax[1])
+    g2[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
+    g2[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return nothing
 end
-
-# used later for tests 
-
-g0  = ϕsim
-g2  = Psim
-
 
 # Tests
 # =======================================
