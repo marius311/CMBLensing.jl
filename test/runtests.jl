@@ -663,8 +663,8 @@ end
         @test simulate(Cf2) isa EquiRectS2
         
         # pinv
-        @test (pinv(Cf0) * Cf0 * f0) ≈ Cf0
-        @test (pinv(Cf2) * Cf2 * f2) ≈ Cf2
+        @test (pinv(Cf0) * Cf0 * f0) ≈ f0
+        @test (pinv(Cf2) * Cf2 * f2) ≈ f2
         
         # logdet
         @test logdet(Cf0) isa Real

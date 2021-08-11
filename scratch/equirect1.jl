@@ -26,17 +26,19 @@ hide_plots = false
 # Set the grid geometry
 # ============================
 
-
 pj = @sblock let 
 
+    θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=128, type=:equiθ)
+    ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equiθ)
     ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equicosθ)
     ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=2048, type=:healpix)
-    θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equiθ)
 
-    φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-60, 60)), N=1024)
+    φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-36, 36)), N=2*128-1)
+    ## φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-60, 60)), N=1024)
 
     CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
 end;
+
 
 #-
 
@@ -152,7 +154,7 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
     prgss = Progress(nθ, 1, "EB▫, Phi▫")
     for k = 1:nθ
         for j = 1:nθ
-            Phiγⱼₖℓ⃗  = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Phi,  ptmW)
+            Phiγⱼₖℓ⃗       = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Phi,  ptmW)
             EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CC.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
             for ℓ = 1:nφ÷2+1
                 Jℓ = CC.Jperm(ℓ, nφ)
@@ -184,7 +186,7 @@ Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj);
 @sblock let EB▪, Phi▪, idx = 2, hide_plots
     hide_plots && return
     fig,ax = subplots(1,2,figsize=(9,5))
-    EB▪.blocks[:,:,idx]   .|> abs |> imshow(-, fig, ax[1])
+    EB▪.blocks[:,:,idx]  .|> abs |> imshow(-, fig, ax[1])
     Phi▪.blocks[:,:,idx] .|> abs |> imshow(-, fig, ax[2])
     return nothing
 end
@@ -220,13 +222,15 @@ Phi▪′  = BlockDiagEquiRect{QUAzFourier}([Phi▫[:,:,i] for i in axes(Phi▫,
 
 ϕsim = let spin0_white_noise = EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
     CMBLensing.mapblocks(Phi▪, spin0_white_noise) do M, v 
-        cholesky(Symmetric(M)).L * v
+        ## cholesky(Symmetric(M)).L * v # works
+        Matrix(sqrt(Symmetric(M))) * v  # works
     end
 end;    
 
 Psim = let spin2_white_noise = EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj)
     CMBLensing.mapblocks(EB▪, spin2_white_noise) do M, v 
-        cholesky(Hermitian(M)).L * v
+        ## cholesky(Hermitian(M)).L * v   # doesn't work .. why??
+        Matrix(sqrt(Hermitian(M))) * v  # works
     end
 end;
 
@@ -241,6 +245,11 @@ end;
     Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return nothing
 end
+
+# used later for tests 
+
+f0  = ϕsim
+f2  = Psim
 
 
 # Simulation with pre-computed sqrt 
@@ -270,6 +279,65 @@ Psim = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
     Psim[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return nothing
 end
+
+# used later for tests 
+
+g0  = ϕsim
+g2  = Psim
+
+
+# Tests
+# =======================================
+
+Cf0 = Phi▪
+Cf2 = EB▪
+
+# transform
+@test AzFourier(f0)[:]   ≈ f0[:]
+@test QUAzFourier(f2)[:] ≈ f2[:]
+@test Map(f0)[!]   ≈ f0[!]
+@test QUMap(f2)[!] ≈ f2[!]
+
+@test AzFourier(g0)[:]   ≈ g0[:]
+@test QUAzFourier(g2)[:] ≈ g2[:]
+@test Map(g0)[!]   ≈ g0[!]
+@test QUMap(g2)[!] ≈ g2[!]
+
+
+# dot product independent of basis
+@test dot(f0,f0) ≈ dot(Map(f0),Map(f0))     ≈ dot(AzFourier(f0), AzFourier(f0))
+@test dot(f2,f2) ≈ dot(QUMap(f2),QUMap(f2)) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
+
+# # creating block-diagonal covariance operators
+# @test (Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)) isa BlockDiagEquiRect
+# @test (Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)) isa BlockDiagEquiRect
+
+# sqrt
+@test (sqrt(Cf0) * sqrt(Cf0) * f0)[:] ≈ (Cf0 * f0)[:]
+@test (sqrt(Cf2) * sqrt(Cf2) * f2)[:] ≈ (Cf2 * f2)[:]
+
+# simulation
+# @test simulate(Cf0) isa EquiRectS0
+# @test simulate(Cf2) isa EquiRectS2
+
+# pinv
+@test (pinv(Cf0) * Cf0 * f0)[:] ≈ f0[:]
+@test (pinv(Cf2) * Cf2 * f2)[:] ≈ f2[:]
+
+# logdet
+@test logdet(Cf0) ≈ logabsdet(Cf0)
+@test logdet(Cf2) ≈ logabsdet(Cf2)
+
+# adjoint
+@test (f0' * (Cf0 * g0))[:] ≈ ((f0' * Cf0) * g0)[:]
+@test (f2' * (Cf2 * g2))[:] ≈ ((f2' * Cf2) * g2)[:]
+
+
+# gradients
+@test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
+@test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
+@test_real_gradient(α -> logdet(α * Cf0), 0)
+@test_real_gradient(α -> logdet(α * Cf2), 0)
 
 
 

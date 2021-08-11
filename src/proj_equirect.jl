@@ -83,16 +83,7 @@ end
 
 # Field Basis
 # ================================================
-# CirculantCov: βcovSpin2, βcovSpin0, geoβ,
-#multPP̄, multPP, periodize, Jperm # https://github.com/EthanAnderes/CirculantCov.jl
-
-# @init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
-# 
-# 
-# end
-
 """
-From CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493"...
 Jperm(ℓ::Int, n::Int) return the column number in the J matrix U^2
 where U is unitary FFT. The J matrix looks like this:
 
@@ -112,12 +103,12 @@ end
 # AzFourier <-> Map
 function AzFourier(f::EquiRectMap)
     nφ = f.Nx
-    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.metadata)
+    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.proj)
 end
 
 function Map(f::EquiRectAzFourier)
     nφ = f.Nx
-    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.metadata)
+    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.proj)
 end
 
 # QUAzFourier <-> QUMap
@@ -134,7 +125,7 @@ function QUAzFourier(f::EquiRectQUMap)
             f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
         end
     end
-    EquiRectQUAzFourier(f▫, f.metadata)
+    EquiRectQUAzFourier(f▫, f.proj)
 end
 
 function QUMap(f::EquiRectQUAzFourier)
@@ -152,7 +143,7 @@ function QUMap(f::EquiRectQUAzFourier)
             pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
         end
     end
-    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.metadata)
+    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.proj)
 end
 
 Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
@@ -188,7 +179,8 @@ function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:Proj
     BlockDiagEquiRect{B,P,T,A}(block_matrix, proj)
 end
 
-# Allows construction by a vector of blocks
+# The following allows construction by a vector of blocks
+
 function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractMatrix{T}}
     block_matrix = Array{T}(undef, size(vector_of_blocks[1])..., length(vector_of_blocks))
     for b in eachindex(vector_of_blocks)
@@ -197,26 +189,116 @@ function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:Ba
     BlockDiagEquiRect{B}(block_matrix, proj)
 end
 
-# ## Linear Algebra basics 
+# ## Linear Algebra: tullio accelerated (operator, field)
 
-*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
+# M * f
 
-function *(M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
+Base.:*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
+
+function Base.:*(M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    EquiRectAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
+    EquiRectAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
-function *(M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
+function Base.:*(M::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
+    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
-# TODO: Figure out how reduce duplication so I can define methods like this ...
+# M' * f
 
-# function *(M::BlockDiagEquiRect{T}, f::EquiRect{T}) where {T<:Az}
-# ...
+Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
-# ## mapblocks for fun.(Mblocks,eachcol(f))
+function Base.:*(M::Adjoint{T, BlockDiagEquiRect{AzFourier}}, f::EquiRectAzFourier) where T
+    promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
+    EquiRectAzFourier(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
+end
+
+function Base.:*(M::Adjoint{T, BlockDiagEquiRect{QUAzFourier}}, f::EquiRectQUAzFourier) where T
+    promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
+    EquiRectQUAzFourier(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
+end
+
+# ## Linear Algebra: tullio accelerated (operator, operator)
+
+# M₁ * M₂
+
+function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
+    promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * M₂.blocks[j,q,iₘ]), M₁.proj)
+end
+
+# M₁' * M₂
+
+function Base.:*(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
+    promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := conj(M₁.parent.blocks[j,p,iₘ]) * M₂.blocks[j,q,iₘ]), M₁.parent.proj)
+end
+
+# M₁ * M₂'
+
+function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
+    promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * conj(M₂.parent.blocks[q,j,iₘ])), M₁.proj)
+end
+
+# M₁ + M₂, M₁ - M₂, M₁ \ M₂, M₁ / M₂ ... also with mixed adjoints
+# QUESTION: some of these may be sped up with @tullio
+
+for op in (:+, :-, :/, :\)
+
+    quote 
+
+        function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
+            promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
+            BlockDiagEquiRect{B}(Array($op(M₁.blocks, M₂.blocks)), M₁.proj)
+        end
+
+        function Base.$op(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
+            promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
+            BlockDiagEquiRect{B}($op(M₁.parent.blocks', M₂.blocks), M₁.parent.proj)
+        end
+
+        function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
+            promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
+            BlockDiagEquiRect{B}($op(M₁.blocks, M₂.parent.blocks'), M₁.proj)
+        end
+
+    end |> eval 
+
+end
+
+# ## Linear Algebra: with arguments (operator, )
+
+# - M₁,  inv(M₁) and sqrt(M₁)
+# REMARK: use mapblocks if you want more specific dispatch
+
+for op in (:-, :sqrt, :inv, :pinv)
+
+    quote
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}) where {B<:Basis}
+            BlockDiagEquiRect{B}(
+                mapslices($op, M₁.blocks, dims = [1,2]), 
+                M₁.proj
+            )
+        end
+    end |> eval
+
+end
+
+# logdet and logabsdet
+
+function LinearAlgebra.logdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis} 
+    sum(logdet, eachslice(M₁.blocks; dims=3))
+end
+
+function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis} 
+    sum(x->logabsdet(x)[1], eachslice(M₁.blocks; dims=3))
+end
+
+# ## mapblocks 
+
+# for operations like fun.(Mblocks,eachcol(f))
 
 function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
     mapblocks(fun, M, B(f))
@@ -228,7 +310,7 @@ function mapblocks(fun::Function, M::BlockDiagEquiRect{QUAzFourier}, f::EquiRect
     for i ∈ axes(M.blocks,3)
         Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
     end
-    EquiRectQUAzFourier(Mfarr, f.metadata)
+    EquiRectQUAzFourier(Mfarr, f.proj)
 end 
 
 function mapblocks(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
@@ -237,58 +319,40 @@ function mapblocks(fun::Function, M::BlockDiagEquiRect{AzFourier}, f::EquiRectAz
     for i ∈ axes(M.blocks,3)
         Mfarr[:,i] = fun(M.blocks[:,:,i], f.arr[:,i])
     end
-    EquiRectAzFourier(Mfarr, f.metadata)
+    EquiRectAzFourier(Mfarr, f.proj)
 end 
 
-# ## mapblocks for fun.(Mblocks...)
+# for operations like fun.(Mblocks...)
 
 function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:Basis}
     map(M->promote_metadata_strict(M.proj, Ms[1].proj), Ms) 
     BlockDiagEquiRect{B}(
-        map(i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), axes(Ms[1].blocks,3)),
+        map(
+            i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), 
+            axes(Ms[1].blocks,3),
+        ),
         Ms[1].proj,
     )
 end 
+
+# TODO: add simulate
 
 # ## Other methods 
 
 function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
 end
-
 # function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
 #     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
 # end
 
-
-
-# ## make BlockDiagEquiRect an iterable over the last index
-# ... so that 
-#     `M½ = BlockDiagEquiRect{AzFourier}(sqrt.(Hermitian.(M)), M.proj)`
-# works
-# Base.parent(M::BlockDiagEquiRect) = M.blocks # for convienience
-# Base.length(M::BlockDiagEquiRect) = size(parent(M),3)
-# Base.eltype(::Type{BlockDiagEquiRect{B,P,T}}) where {B,P,T} = T 
-# Base.firstindex(M::BlockDiagEquiRect) = 1
-# Base.lastindex(M::BlockDiagEquiRect) = length(M)
-# Base.iterate(M::BlockDiagEquiRect) = (Σ=parent(M) ; isempty(Σ) ? nothing : (Σ[:,:,1],1))
-# Base.iterate(M::BlockDiagEquiRect, st) = st+1 > length(M) ? nothing : (parent(M)[:,:,st+1],  st+1)
-
-# function Base.getindex(M::BlockDiagEquiRect, i::Int) 
-#     1 <= i <= length(M) || throw(BoundsError(M, i))
-#     return parent(M)[:,:,i]
-# end
-
-# function Base.setindex!(M::BlockDiagEquiRect, m::Matrix, i::Int)
-#     1 <= i <= length(M) || throw(BoundsError(M, i))  
-#     setindex!(parent(M)[:,:,i], m)
-# end
+# TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
 
 
 
 
-
-# size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
+# Turning this on to see if it helps testing with ≈
+size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 
 # function sqrt(L::BlockDiagEquiRect{B}) where {B}
 #     if !isassigned(L.blocks_sqrt)
