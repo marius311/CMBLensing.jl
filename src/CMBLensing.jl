@@ -14,6 +14,7 @@ using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
     @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
+using EllipsisNotation
 using FileIO
 using FFTW
 using InteractiveUtils
@@ -46,6 +47,7 @@ using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
 using Statistics
 using StatsBase
 using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
+using Tullio
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd
@@ -69,22 +71,19 @@ import Statistics: std
 
 export
     @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
-    argmaxf_lnP, BandPassOp, BaseDataSet, batch, batch_index, batch_length, beamCℓs, cache,
-    CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, Cℓ_to_Cov, DataSet, DerivBasis,
-    diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, Field, FieldArray, fieldinfo,
-    FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
+    argmaxf_lnP, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
+    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
-    firsthalf, fixed_white_noise, FlatEB, FlatEBFourier, FlatEBMap, FlatField, 
-    FlatFourier, FlatIEBCov, FlatIEBFourier, FlatIEBMap,
-    FlatIQUFourier, FlatIQUMap, FlatMap, FlatQU, FlatQUFourier, FlatQUMap, FlatS0,
-    FlatS02, FlatS2, FlatS2Fourier, FlatS2Map, Fourier, FuncOp, get_max_lensing_step,
+    firsthalf, fixed_white_noise, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
-    IEBFourier, IEBMap, InterpolatedCℓs, IQUFourier, IQUMap, kde,
+    IEBFourier, IEBMap, InterpolatedCℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
-    ParamDependentOp, pixwin, PowerLens, ProjLambert, QUFourier, QUMap, resimulate!,
-    resimulate, RK4Solver, sample_joint, shiftℓ, 
+    ParamDependentOp, pixwin, PowerLens, ProjLambert, ProjEquiRect, ProjHealpix, project,
+    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
@@ -96,27 +95,33 @@ export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!,
     once_every, start_after_burnin, mass_matrix_ϕ, hmc_step
 
 
-# generic stuff
+# util
 include("util.jl")
 include("util_fft.jl")
 include("util_parallel.jl")
 include("numerical_algorithms.jl")
+
+# generic field / operator structure
 include("generic.jl")
 include("cls.jl")
 include("field_tuples.jl")
 include("field_vectors.jl")
+include("base_fields.jl")
 include("specialops.jl")
 include("flowops.jl")
 include("batched_reals.jl")
-include("base_fields.jl")
 
-# # lensing
+# lensing operators
 include("lenseflow.jl")
 include("powerlens.jl")
 
-# # flat-sky maps
-include("flat_proj.jl")
-include("flat_fields.jl")
+# field types
+include("proj_cartesian.jl")
+include("proj_lambert.jl")
+include("proj_equirect.jl")
+include("proj_healpix.jl")
+
+# other field-specific stuff
 include("masking.jl")
 include("taylens.jl")
 include("bilinearlens.jl")
@@ -125,7 +130,7 @@ include("bilinearlens.jl")
 function animate end
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
-# # sampling and maximizing the posteriors
+# sampling and maximizing the posteriors
 include("dataset.jl")
 include("posterior.jl")
 include("maximization.jl")
@@ -135,9 +140,7 @@ include("chains.jl")
 # other estimates
 include("quadratic_estimate.jl")
 
-# curved-sky
-include("healpix.jl")
-
+# AD
 include("autodiff.jl")
 
 # gpu
