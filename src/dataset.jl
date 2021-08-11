@@ -82,7 +82,7 @@ end
     @unpack Cf, Cϕ, Cn, L, M, B = ds
     f ~ MvNormal(0, Cf(θ))
     ϕ ~ MvNormal(0, Cϕ(θ))
-    μ = M(θ) * B(θ) * (L(ϕ) * f)
+    μ = M(θ) * (B(θ) * (L(ϕ) * f))
     d ~ MvNormal(μ, Cn(θ))
 end
 
@@ -90,8 +90,15 @@ end
 @fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d)
     @unpack Cf, Cn, M, B = ds
     f ~ MvNormal(0, Cf(θ))
-    μ = M(θ) * B(θ) * f
+    μ = M(θ) * (B(θ) * f)
     d ~ MvNormal(μ, Cn(θ))
+end
+
+# performance optimization (shouldn't need this once we have Diffractor)
+function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d)
+    @unpack Cf, Cϕ, Cn, L, M, B = ds
+    (Lϕ, Mθ, Bθ) = (L(ϕ), M(θ), B(θ))
+    Lϕ' * Bθ' * Mθ' * pinv(Cn(θ)) * (d - Mθ * Bθ * Lϕ * f) - pinv(Cf(θ)) * f
 end
 
 

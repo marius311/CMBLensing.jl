@@ -20,9 +20,9 @@ function argmaxf_logpdf(
         # gradients of the logpdf in such as a way that the solution
         # always gives the Wiener filter, independent of what the logpdf
         # may be for this DataSet
-        b,  = gradient(f -> logpdf(ds; f, d=d,       z...), zero_f)
-        a₀, = gradient(f -> logpdf(ds; f, d=zero(d), z...), zero_f)
-        A = FuncOp(f -> gradient(f -> logpdf(ds; f, d=zero(d), z...), f)[1] - a₀)
+        b  = gradientf_logpdf(ds; f=zero_f, d=d,       z...)
+        a₀ = gradientf_logpdf(ds; f=zero_f, d=zero(d), z...)
+        A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), z...) - a₀))
 
         # eventually something generic like: A_preconditioner = preconditioner(ds)[:f]
         A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
@@ -31,6 +31,11 @@ function argmaxf_logpdf(
     end
 
 end
+
+# allows specific DataSets to override this as a performance
+# optimization, since Zygote is ~50% slower than the old hand-written
+# code even after the above hack. shouldn't need this once we have Diffractor
+gradientf_logpdf(ds::DataSet; f, z...) = gradient(f -> logpdf(ds; f, z...), f)[1]
 
 
 
