@@ -70,7 +70,6 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
         @unpack (Ny, Nx, θspan, φspan) = kwargs
         θ, θ∂ = @ondemand(CirculantCov.θ_grid)(; θspan, N=Ny, type=:equiθ)
         φ, φ∂ = @ondemand(CirculantCov.φ_grid)(; φspan, N=Nx)
-        @show θ
     else
         arg_error()
     end
