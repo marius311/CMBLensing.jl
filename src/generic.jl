@@ -234,7 +234,7 @@ If `L` depends on `θ`, evaluates `logdet(L(θ))` offset by its fiducial value a
 `L()`. Otherwise, returns 0.
 """
 logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
-logdet(L::Int, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
+logdet(L::Union{Int,UniformScaling{Bool}}, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
 logdet(L, θ) = logdet(L)
 
 

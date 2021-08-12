@@ -94,7 +94,7 @@ function MAP_joint(
 )
 
     dsθ = copy(ds(θ))
-    dsθ.G = 1 # MAP estimate is invariant to G so avoid wasted computation
+    dsθ.G = I # MAP estimate is invariant to G so avoid wasted computation
 
     ϕ = Map(isnothing(ϕstart) ? zero(diag(ds.Cϕ)) : ϕstart)
     T = eltype(ϕ)
@@ -129,8 +129,8 @@ function MAP_joint(
         aggressive_gc && cuda_gc()
 
         # ϕ step
-        f°, = mix(f, ϕ, dsθ)
-        ∇ϕ_lnP, = @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)
+        f°, = mix(dsθ; f, ϕ)
+        ∇ϕ_lnP, = @⌛ gradient(ϕ->-2logpdf(mix(dsθ); f°, ϕ°=ϕ, ds.d), ϕ)
         s = -(Hϕ⁻¹ * ∇ϕ_lnP)
         αmax = 0.5 * get_max_lensing_step(ϕ, s)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α

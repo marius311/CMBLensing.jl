@@ -7,7 +7,7 @@ function Base.rand(rng::AbstractRNG, s::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}
 end
 function Distributions.logpdf(s::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field) where {T}
     z = s.μ - f
-    -(z' * Diagonal(s.Σ.inv_diag) * z) / 2
+    -(z' * Diagonal(s.Σ.inv_diag) * z + logdet(Diagonal(s.Σ.diag))) / 2
 end
 function Distributions.MvNormal(μ::Field, D::DiagOp)
     T = real(eltype(D))

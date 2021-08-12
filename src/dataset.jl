@@ -1,11 +1,10 @@
 
+### abstract DataSet
 
 abstract type DataSet end
 
 copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
-
 hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
-
 function show(io::IO, ds::DataSet)
     println(io, typeof(ds), ": ")
     ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
@@ -13,35 +12,6 @@ function show(io::IO, ds::DataSet)
         println(io, line)
     end
 end
-
-"""
-    set_distributed_dataset(ds, [storage])
-    get_distributed_dataset()
-
-Sometimes it's more performant to distribute a DataSet object to
-parallel workers just once, and have them refer to it from the global
-state, rather than having it get automatically but repeatedly sent as
-part of closures. This provides that functionality. Use
-`set_distributed_dataset(ds)` from the master process to set the
-global DataSet and `get_distributed_dataset()` from any process to
-retrieve it. Repeated calls will not resend `ds` if it hasn't changed
-(based on `hash(ds)`) and if no new workers have been added since the
-last send. The optional argument `storage` will also adapt the dataset
-to a particular storage on the workers, and can be a symbol, e.g.
-`:CuArray`, in the case that CUDA is not loaded on the master process.
-"""
-function set_distributed_dataset(ds, storage=nothing)
-    h = hash((procs(), ds, storage))
-    if h != _distributed_dataset_hash
-        @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
-        global _distributed_dataset_hash = h
-    end
-    nothing
-end
-get_distributed_dataset() = _distributed_dataset
-_distributed_dataset = nothing
-_distributed_dataset_hash = nothing
-
 function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
@@ -49,12 +19,16 @@ function (ds::DataSet)(θ)
     end...)
 end
 (ds::DataSet)(;θ...) = ds((;θ...))
-
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
+# mixed DataSet wrapper, 
+struct Mixed{DS<:DataSet} <: DataSet
+    ds :: DS
+end
+mix(ds::DataSet) = Mixed(ds)
 
 
-### Concrete DataSet objects
+### builtin DataSet objects
 
 @kwdef mutable struct NoLensingDataSet <: DataSet
     d                # data
@@ -100,6 +74,48 @@ function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d)
     (Lϕ, Mθ, Bθ) = (L(ϕ), M(θ), B(θ))
     Lϕ' * Bθ' * Mθ' * pinv(Cn(θ)) * (d - Mθ * Bθ * Lϕ * f) - pinv(Cf(θ)) * f
 end
+
+
+## mixing
+function Distributions.logpdf(mds::Mixed{<:DataSet}; f°, ϕ°, θ=(;), z...)
+    ds = mds.ds
+    logpdf(ds; unmix(ds; f°, ϕ°, θ)..., θ, z...) - logdet(ds.D, θ) - logdet(ds.G, θ)
+end 
+
+"""
+    mix(ds::DataSet; f, ϕ, [θ])
+    
+Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potential
+`ϕ`, given the definition of the mixing matrices in `ds` evaluated at parameters
+`θ` (or at fiducial values if no `θ` provided).
+"""
+function mix(ds::DataSet; f, ϕ, θ=(;))
+    @unpack D,G,L = ds
+    f° = L(ϕ) * D(θ) * f
+    ϕ° = G(θ) * ϕ
+    (; f°, ϕ°)
+end
+
+
+"""
+    unmix(f°, ϕ°,    ds::DataSet)
+    unmix(f°, ϕ°, θ, ds::DataSet)
+
+Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed
+lensing potential `ϕ°`, given the definition of the mixing matrices in `ds`
+evaluated at parameters `θ` (or at fiducial values if no `θ` provided). 
+"""
+function unmix(ds::DataSet; f°, ϕ°, θ=(;))
+    @unpack D,G,L = ds
+    ϕ = G(θ) \ ϕ°
+    f = D(θ) \ (L(ϕ) \ f°)
+    (; f, ϕ)
+end
+
+# maybe keep this
+lnPriorθ(θ, ds::DataSet) = 0
+
+
 
 
 @doc doc"""
@@ -313,3 +329,34 @@ function load_nolensing_sim(;
     ds_nl = NoLensingDataSet(; d, Cf=Cf_nl, Cn, Cn̂, M, M̂, B, B̂)
     (;f, f̃, ϕ, n, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
 end
+
+
+### distributed DataSet
+
+"""
+    set_distributed_dataset(ds, [storage])
+    get_distributed_dataset()
+
+Sometimes it's more performant to distribute a DataSet object to
+parallel workers just once, and have them refer to it from the global
+state, rather than having it get automatically but repeatedly sent as
+part of closures. This provides that functionality. Use
+`set_distributed_dataset(ds)` from the master process to set the
+global DataSet and `get_distributed_dataset()` from any process to
+retrieve it. Repeated calls will not resend `ds` if it hasn't changed
+(based on `hash(ds)`) and if no new workers have been added since the
+last send. The optional argument `storage` will also adapt the dataset
+to a particular storage on the workers, and can be a symbol, e.g.
+`:CuArray`, in the case that CUDA is not loaded on the master process.
+"""
+function set_distributed_dataset(ds, storage=nothing)
+    h = hash((procs(), ds, storage))
+    if h != _distributed_dataset_hash
+        @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
+        global _distributed_dataset_hash = h
+    end
+    nothing
+end
+get_distributed_dataset() = _distributed_dataset
+_distributed_dataset = nothing
+_distributed_dataset_hash = nothing

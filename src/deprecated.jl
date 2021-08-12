@@ -31,6 +31,8 @@ function argmaxf_lnP(
     preconditioner = :diag, 
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
+
+    Base.depwarn("`argmaxf_lnP` is deprecated, use `argmaxf_logpdf` instead.", :argmaxf_lnP, force=true)
     
     @unpack d, Cn, Cn̂, Cf, M, M̂, B, B̂ = ds(θ)
     
@@ -72,6 +74,7 @@ applied and inverted. `conjgrad_kwargs` are passed to the underlying call to
 """
 Σ(ϕ::Field, ds; kwargs...) = Σ(ds.L(ϕ), ds; kwargs...)
 function Σ(Lϕ, ds; conjgrad_kwargs=(tol=1e-1,nsteps=500))
+    Base.depwarn("`Σ` is deprecated and will be removed in a future version.", :Σ, force=true)
     @unpack d,M,B,Cn,Cf,Cn̂,B̂,M̂ = ds
     SymmetricFuncOp(
         op   = x -> (Cn + M*B*Lϕ*Cf*Lϕ'*B'*M')*x,
@@ -105,6 +108,8 @@ lnP(t, fₜ, ϕₜ,    ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, (;), ds)
 lnP(t, fₜ, ϕₜ, θ, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ,  θ,  ds)
 
 function lnP(::Val{t}, fₜ, ϕ, θ, ds::DataSet) where {t}
+
+    Base.depwarn("`lnP(t, f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, θ, ds.d, ...)` instead.", :lnP, force=true)
     
     @unpack Cn,Cf,Cϕ,L,M,B,d = ds
     
@@ -135,7 +140,9 @@ lnP(   f,    ds::NoLensingDataSet) = lnP(f, (;), ds)
 lnP(_, f, θ, ds::NoLensingDataSet) = lnP(f, θ,   ds)
 
 function lnP(f, θ, ds::NoLensingDataSet)
-    
+
+    Base.depwarn("`lnP(f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, ds.d, ...)` instead.", :lnP, force=true)
+
     @unpack Cn,Cf,M,B,d = ds
     
     Δ = d - M(θ)*B(θ)*f - nonCMB_data_components(θ,ds)
@@ -147,6 +154,23 @@ function lnP(f, θ, ds::NoLensingDataSet)
         + lnPriorθ(θ,ds)
     )
 
+end
+
+### mixing
+
+unmix(f°, ϕ°, ds::DataSet) = unmix(f°,ϕ°,(;),ds)
+function unmix(f°, ϕ°, θ, ds::DataSet)
+    Base.depwarn("`unmix(f°, ϕ°, θ, ds)` is deprecated, use `unmix(ds; f°, ϕ°, θ)` instead.", :unmix, force=true)
+    @unpack D,G,L = ds(θ)
+    ϕ = G\ϕ°
+    D\(L(ϕ)\f°), ϕ
+end
+
+mix(f, ϕ, ds::DataSet) = mix(f,ϕ,(;),ds)
+function mix(f, ϕ, θ, ds::DataSet)
+    Base.depwarn("`mix(f, ϕ, θ, ds)` is deprecated, use `mix(ds; f, ϕ, θ)` instead.", :mix, force=true)
+    @unpack D,G,L = ds(θ)
+    L(ϕ)*D*f, G*ϕ
 end
 
 
@@ -179,6 +203,8 @@ function resimulate!(
     rng=global_rng_for(ds.d), seed=nothing
 )
 
+    Base.depwarn("`resimulate(ds)` is deprecated, use `simulate(ds)` instead.", :resimulate, force=true)
+
     @unpack M,B,L,Cϕ,Cf,Cn,d = ds()
     
     if isnothing(f̃)
@@ -209,6 +235,8 @@ function resimulate!(
     Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
     rng=global_rng_for(ds.d), seed=nothing
 )
+
+    Base.depwarn("`resimulate(ds)` is deprecated, use `simulate(ds)` instead.", :resimulate, force=true)
 
     @unpack M,B,Cf,Cn,d = ds()
     
