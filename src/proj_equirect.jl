@@ -241,17 +241,17 @@ for op in (:+, :-, :/, :\)
 
     quote 
 
-        function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
             promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
             BlockDiagEquiRect{B}(Array($op(M₁.blocks, M₂.blocks)), M₁.proj)
         end
 
-        function Base.$op(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
+        function LinearAlgebra.$op(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
             promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
             BlockDiagEquiRect{B}($op(M₁.parent.blocks', M₂.blocks), M₁.parent.proj)
         end
 
-        function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
             promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
             BlockDiagEquiRect{B}($op(M₁.blocks, M₂.parent.blocks'), M₁.proj)
         end
@@ -288,11 +288,16 @@ function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis}
     sum(x->logabsdet(x)[1], eachslice(M₁.blocks; dims=3))
 end
 
-# ## mapblocks 
 
-# QUESTION: Is it possible to 
+# dot products
 
-# for operations like fun.(Mblocks, eachcol(f))
+LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = real(dot(a[:], b[:]))
+
+
+
+# mapblocks 
+# =====================================
+
 
 function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
     mapblocks(fun, M, B(f))
@@ -323,54 +328,43 @@ function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:Basis}
     )
 end 
 
-# ## Other methods 
-
-function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
-end
+# ## Other methods
+# ========================================= 
 
 # TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
 
-# Turning this on to see if it helps testing with ≈
-size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 
-function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-    @unpack Ny, Nx = M.proj
-    spin0_whitepix_mat = randn(T, M.proj.Ny, M.proj.Nx) # Note: T should be real here. Do we add T<:Real to method sig? 
-    spin0_whitepix_fld = EquiRectMap(spin0_whitepix_mat, M.proj)
+### simulation
+
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Real}
+    EquiRectMap(randn(T, pj.Ny, pj.Nx), pj)
+end
+
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Complex}
+    EquiRectQUMap(randn(T, pj.Ny, pj.Nx), pj)
+end
+
+function simulate(M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}, rng::AbstractRNG) where {T}
+    spin0_whitepix_fld = white_noise(real(T), M.proj, rng) 
     mapblocks(M, spin0_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
     end
 end
 
-function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}) where {T}
-    @unpack Ny, Nx = M.proj
-    spin2_whitepix_mat = randn(Complex{T}, M.proj.Ny, M.proj.Nx)
-    spin2_whitepix_fld = EquiRectQUMap(spin2_whitepix_mat, M.proj)
+function simulate(M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}, rng::AbstractRNG) where {T}
+    spin2_whitepix_fld = white_noise(Complex{real(T)}, M.proj, rng) 
     mapblocks(M, spin2_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
     end
 end
 
-#TODO: it would be nice to have a simulate method that produced white noise ... 
+# adapt_structure
 
+function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
+    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
+end
 
-# function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-#     BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
-# end
-
-# function sqrt(L::BlockDiagEquiRect{B}) where {B}
-#     if !isassigned(L.blocks_sqrt)
-#         L.blocks_sqrt[] = mapslices(sqrt, L.blocks, dims=(1,2))
-#     end
-#     BlockDiagEquiRect{B}(L.blocks_sqrt[], L.proj)
-# end
-
-# function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-#     @unpack Ny, Nx, θspan = L.proj
-#     z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
-#     sqrt(L) * z
-# end
+Base.size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
 
 
 

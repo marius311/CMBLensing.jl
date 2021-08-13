@@ -67,7 +67,7 @@ end
 # Spectral densities
 # ==============================
 
-ℓ, CEEℓ, CBBℓ, CΦΦℓ = @sblock let ℓmax = 11000
+ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ = @sblock let ℓmax = 11000, beamfwhm_arcmin = 30 
 	ℓ    = 0:ℓmax
 	Cℓ   = camb(;r=0.01, ℓmax);
 	CBBℓ = Cℓ.tensor.BB(ℓ)
@@ -77,7 +77,11 @@ end
 		cl[.!isfinite.(cl)] .= 0
 	end
 
-	return ℓ, CEEℓ, CBBℓ, CΦΦℓ
+    beamfwhm_rad = beamfwhm_arcmin |> arcmin -> deg2rad(arcmin/60)
+    σ²    = beamfwhm_rad^2 / 8 / log(2)
+    CBeamℓ = @. exp( - σ²*l*(l+1) / 2)
+
+	return ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ
 end
 
 @sblock let hide_plots, ℓ, CEEℓ, CBBℓ, CΦΦℓ
@@ -96,6 +100,8 @@ end
 
 # Block diagonal cov matrices
 # ==============================
+
+# TODO: still need to check the spin(+2) or spin(-2) sta
 
 EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
 
@@ -179,8 +185,8 @@ Phi▪′  = BlockDiagEquiRect{QUAzFourier}([Phi▫[:,:,i] for i in axes(Phi▫,
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-f0 = CMBLensing.simulate(MersenneTwister(), Phi▪)
-f2 = CMBLensing.simulate(MersenneTwister(), EB▪)
+f0 = CMBLensing.simulate(Phi▪, MersenneTwister())
+f2 = CMBLensing.simulate(EB▪, MersenneTwister())
 
 
 # plot maps of the simulated fields.
@@ -246,6 +252,12 @@ Cf0 = Phi▪
 Cf2 = EB▪
 
 # transform
+
+@test AzFourier(f0)   ≈ f0
+@test QUAzFourier(f2) ≈ f2
+@test Map(f0)   ≈ f0
+@test QUMap(f2) ≈ f2
+
 @test AzFourier(f0)[:]   ≈ f0[:]
 @test QUAzFourier(f2)[:] ≈ f2[:]
 @test Map(f0)[!]   ≈ f0[!]
@@ -266,24 +278,28 @@ Cf2 = EB▪
 # @test (Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)) isa BlockDiagEquiRect
 
 # sqrt
-@test (sqrt(Cf0) * sqrt(Cf0) * f0)[:] ≈ (Cf0 * f0)[:]
-@test (sqrt(Cf2) * sqrt(Cf2) * f2)[:] ≈ (Cf2 * f2)[:]
+@test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0)
+@test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2)
 
 # simulation
 # @test simulate(Cf0) isa EquiRectS0
 # @test simulate(Cf2) isa EquiRectS2
 
 # pinv
-@test (pinv(Cf0) * Cf0 * f0)[:] ≈ f0[:]
-@test (pinv(Cf2) * Cf2 * f2)[:] ≈ f2[:]
+@test (pinv(Cf0) * Cf0 * f0) ≈ f0
+@test (pinv(Cf2) * Cf2 * f2) ≈ f2
+
+@test (Cf0 \ (Cf0 * f0)) ≈ f0
+@test (Cf2 \ (Cf2 * f2)) ≈ f2
+
 
 # logdet
 @test logdet(Cf0) ≈ logabsdet(Cf0)
 @test logdet(Cf2) ≈ logabsdet(Cf2)
 
 # adjoint
-@test (f0' * (Cf0 * g0))[:] ≈ ((f0' * Cf0) * g0)[:]
-@test (f2' * (Cf2 * g2))[:] ≈ ((f2' * Cf2) * g2)[:]
+@test (f0' * (Cf0 * g0)) ≈ ((f0' * Cf0) * g0)
+@test (f2' * (Cf2 * g2)) ≈ ((f2' * Cf2) * g2)
 
 
 # gradients
