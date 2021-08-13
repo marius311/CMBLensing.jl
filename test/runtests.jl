@@ -32,6 +32,16 @@ using Zygote
 
 ##
 
+try
+    using CirculantCov
+catch
+    using Pkg
+    Pkg.add("https://github.com/EthanAnderes/CirculantCov.jl")
+    using CirculantCov
+end
+
+##
+
 macro test_real_gradient(f, x, tol=:(rtol=1e-3))
     esc(:(@test real(gradient($f,$x)[1]) ≈ central_fdm(5,1)($f,$x) $tol))
 end
