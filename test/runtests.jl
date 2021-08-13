@@ -654,6 +654,12 @@ end
         @test Map(AzFourier(f0)) ≈ f0
         @test QUMap(QUAzFourier(f2)) ≈ f2
 
+        # transform (testing equality independent of dot)
+        @test AzFourier(f0)[:]   ≈ f0[:]
+        @test QUAzFourier(f2)[:] ≈ f2[:]
+        @test Map(f0)[!]   ≈ f0[!]
+        @test QUMap(f2)[!] ≈ f2[!]
+
         # dot product independent of basis
         @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
         @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
@@ -678,6 +684,9 @@ end
         @test logdet(Cf0) isa Real
         @test logdet(Cf2) isa Real
 
+        @test logdet(Cf0) ≈ logabsdet(Cf0)
+        @test logdet(Cf2) ≈ logabsdet(Cf2)
+
         # adjoint
         g0 = simulate(Cf0)
         g2 = simulate(Cf2)
@@ -689,6 +698,19 @@ end
         @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
         @test_real_gradient(α -> logdet(α * Cf0), 0)
         @test_real_gradient(α -> logdet(α * Cf2), 0)
+
+        # Test for correct Fourier symmetry in monopole and nyquist f2 
+        let f2kk = f2[!], f2xx = f2[:]
+            v = f2kk[1:end÷2,1]
+            w = f2kk[end÷2+1:end,1]
+            @test v ≈ conj.(w)
+            if iseven(size(f2xx,2))
+                v′ = f2kk[1:end÷2,end]
+                w′ = f2kk[end÷2+1:end,end]
+                @test v′ ≈ conj.(w′)
+            end
+        end
+
 
     end
 

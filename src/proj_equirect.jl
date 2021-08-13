@@ -1,3 +1,7 @@
+# TODO: still need to check the spin(+2) or spin(-2) sta
+# TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
+
+
 # Type defs
 # ================================================
 
@@ -19,7 +23,6 @@ end
 
 struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}  <: ImplicitOp{T}
     blocks :: A
-    ## blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
     proj :: P
 end
 
@@ -288,16 +291,13 @@ function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis}
     sum(x->logabsdet(x)[1], eachslice(M₁.blocks; dims=3))
 end
 
-
 # dot products
 
 LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = real(dot(a[:], b[:]))
 
 
-
 # mapblocks 
 # =====================================
-
 
 function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
     mapblocks(fun, M, B(f))
@@ -331,9 +331,6 @@ end
 # ## Other methods
 # ========================================= 
 
-# TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
-
-
 ### simulation
 
 function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Real}
@@ -365,7 +362,6 @@ function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
 end
 
 Base.size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
-
 
 
 # covariance operators

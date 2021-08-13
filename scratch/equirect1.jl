@@ -61,8 +61,8 @@ end
     ax.plot(pj.θ, rad2deg.(diff(pj.θ∂))*60, label="Δθ (arcmin)")
     ax.set_xlabel(L"polar coordinate $\theta$")
     ax.legend()
-    return nothing
-end
+    return fig
+end;
 
 # Spectral densities
 # ==============================
@@ -79,7 +79,7 @@ end
 
     beamfwhm_rad = beamfwhm_arcmin |> arcmin -> deg2rad(arcmin/60)
     σ²    = beamfwhm_rad^2 / 8 / log(2)
-    CBeamℓ = @. exp( - σ²*l*(l+1) / 2)
+    CBeamℓ = @. exp( - σ²*ℓ*(ℓ+1) / 2)
 
 	return ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ
 end
@@ -89,7 +89,7 @@ end
 	fig, ax = subplots(2)
 	ax[1].plot(ℓ, @. ℓ^2*CEEℓ)
 	ax[1].plot(ℓ, @. ℓ^2*CBBℓ)
-	ax[2].plot(ℓ, @. ℓ^4*CΦΦℓ)
+    ax[2].plot(ℓ, @. ℓ^4*CΦΦℓ)
 	ax[1].set_xscale("log")
 	ax[2].set_xscale("log")
 	ax[1].set_yscale("log")
@@ -101,30 +101,36 @@ end
 # Block diagonal cov matrices
 # ==============================
 
-# TODO: still need to check the spin(+2) or spin(-2) sta
+EB▪, Beam▪, Phi▪  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ, pj
 
-EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
-
-    nθ, nφ = length(θ), length(φ)
+    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
+    nθ, nφ  = length(θ), length(φ)
 
     Γ_Phi  = CC.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CΦΦℓ; ngrid=50_000)
+    Γ_Beam = CC.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CBeamℓ; ngrid=50_000)
     ΓC_EB  = CC.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)
-
-    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
 
     T     = ComplexF64 # ComplexF32
     rT    = real(T)
     EB▫   = zeros(T,2nθ,2nθ,nφ÷2+1)
+    Beam▫ = zeros(rT,2nθ,2nθ,nφ÷2+1)
     Phi▫  = zeros(rT,nθ,nθ,nφ÷2+1)
+    
+    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
 
-    prgss = Progress(nθ, 1, "EB▫, Phi▫")
+    prgss = Progress(nθ, 1, "EB▫, Phi▫, Beam▫")
     for k = 1:nθ
         for j = 1:nθ
             Phiγⱼₖℓ⃗       = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Phi,  ptmW)
+            Beamγⱼₖℓ⃗      = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Beam, ptmW)
             EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CC.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
             for ℓ = 1:nφ÷2+1
                 Jℓ = CC.Jperm(ℓ, nφ)
                 Phi▫[j,k, ℓ] = real(Phiγⱼₖℓ⃗[ℓ])
+
+                Beam▫[j,   k   , ℓ] = real(Beamγⱼₖℓ⃗[ℓ])  * Ω[k]
+                Beam▫[j+nθ,k+nθ, ℓ] = real(Beamγⱼₖℓ⃗[Jℓ]) * Ω[k]
+
                 EB▫[j,   k   , ℓ]   = EBγⱼₖℓ⃗[ℓ]
                 EB▫[j,   k+nθ, ℓ]   = EBξⱼₖℓ⃗[ℓ]
                 EB▫[j+nθ,k   , ℓ]   = conj(EBξⱼₖℓ⃗[Jℓ])
@@ -137,14 +143,12 @@ EB▫, Phi▫  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, θ=pj.θ, φ=pj.φ
     @show Base.summarysize(EB▫) / 1e9
     @show Base.summarysize(Phi▫)  / 1e9
 
-    return EB▫, Phi▫
+    EB▪   = BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
+    Beam▪ = BlockDiagEquiRect{QUAzFourier}(Beam▫, pj)
+    Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj)
+
+    return EB▪, Beam▪, Phi▪ 
 end;
-
-
-# TODO: add summary for BlockDiagEquiRect
-
-EB▪   = BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
-Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj);
 
 
 # Testing out indexing
@@ -154,8 +158,8 @@ Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj);
     fig,ax = subplots(1,2,figsize=(9,5))
     EB▪.blocks[:,:,idx]  .|> abs |> imshow(-, fig, ax[1])
     Phi▪.blocks[:,:,idx] .|> abs |> imshow(-, fig, ax[2])
-    return nothing
-end
+    return fig
+end;
 
 
 # Testing out indexing
@@ -167,38 +171,44 @@ end
     ax[1].semilogy(eigen(Hermitian(EB▪.blocks[:,:,idx2])).values)
     ax[2].semilogy(eigen(Symmetric(Phi▪.blocks[:,:,idx1])).values)
     ax[2].semilogy(eigen(Symmetric(Phi▪.blocks[:,:,idx2])).values)
-    return nothing
-end
-
-# Test the vector of matrices constructor 
-
-EB▪′  = BlockDiagEquiRect{QUAzFourier}([EB▫[:,:,i] for i in axes(EB▫,3)], pj)
-@test EB▪′.blocks == EB▪.blocks
-
-#-
-
-Phi▪′  = BlockDiagEquiRect{QUAzFourier}([Phi▫[:,:,i] for i in axes(Phi▫,3)], pj)
-@test Phi▪′.blocks == Phi▪.blocks
+    return fig
+end;
 
 
 
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-f0 = CMBLensing.simulate(Phi▪, MersenneTwister())
-f2 = CMBLensing.simulate(EB▪, MersenneTwister())
+f0  = CMBLensing.simulate(Phi▪, MersenneTwister())
+f2  = CMBLensing.simulate(EB▪, MersenneTwister())
+f2′ = Beam▪ * f2
+
+# plot maps of the simulated fields.
+
+@sblock let f0, hide_plots
+    hide_plots && return
+    fig,ax = subplots(1,figsize=(8,4))
+    f0[:]  |> imshow(-, fig, ax)
+    ax.set_title("Phi sim") 
+    return fig
+end;
 
 
 # plot maps of the simulated fields.
 
-@sblock let f0, f2, hide_plots
+@sblock let f2, f2′, hide_plots
     hide_plots && return
-    fig,ax = subplots(3,figsize=(9,9))
-    f0[:]  |> imshow(-, fig, ax[1])
-    f2[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
-    f2[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
-    return nothing
-end
+    fig,ax = subplots(2,2, figsize=(12,8))
+    f2[:] .|> real |> imshow(-, fig, ax[1,1])  # Qsim
+    f2[:] .|> imag |> imshow(-, fig, ax[2,1])  # Usim
+    f2′[:] .|> real |> imshow(-, fig, ax[1,2]) # Beamed Qsim
+    f2′[:] .|> imag |> imshow(-, fig, ax[2,2]) # Beamed Usim
+    ax[1,1].set_title("Q sim") 
+    ax[2,1].set_title("U sim") 
+    ax[1,2].set_title("Beamed Q sim") 
+    ax[2,2].set_title("Beamed U sim") 
+    return fig
+end;
 
 # Test for correct Fourier symmetry in monopole and nyquist f2 
 
@@ -238,12 +248,12 @@ g2 = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
 
 @sblock let g0, g2, hide_plots
     hide_plots && return
-    fig,ax = subplots(3,figsize=(9,9))
+    fig,ax = subplots(3,figsize=(6,9))
     g0[:]  |> imshow(-, fig, ax[1])
     g2[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
     g2[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
-    return nothing
-end
+    return fig
+end;
 
 # Tests
 # =======================================
@@ -282,8 +292,8 @@ Cf2 = EB▪
 @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2)
 
 # simulation
-# @test simulate(Cf0) isa EquiRectS0
-# @test simulate(Cf2) isa EquiRectS2
+@test simulate(Cf0) isa EquiRectS0
+@test simulate(Cf2) isa EquiRectS2
 
 # pinv
 @test (pinv(Cf0) * Cf0 * f0) ≈ f0
