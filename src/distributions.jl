@@ -2,12 +2,12 @@
 using Distributions
 using Distributions: PDiagMat
 
-function Base.rand(rng::AbstractRNG, s::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}})
-    s.μ + simulate(rng, Diagonal(s.Σ.diag))
+function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=nothing)
+    dist.μ + simulate(rng, Diagonal(dist.Σ.diag); Nbatch)
 end
-function Distributions.logpdf(s::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field) where {T}
-    z = s.μ - f
-    -(z' * Diagonal(s.Σ.inv_diag) * z + logdet(Diagonal(s.Σ.diag))) / 2
+function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field) where {T}
+    z = dist.μ - f
+    -(z' * Diagonal(dist.Σ.inv_diag) * z + logdet(Diagonal(dist.Σ.diag))) / 2
 end
 function Distributions.MvNormal(μ::Field, D::DiagOp)
     T = real(eltype(D))

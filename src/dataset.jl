@@ -21,6 +21,10 @@ end
 (ds::DataSet)(;θ...) = ds((;θ...))
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
+# called when simulating a DataSet, this gets the batching right
+simulate(rng::AbstractRNG, ds::DataSet, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}) = 
+    rand(rng, dist; Nbatch = isnothing(ds.d) ? nothing : ds.d.Nbatch)
+
 # mixed DataSet wrapper, 
 struct Mixed{DS<:DataSet} <: DataSet
     ds :: DS
@@ -50,8 +54,7 @@ end
     Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
 end
 
-
-@fwdmodel function (ds::BaseDataSet)(; f, ϕ, θ=(;), d)
+@fwdmodel function (ds::BaseDataSet)(; f, ϕ, θ=(;), d=ds.d)
     @unpack Cf, Cϕ, Cn, L, M, B = ds
     f ~ MvNormal(0, Cf(θ))
     ϕ ~ MvNormal(0, Cϕ(θ))
@@ -60,8 +63,7 @@ end
     d ~ MvNormal(μ, Cn(θ))
 end
 
-
-@fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d)
+@fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d=ds.d)
     @unpack Cf, Cn, M, B = ds
     f ~ MvNormal(0, Cf(θ))
     μ = M(θ) * (B(θ) * f)
@@ -69,7 +71,7 @@ end
 end
 
 # performance optimization (shouldn't need this once we have Diffractor)
-function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d)
+function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d=ds.d)
     @unpack Cf, Cϕ, Cn, L, M, B = ds
     (Lϕ, Mθ, Bθ) = (L(ϕ), M(θ), B(θ))
     Lϕ' * Bθ' * Mθ' * pinv(Cn(θ)) * (d - Mθ * Bθ * Lϕ * f) - pinv(Cf(θ)) * f
@@ -308,7 +310,7 @@ function load_sim(;
     end
 
     if Nbatch > 1
-        ds.d *= batch(ones(Int,Nbatch))
+        d = ds.d *= batch(ones(Int,Nbatch))
         ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     

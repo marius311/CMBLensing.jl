@@ -8,17 +8,18 @@ macro fwdmodel(def)
     sdef = splitdef(def)
 
     model_type = @capture(sdef[:name], (_::T_)) ? T : :(typeof($(sdef[:name])))
+    @capture(sdef[:name], (model_name_::_) | model_name_)
     maybe_local_var = [] # only "maybe" b/c the simple thing here is too conservative c.f. inner functions / let blocks
     @capture(sdef[:name], (var_::_)) && push!(maybe_local_var, var)
        
-    missing_default(ex) = isexpr(ex, :kw) ? ex : Expr(:kw, ex, missing)
-
     # simulate
+    rand_vars = []
     body_simulate = postwalk(sdef[:body]) do x
         if @capture(x, ((vars__,) | var_) = rhs_)
             vars != nothing ? append!(maybe_local_var, vars) : push!(maybe_local_var, var)
         elseif @capture(x, var_ ~ dist_)
-            return :(ismissing($var) ? (_vars[$(QuoteNode(var))] = $var = rand(rng, $dist)) : (_vars[$(QuoteNode(var))] = $var))
+            push!(rand_vars, var)
+            return :(ismissing($var) ? (_vars[$(QuoteNode(var))] = $var = $simulate(rng, $model_name, $dist)) : (_vars[$(QuoteNode(var))] = $var))
         elseif @capture(x, var_ ← rhs_)
             return :(_vars[$(QuoteNode(var))] = $var = $rhs)
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
@@ -33,8 +34,12 @@ macro fwdmodel(def)
         end
         return x
     end
-    args_simulate = [[:(::$Simulate),:_vars, :rng]; map(missing_default, sdef[:args])]
-    kwargs_simulate = map(missing_default, sdef[:kwargs])
+    function arg_default(ex)
+        var = isexpr(ex, :kw) ? ex.args[1] : ex
+        var in rand_vars ? Expr(:kw, var, missing) : ex
+    end
+    args_simulate = [[:(::$Simulate),:_vars, :rng]; map(arg_default, sdef[:args])]
+    kwargs_simulate = map(arg_default, sdef[:kwargs])
     def_simulate = combinedef(Dict(:name=>sdef[:name], :args=>args_simulate, :kwargs=>kwargs_simulate, :body=>body_simulate, :whereparams=>sdef[:whereparams]))
     
     # logpdf
@@ -65,6 +70,8 @@ macro fwdmodel(def)
         $def_logpdf
     end)
 end
+
+simulate(rng::AbstractRNG, model, dist::Sampleable) = rand(rng, dist)
 
 simulate(model, args...; kwargs...) = simulate(Random.default_rng(), model, args...; kwargs...)
 function simulate(rng::AbstractRNG, model, args...; kwargs...)

@@ -46,15 +46,15 @@ lnP(t, fₜ, ϕₜ,    ds::DataSet) = lnP(Val(t), fₜ, ϕₜ, (;), ds)
 lnP(t, fₜ, ϕₜ, θ, ds::DataSet) = lnP(Val(t), fₜ, ϕₜ,  θ,  ds)
 function lnP(::Val{t}, fₜ, ϕ, θ, ds::DataSet) where {t}
     if t == 0
-        Base.depwarn("`lnP(0, f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, θ, ds.d)` instead.", :lnP0, force=true)
-        logpdf(ds; f=fₜ, ϕ, θ, ds.d)
+        Base.depwarn("`lnP(0, f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, θ)` instead.", :lnP0, force=true)
+        logpdf(ds; f=fₜ, ϕ, θ)
     else
         error("lnP(1, f, ϕ, θ, ds) has been removed.")
     end
 end
 function lnP(::Val{:mix}, f°, ϕ°, θ, ds::DataSet)
-    Base.depwarn("`lnP(:mix, f°, ϕ°, θ, ds)` is deprecated, use `logpdf(Mixed(ds); f°, ϕ°, θ, ds.d)` instead.", :lnPmix, force=true)
-    logpdf(Mixed(ds); f°, ϕ°, θ, ds.d)
+    Base.depwarn("`lnP(:mix, f°, ϕ°, θ, ds)` is deprecated, use `logpdf(Mixed(ds); f°, ϕ°, θ)` instead.", :lnPmix, force=true)
+    logpdf(Mixed(ds); f°, ϕ°, θ)
 end
 function nonCMB_data_components(θ, ds::DataSet)
     error("`nonCMB_data_components` is removed in favor of defining a custom `@fwdmodel`.")
@@ -65,8 +65,8 @@ end
 lnP(   f,    ds::NoLensingDataSet) = lnP(f, (;), ds)
 lnP(_, f, θ, ds::NoLensingDataSet) = lnP(f, θ,   ds)
 function lnP(f, θ, ds::NoLensingDataSet)
-    Base.depwarn("`lnP(f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, ds.d, ...)` instead.", :lnP0, force=true)
-    logpdf(ds; f, θ, ds.d)
+    Base.depwarn("`lnP(f, ϕ, θ, ds)` is deprecated, use `logpdf(ds; f, ϕ, θ)` instead.", :lnP0, force=true)
+    logpdf(ds; f, θ)
 end
 
 ### mixing

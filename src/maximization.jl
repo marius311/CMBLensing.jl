@@ -158,7 +158,7 @@ function MAP_joint(
 
         # ϕ step
         f°, = mix(dsθ; f, ϕ)
-        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ, ds.d), ϕ)
+        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ), ϕ)
         s = (Hϕ⁻¹ * ∇ϕ_logpdf)
         αmax = 0.5 * get_max_lensing_step(ϕ, s)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
@@ -173,7 +173,7 @@ function MAP_joint(
         total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
-            ("logpdf",     map(x->@sprintf("%.2f",x), unbatch(_logpdf))),
+            ("logpdf",     *(map(x->@sprintf("%.2f, ",x), unbatch(_logpdf))...)[1:end-2]),
             ("α",          α), 
             ("CG",         "$(length(argmaxf_logpdf_history)) iterations"), 
             ("Linesearch", "$(soln.iterations) bisections")
