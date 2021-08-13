@@ -25,13 +25,12 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 struct Mixed{DS<:DataSet} <: DataSet
     ds :: DS
 end
-mix(ds::DataSet) = Mixed(ds)
 
 
 ### builtin DataSet objects
 
 @kwdef mutable struct NoLensingDataSet <: DataSet
-    d                # data
+    d = nothing      # data
     Cf               # unlensed field covariance
     Cn               # noise covariance
     Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
@@ -56,7 +55,8 @@ end
     @unpack Cf, Cϕ, Cn, L, M, B = ds
     f ~ MvNormal(0, Cf(θ))
     ϕ ~ MvNormal(0, Cϕ(θ))
-    μ = M(θ) * (B(θ) * (L(ϕ) * f))
+    f̃ ← L(ϕ) * f
+    μ = M(θ) * (B(θ) * f̃)
     d ~ MvNormal(μ, Cn(θ))
 end
 
@@ -194,8 +194,8 @@ function load_sim(;
     fiducial_θ = (;),
     rfid = nothing,
     
-    rng = global_rng_for(storage),
     seed = nothing,
+    rng = MersenneTwister(seed),
     D = nothing,
     G = nothing,
     Nϕ_fac = 2,
@@ -256,7 +256,7 @@ function load_sim(;
     if (M == nothing)
         Mfourier = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
+            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(copy(rng),Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
         else
             Mpix = I
         end
@@ -285,11 +285,11 @@ function load_sim(;
     Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
 
     # put everything in DataSet
-    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
+    ds = BaseDataSet(;Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
     
     # simulate data
-    @unpack ds,f,f̃,ϕ,n = resimulate(ds; rng, seed)
-
+    @unpack f,f̃,ϕ,d = simulate(rng, ds)
+    ds.d = d
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
     ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
@@ -312,7 +312,7 @@ function load_sim(;
         ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     
-    return (;f, f̃, ϕ, n, ds, ds₀=ds(), Cℓ, proj)
+    return (;f, f̃, ϕ, d, ds, ds₀=ds(), Cℓ, proj)
     
 end
 

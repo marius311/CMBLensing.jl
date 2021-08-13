@@ -81,9 +81,9 @@ export
     IEBFourier, IEBMap, InterpolatedCℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, Mixed, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, ProjEquiRect, ProjHealpix, project,
-    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_joint, shiftℓ, 
+    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
@@ -136,7 +136,6 @@ include("simpleppl.jl")
 
 # sampling and maximizing the posteriors
 include("dataset.jl")
-include("posterior.jl")
 include("maximization.jl")
 include("sampling.jl")
 include("chains.jl")

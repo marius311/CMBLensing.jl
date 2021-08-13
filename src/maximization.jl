@@ -1,40 +1,72 @@
 
 ## wiener filter
 
+@doc doc"""
+    argmaxf_logpdf(ds::DataSet, z::NamedTuple, [d = ds.d]; kwargs...)
+
+Maximize the `logpdf` for `ds` over `f`, given all the other arguments
+are held fixed at `z`. E.g.: `argmaxf_logpdf(ds, (; ϕ, θ=(Aϕ=1.1,))`.
+
+Keyword arguments: 
+
+* `fstart` — starting guess for `f` for the conjugate gradient solver
+* `conjgrad_kwargs` — Passed to the inner call to
+  [`conjugate_gradient`](@ref)
+
+"""
 function argmaxf_logpdf(
     ds :: DataSet,
-    z; 
-    which = :wf, 
+    z :: NamedTuple, 
+    d = ds.d;
     fstart = nothing, 
     preconditioner = :diag, 
     conjgrad_kwargs = (tol=1e-1,nsteps=500)
 )
     
-    @unpack d, Cf, B̂, M̂, Cn̂ = ds
+    @unpack Cf, B̂, M̂, Cn̂ = ds
+
+    # TODO: generalize this to something like: A_preconditioner = preconditioner(ds)[:f]
+    A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+
     zero_f = zero(diag(Cf))
 
     # brittle (but working) performance hack until we switch to Diffractor (see also flowops.jl)
     task_local_storage(:AD_constants, keys(z)) do 
 
-        # we solve A*x = b where A & b are computed from appropriate
-        # gradients of the logpdf in such as a way that the solution
-        # always gives the Wiener filter, independent of what the logpdf
-        # may be for this DataSet
-        b  = gradientf_logpdf(ds; f=zero_f, d=d,       z...)
-        a₀ = gradientf_logpdf(ds; f=zero_f, d=zero(d), z...)
+        # the following will give the argmax for any model with Gaussian P(f,d|z...)
+        b  = -gradientf_logpdf(ds; f=zero_f, d=d,       z...)
+        a₀ =  gradientf_logpdf(ds; f=zero_f, d=zero(d), z...)
         A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), z...) - a₀))
-
-        # eventually something generic like: A_preconditioner = preconditioner(ds)[:f]
-        A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
-        conjugate_gradient(A_preconditioner, A, b, zero_f; conjgrad_kwargs...)
+        conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero_f : fstart); conjgrad_kwargs...)
 
     end
 
 end
 
+@doc doc"""
+    sample_f([rng::AbstractRNG], ds::DataSet, z::NamedTuple, [d = ds.d]; kwargs...)
+
+Draw a posterior sample of `f` from the `logpdf` for `ds`, given all the other arguments are
+held fixed at `z`. E.g.: `sample_f(ds, (; ϕ, θ=(Aϕ=1.1,))`.
+
+Keyword arguments: 
+
+* `fstart` — starting guess for `f` for the conjugate gradient solver
+* `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
+
+"""
+function sample_f(rng::AbstractRNG, ds::DataSet, z, d=ds.d; kwargs...)
+    # the following will give a sapmle for any model with Gaussian P(f,d|z...)
+    sim = simulate(rng, ds; z...)
+    sim.f + argmaxf_logpdf(ds, z, d - sim.d; kwargs...)[1]
+end
+sample_f(ds::DataSet, args...; kwargs...) = sample_f(Random.default_rng(), ds, args...; kwargs...)
+
+
 # allows specific DataSets to override this as a performance
 # optimization, since Zygote is ~50% slower than the old hand-written
-# code even after the above hack. shouldn't need this once we have Diffractor
+# code even after the above hack. shouldn't need this once we have
+# Diffractor. the following is the fallback which just uses Zygote:
 gradientf_logpdf(ds::DataSet; f, z...) = gradient(f -> logpdf(ds; f, z...), f)[1]
 
 
@@ -88,8 +120,7 @@ function MAP_joint(
     progress::Bool = true,
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     quasi_sample = false,
-    preconditioner = :diag,
-    history_keys = (:lnP,),
+    history_keys = (:logpdf,),
     aggressive_gc = false
 )
 
@@ -107,50 +138,47 @@ function MAP_joint(
     Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
 
     history = []
-    argmaxf_lnP_kwargs = (
-        which = (quasi_sample==false) ? :wf : :sample,
-        preconditioner = preconditioner,
-        conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...),
-    )
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
     ProgressMeter.update!(pbar)
 
-    f = prevf = prevϕ = prev_∇ϕ_lnP = nothing
+    f = prevf = prevϕ = prev_∇ϕ_logpdf = nothing
  
     for step = 1:nsteps
 
         # f step
         isa(quasi_sample,Int) && seed!(global_rng_for(ϕ), quasi_sample)
-        (f, argmaxf_lnP_history) = @⌛ argmaxf_lnP(
-            ϕ, θ, dsθ;
+        sample_or_argmax_f = quasi_sample ? sample_f : argmaxf_logpdf
+        (f, argmaxf_logpdf_history) = @⌛ sample_or_argmax_f(
+            dsθ, 
+            (;ϕ, θ);
             fstart = prevf, 
-            argmaxf_lnP_kwargs...
+            conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...)
         )
         aggressive_gc && cuda_gc()
 
         # ϕ step
         f°, = mix(dsθ; f, ϕ)
-        ∇ϕ_lnP, = @⌛ gradient(ϕ->-2logpdf(mix(dsθ); f°, ϕ°=ϕ, ds.d), ϕ)
-        s = -(Hϕ⁻¹ * ∇ϕ_lnP)
+        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ, ds.d), ϕ)
+        s = (Hϕ⁻¹ * ∇ϕ_logpdf)
         αmax = 0.5 * get_max_lensing_step(ϕ, s)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            χ² = @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ+α*s,dsθ))))
-            isnan(χ²) ? T(α/αmax) * prevfloat(T(Inf)) : χ² # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
+            total_logpdf = @⌛(sum(unbatch(-logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, dsθ.d))))
+            isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
         ϕ += α * s
         
         # finalize
-        χ²s = @⌛ -2lnP(:mix,f°,ϕ,dsθ)
-        χ² = sum(unbatch(χ²s))
+        _logpdf = @⌛ logpdf(Mixed(dsθ); f°, ϕ°=ϕ, dsθ.d)
+        total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
-            ("χ²",         χ²s), 
+            ("logpdf",     map(x->@sprintf("%.2f",x), unbatch(_logpdf))),
             ("α",          α), 
-            ("CG",         "$(length(argmaxf_lnP_history)) iterations"), 
+            ("CG",         "$(length(argmaxf_logpdf_history)) iterations"), 
             ("Linesearch", "$(soln.iterations) bisections")
         ])
-        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
+        push!(history, select((;f,f°,ϕ,∇ϕ_logpdf,total_logpdf,α,logpdf=_logpdf,Hϕ⁻¹,argmaxf_logpdf_history), history_keys))
         if (
             !isnothing(ϕtol) &&
             !isnothing(prevϕ) &&
@@ -159,10 +187,10 @@ function MAP_joint(
             break
         else
             if step > nburnin_update_hessian
-                Hϕ⁻¹_unsmooth = Diagonal(abs.(Fourier(ϕ - prevϕ) ./ Fourier(∇ϕ_lnP - prev_∇ϕ_lnP)))
+                Hϕ⁻¹_unsmooth = Diagonal(abs.(Fourier(ϕ - prevϕ) ./ Fourier(∇ϕ_logpdf - prev_∇ϕ_logpdf)))
                 Hϕ⁻¹ = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(Hϕ⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
             end
-            prevf, prevϕ, prev_∇ϕ_lnP = f, ϕ, ∇ϕ_lnP
+            prevf, prevϕ, prev_∇ϕ_logpdf = f, ϕ, ∇ϕ_logpdf
         end
 
     end
@@ -188,6 +216,7 @@ MAP_marg(ds::DataSet; kwargs...) = MAP_marg((;), ds; kwargs...)
 function MAP_marg(
     θ,
     ds :: DataSet;
+    rng = Random.default_rng(),
     ϕstart = nothing,
     nsteps = 10, 
     nsteps_with_meanfield_update = 4,
@@ -212,8 +241,6 @@ function MAP_marg(
     T = real(eltype(d))
     
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
-    f_sims = [simulate(Cf; Nbatch) for i=1:Nsims÷Nbatch]
-    n_sims = [simulate(Cn; Nbatch) for i=1:Nsims÷Nbatch]
     f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
     f_wf_prev = nothing
     ḡ = nothing
@@ -231,21 +258,22 @@ function MAP_marg(
 
         # generate simulated data for the current ϕ
         Lϕ = L(ϕ)
-        d_sims = map(f_sims, n_sims) do f,n
-            resimulate(dsθ, f̃=Lϕ*f, n=n).d
+        _rng = copy(rng)
+        d_sims = map(1:Nsims) do _
+            simulate(_rng, dsθ; ϕ).d
         end
 
         # gradient of data and mean-field sims
 
         function gMAP(Lϕ, dsθ, f_wf_prev, i)
-            f_wf, history = argmaxf_lnP(
-                Lϕ, θ, dsθ;
-                which = :wf,
+            f_wf, history = argmaxf_logpdf(
+                dsθ, 
+                (;ϕ, θ);
                 fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
                 conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
             )
             aggressive_gc && cuda_gc()
-            g, = gradient(ϕ -> lnP(0, f_wf, ϕ, dsθ), getϕ(Lϕ))
+            g, = gradient(ϕ -> logpdf(dsθ; f=f_wf, ϕ, dsθ.d), getϕ(Lϕ))
             progress && next!(pbar, showvalues=[
                 ("step", step),
                 ("α",    α),
