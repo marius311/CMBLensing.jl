@@ -45,7 +45,7 @@ macro fwdmodel(def)
     # logpdf
     body_logpdf = postwalk(sdef[:body]) do x
         if @capture(x, var_ ~ dist_)
-            return :(_logpdf[] += logpdf($dist, $var); $var)
+            return :(_logpdf[] += $logpdf($dist, $var); $var)
         elseif @capture(x, var_ ← rhs_)
             return :($var = $rhs)
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
