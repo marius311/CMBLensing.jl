@@ -36,7 +36,7 @@ try
     using CirculantCov
 catch
     using Pkg
-    Pkg.add("https://github.com/EthanAnderes/CirculantCov.jl")
+    Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")
     using CirculantCov
 end
 
