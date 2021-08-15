@@ -318,6 +318,46 @@ Cf2 = EB▪
 @test_real_gradient(α -> logdet(α * Cf0), 0)
 @test_real_gradient(α -> logdet(α * Cf2), 0)
 
+###
+
+
+θspan  = (π/2 .- deg2rad.((-40,-70)))
+φspan  = deg2rad.((-60, 60))
+φspanᵒ = deg2rad.((-50, 50))
+Cℓ = camb()
+
+# non-periodic
+proj = ProjEquiRect(;Ny=128, Nx=128, θspan, φspan=φspanᵒ)
+@test proj.Ny == proj.Nx == length(proj.θ) == length(proj.φ) == 128 
+
+# constructor doesnt error
+Nsides_big = [(128,128), (64,128), (128,64)]
+Nside = Nsides_big[1]
+f0 = EquiRectMap(rand(Nside...); θspan, φspan)
+f2 = EquiRectQUMap(rand(ComplexF64, Nside...); θspan, φspan)
+
+proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
+f0 = EquiRectMap(rand(Nside...), proj)
+f2 = EquiRectQUMap(rand(ComplexF64, Nside...), proj)
+
+@test f0 isa EquiRectMap
+@test f2 isa EquiRectQUMap
+
+# transform
+@test Map(AzFourier(f0)) ≈ f0
+@test QUMap(QUAzFourier(f2)) ≈ f2
+
+# transform (testing equality independent of dot)
+@test AzFourier(f0)[:]   ≈ f0[:]
+@test QUAzFourier(f2)[:] ≈ f2[:]
+@test Map(f0)[!]   ≈ f0[!]
+@test QUMap(f2)[!] ≈ f2[!]
+
+@test AzFourier(f0)[:]   ≈ f0[:]
+@test QUAzFourier(f2)[:] ≈ f2[:]
+@test Map(f0)[:]   ≈ f0[:]
+@test QUMap(f2)[:] ≈ f2[:]
+
 
 
 # TODO:
@@ -326,3 +366,22 @@ Cf2 = EB▪
 #   ... probably just need a negative spin 2 option in CirculantCov 
 # • add + and adjoint to the linear algebra methods for BlockDiagEquiRect's
 # • get tests working, including incorperating CirculantCov.jl stuff with @ondemand
+
+
+
+let Nside = (128,128), θspan  = (π/2 .- deg2rad.((-40,-70))), φspanᵒ = deg2rad.((-50, 50))
+
+
+    proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
+    f0 = EquiRectMap(rand(Nside...), proj)
+    f2 = EquiRectQUMap(rand(ComplexF64, Nside...), proj)
+
+    @test f0 isa EquiRectMap
+    @test f2 isa EquiRectQUMap
+
+    # transform
+    @test Map(AzFourier(f0)) ≈ f0
+    @test QUMap(QUAzFourier(f2)) ≈ f2
+
+end
+

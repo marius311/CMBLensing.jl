@@ -647,8 +647,12 @@ end
         @test projΔφspan == inputΔφspan
     
         # constructor doesnt error
-        @test (f0 = EquiRectMap(rand(Nside...); θspan, φspan)) isa EquiRectMap
-        @test (f2 = EquiRectQUMap(rand(Nside...), rand(Nside...); θspan, φspan)) isa EquiRectQUMap
+        proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
+        f0   = EquiRectMap(randn(Nside...), proj)
+        f2   = EquiRectQUMap(randn(ComplexF64, Nside...), proj)
+
+        @test f0 isa EquiRectMap
+        @test f2 isa EquiRectQUMap
 
         # transform
         @test Map(AzFourier(f0)) ≈ f0
