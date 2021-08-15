@@ -66,7 +66,7 @@ macro fwdmodel(def)
 
     esc(quote
         $def_simulate
-        @eval $CMBLensing.is_simpleppl_model(::$(Expr(:$, model_type))) = true
+        $CMBLensing.is_simpleppl_model(::$model_type) where {$(sdef[:whereparams]...)} = true
         $def_logpdf
     end)
 end

@@ -14,6 +14,8 @@ using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
     @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
+using Distributions
+using Distributions: PDiagMat
 using EllipsisNotation
 using FileIO
 using FFTW

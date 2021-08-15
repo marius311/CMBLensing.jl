@@ -1,7 +1,4 @@
 
-using Distributions
-using Distributions: PDiagMat
-
 function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=nothing)
     dist.μ + simulate(rng, Diagonal(dist.Σ.diag); Nbatch)
 end
@@ -9,10 +6,9 @@ function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f
     z = dist.μ - f
     -(z' * Diagonal(dist.Σ.inv_diag) * z + logdet(Diagonal(dist.Σ.diag))) / 2
 end
-function Distributions.MvNormal(μ::Field, D::DiagOp)
-    T = real(eltype(D))
-    Σ = PDiagMat{T, typeof(diag(D))}(length(diag(D)), diag(D), diag(pinv(D)))
-    MvNormal{T,typeof(Σ),typeof(μ)}(μ, Σ)
+function Distributions.MvNormal(μ::Field, D::Diagonal{T,<:Field{<:Basis,T}}) where {T<:Union{Real,Complex}}
+    Σ = PDiagMat{real(T),typeof(diag(D))}(length(diag(D)), diag(D), diag(pinv(D)))
+    MvNormal{real(T),typeof(Σ),typeof(μ)}(μ, Σ)
 end
 function Distributions.MvNormal(μ::Real, D::DiagOp)
     MvNormal(μ*one(diag(D)), D)
