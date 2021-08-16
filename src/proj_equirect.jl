@@ -38,11 +38,6 @@ end
     θspan = (Float64.(sort(collect(θspan)))...,)
     ϕspan = (Float64.(sort(collect(ϕspan)))...,)
 
-    ϕspan_ratio = 2π / abs(-(ϕspan...))
-    if !(ϕspan_ratio ≈ round(Int, ϕspan_ratio))
-        error("ϕspan=$ϕspan must span integer multiple of 2π")
-    end
-
     ProjEquiRect{T}(Ny, Nx, θspan, ϕspan, storage)
 
 end
@@ -124,7 +119,12 @@ Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} =
 
     function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
         @unpack Ny, Nx, θspan, ϕspan = proj
-        ϕspan_ratio = round(Int, 2π / abs(-(ϕspan...)))
+        ϕspan_ratio = 2π / abs(-(ϕspan...))
+        if !(ϕspan_ratio ≈ round(Int, ϕspan_ratio))
+            error("ϕspan=$ϕspan must span integer multiple of 2π")
+        else
+            ϕspan_ratio = round(Int, ϕspan_ratio)
+        end
         Cℓ = T.(nan2zero.(Cℓ[0:ℓmax]))
         Nm = Nx÷2+1
         θs = T.(range(reverse(θspan)..., length=Ny))
