@@ -23,7 +23,7 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 
 # called when simulating a DataSet, this gets the batching right
 simulate(rng::AbstractRNG, ds::DataSet, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}) = 
-    rand(rng, dist; Nbatch = isnothing(ds.d) ? nothing : ds.d.Nbatch)
+    rand(rng, dist; Nbatch = isnothing(ds.d) ? nothing : batch_length(ds.d))
 
 # mixed DataSet wrapper, 
 struct Mixed{DS<:DataSet} <: DataSet
