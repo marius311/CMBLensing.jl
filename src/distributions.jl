@@ -2,7 +2,7 @@
 function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=nothing)
     dist.μ + simulate(rng, Diagonal(dist.Σ.diag); Nbatch)
 end
-function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field) where {T}
+function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field)
     z = dist.μ - f
     -(z' * Diagonal(dist.Σ.inv_diag) * z + logdet(Diagonal(dist.Σ.diag))) / 2
 end

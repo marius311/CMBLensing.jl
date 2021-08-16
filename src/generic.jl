@@ -173,7 +173,7 @@ unknown_rule_error(::typeof(promote_basis_strict_rule), ::B₁, ::B₂) where {B
 # lensing basis is Map for S0 but QUMap for S2.
 (::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
 (::Type{B})(f′::Field, f::F) where {F<:Field,B<:Basislike} = B(F)(f′,f)
-(::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
+(::Type{B})(a::AbstractArray{<:Field}, as::AbstractArray{<:Field}...) where {B<:Basis} = B.(a,as...)
 
 # B(f) where B is a basis converts f to that basis. This is the fallback if the
 # field is already in the right basis.
