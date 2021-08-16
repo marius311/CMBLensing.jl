@@ -586,8 +586,8 @@ end
 
             δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.6)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.6)
+            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=1.3)
+            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=1.3)
             
         end
         
