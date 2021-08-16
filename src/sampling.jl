@@ -77,56 +77,56 @@ Monte-Carlo samples of each of the parameters.
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(lnP::Function, range::AbstractVector; progress=false, kwargs...)
-    lnPs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(lnP, range)
-    grid_and_sample(lnPs, range; progress=progress, kwargs...)
+function grid_and_sample(logpdf::Function, range::AbstractVector; progress=false, kwargs...)
+    logpdfs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(logpdf, range)
+    grid_and_sample(logpdfs, range; progress=progress, kwargs...)
 end
 
-function grid_and_sample(lnPs::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
-    batches = [grid_and_sample(batch_index.(lnPs,i), xs; kwargs...) for i=1:batch_length(lnPs[1])]
+function grid_and_sample(logpdf::Vector{<:BatchedReal}, xs::AbstractVector; kwargs...)
+    batches = [grid_and_sample(batch_index.(logpdf,i), xs; kwargs...) for i=1:batch_length(logpdf[1])]
     ((batch(getindex.(batches,i)) for i=1:3)...,)
 end
 
-function grid_and_sample(lnPs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, require_convex=false)
+function grid_and_sample(logpdfs::Vector, xs::AbstractVector; progress=false, nsamples=1, span=0.25, require_convex=false)
     
     # trim leading/trailing zero-probability regions
-    support = findnext(isfinite,lnPs,1):findprev(isfinite,lnPs,length(lnPs))
+    support = findnext(isfinite,logpdfs,1):findprev(isfinite,logpdfs,length(logpdfs))
     xs = xs[support]
-    lnPs = lnPs[support]
+    logpdfs = logpdfs[support]
     
     if require_convex
-        support = longest_run_of_trues(finite_second_derivative(lnPs) .< 0)
+        support = longest_run_of_trues(finite_second_derivative(logpdfs) .< 0)
         xs = xs[support]
-        lnPs = lnPs[support]
+        logpdfs = logpdfs[support]
     end
 
     # interpolate PDF
     xmin, xmax = first(xs), last(xs)
-    lnPs = lnPs .- maximum(lnPs)
-    ilnP = loess(xs, lnPs, span=span)
+    logpdfs = logpdfs .- maximum(logpdfs)
+    interp_logpdfs = loess(xs, logpdfs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
-    cdf(x) = quadgk(nan2zero∘exp∘ilnP,xmin,x,rtol=1e-3)[1]
+    cdf(x) = quadgk(nan2zero∘exp∘interp_logpdfs,xmin,x,rtol=1e-3)[1]
     logA = nan2zero(log(cdf(xmax)))
-    lnPs = (ilnP.ys .-= logA)
-    ilnP.bs[:,1] .-= logA
+    logpdfs = (interp_logpdfs.ys .-= logA)
+    interp_logpdfs.bs[:,1] .-= logA
     
     # draw samples via inverse transform sampling
     θsamples = @showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
         if (cdf(xmin)-r)*(cdf(xmax)-r) >= 0
-            first(lnPs) > last(lnPs) ? xmin : xmax
+            first(logpdfs) > last(logpdfs) ? xmin : xmax
         else
             fzero(x->cdf(x)-r, xmin, xmax, xatol=(xmax-xmin)*1e-3)
         end
     end
     
-    (nsamples==1 ? θsamples[1] : θsamples), ilnP, lnPs
+    (nsamples==1 ? θsamples[1] : θsamples), interp_logpdfs, logpdfs
     
 end
 
-function grid_and_sample(lnP::Function, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
-    NamedTuple{S}.(Ref.(grid_and_sample(x -> lnP(NamedTuple{S}(x)), first(range); kwargs...)))
+function grid_and_sample(logpdf::Function, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
+    NamedTuple{S}.(Ref.(grid_and_sample(x -> logpdf(NamedTuple{S}(x)), first(range); kwargs...)))
 end
 
 # allow more convenient evaluation of Loess-interpolated functions
@@ -198,7 +198,6 @@ function sample_joint(
     θrange = (;),
     pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
-    preconditioner = :diag,
     nhmc = 1,
     nburnin_always_accept = 10,
     symp_kwargs = fill((N=25, ϵ=0.01), nhmc),
@@ -213,12 +212,13 @@ function sample_joint(
     # rundat is a Dict with all the args and kwargs minus a few removed ones
     rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap), init=Base.@locals()), kwargs)
     rundat[:Nbatch] = batch_length(ds.d)
+    rundat[:Ω] = (;)
 
     # dont adapt things passed in kwargs when we adapt the state dict
     _adapt(storage, state) = Dict(k => (haskey(rundat,k) ? v : adapt(storage, v)) for (k,v) in state)
 
     function filter_for_saving(state, step)
-        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
+        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :z)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
     end
 
     # validate arguments
@@ -228,12 +228,12 @@ function sample_joint(
     if (filename!=nothing && splitext(filename)[2]!=".jld2")
         error("Chain filename '$filename' should have '.jld2' extension.")
     end
-    if (isfile(filename) && isnothing(resume))
+    if (filename!=nothing && isfile(filename) && isnothing(resume))
         error("'$filename' exists so must specify `resume=true` or `resume=false`.")
     end
     
     # seed
-    @everywhere @eval CMBLensing seed!(global_rng_for($storage))
+    # @everywhere @eval CMBLensing seed!(global_rng_for($storage))
 
     # distribute the dataset object to workers once
     set_distributed_dataset(ds, storage)
@@ -328,30 +328,29 @@ function sample_joint(
 end
 
 
-lnP_arg_names(p::Union{Int,Symbol}, ds::DataSet) = lnP_arg_names(Val(p), ds)
-lnP_arg_names(::Val{0},    ds::DataSet) = (:f,  :ϕ,  :θ)
-lnP_arg_names(::Val{:mix}, ds::DataSet) = (:f°, :ϕ°, :θ)
-
 ## initialization
 
 function gibbs_initialize_θ!(state, ds::DataSet)
-    @unpack θstart, θrange, nchains, Nbatch = state
+    @unpack θstart, θrange, nchains, Nbatch, Ω = state
     θ = @match θstart begin
         :prior => map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange)
         (_::NamedTuple) => θstart
         _ => throw(ArgumentError(θstart))
     end
-    lnPθ = map(_->missing, θrange)
-    @pack! state = θ, lnPθ
+    Ω = (;Ω..., θ)
+    logpdfθ = map(_->missing, θrange)
+    @pack! state = θ, logpdfθ, Ω
 end
 
 function gibbs_initialize_f!(state, ds::DataSet)
+    @unpack Ω = state
     f = missing
-    @pack! state = f
+    Ω = (;Ω..., f)
+    @pack! state = f, Ω
 end
 
 function gibbs_initialize_ϕ!(state, ds::DataSet)
-    @unpack ϕstart, θ, nchains, Nbatch = state
+    @unpack ϕstart, θ, nchains, Nbatch, Ω = state
     ϕ = @match ϕstart begin
         :prior     => simulate(ds.Cϕ(θ); Nbatch)
         0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
@@ -364,30 +363,30 @@ function gibbs_initialize_ϕ!(state, ds::DataSet)
         ).ϕ
         _ => throw(ArgumentError(ϕstart))
     end
-    @pack! state = ϕ
+    Ω = (;Ω..., ϕ)
+    @pack! state = ϕ, Ω
 end
 
 
 ## gibbs passes
 
 @⌛ function gibbs_sample_f!(state, ds::DataSet)
-    @unpack f, progress, preconditioner, conjgrad_kwargs = state
-    z_other = delete(select(state, lnP_arg_names(0, ds)), :f)
-    f = argmaxf_lnP(
-        z_other..., ds;
-        which = :sample, 
+    @unpack f, Ω, progress, conjgrad_kwargs = state
+    @set! Ω.f = f = sample_f(
+        ds, 
+        delete(Ω,:f),
         fstart = ismissing(f) ? nothing : f, 
-        preconditioner = preconditioner, 
         conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
     )
-    @pack! state = f
+    @pack! state = f, Ω
 end
 
 @⌛ function gibbs_sample_ϕ!(state, ds::DataSet)
-    @unpack f°, ϕ°, θ, symp_kwargs, progress, step, nburnin_always_accept = state
-    U = ϕ° -> lnP(:mix, f°, ϕ°, θ, ds)
+    @unpack Ω, θ, ϕ°, symp_kwargs, progress, step, nburnin_always_accept = state
+    U = ϕ° -> logpdf(Mixed(ds); Ω..., ϕ°)
     ϕ°, ΔH, accept = hmc_step(U, ϕ°, mass_matrix_ϕ(θ,ds); symp_kwargs, progress, always_accept=(step<nburnin_always_accept))
-    @pack! state = ϕ°, ΔH, accept
+    @set! Ω.ϕ° = ϕ°
+    @pack! state = ϕ°, ΔH, accept, Ω
 end
 
 function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, progress, always_accept)
@@ -412,26 +411,28 @@ end
 
 function gibbs_sample_slice_θ!(k::Symbol)
     @⌛ function gibbs_sample_slice_θ!(state, ds::DataSet)
-        @unpack θ, θrange, lnPθ, pbar_dict, progress, grid_and_sample_kwargs = state
-        z_other = delete(select(state, lnP_arg_names(:mix, ds)), :θ)
-        θₖ, lnPθₖ = grid_and_sample(θₖ -> lnP(:mix, z_other..., @set(θ[k]=θₖ), ds), cpu(θrange[k]); progress=(progress==:verbose), grid_and_sample_kwargs...)
+        @unpack θ, Ω, θrange, logpdfθ, pbar_dict, progress, grid_and_sample_kwargs = state
+        θₖ, logpdfθₖ = grid_and_sample(θₖ -> logpdf(Mixed(ds); Ω..., θ=@set(θ[k]=θₖ)), cpu(θrange[k]); progress=(progress==:verbose), grid_and_sample_kwargs...)
         @set! θ[k] = θₖ
-        @set! lnPθ[k] = lnPθₖ
+        @set! logpdfθ[k] = logpdfθₖ
+        @set! Ω.θ = θ
         pbar_dict[string(k)] = string_trunc(θₖ)
-        @pack! state = θ, lnPθ
+        @pack! state = θ, logpdfθ, Ω
     end
 end
 
 @⌛ function gibbs_mix!(state, ds::DataSet)
-    @unpack f, ϕ, θ = state
-    f°, ϕ° = mix(f, ϕ, θ, ds)
-    @pack! state = f°, ϕ°
+    @unpack f, ϕ, θ, Ω = state
+    f°, ϕ° = mix(ds; f, ϕ, θ)
+    Ω = (; delete(Ω,(:f,:ϕ))..., f°, ϕ°)
+    @pack! state = f°, ϕ°, Ω
 end
 
 @⌛ function gibbs_unmix!(state, ds::DataSet)
-    @unpack f°, ϕ°, θ = state
+    @unpack f°, ϕ°, θ, Ω = state
     f, ϕ = unmix(f°, ϕ°, θ, ds)
-    @pack! state = f, ϕ
+    Ω = (; delete(Ω,(:f°,:ϕ°))..., f, ϕ)
+    @pack! state = f, ϕ, Ω
 end
 
 
@@ -439,11 +440,11 @@ end
 ## postprocessing
 
 @⌛ function gibbs_postprocess!(state, ds::DataSet)
-    @unpack f, ϕ, θ, pbar_dict, ΔH = state
-    lnP = pbar_dict["lnP"] = CMBLensing.lnP(0, select(state, lnP_arg_names(0, ds))..., ds)
+    @unpack f, ϕ, Ω, pbar_dict, ΔH = state
+    logpdf = pbar_dict["logpdf"] = CMBLensing.logpdf(ds; Ω...)
     pbar_dict["ΔH"] = ΔH
     f̃ = ds.L(ϕ) * f
-    @pack! state = f̃, lnP
+    @pack! state = f̃, logpdf
 end
 
 
