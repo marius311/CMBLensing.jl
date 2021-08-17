@@ -218,7 +218,7 @@ function sample_joint(
     _adapt(storage, state) = Dict(k => (haskey(rundat,k) ? v : adapt(storage, v)) for (k,v) in state)
 
     function filter_for_saving(state, step)
-        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :z)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
+        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
     end
 
     # validate arguments
@@ -331,7 +331,7 @@ end
 ## initialization
 
 function gibbs_initialize_θ!(state, ds::DataSet)
-    @unpack θstart, θrange, nchains, Nbatch, Ω = state
+    @unpack θstart, θrange, Ω, nchains, Nbatch = state
     θ = @match θstart begin
         :prior => map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange)
         (_::NamedTuple) => θstart
@@ -339,7 +339,7 @@ function gibbs_initialize_θ!(state, ds::DataSet)
     end
     Ω = (;Ω..., θ)
     logpdfθ = map(_->missing, θrange)
-    @pack! state = θ, logpdfθ, Ω
+    @pack! state = θ, Ω, logpdfθ
 end
 
 function gibbs_initialize_f!(state, ds::DataSet)
@@ -350,7 +350,7 @@ function gibbs_initialize_f!(state, ds::DataSet)
 end
 
 function gibbs_initialize_ϕ!(state, ds::DataSet)
-    @unpack ϕstart, θ, nchains, Nbatch, Ω = state
+    @unpack ϕstart, θ, Ω, nchains, Nbatch = state
     ϕ = @match ϕstart begin
         :prior     => simulate(ds.Cϕ(θ); Nbatch)
         0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
@@ -382,11 +382,11 @@ end
 end
 
 @⌛ function gibbs_sample_ϕ!(state, ds::DataSet)
-    @unpack Ω, θ, ϕ°, symp_kwargs, progress, step, nburnin_always_accept = state
+    @unpack θ, ϕ°, Ω, symp_kwargs, progress, step, nburnin_always_accept = state
     U = ϕ° -> logpdf(Mixed(ds); Ω..., ϕ°)
     ϕ°, ΔH, accept = hmc_step(U, ϕ°, mass_matrix_ϕ(θ,ds); symp_kwargs, progress, always_accept=(step<nburnin_always_accept))
     @set! Ω.ϕ° = ϕ°
-    @pack! state = ϕ°, ΔH, accept, Ω
+    @pack! state = ϕ°, Ω, ΔH, accept
 end
 
 function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, progress, always_accept)
@@ -422,17 +422,17 @@ function gibbs_sample_slice_θ!(k::Symbol)
 end
 
 @⌛ function gibbs_mix!(state, ds::DataSet)
-    @unpack f, ϕ, θ, Ω = state
-    f°, ϕ° = mix(ds; f, ϕ, θ)
-    Ω = (; delete(Ω,(:f,:ϕ))..., f°, ϕ°)
-    @pack! state = f°, ϕ°, Ω
+    @unpack Ω = state
+    Ω = mix(ds; Ω...)
+    merge!(state, pairs(Ω))
+    @pack! state = Ω
 end
 
 @⌛ function gibbs_unmix!(state, ds::DataSet)
-    @unpack f°, ϕ°, θ, Ω = state
-    f, ϕ = unmix(f°, ϕ°, θ, ds)
-    Ω = (; delete(Ω,(:f°,:ϕ°))..., f, ϕ)
-    @pack! state = f, ϕ, Ω
+    @unpack Ω = state
+    Ω = unmix(ds; Ω...)
+    merge!(state, pairs(Ω))
+    @pack! state = Ω
 end
 
 

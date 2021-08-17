@@ -79,10 +79,10 @@ end
 
 
 ## mixing
-function Distributions.logpdf(mds::Mixed{<:DataSet}; f°, ϕ°, θ=(;), z...)
+function Distributions.logpdf(mds::Mixed{<:DataSet}; θ=(;), Ω...)
     ds = mds.ds
-    logpdf(ds; unmix(ds; f°, ϕ°, θ)..., θ, z...) - logdet(ds.D, θ) - logdet(ds.G, θ)
-end 
+    logpdf(ds; unmix(ds; θ, Ω...)...) - logdet(ds.D, θ) - logdet(ds.G, θ)
+end
 
 """
     mix(ds::DataSet; f, ϕ, [θ])
@@ -91,11 +91,11 @@ Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potentia
 `ϕ`, given the definition of the mixing matrices in `ds` evaluated at parameters
 `θ` (or at fiducial values if no `θ` provided).
 """
-function mix(ds::DataSet; f, ϕ, θ=(;))
-    @unpack D,G,L = ds
+function mix(ds::DataSet; f, ϕ, θ=(;), Ω...)
+    @unpack D, G, L = ds
     f° = L(ϕ) * D(θ) * f
     ϕ° = G(θ) * ϕ
-    (; f°, ϕ°)
+    (; f°, ϕ°, θ, Ω...)
 end
 
 
@@ -107,11 +107,11 @@ Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed
 lensing potential `ϕ°`, given the definition of the mixing matrices in `ds`
 evaluated at parameters `θ` (or at fiducial values if no `θ` provided). 
 """
-function unmix(ds::DataSet; f°, ϕ°, θ=(;))
-    @unpack D,G,L = ds
+function unmix(ds::DataSet; f°, ϕ°, θ=(;), Ω...)
+    @unpack D, G, L = ds
     ϕ = G(θ) \ ϕ°
     f = D(θ) \ (L(ϕ) \ f°)
-    (; f, ϕ)
+    (; f, ϕ, θ, Ω...)
 end
 
 # maybe keep this
