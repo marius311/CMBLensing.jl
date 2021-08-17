@@ -20,7 +20,8 @@ function argmaxf_logpdf(
     d = ds.d;
     fstart = nothing, 
     preconditioner = :diag, 
-    conjgrad_kwargs = (tol=1e-1,nsteps=500)
+    conjgrad_kwargs = (tol=1e-1,nsteps=500),
+    offset = false,
 )
     
     @unpack Cf, B̂, M̂, Cn̂ = ds
@@ -36,6 +37,7 @@ function argmaxf_logpdf(
         # the following will give the argmax for any model with Gaussian P(f,d|z...)
         b  = -gradientf_logpdf(ds; f=zero_f, d=d,       Ω...)
         a₀ =  gradientf_logpdf(ds; f=zero_f, d=zero(d), Ω...)
+        offset && (b += a₀)
         A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), Ω...) - a₀))
         conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero_f : fstart); conjgrad_kwargs...)
 
@@ -56,9 +58,9 @@ Keyword arguments:
 
 """
 function sample_f(rng::AbstractRNG, ds::DataSet, Ω, d=ds.d; kwargs...)
-    # the following will give a sapmle for any model with Gaussian P(f,d|z...)
+    # the following will give a sample for any model with Gaussian P(f,d|z...)
     sim = simulate(rng, ds; Ω...)
-    sim.f + argmaxf_logpdf(ds, Ω, d - sim.d; kwargs...)[1]
+    sim.f + argmaxf_logpdf(ds, Ω, d - sim.d; kwargs..., offset=true)[1]
 end
 sample_f(ds::DataSet, args...; kwargs...) = sample_f(Random.default_rng(), ds, args...; kwargs...)
 
