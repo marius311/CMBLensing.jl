@@ -2,10 +2,10 @@
 ## wiener filter
 
 @doc doc"""
-    argmaxf_logpdf(ds::DataSet, z::NamedTuple, [d = ds.d]; kwargs...)
+    argmaxf_logpdf(ds::DataSet, Ω::NamedTuple, [d = ds.d]; kwargs...)
 
 Maximize the `logpdf` for `ds` over `f`, given all the other arguments
-are held fixed at `z`. E.g.: `argmaxf_logpdf(ds, (; ϕ, θ=(Aϕ=1.1,))`.
+are held fixed at `Ω`. E.g.: `argmaxf_logpdf(ds, (; ϕ, θ=(Aϕ=1.1,))`.
 
 Keyword arguments: 
 
@@ -16,7 +16,7 @@ Keyword arguments:
 """
 function argmaxf_logpdf(
     ds :: DataSet,
-    z :: NamedTuple, 
+    Ω :: NamedTuple, 
     d = ds.d;
     fstart = nothing, 
     preconditioner = :diag, 
@@ -31,12 +31,12 @@ function argmaxf_logpdf(
     zero_f = zero(diag(Cf))
 
     # brittle (but working) performance hack until we switch to Diffractor (see also flowops.jl)
-    task_local_storage(:AD_constants, keys(z)) do 
+    task_local_storage(:AD_constants, keys(Ω)) do 
 
         # the following will give the argmax for any model with Gaussian P(f,d|z...)
-        b  = -gradientf_logpdf(ds; f=zero_f, d=d,       z...)
-        a₀ =  gradientf_logpdf(ds; f=zero_f, d=zero(d), z...)
-        A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), z...) - a₀))
+        b  = -gradientf_logpdf(ds; f=zero_f, d=d,       Ω...)
+        a₀ =  gradientf_logpdf(ds; f=zero_f, d=zero(d), Ω...)
+        A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), Ω...) - a₀))
         conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero_f : fstart); conjgrad_kwargs...)
 
     end
@@ -44,10 +44,10 @@ function argmaxf_logpdf(
 end
 
 @doc doc"""
-    sample_f([rng::AbstractRNG], ds::DataSet, z::NamedTuple, [d = ds.d]; kwargs...)
+    sample_f([rng::AbstractRNG], ds::DataSet, Ω::NamedTuple, [d = ds.d]; kwargs...)
 
 Draw a posterior sample of `f` from the `logpdf` for `ds`, given all the other arguments are
-held fixed at `z`. E.g.: `sample_f(ds, (; ϕ, θ=(Aϕ=1.1,))`.
+held fixed at `Ω`. E.g.: `sample_f(ds, (; ϕ, θ=(Aϕ=1.1,))`.
 
 Keyword arguments: 
 
@@ -55,10 +55,10 @@ Keyword arguments:
 * `conjgrad_kwargs` — Passed to the inner call to [`conjugate_gradient`](@ref)
 
 """
-function sample_f(rng::AbstractRNG, ds::DataSet, z, d=ds.d; kwargs...)
+function sample_f(rng::AbstractRNG, ds::DataSet, Ω, d=ds.d; kwargs...)
     # the following will give a sapmle for any model with Gaussian P(f,d|z...)
-    sim = simulate(rng, ds; z...)
-    sim.f + argmaxf_logpdf(ds, z, d - sim.d; kwargs...)[1]
+    sim = simulate(rng, ds; Ω...)
+    sim.f + argmaxf_logpdf(ds, Ω, d - sim.d; kwargs...)[1]
 end
 sample_f(ds::DataSet, args...; kwargs...) = sample_f(Random.default_rng(), ds, args...; kwargs...)
 
@@ -67,14 +67,14 @@ sample_f(ds::DataSet, args...; kwargs...) = sample_f(Random.default_rng(), ds, a
 # optimization, since Zygote is ~50% slower than the old hand-written
 # code even after the above hack. shouldn't need this once we have
 # Diffractor. the following is the fallback which just uses Zygote:
-gradientf_logpdf(ds::DataSet; f, z...) = gradient(f -> logpdf(ds; f, z...), f)[1]
+gradientf_logpdf(ds::DataSet; f, Ω...) = gradient(f -> logpdf(ds; f, Ω...), f)[1]
 
 
 
 @doc doc"""
 
     MAP_joint(ds::DataSet; kwargs...)
-
+ 
 Compute the maximum a posteriori (i.e. "MAP") estimate of the joint
 posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a
 quasi-sample. 
