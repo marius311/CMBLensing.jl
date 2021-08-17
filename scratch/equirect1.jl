@@ -179,8 +179,9 @@ end;
 # Test simulation of ϕmap, Qmap, Umap
 # =======================================
 
-f0  = CMBLensing.simulate(Phi▪, MersenneTwister())
-f2  = CMBLensing.simulate(EB▪, MersenneTwister())
+f0  = CMBLensing.simulate(Phi▪)
+f2  = CMBLensing.simulate(EB▪)
+
 f2′ = Beam▪ * f2
 
 # plot maps of the simulated fields.
@@ -242,7 +243,7 @@ end
 # generate simulation 
 
 g0 = Phi▪½ * EquiRectMap(randn(Float64,pj.Ny,pj.Nx),pj)
-g2 = EB▪½ * EquiRectQUMap(randn(ComplexF64,pj.Ny,pj.Nx),pj);
+g2 = EB▪½ * EquiRectQUMap(randn(Float64,pj.Ny,pj.Nx), randn(Float64,pj.Ny,pj.Nx),pj);
 
 # plot maps of the simulated fields
 
@@ -296,12 +297,8 @@ Cf2 = EB▪
 @test simulate(Cf2) isa EquiRectS2
 
 # pinv
-@test (pinv(Cf0) * Cf0 * f0) ≈ f0
+@test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
 @test (pinv(Cf2) * Cf2 * f2) ≈ f2
-
-@test (Cf0 \ (Cf0 * f0)) ≈ f0
-@test (Cf2 \ (Cf2 * f2)) ≈ f2
-
 
 # logdet
 @test logdet(Cf0) ≈ logabsdet(Cf0)

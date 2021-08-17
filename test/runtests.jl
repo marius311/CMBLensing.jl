@@ -649,7 +649,7 @@ end
         # constructor doesnt error
         proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
         f0   = EquiRectMap(randn(Nside...), proj)
-        f2   = EquiRectQUMap(randn(ComplexF64, Nside...), proj)
+        f2   = EquiRectQUMap(randn(Nside...), randn(Nside...), proj)
 
         @test f0 isa EquiRectMap
         @test f2 isa EquiRectQUMap
@@ -681,8 +681,8 @@ end
         @test simulate(Cf2) isa EquiRectS2
         
         # pinv
-        @test (pinv(Cf0) * Cf0 * f0) ≈ f0
-        @test (pinv(Cf2) * Cf2 * f2) ≈ f2
+        @test (pinv(Cf0) * Cf0 * f0) ≈ f0  rtol=1e-5
+        @test (pinv(Cf2) * Cf2 * f2) ≈ f2  rtol=1e-5
         
         # logdet
         @test logdet(Cf0) isa Real

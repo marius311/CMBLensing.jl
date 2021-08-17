@@ -116,7 +116,8 @@ end
 # QUAzFourier <-> QUMap
 function QUAzFourier(f::EquiRectQUMap)
     nθ, nφ = f.Ny, f.Nx
-    Uf = m_fft(f.arr, 2) ./ √nφ
+    qiumap = complex.(f.Qx, f.Ux) 
+    Uf = m_fft(qiumap, 2) ./ √nφ
     f▫ = similar(Uf, 2nθ, nφ÷2+1)
     for ℓ = 1:nφ÷2+1
         if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
@@ -145,7 +146,8 @@ function QUMap(f::EquiRectQUAzFourier)
             pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
         end
     end
-    EquiRectQUMap(m_ifft(pθk, 2) .* √nφ, f.proj)
+    qiumap = m_ifft(pθk, 2) .* √nφ
+    EquiRectQUMap(cat(real(qiumap), imag(qiumap), dims=3), f.proj)
 end
 
 # QUESTION: Any interest in keeping these? 
@@ -155,7 +157,7 @@ end
 Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
 Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
 Base.getindex(f::EquiRectS0, ::Colon)     = Map(f).arr
-Base.getindex(f::EquiRectS2, ::Colon)     = QUMap(f).arr
+Base.getindex(f::EquiRectS2, ::Colon)     = (qu=QUMap(f); complex.(qu.Qx,qu.Ux))
 
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
@@ -178,15 +180,20 @@ end
 # block-diagonal operator
 # ================================================
 
+# NOTE: these block diag operators only work in AzBasis (at the moment) 
+# due to the requirement that f.arr needs to be a matrix in the code below.
+
+AzBasis = Union{QUAzFourier, AzFourier}
+
 # ## Constructors
 
-function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
+function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:AzBasis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
     BlockDiagEquiRect{B,P,T,A}(block_matrix, proj)
 end
 
 # The following allows construction by a vector of blocks
 
-function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractMatrix{T}}
+function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:AzBasis, P<:ProjEquiRect, T, A<:AbstractMatrix{T}}
     block_matrix = Array{T}(undef, size(vector_of_blocks[1])..., length(vector_of_blocks))
     for b in eachindex(vector_of_blocks)
         block_matrix[:,:,b] .= vector_of_blocks[b]
@@ -200,7 +207,7 @@ end
 
 Base.:*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
-function Base.:*(M::BlockDiagEquiRect{B}, f::F) where {B<:Basis, F<:EquiRectField{B}}
+function Base.:*(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
@@ -209,30 +216,39 @@ end
 
 Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
-function Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::F) where {T, B<:Basis, F<:EquiRectField{B}}
+function Base.:*(M::Adjoint{T, BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
+
+# f' * M
+
+Base.:*(f::Adjoint{T, EquiRectField{A}}, M::BlockDiagEquiRect{B}) where {T, A<:Basis, B<:Basis} = B(f.parent)' * M 
+
+function Base.:*(f::F, M::BlockDiagEquiRect{B}) where {T, B<:AzBasis, F<:Adjoint{T,EquiRectField{B}}}
+    (M' * f.parent)'
+end
+
 
 # ## Linear Algebra: tullio accelerated (operator, operator)
 
 # M₁ * M₂
 
-function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
+function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * M₂.blocks[j,q,iₘ]), M₁.proj)
 end
 
 # M₁' * M₂
 
-function Base.:*(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
+function Base.:*(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := conj(M₁.parent.blocks[j,p,iₘ]) * M₂.blocks[j,q,iₘ]), M₁.parent.proj)
 end
 
 # M₁ * M₂'
 
-function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
+function Base.:*(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * conj(M₂.parent.blocks[q,j,iₘ])), M₁.proj)
 end
@@ -244,17 +260,17 @@ for op in (:+, :-, :/, :\)
 
     quote 
 
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:Basis}
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
             promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
             BlockDiagEquiRect{B}(Array($op(M₁.blocks, M₂.blocks)), M₁.proj)
         end
 
-        function LinearAlgebra.$op(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:Basis}
+        function LinearAlgebra.$op(M₁::Adjoint{T, BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
             promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
             BlockDiagEquiRect{B}($op(M₁.parent.blocks', M₂.blocks), M₁.parent.proj)
         end
 
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:Basis}
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T, BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
             promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
             BlockDiagEquiRect{B}($op(M₁.blocks, M₂.parent.blocks'), M₁.proj)
         end
@@ -271,7 +287,7 @@ end
 for op in (:-, :sqrt, :inv, :pinv)
 
     quote
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}) where {B<:Basis}
+        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis}
             BlockDiagEquiRect{B}(
                 mapslices($op, M₁.blocks, dims = [1,2]), 
                 M₁.proj
@@ -283,27 +299,32 @@ end
 
 # logdet and logabsdet
 
-function LinearAlgebra.logdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis} 
+function LinearAlgebra.logdet(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis} 
     sum(logdet, eachslice(M₁.blocks; dims=3))
 end
 
-function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:Basis} 
+function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis} 
     sum(x->logabsdet(x)[1], eachslice(M₁.blocks; dims=3))
 end
 
-# dot products
+# dot products (including f' * g)
 
 LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = real(dot(a[:], b[:]))
+
+function Base.:*(f::Adjoint{T,EquiRectField{A}}, g::EquiRectField{B}) where {T, A<:AzBasis, B<:AzBasis}
+    dot(f,g)
+end
+
 
 
 # mapblocks 
 # =====================================
 
-function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} 
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:AzBasis} 
     mapblocks(fun, M, B(f))
 end
 
-function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::F) where {B<:Basis, F<:EquiRectField{B}}
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     Mfarr = similar(f.arr)
     y_    = eachcol(Mfarr)
@@ -317,7 +338,7 @@ end
 
 # for operations like fun.(Mblocks...)
 
-function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:Basis}
+function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:AzBasis}
     map(M->promote_metadata_strict(M.proj, Ms[1].proj), Ms) 
     BlockDiagEquiRect{B}(
         map(
@@ -333,22 +354,30 @@ end
 
 ### simulation
 
+global_rng_for(::Type{<:BlockDiagEquiRect}) = Random.default_rng()
+
 function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Real}
     EquiRectMap(randn(T, pj.Ny, pj.Nx), pj)
 end
 
 function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Complex}
-    EquiRectQUMap(randn(T, pj.Ny, pj.Nx), pj)
+    qiu = randn(T, pj.Ny, pj.Nx)
+    EquiRectQUMap(real(qiu), imag(qiu), pj)
 end
 
-function simulate(M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}, rng::AbstractRNG) where {T}
+white_noise(ξ::EquiRectField{Map, P},         rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = white_noise(T, ξ.proj, rng)
+white_noise(ξ::EquiRectField{QUMap, P},       rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = white_noise(Complex{real(T)}, ξ.proj, rng)
+white_noise(ξ::EquiRectField{AzFourier, P},   rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = AzFourier(white_noise(T, ξ.proj, rng))
+white_noise(ξ::EquiRectField{QUAzFourier, P}, rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = QUAzFourier(white_noise(Complex{real(T)}, ξ.proj, rng))
+
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
     spin0_whitepix_fld = white_noise(real(T), M.proj, rng) 
     mapblocks(M, spin0_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
     end
 end
 
-function simulate(M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}, rng::AbstractRNG) where {T}
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}) where {T}
     spin2_whitepix_fld = white_noise(Complex{real(T)}, M.proj, rng) 
     mapblocks(M, spin2_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
