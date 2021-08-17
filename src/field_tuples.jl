@@ -121,3 +121,4 @@ batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
 function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
     only(unique(map_tupleargs(global_rng_for, FS)))
 end
+getindex(ft::FieldTuple, k::Symbol) = ft.fs[k]

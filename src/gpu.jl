@@ -35,7 +35,7 @@ gpu(x) = adapt_structure(CuArray, x)
 
 
 
-adapt_structure(::CUDA.Float32Adaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
+adapt_structure(::CUDA.CuArrayAdaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
 
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
