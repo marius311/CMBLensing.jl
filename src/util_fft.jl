@@ -18,10 +18,10 @@ FFTW_TIMELIMIT = 5
 # a set of wrapper FFT functions which use a @memoize'd plan
 _fft_arr_type(arr) = basetype(typeof(parent(arr)))
 m_rfft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...) * arr
-function m_irfft(arr::AbstractArray{Complex{T},N}, d, dims) where {T,N}
+function m_irfft(arr::AbstractArray{T,N}, d, dims) where {T,N}
     output_size = size(arr)
     @set! output_size[first(dims)] = d
-    m_plan_rfft(_fft_arr_type(arr){T,N}, dims, output_size...) \ arr
+    m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, output_size...) \ arr
 end
 m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
 m_irfft!(dst, arr::AbstractArray{Complex{T},N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(dst)...), copy_if_fftw(arr))
