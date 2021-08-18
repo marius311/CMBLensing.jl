@@ -21,7 +21,7 @@ using Test
 ## LATER: remove LBblock dependence
 using LBblocks: @sblock # https://github.com/EthanAnderes/LBblocks.jl
 
-hide_plots = false
+hide_plots = true
 
 
 # Set the grid geometry
@@ -296,9 +296,22 @@ Cf2 = EB▪
 @test simulate(Cf0) isa EquiRectS0
 @test simulate(Cf2) isa EquiRectS2
 
-# pinv
+# pinv, inv and friends
 @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
 @test (pinv(Cf2) * Cf2 * f2) ≈ f2
+
+@test (inv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
+@test (inv(Cf2) * Cf2 * f2) ≈ f2
+
+@test (Cf0 \ Cf0 * f0) ≈ f0 rtol=1e-5
+@test (Cf2 \ Cf2 * f2) ≈ f2
+
+@test (Cf0 / Cf0 * f0) ≈ f0 rtol=1e-5
+@test (Cf2 / Cf2 * f2) ≈ f2
+
+# some operator algebra on ops
+@test (Cf0 + Cf0) * f0 ≈ Cf0 * (2 * f0) ≈ (2 * Cf0) * f0
+@test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
 
 # logdet
 @test logdet(Cf0) ≈ logabsdet(Cf0)

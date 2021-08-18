@@ -681,9 +681,22 @@ end
         @test simulate(Cf2) isa EquiRectS2
         
         # pinv
-        @test (pinv(Cf0) * Cf0 * f0) ≈ f0  rtol=1e-5
-        @test (pinv(Cf2) * Cf2 * f2) ≈ f2  rtol=1e-5
-        
+        @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
+        @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=1e-5
+    
+        @test (inv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
+        @test (inv(Cf2) * Cf2 * f2) ≈ f2 rtol=1e-5
+
+        @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=1e-5
+        @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=1e-5
+
+        @test (Cf0 / Cf0 * f0) ≈ f0 rtol=1e-5
+        @test (Cf2 / Cf2 * f2) ≈ f2 rtol=1e-5
+
+        # some operator algebra on ops
+        @test (Cf0 + Cf0) * f0 ≈ Cf0 * (2 * f0) ≈ (2 * Cf0) * f0
+        @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
+
         # logdet
         @test logdet(Cf0) isa Real
         @test logdet(Cf2) isa Real
