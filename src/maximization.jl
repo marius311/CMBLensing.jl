@@ -60,7 +60,8 @@ Keyword arguments:
 function sample_f(rng::AbstractRNG, ds::DataSet, Ω, d=ds.d; kwargs...)
     # the following will give a sample for any model with Gaussian P(f,d|z...)
     sim = simulate(rng, ds; Ω...)
-    sim.f + argmaxf_logpdf(ds, Ω, d - sim.d; kwargs..., offset=true)[1]
+    Δf, history = argmaxf_logpdf(ds, Ω, d - sim.d; kwargs..., offset=true)
+    sim.f + Δf, history
 end
 sample_f(ds::DataSet, args...; kwargs...) = sample_f(Random.default_rng(), ds, args...; kwargs...)
 

@@ -372,12 +372,13 @@ end
 
 @⌛ function gibbs_sample_f!(state, ds::DataSet)
     @unpack f, Ω, progress, conjgrad_kwargs = state
-    @set! Ω.f = f = sample_f(
+    f, = sample_f(
         ds, 
         delete(Ω,:f),
         fstart = ismissing(f) ? nothing : f, 
         conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
     )
+    @set! Ω.f = f
     @pack! state = f, Ω
 end
 
