@@ -37,7 +37,7 @@ pj = @sblock let
     φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-36, 36)), N=2*128-1)
     ## φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-60, 60)), N=1024)
 
-    CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂)
+    CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂, T=Float64)
 end;
 
 #- 
@@ -101,6 +101,9 @@ end
 # Block diagonal cov matrices
 # ==============================
 
+
+
+
 EB▪, Beam▪, Phi▪  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ, pj
 
     θ, φ, Ω = pj.θ, pj.φ, pj.Ω
@@ -149,6 +152,20 @@ EB▪, Beam▪, Phi▪  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ, p
 
     return EB▪, Beam▪, Phi▪ 
 end;
+
+# Re-do EB▪ and  Phi▪
+
+EB▪, Phi▪  = @sblock let Cℓ = camb(;r=0.01, ℓmax=11_000), pj
+    Phi▪ = Cℓ_to_Cov(:I, pj, Cℓ.unlensed_scalar.ϕϕ, ℓmax=11_000)
+    EB▪  = Cℓ_to_Cov(:P, pj, Cℓ.unlensed_scalar.EE, Cℓ.tensor.BB, ℓmax=11_000)
+    return EB▪, Phi▪ 
+end 
+
+
+@test Phi▪ isa BlockDiagEquiRect
+@test EB▪ isa BlockDiagEquiRect
+
+
 
 
 # Testing out indexing

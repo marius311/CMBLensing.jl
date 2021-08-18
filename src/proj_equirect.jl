@@ -406,30 +406,70 @@ end
 # covariance operators
 # ================================================
 
-# QUESTION: should we remove this for consistancy with Spin0 stuff above?
+function Cℓ_to_Cov(::Val{:I}, pj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000) where {T}
+    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
+    nθ, nφ  = length(θ), length(φ)
+    ℓ       = 0:ℓmax
 
-# can't depend on Legendre.jl since its not in the general registry
-Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} = 
-    error("You must run `using Legendre` for this method to be available.")
+    CIℓ = CI(ℓ)
+    CIℓ[.!isfinite.(CIℓ)] .= 0
 
-@init @require Legendre="7642852e-7f09-11e9-134e-0940411082b6" begin
+    @assert real(T) == T
+    I▫  = zeros(T,nθ,nθ,nφ÷2+1)
+    # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+    Γ_I  = @ondemand(CirculantCov.Γθ₁θ₂φ₁φ⃗_Iso)(ℓ, CIℓ; ngrid=50_000)
+    # using full resolution ComplexF64 for internal construction
+    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
 
-    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
-        @unpack Ny, Nx, θspan, φspan = proj
-        φspan_ratio = round(Int, 2π / abs(-(φspan...)))
-        Cℓ = T.(nan2zero.(Cℓ[0:ℓmax]))
-        Nm = Nx÷2+1
-        θs = T.(range(reverse(θspan)..., length=Ny))
-        λ = T.(Legendre.λlm(0:ℓmax, 0:φspan_ratio*(Nm-1), cos.(θs))[:,:,1:φspan_ratio:end])
-        @tullio blocks[p,q,iₘ] := λ[p,ℓ,iₘ] * λ[q,ℓ,iₘ] * Cℓ[ℓ] * (iₘ==1 ? 2 : 4)
-        BlockDiagEquiRect{AzFourier}(blocks, proj)
+    prgss = Progress(nθ, 1, "Cℓ_to_Cov(:I,...) construction")
+    for k = 1:nθ
+        for j = 1:nθ
+            Iγⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, Γ_I,  ptmW)
+            for ℓ = 1:nφ÷2+1
+                I▫[j,k, ℓ] = real(Iγⱼₖℓ⃗[ℓ])
+            end
+        end
+        next!(prgss)
     end
 
-    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
-        error("Not implemented")
-        # TODO: implement building S2 covariance
+    return BlockDiagEquiRect{AzFourier}(I▫, pj)
+end
+
+
+function Cℓ_to_Cov(::Val{:P}, pj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000) where {T}
+    
+    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
+    nθ, nφ  = length(θ), length(φ)
+    ℓ       = 0:ℓmax
+
+    CBBℓ = CBB(ℓ)
+    CEEℓ = CEE(ℓ)
+    CBBℓ[.!isfinite.(CBBℓ)] .= 0
+    CEEℓ[.!isfinite.(CEEℓ)] .= 0
+
+    @assert real(T) == T
+    EB▫   = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
+    # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+    ΓC_EB  = @ondemand(CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol)(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
+    # using full resolution ComplexF64 for internal construction
+    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+    
+    prgss = Progress(nθ, 1, "Cℓ_to_Cov(:P,...) construction")
+    for k = 1:nθ
+        for j = 1:nθ
+            EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, ΓC_EB..., ptmW)
+            for ℓ = 1:nφ÷2+1
+                Jℓ = Jperm(ℓ, nφ)
+                EB▫[j,   k   , ℓ] = EBγⱼₖℓ⃗[ℓ]
+                EB▫[j,   k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
+                EB▫[j+nθ,k   , ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
+                EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
+            end
+        end
+        next!(prgss)
     end
 
+    return BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
 end
 
 

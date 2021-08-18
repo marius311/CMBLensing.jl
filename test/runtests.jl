@@ -633,21 +633,26 @@ end
         local f0, f2, Cf0, Cf2
 
         # non-periodic
-        proj = ProjEquiRect(;Ny=128, Nx=128, θspan, φspan=φspanᵒ)
-        @test proj.Ny == proj.Nx == length(proj.θ) == length(proj.φ) == 128 
+        projᵒ = ProjEquiRect(;Ny=128, Nx=128, θspan, φspan=φspanᵒ)
+        @test projᵒ.Ny == projᵒ.Nx == length(projᵒ.θ) == length(projᵒ.φ) == 128 
 
         # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
         # and test that it is strictly increasing. 
-        ∂θ∂ = vcat(vcat(proj.θ∂[1:end-1]', proj.θ')[:],  proj.θ∂[end])
+        ∂θ∂ = vcat(vcat(projᵒ.θ∂[1:end-1]', projᵒ.θ')[:],  projᵒ.θ∂[end])
         @test all(diff(∂θ∂) .> 0)
 
-        projΔφpix   = rem2pi(proj.φ[2]-proj.φ[1],   RoundDown)
-        projΔφspan  = rem2pi(proj.φ[end]-proj.φ[1], RoundDown) + projΔφpix
+        projᵒΔφpix   = rem2pi(projᵒ.φ[2]-projᵒ.φ[1],   RoundDown)
+        projᵒΔφspan  = rem2pi(projᵒ.φ[end]-projᵒ.φ[1], RoundDown) + projᵒΔφpix
         inputΔφspan = φspanᵒ |> x->rem2pi(x[end]-x[1], RoundDown)
-        @test projΔφspan == inputΔφspan
+        @test projᵒΔφspan == inputΔφspan
     
         # constructor doesnt error
-        proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
+        projᵒ = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
+        f0ᵒ   = EquiRectMap(randn(Nside...), projᵒ)
+        f2ᵒ   = EquiRectQUMap(randn(Nside...), randn(Nside...), projᵒ)
+
+        # with integer fraction of 2π (and Float64)
+        proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspan, T=Float64)
         f0   = EquiRectMap(randn(Nside...), proj)
         f2   = EquiRectQUMap(randn(Nside...), randn(Nside...), proj)
 
@@ -669,8 +674,10 @@ end
         @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
 
         # creating block-diagonal covariance operators
-        @test (Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)) isa BlockDiagEquiRect
-        @test (Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)) isa BlockDiagEquiRect
+        Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)
+        Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)
+        @test Cf0 isa BlockDiagEquiRect
+        @test Cf2 isa BlockDiagEquiRect
 
         # sqrt
         @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0)
@@ -698,9 +705,6 @@ end
         @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
 
         # logdet
-        @test logdet(Cf0) isa Real
-        @test logdet(Cf2) isa Real
-
         @test logdet(Cf0) ≈ logabsdet(Cf0)
         @test logdet(Cf2) ≈ logabsdet(Cf2)
 
@@ -710,12 +714,6 @@ end
         @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0
         @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2
         
-        # gradients
-        @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
-        @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
-        @test_real_gradient(α -> logdet(α * Cf0), 0)
-        @test_real_gradient(α -> logdet(α * Cf2), 0)
-
         # Test for correct Fourier symmetry in monopole and nyquist f2 
         let f2kk = f2[!], f2xx = f2[:]
             v = f2kk[1:end÷2,1]
@@ -728,6 +726,11 @@ end
             end
         end
 
+        # gradients
+        @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
+        @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
+        @test_real_gradient(α -> logdet(α * Cf0), 0)
+        @test_real_gradient(α -> logdet(α * Cf2), 0)
 
     end
 
