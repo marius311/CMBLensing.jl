@@ -148,17 +148,6 @@ hash(f::BaseField, h::UInt64) = foldr(hash, (typeof(f), cpu(f.arr), f.metadata),
 default_proj(::Type{F}) where {F<:BaseField{<:Any,<:Proj}} = Base.unwrap_unionall(F).parameters[2].ub
 make_field_aliases("Base", Proj)
 
-### basis-like definitions
-LenseBasis(::Type{<:BaseS0})    = Map
-LenseBasis(::Type{<:BaseS2})    = QUMap
-LenseBasis(::Type{<:BaseS02})   = IQUMap
-DerivBasis(::Type{<:BaseS0})    = Fourier
-DerivBasis(::Type{<:BaseS2})    = QUFourier
-DerivBasis(::Type{<:BaseS02})   = IQUFourier
-HarmonicBasis(::Type{<:BaseS0}) = Fourier
-HarmonicBasis(::Type{<:BaseQU}) = QUFourier
-HarmonicBasis(::Type{<:BaseEB}) = EBFourier
-
 
 # useful for enumerating some cases below and in plotting
 _sub_components = [
