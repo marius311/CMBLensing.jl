@@ -10,6 +10,7 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @nograd ProjLambert
 @nograd fieldinfo
 @nograd hasfield
+@nograd basetype
 
 
 # AD for Fourier Fields can be really subtle because such objects are

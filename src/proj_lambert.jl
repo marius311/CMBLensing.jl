@@ -42,7 +42,7 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
 end
 
 ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) = 
-    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), storage)
+    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), basetype(storage))
 
 @memoize function ProjLambert(Ny, Nx, θpix, rotator, ::Type{T}, storage) where {T}
 

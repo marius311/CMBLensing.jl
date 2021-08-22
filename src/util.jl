@@ -266,7 +266,15 @@ struct LazyPyImport
     pkg
 end
 function getproperty(p::LazyPyImport, s::Symbol)
-    Base.@invokelatest(getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s))
+    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
+    Base.invokelatest() do
+        prop = getproperty(pkg, s)
+        if PyCall.pybuiltin(:callable)(prop)
+            (args...; kwargs...) -> Base.invokelatest(prop, args...; kwargs...)
+        else
+            prop
+        end
+    end
 end
 
 @doc doc"""
