@@ -59,38 +59,6 @@ function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 	)
 end
 
-### imshow overloading for arrays (similar to matshow)
-
-# ex.
-# ```
-# fig, ax = subplots(2)
-# A |> imshow(-, fig, ax[1])
-# B |> imshow(-, fig, ax[2])
-# ```
-# ... or ...
-# 
-# ```
-# fig, ax = subplots(2)
-# imshow(A, fig, ax[1])
-# imshow(B, fig, ax[2])
-# ```
-
-
-function imshow(A::Matrix, fig::Figure, ax; vmin=nothing, vmax=nothing, shrink=0.7, pad=0.015)
-    imshow(-, fig, ax; vmin, vmax, shrink, pad)(A)
-end
-
-function imshow(::typeof(-), fig::Figure, ax; vmin=nothing, vmax=nothing, shrink=0.7, pad=0.015)
-    function (A::Matrix)
-        img = ax.imshow(A, vmin=vmin, vmax=vmax)
-        ax.axis("off")
-        fig.colorbar(img, ax=ax, shrink=shrink, pad=pad)
-        fig.tight_layout()
-        img
-    end
-end
-
-
 ### plotting CartesianFields
 
 pretty_name(s) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
@@ -159,7 +127,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		if f isa LambertField
 			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
 		elseif f isa EquiRectField
-			extent = rad2deg.([f.ϕspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+			extent = rad2deg.([f.φspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
 		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist

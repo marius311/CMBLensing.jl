@@ -22,6 +22,7 @@ jobs:
       - run: >
           sudo apt-get install --no-install-recommends gfortran python3-setuptools python3-wheel
           && pip3 install camb healpy
+          && julia -e 'using Pkg; Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")'
       - uses: julia-actions/julia-runtest@master
         timeout-minutes: 20
         continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}

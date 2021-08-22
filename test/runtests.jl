@@ -25,6 +25,7 @@ using FiniteDifferences
 using LinearAlgebra
 using Random
 using Random: default_rng
+using Requires
 using Serialization
 using SparseArrays
 using Test
@@ -33,11 +34,12 @@ using Zygote
 ##
 
 try
+    push!(LOAD_PATH, "@v#.#") # assumes you have CirculantCov in your global environment
     using CirculantCov
 catch
-    using Pkg
-    Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")
-    using CirculantCov
+    @warn """CirculantCov.jl not found, not testing EquiRect fields.
+    Run `pkg> add https://github.com/EthanAnderes/CirculantCov.jl` to add this package.
+    """
 end
 
 ##
@@ -621,38 +623,35 @@ end
 
 ##
 
+@require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
+
 @testset "EquiRect" begin
 
     θspan  = (π/2 .- deg2rad.((-40,-70)))
     φspan  = deg2rad.((-60, 60))
-    φspanᵒ = deg2rad.((-50, 50))
+    φspan′ = deg2rad.((-50, 50))
     Cℓ = camb()
 
-    @testset "Nside = $Nside" for Nside in Nsides_big
+    @testset "Nside = $Nside" for Nside in [(32,64)]
 
-        local f0, f2, Cf0, Cf2
+        Ny, Nx = Nside
 
         # non-periodic
-        projᵒ = ProjEquiRect(;Ny=128, Nx=128, θspan, φspan=φspanᵒ)
-        @test projᵒ.Ny == projᵒ.Nx == length(projᵒ.θ) == length(projᵒ.φ) == 128 
+        proj′ = ProjEquiRect(;Ny, Nx, θspan, φspan=φspan′)
+        @test (proj′.Ny == length(proj′.θ) == Ny) && (proj′.Nx == length(proj′.φ) == Nx)
 
         # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
         # and test that it is strictly increasing. 
-        ∂θ∂ = vcat(vcat(projᵒ.θ∂[1:end-1]', projᵒ.θ')[:],  projᵒ.θ∂[end])
+        ∂θ∂ = vcat(vcat(proj′.θ∂[1:end-1]', proj′.θ')[:],  proj′.θ∂[end])
         @test all(diff(∂θ∂) .> 0)
 
-        projᵒΔφpix   = rem2pi(projᵒ.φ[2]-projᵒ.φ[1],   RoundDown)
-        projᵒΔφspan  = rem2pi(projᵒ.φ[end]-projᵒ.φ[1], RoundDown) + projᵒΔφpix
-        inputΔφspan = φspanᵒ |> x->rem2pi(x[end]-x[1], RoundDown)
-        @test projᵒΔφspan == inputΔφspan
-    
-        # constructor doesnt error
-        projᵒ = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspanᵒ)
-        f0ᵒ   = EquiRectMap(randn(Nside...), projᵒ)
-        f2ᵒ   = EquiRectQUMap(randn(Nside...), randn(Nside...), projᵒ)
+        proj′Δφpix   = rem2pi(proj′.φ[2]-proj′.φ[1],   RoundDown)
+        proj′Δφspan  = rem2pi(proj′.φ[end]-proj′.φ[1], RoundDown) + proj′Δφpix
+        inputΔφspan = φspan′ |> x->rem2pi(x[end]-x[1], RoundDown)
+        @test proj′Δφspan ≈ inputΔφspan
 
         # with integer fraction of 2π (and Float64)
-        proj = ProjEquiRect(;Ny=Nside[1], Nx=Nside[2], θspan, φspan=φspan, T=Float64)
+        proj = ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float64)
         f0   = EquiRectMap(randn(Nside...), proj)
         f2   = EquiRectQUMap(randn(Nside...), randn(Nside...), proj)
 
@@ -664,10 +663,10 @@ end
         @test QUMap(QUAzFourier(f2)) ≈ f2
 
         # transform (testing equality independent of dot)
-        @test AzFourier(f0)[:]   ≈ f0[:]
-        @test QUAzFourier(f2)[:] ≈ f2[:]
-        @test Map(f0)[!]   ≈ f0[!]
-        @test QUMap(f2)[!] ≈ f2[!]
+        @test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+        @test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+        @test Map(f0)[:Il]   ≈ f0[:Il]
+        @test QUMap(f2)[:Pl] ≈ f2[:Pl]
 
         # dot product independent of basis
         @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
@@ -715,7 +714,7 @@ end
         @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2
         
         # Test for correct Fourier symmetry in monopole and nyquist f2 
-        let f2kk = f2[!], f2xx = f2[:]
+        let f2kk = f2[:Pl], f2xx = f2[:Px]
             v = f2kk[1:end÷2,1]
             w = f2kk[end÷2+1:end,1]
             @test v ≈ conj.(w)
@@ -733,6 +732,8 @@ end
         @test_real_gradient(α -> logdet(α * Cf2), 0)
 
     end
+
+end
 
 end
 

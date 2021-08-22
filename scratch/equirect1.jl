@@ -206,7 +206,7 @@ f2′ = Beam▪ * f2
 @sblock let f0, hide_plots
     hide_plots && return
     fig,ax = subplots(1,figsize=(8,4))
-    f0[:]  |> imshow(-, fig, ax)
+    f0[:Ix]  |> imshow(-, fig, ax)
     ax.set_title("Phi sim") 
     return fig
 end;
@@ -217,10 +217,10 @@ end;
 @sblock let f2, f2′, hide_plots
     hide_plots && return
     fig,ax = subplots(2,2, figsize=(12,8))
-    f2[:] .|> real |> imshow(-, fig, ax[1,1])  # Qsim
-    f2[:] .|> imag |> imshow(-, fig, ax[2,1])  # Usim
-    f2′[:] .|> real |> imshow(-, fig, ax[1,2]) # Beamed Qsim
-    f2′[:] .|> imag |> imshow(-, fig, ax[2,2]) # Beamed Usim
+    f2[:Px] .|> real |> imshow(-, fig, ax[1,1])  # Qsim
+    f2[:Px] .|> imag |> imshow(-, fig, ax[2,1])  # Usim
+    f2′[:Px] .|> real |> imshow(-, fig, ax[1,2]) # Beamed Qsim
+    f2′[:Px] .|> imag |> imshow(-, fig, ax[2,2]) # Beamed Usim
     ax[1,1].set_title("Q sim") 
     ax[2,1].set_title("U sim") 
     ax[1,2].set_title("Beamed Q sim") 
@@ -230,7 +230,7 @@ end;
 
 # Test for correct Fourier symmetry in monopole and nyquist f2 
 
-let f2kk = f2[!], f2xx = f2[:]
+let f2kk = f2[:Pl], f2xx = f2[:Px]
 
     v = f2kk[1:end÷2,1]
     w = f2kk[end÷2+1:end,1]
@@ -267,9 +267,9 @@ g2 = EB▪½ * EquiRectQUMap(randn(Float64,pj.Ny,pj.Nx), randn(Float64,pj.Ny,pj.
 @sblock let g0, g2, hide_plots
     hide_plots && return
     fig,ax = subplots(3,figsize=(6,9))
-    g0[:]  |> imshow(-, fig, ax[1])
-    g2[:] .|> real |> imshow(-, fig, ax[2]) # Qsim
-    g2[:] .|> imag |> imshow(-, fig, ax[3]) # Usim
+    g0[:Ix]  |> imshow(-, fig, ax[1])
+    g2[:Px] .|> real |> imshow(-, fig, ax[2]) # Qsim
+    g2[:Px] .|> imag |> imshow(-, fig, ax[3]) # Usim
     return fig
 end;
 
@@ -286,15 +286,15 @@ Cf2 = EB▪
 @test Map(f0)   ≈ f0
 @test QUMap(f2) ≈ f2
 
-@test AzFourier(f0)[:]   ≈ f0[:]
-@test QUAzFourier(f2)[:] ≈ f2[:]
-@test Map(f0)[!]   ≈ f0[!]
-@test QUMap(f2)[!] ≈ f2[!]
+@test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+@test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+@test Map(f0)[:Il]   ≈ f0[:Il]
+@test QUMap(f2)[:Pl] ≈ f2[:Pl]
 
-@test AzFourier(g0)[:]   ≈ g0[:]
-@test QUAzFourier(g2)[:] ≈ g2[:]
-@test Map(g0)[!]   ≈ g0[!]
-@test QUMap(g2)[!] ≈ g2[!]
+@test AzFourier(g0)[:Ix]   ≈ g0[:Ix]
+@test QUAzFourier(g2)[:Px] ≈ g2[:Px]
+@test Map(g0)[:Il]   ≈ g0[:Il]
+@test QUMap(g2)[:Pl] ≈ g2[:Pl]
 
 
 # dot product independent of basis
@@ -375,15 +375,15 @@ f2 = EquiRectQUMap(rand(ComplexF64, Nside...), proj)
 @test QUMap(QUAzFourier(f2)) ≈ f2
 
 # transform (testing equality independent of dot)
-@test AzFourier(f0)[:]   ≈ f0[:]
-@test QUAzFourier(f2)[:] ≈ f2[:]
-@test Map(f0)[!]   ≈ f0[!]
-@test QUMap(f2)[!] ≈ f2[!]
+@test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+@test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+@test Map(f0)[:Il]   ≈ f0[:Il]
+@test QUMap(f2)[:Pl] ≈ f2[:Pl]
 
-@test AzFourier(f0)[:]   ≈ f0[:]
-@test QUAzFourier(f2)[:] ≈ f2[:]
-@test Map(f0)[:]   ≈ f0[:]
-@test QUMap(f2)[:] ≈ f2[:]
+@test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+@test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+@test Map(f0)[:Ix]   ≈ f0[:Ix]
+@test QUMap(f2)[:Px] ≈ f2[:Px]
 
 
 

@@ -51,16 +51,10 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
 # Proj 
 # ================================================
 
-@memoize function ProjEquiRect(θ, φ, θ∂, φ∂, ::Type{T}, storage) where {T}
-    
+@memoize function ProjEquiRect(θ, φ, θ∂, φ∂, θspan, φspan, ::Type{T}, storage) where {T}
     Ny, Nx = length(θ), length(φ)
-    θspan = (θ∂[1], θ∂[end])
-    φspan = (φ∂[1], φ∂[end])
-
     Ω  = rem2pi(φ∂[2] .- φ∂[1], RoundDown) .* diff(.- cos.(θ∂))
-
     ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θ∂, φ∂, Ω, storage)
-
 end
 
 function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
@@ -79,7 +73,7 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
         arg_error()
     end
 
-    ProjEquiRect(θ, φ, θ∂, φ∂, real_type(T), storage)
+    ProjEquiRect(θ, φ, θ∂, φ∂, θspan, φspan, real_type(T), storage)
 
 end
 
@@ -152,30 +146,25 @@ function QUMap(f::EquiRectQUAzFourier)
     EquiRectQUMap(cat(real(qiumap), imag(qiumap), dims=3), f.proj)
 end
 
-# QUESTION: Any interest in keeping these? 
-# I use them a lot while I'm playing around and testing but ..
-# f[:] conflicts with the AbstractArray characterization and 
-# 
-Base.getindex(f::EquiRectS0, ::typeof(!)) = AzFourier(f).arr
-Base.getindex(f::EquiRectS2, ::typeof(!)) = QUAzFourier(f).arr
-Base.getindex(f::EquiRectS0, ::Colon)     = Map(f).arr
-Base.getindex(f::EquiRectS2, ::Colon)     = (qu=QUMap(f); complex.(qu.Qx,qu.Ux))
+
+function Base.getindex(f::EquiRectS0, k::Symbol)
+    @match k begin
+        :Ix => Map(f).arr
+        :Il => AzFourier(f).arr
+        _ => error("Invalid EquiRectS0 index $k")
+    end
+end
+function Base.getindex(f::EquiRectS2, k::Symbol)
+    @match k begin
+        :Px => (qu=QUMap(f); complex.(qu.Qx,qu.Ux))
+        :Pl => QUAzFourier(f).arr
+        _ => error("Invalid EquiRectS2 index $k")
+    end
+end
 
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
     print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
-    Base.showarg(io, f, true)
-end
-
-function Base.summary(io::IO, f::EquiRectAzFourier)
-    @unpack Ny,Nx,Nbatch = f
-    print(io, "$(length(f))-element $Ny×$(Nx÷2+1)$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
-    Base.showarg(io, f, true)
-end
-
-function Base.summary(io::IO, f::EquiRectQUAzFourier)
-    @unpack Ny,Nx,Nbatch = f
-    print(io, "$(length(f))-element $(2Ny)×$(Nx÷2+1)$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
     Base.showarg(io, f, true)
 end
 
@@ -317,7 +306,7 @@ end
 
 # dot products (including f' * g)
 
-LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = real(dot(a[:], b[:]))
+LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr)
 
 function Base.:*(f::Adjoint{T,EquiRectField{A}}, g::EquiRectField{B}) where {T, A<:AzBasis, B<:AzBasis}
     dot(f,g)
@@ -406,8 +395,9 @@ end
 # covariance operators
 # ================================================
 
-function Cℓ_to_Cov(::Val{:I}, pj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000) where {T}
-    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
+function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+    
+    @unpack θ, φ, Ω = proj
     nθ, nφ  = length(θ), length(φ)
     ℓ       = 0:ℓmax
 
@@ -421,7 +411,7 @@ function Cℓ_to_Cov(::Val{:I}, pj::ProjEquiRect{T}, CI::InterpolatedCℓs; unit
     # using full resolution ComplexF64 for internal construction
     ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
 
-    prgss = Progress(nθ, 1, "Cℓ_to_Cov(:I,...) construction")
+    pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
     for k = 1:nθ
         for j = 1:nθ
             Iγⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, Γ_I,  ptmW)
@@ -429,16 +419,17 @@ function Cℓ_to_Cov(::Val{:I}, pj::ProjEquiRect{T}, CI::InterpolatedCℓs; unit
                 I▫[j,k, ℓ] = real(Iγⱼₖℓ⃗[ℓ])
             end
         end
-        next!(prgss)
+        next!(pbar)
     end
 
-    return BlockDiagEquiRect{AzFourier}(I▫, pj)
+    return BlockDiagEquiRect{AzFourier}(I▫, proj)
+    
 end
 
 
-function Cℓ_to_Cov(::Val{:P}, pj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000) where {T}
+function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
     
-    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
+    @unpack θ, φ, Ω = proj
     nθ, nφ  = length(θ), length(φ)
     ℓ       = 0:ℓmax
 
@@ -454,7 +445,7 @@ function Cℓ_to_Cov(::Val{:P}, pj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB
     # using full resolution ComplexF64 for internal construction
     ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
     
-    prgss = Progress(nθ, 1, "Cℓ_to_Cov(:P,...) construction")
+    pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
     for k = 1:nθ
         for j = 1:nθ
             EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, ΓC_EB..., ptmW)
@@ -466,10 +457,11 @@ function Cℓ_to_Cov(::Val{:P}, pj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB
                 EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
             end
         end
-        next!(prgss)
+        next!(pbar)
     end
 
-    return BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
+    return BlockDiagEquiRect{QUAzFourier}(EB▫, proj)
+
 end
 
 
