@@ -220,6 +220,7 @@ end
 
 default_which(::AbstractVecOrMat{<:CartesianS0})  = [:Ix]
 default_which(::AbstractVecOrMat{<:CartesianS2})  = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:EquiRectS2})   = [:Qx :Ux]
 default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try

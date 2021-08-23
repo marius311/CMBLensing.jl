@@ -159,6 +159,8 @@ function Base.getindex(f::EquiRectS0, k::Symbol)
 end
 function Base.getindex(f::EquiRectS2, k::Symbol)
     @match k begin
+        :Qx => QUMap(f).Qx
+        :Ux => QUMap(f).Ux
         :Px => (qu=QUMap(f); complex.(qu.Qx,qu.Ux))
         :Pl => QUAzFourier(f).arr
         _ => error("Invalid EquiRectS2 index $k")
