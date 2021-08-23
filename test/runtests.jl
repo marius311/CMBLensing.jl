@@ -630,103 +630,111 @@ end
     θspan  = (π/2 .- deg2rad.((-40,-70)))
     φspan  = deg2rad.((-60, 60))
     φspan′ = deg2rad.((-50, 50))
-    Cℓ = camb()
+    Cℓ     = camb()
+    rtol   = 1e-5
 
-    @testset "Nside = $Nside" for Nside in [(32,64)]
+    @testset "T = $T" for T in (Float32, Float64)
 
-        Ny, Nx = Nside
+        @testset "Nside = $Nside" for Nside in [(32,64)]
 
-        # non-periodic
-        proj′ = ProjEquiRect(;Ny, Nx, θspan, φspan=φspan′)
-        @test (proj′.Ny == length(proj′.θ) == Ny) && (proj′.Nx == length(proj′.φ) == Nx)
+            Ny, Nx = Nside
 
-        # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
-        # and test that it is strictly increasing. 
-        ∂θ∂ = vcat(vcat(proj′.θ∂[1:end-1]', proj′.θ')[:],  proj′.θ∂[end])
-        @test all(diff(∂θ∂) .> 0)
+            # non-periodic
+            proj′ = ProjEquiRect(;Ny, Nx, T, θspan, φspan=φspan′)
+            @test (proj′.Ny == length(proj′.θ) == Ny) && (proj′.Nx == length(proj′.φ) == Nx)
 
-        proj′Δφpix   = rem2pi(proj′.φ[2]-proj′.φ[1],   RoundDown)
-        proj′Δφspan  = rem2pi(proj′.φ[end]-proj′.φ[1], RoundDown) + proj′Δφpix
-        inputΔφspan = φspan′ |> x->rem2pi(x[end]-x[1], RoundDown)
-        @test proj′Δφspan ≈ inputΔφspan
+            # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
+            # and test that it is strictly increasing. 
+            ∂θ∂ = vcat(vcat(proj′.θ∂[1:end-1]', proj′.θ')[:],  proj′.θ∂[end])
+            @test all(diff(∂θ∂) .> 0)
 
-        # with integer fraction of 2π (and Float64)
-        proj = ProjEquiRect(;Ny, Nx, θspan, φspan, T=Float64)
-        f0   = EquiRectMap(randn(Nside...), proj)
-        f2   = EquiRectQUMap(randn(Nside...), randn(Nside...), proj)
+            proj′Δφpix   = rem2pi(proj′.φ[2]-proj′.φ[1],   RoundDown)
+            proj′Δφspan  = rem2pi(proj′.φ[end]-proj′.φ[1], RoundDown) + proj′Δφpix
+            inputΔφspan = φspan′ |> x->rem2pi(x[end]-x[1], RoundDown)
+            @test proj′Δφspan ≈ inputΔφspan
 
-        @test f0 isa EquiRectMap
-        @test f2 isa EquiRectQUMap
+            # with integer fraction of 2π (and Float64)
+            proj = ProjEquiRect(;Ny, Nx, T, θspan, φspan)
+            P = typeof(proj)
+            f0   = EquiRectMap(randn(T, Nside...), proj)
+            f2   = EquiRectQUMap(randn(T, Nside...), randn(T, Nside...), proj)
 
-        # transform
-        @test Map(AzFourier(f0)) ≈ f0
-        @test QUMap(QUAzFourier(f2)) ≈ f2
+            @test f0 isa EquiRectMap
+            @test f2 isa EquiRectQUMap
 
-        # transform (testing equality independent of dot)
-        @test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
-        @test QUAzFourier(f2)[:Px] ≈ f2[:Px]
-        @test Map(f0)[:Il]   ≈ f0[:Il]
-        @test QUMap(f2)[:Pl] ≈ f2[:Pl]
+            # transform
+            @test Map(AzFourier(f0)) ≈ f0
+            @test QUMap(QUAzFourier(f2)) ≈ f2
+            @test real(eltype(Map(AzFourier(f0)))) == T
+            @test real(eltype(QUMap(QUAzFourier(f2)))) == T
 
-        # dot product independent of basis
-        @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
-        @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
+            # transform (testing equality independent of dot)
+            @test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+            @test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+            @test Map(f0)[:Il]   ≈ f0[:Il]
+            @test QUMap(f2)[:Pl] ≈ f2[:Pl]
 
-        # creating block-diagonal covariance operators
-        Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)
-        Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)
-        @test Cf0 isa BlockDiagEquiRect
-        @test Cf2 isa BlockDiagEquiRect
+            # dot product independent of basis
+            @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
+            @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
 
-        # sqrt
-        @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0)
-        @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2)
+            # creating block-diagonal covariance operators
+            Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)
+            Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)
+            @test Cf0 isa BlockDiagEquiRect{AzFourier,T}
+            @test Cf2 isa BlockDiagEquiRect{QUAzFourier,T}
 
-        # simulation
-        @test simulate(Cf0) isa EquiRectS0
-        @test simulate(Cf2) isa EquiRectS2
+            # sqrt1
+            @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0) rtol=rtol
+            @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2) rtol=rtol
+
+            # simulation
+            @test real(eltype(simulate(Cf0) :: EquiRectS0)) == T
+            @test real(eltype(simulate(Cf2) :: EquiRectS2)) == T
+            
+            # pinv
+            @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=rtol 
+            @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=rtol 
         
-        # pinv
-        @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
-        @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=1e-5
-    
-        @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=1e-5
-        @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=1e-5
+            @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=rtol
+            @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=rtol
 
-        @test (Cf0 / Cf0 * f0) ≈ f0 rtol=1e-5
-        @test (Cf2 / Cf2 * f2) ≈ f2 rtol=1e-5
+            @test (Cf0 / Cf0 * f0) ≈ f0 rtol=rtol
+            @test (Cf2 / Cf2 * f2) ≈ f2 rtol=rtol
 
-        # some operator algebra on ops
-        @test (Cf0 + Cf0) * f0 ≈ Cf0 * (2 * f0) ≈ (2 * Cf0) * f0
-        @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
+            # some operator algebra on ops
+            @test (Cf0 + Cf0) * f0 ≈ Cf0 * (2 * f0) ≈ (2 * Cf0) * f0
+            @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
 
-        # logdet
-        @test logdet(Cf0) ≈ logabsdet(Cf0)[1]
-        @test logdet(Cf2) ≈ logabsdet(Cf2)[1]
+            # logdet
+            @test logdet(Cf0) ≈ logabsdet(Cf0)[1]
+            @test logdet(Cf2) ≈ logabsdet(Cf2)[1]
 
-        # adjoint
-        g0 = simulate(Cf0)
-        g2 = simulate(Cf2)
-        @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0
-        @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2
-        
-        # Test for correct Fourier symmetry in monopole and nyquist f2 
-        let f2kk = f2[:Pl], f2xx = f2[:Px]
-            v = f2kk[1:end÷2,1]
-            w = f2kk[end÷2+1:end,1]
-            @test v ≈ conj.(w)
-            if iseven(size(f2xx,2))
-                v′ = f2kk[1:end÷2,end]
-                w′ = f2kk[end÷2+1:end,end]
-                @test v′ ≈ conj.(w′)
+            # adjoint
+            g0 = simulate(Cf0)
+            g2 = simulate(Cf2)
+            @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0 rtol=rtol
+            @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2 rtol=rtol
+            
+            # Test for correct Fourier symmetry in monopole and nyquist f2 
+            let f2kk = f2[:Pl], f2xx = f2[:Px]
+                v = f2kk[1:end÷2,1]
+                w = f2kk[end÷2+1:end,1]
+                @test v ≈ conj.(w)
+                if iseven(size(f2xx,2))
+                    v′ = f2kk[1:end÷2,end]
+                    w′ = f2kk[end÷2+1:end,end]
+                    @test v′ ≈ conj.(w′)
+                end
             end
-        end
 
-        # gradients
-        @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
-        @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
-        @test_real_gradient(α -> logdet(α * Cf0), 0)
-        @test_real_gradient(α -> logdet(α * Cf2), 0)
+            # gradients
+            @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
+            @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
+            @test_real_gradient(α -> logdet(α * Cf0), 0)
+            @test_real_gradient(α -> logdet(α * Cf2), 0)
+
+        end
 
     end
 

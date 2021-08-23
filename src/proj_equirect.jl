@@ -103,20 +103,20 @@ end
 
 # AzFourier <-> Map
 function AzFourier(f::EquiRectMap)
-    nφ = f.Nx
-    EquiRectAzFourier(m_rfft(f.arr, 2) ./ √nφ, f.proj)
+    nφ, T = f.Nx, real(f.T)
+    EquiRectAzFourier(m_rfft(f.arr, 2) ./ T(√nφ), f.proj)
 end
 
 function Map(f::EquiRectAzFourier)
-    nφ = f.Nx
-    EquiRectMap(m_irfft(f.arr, nφ, 2) .* √nφ, f.proj)
+    nφ, T = f.Nx, real(f.T)
+    EquiRectMap(m_irfft(f.arr, nφ, 2) .* T(√nφ), f.proj)
 end
 
 # QUAzFourier <-> QUMap
 function QUAzFourier(f::EquiRectQUMap)
-    nθ, nφ = f.Ny, f.Nx
+    nθ, nφ, T = f.Ny, f.Nx, real(f.T)
     qiumap = complex.(f.Qx, f.Ux) 
-    Uf = m_fft(qiumap, 2) ./ √nφ
+    Uf = m_fft(qiumap, 2) ./ T(√nφ)
     f▫ = similar(Uf, 2nθ, nφ÷2+1)
     for ℓ = 1:nφ÷2+1
         if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
@@ -132,7 +132,7 @@ end
 
 function QUMap(f::EquiRectQUAzFourier)
     nθₓ2, nφ½₊1 = size(f.arr)
-    nθ, nφ = f.Ny, f.Nx
+    nθ, nφ, T = f.Ny, f.Nx, real(f.T)
     @assert nφ½₊1 == nφ÷2+1
     @assert 2nθ   == nθₓ2
 
@@ -145,7 +145,7 @@ function QUMap(f::EquiRectQUAzFourier)
             pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
         end
     end
-    qiumap = m_ifft(pθk, 2) .* √nφ
+    qiumap = m_ifft(pθk, 2) .* T(√nφ)
     EquiRectQUMap(cat(real(qiumap), imag(qiumap), dims=3), f.proj)
 end
 
@@ -363,17 +363,11 @@ white_noise(ξ::EquiRectField{AzFourier, T},   rng::AbstractRNG) where {T} = AzF
 white_noise(ξ::EquiRectField{QUAzFourier, T}, rng::AbstractRNG) where {T} = QUAzFourier(white_noise(Complex{T}, ξ.proj, rng))
 
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,T}) where {T}
-    spin0_whitepix_fld = white_noise(T, M.proj, rng) 
-    mapblocks(M, spin0_whitepix_fld) do Mb, vb 
-        sqrt(Hermitian(Mb)) * vb
-    end
+    sqrt(M) * white_noise(T, M.proj, rng)
 end
 
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,T}) where {T}
-    spin2_whitepix_fld = white_noise(Complex{T}, M.proj, rng) 
-    mapblocks(M, spin2_whitepix_fld) do Mb, vb 
-        sqrt(Hermitian(Mb)) * vb
-    end
+    sqrt(M) * white_noise(Complex{T}, M.proj, rng) 
 end
 
 # adapt_structure
