@@ -21,9 +21,12 @@ struct ProjEquiRect{T} <: CartesianProj
 
 end
 
-struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}  <: ImplicitOp{T}
+struct BlockDiagEquiRect{B<:Basis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray}  <: ImplicitOp{T}
 
     blocks :: A
+    blocks_sqrt :: Ref{A}
+    blocks_pinv :: Ref{A}
+    logabsdet :: Ref{Tuple{T,Complex{T}}}
     proj :: P
 
 end
@@ -31,6 +34,8 @@ end
 struct AzFourier <: S0Basis end
 const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
 const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
+const AzBasis = Union{AzFourier, QUAzFourier, IQUAzFourier}
+
 
 # Type Alias
 # ================================================
@@ -91,8 +96,6 @@ where U is unitary FFT. The J matrix looks like this:
 |0 1  |
 
 """
-function Jperm end
-
 function Jperm(ℓ::Int, n::Int)
     @assert 1 <= ℓ <= n
     ℓ==1 ? 1 : n - ℓ + 2
@@ -171,21 +174,17 @@ end
 # block-diagonal operator
 # ================================================
 
-# NOTE: these block diag operators only work in AzBasis (at the moment) 
-# due to the requirement that f.arr needs to be a matrix in the code below.
-
-AzBasis = Union{QUAzFourier, AzFourier}
-
 # ## Constructors
 
-function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:AzBasis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
-    BlockDiagEquiRect{B,P,T,A}(block_matrix, proj)
+function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:AzBasis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray}
+    real(eltype(A)) == T || error("Mismatched eltype between $P and $A")
+    BlockDiagEquiRect{B,T,P,A}(block_matrix, Ref{A}(), Ref{A}(), Ref{Tuple{T,Complex{T}}}((0,0)), proj)
 end
 
 # The following allows construction by a vector of blocks
 
-function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:AzBasis, P<:ProjEquiRect, T, A<:AbstractMatrix{T}}
-    block_matrix = Array{T}(undef, size(vector_of_blocks[1])..., length(vector_of_blocks))
+function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:AzBasis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractMatrix}
+    block_matrix = similar(vector_of_blocks[1], size(vector_of_blocks[1])..., length(vector_of_blocks))
     for b in eachindex(vector_of_blocks)
         block_matrix[:,:,b] .= vector_of_blocks[b]
     end
@@ -278,39 +277,37 @@ end
 
 # ## Linear Algebra: with arguments (operator, )
 
-# - M₁,  inv(M₁) and sqrt(M₁)
-# REMARK: use mapblocks if you want more specific dispatch
+function LinearAlgebra.sqrt(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
+    if !isassigned(M.blocks_sqrt)
+        M.blocks_sqrt[] = mapslices(sqrt, M.blocks, dims=(1,2))
+    end
+    BlockDiagEquiRect{B}(M.blocks_sqrt[], M.proj)
+end
 
-for op in (:-, :sqrt, :inv, :pinv)
-
-    quote
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis}
-            BlockDiagEquiRect{B}(
-                mapslices($op, M₁.blocks, dims = [1,2]), 
-                M₁.proj
-            )
-        end
-    end |> eval
-
+function LinearAlgebra.pinv(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
+    if !isassigned(M.blocks_pinv)
+        M.blocks_pinv[] = mapslices(pinv, M.blocks, dims=(1,2))
+    end
+    BlockDiagEquiRect{B}(M.blocks_pinv[], M.proj)
 end
 
 # logdet and logabsdet
 
-function LinearAlgebra.logdet(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis} 
-    sum(logdet, eachslice(M₁.blocks; dims=3))
+function LinearAlgebra.logdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis} 
+    l, s = logabsdet(M)
+    l + log(s)
 end
 
-function LinearAlgebra.logabsdet(M₁::BlockDiagEquiRect{B}) where {B<:AzBasis} 
-    sum(x->logabsdet(x)[1], eachslice(M₁.blocks; dims=3))
+function LinearAlgebra.logabsdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis} 
+    if M.logabsdet[] == (0,0)
+        M.logabsdet[] = mapreduce(logabsdet, ((l1,s1),(l2,s2))->(l1+l2,s1*s2), eachslice(M.blocks, dims=3))
+    end
+    M.logabsdet[]
 end
 
-# dot products (including f' * g)
+# dot products
 
 LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr)
-
-function Base.:*(f::Adjoint{T,EquiRectField{A}}, g::EquiRectField{B}) where {T, A<:AzBasis, B<:AzBasis}
-    dot(f,g)
-end
 
 
 
@@ -360,20 +357,20 @@ function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Co
     EquiRectQUMap(real(qiu), imag(qiu), pj)
 end
 
-white_noise(ξ::EquiRectField{Map, P},         rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = white_noise(T, ξ.proj, rng)
-white_noise(ξ::EquiRectField{QUMap, P},       rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = white_noise(Complex{real(T)}, ξ.proj, rng)
-white_noise(ξ::EquiRectField{AzFourier, P},   rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = AzFourier(white_noise(T, ξ.proj, rng))
-white_noise(ξ::EquiRectField{QUAzFourier, P}, rng::AbstractRNG) where {T, P<:ProjEquiRect{T}} = QUAzFourier(white_noise(Complex{real(T)}, ξ.proj, rng))
+white_noise(ξ::EquiRectField{Map, T},         rng::AbstractRNG) where {T} = white_noise(T, ξ.proj, rng)
+white_noise(ξ::EquiRectField{QUMap, T},       rng::AbstractRNG) where {T} = white_noise(Complex{T}, ξ.proj, rng)
+white_noise(ξ::EquiRectField{AzFourier, T},   rng::AbstractRNG) where {T} = AzFourier(white_noise(T, ξ.proj, rng))
+white_noise(ξ::EquiRectField{QUAzFourier, T}, rng::AbstractRNG) where {T} = QUAzFourier(white_noise(Complex{T}, ξ.proj, rng))
 
-function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-    spin0_whitepix_fld = white_noise(real(T), M.proj, rng) 
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,T}) where {T}
+    spin0_whitepix_fld = white_noise(T, M.proj, rng) 
     mapblocks(M, spin0_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
     end
 end
 
-function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,ProjEquiRect{T}}) where {T}
-    spin2_whitepix_fld = white_noise(Complex{real(T)}, M.proj, rng) 
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,T}) where {T}
+    spin2_whitepix_fld = white_noise(Complex{T}, M.proj, rng) 
     mapblocks(M, spin2_whitepix_fld) do Mb, vb 
         sqrt(Hermitian(Mb)) * vb
     end

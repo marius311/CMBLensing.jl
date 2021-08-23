@@ -690,9 +690,6 @@ end
         @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
         @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=1e-5
     
-        @test (inv(Cf0) * Cf0 * f0) ≈ f0 rtol=1e-5
-        @test (inv(Cf2) * Cf2 * f2) ≈ f2 rtol=1e-5
-
         @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=1e-5
         @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=1e-5
 
@@ -704,8 +701,8 @@ end
         @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
 
         # logdet
-        @test logdet(Cf0) ≈ logabsdet(Cf0)
-        @test logdet(Cf2) ≈ logabsdet(Cf2)
+        @test logdet(Cf0) ≈ logabsdet(Cf0)[1]
+        @test logdet(Cf2) ≈ logabsdet(Cf2)[1]
 
         # adjoint
         g0 = simulate(Cf0)

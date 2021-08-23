@@ -346,12 +346,6 @@ for op in (:*, :/)
     @eval ($op)(a::Field{B}, b::Field{B}) where {B} = broadcast($op, a, b)
 end
 
-# needed unless I convince them to undo the changes here:
-# https://github.com/JuliaLang/julia/pull/35257#issuecomment-657901503
-if VERSION>v"1.4"
-    *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
-end
-
 
 # package code should use batch_index(f, 1), but for interactive work its
 # convenient to be able to do f[!,1]
