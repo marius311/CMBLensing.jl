@@ -197,47 +197,45 @@ end
 
 # M * f
 
-LinearAlgebra.:*(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
+(*)(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
-function LinearAlgebra.:*(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
+function (*)(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
-# M' * f
+(*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
-LinearAlgebra.:*(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
-
-function LinearAlgebra.:*(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
+function (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
 
-# f' * M
-
-function LinearAlgebra.:*(f::Adjoint{T,<:EquiRectField}, M::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
-    (M' * f.parent)'
+function rrule(::typeof(*), M::BlockDiagEquiRect{B}, f::EquiRectField{B′}) where {B<:Basis, B′<:Basis}
+    function times_pullback(Δ)
+        BΔ, Bf = B(Δ), B(f)
+        Zygote.ChainRules.NoTangent(), @thunk(BlockDiagEquiRect{B}(@tullio(M̄[p,q,iₘ] := Bf.arr[p,iₘ] * conj(BΔ.arr[q,iₘ])), M.proj)'), B′(M' * BΔ)
+    end
+    M * f, times_pullback
 end
+
 
 # ## Linear Algebra: tullio accelerated (operator, operator)
 
 # M₁ * M₂
-
-function LinearAlgebra.:*(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
+function (*)(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * M₂.blocks[j,q,iₘ]), M₁.proj)
 end
 
 # M₁' * M₂
-
-function LinearAlgebra.:*(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+function (*)(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := conj(M₁.parent.blocks[j,p,iₘ]) * M₂.blocks[j,q,iₘ]), M₁.parent.proj)
 end
 
 # M₁ * M₂'
-
-function LinearAlgebra.:*(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
+function (*)(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * conj(M₂.parent.blocks[q,j,iₘ])), M₁.proj)
 end
@@ -247,35 +245,40 @@ end
 
 for op in (:+, :-, :/, :\)
 
-    quote 
+    @eval function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
+        promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( $op, eachslice(M₁.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
+            M₁.proj,
+        )
+    end
 
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
-            promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
-            BlockDiagEquiRect{B}(
-                map( $op, eachslice(M₁.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
-                M₁.proj,
-            )
-        end
+    @eval function Base.$op(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+        promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( (m1,m2)->$op(m1',m2), eachslice(M₁.parent.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
+            M₁.proj
+        )
+    end
 
-        function LinearAlgebra.$op(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
-            promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
-            BlockDiagEquiRect{B}(
-                map( (m1,m2)->$op(m1',m2), eachslice(M₁.parent.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
-                M₁.proj
-            )
-        end
-
-        function LinearAlgebra.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
-            promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
-            BlockDiagEquiRect{B}(
-                map( (m1,m2)->$op(m1,m2'), eachslice(M₁.blocks;dims=3), eachslice(M₂.parent.blocks;dims=3) ),
-                M₁.proj,
-            )
-        end
-
-    end |> eval 
+    @eval function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
+        promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( (m1,m2)->$op(m1,m2'), eachslice(M₁.blocks;dims=3), eachslice(M₂.parent.blocks;dims=3) ),
+            M₁.proj,
+        )
+    end
 
 end
+
+for op in (:*, :/)
+    @eval Base.$op(a::Scalar, M::BlockDiagEquiRect{B}) where {B} = BlockDiagEquiRect{B}(broadcast($op, a, M.blocks), M.proj)
+    @eval Base.$op(M::BlockDiagEquiRect{B}, a::Scalar) where {B} = BlockDiagEquiRect{B}(broadcast($op, a, M.blocks), M.proj)
+    @eval Base.$op(a::Scalar, M::Adjoint{T,<:BlockDiagEquiRect{B}}) where {B,T} = (conj(a) * M.parent)'
+    @eval Base.$op(M::Adjoint{T,<:BlockDiagEquiRect{B}}, a::Scalar) where {B,T} = (conj(a) * M.parent)'
+end
+
+
 
 # ## Linear Algebra: with arguments (operator, )
 
@@ -307,9 +310,18 @@ function LinearAlgebra.logabsdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     M.logabsdet[]
 end
 
+@adjoint function LinearAlgebra.logabsdet(M::BlockDiagEquiRect)
+    logabsdet(M), Δ -> (Δ[1] * pinv(M)',)
+end
+
 # dot products
 
 LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr)
+
+# needed by AD
+function LinearAlgebra.dot(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+    (@tullio a[] := conj(M₁.parent.blocks[q,p,iₘ]) * M₂.blocks[p,q,iₘ])[]
+end
 
 
 
@@ -534,7 +546,7 @@ end
 adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
 
 
-### etc...
-# TODO: see proj_lambert.jl and adapt the things there for EquiRect
-# maps, or even better, figure out what can be factored out into
-# generic code that works for both Lambert and EquiRect
+# @adjoint function (::Type{F})(arr::A, proj::P) where {B<:SpatialBasis{AzFourier},P<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
+#     # F(arr, proj), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(proj.Nx))'), nothing)
+#     F(arr, proj), Δ -> (Δ.arr, nothing)
+# end

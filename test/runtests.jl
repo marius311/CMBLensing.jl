@@ -684,7 +684,7 @@ end
             @test Cf0 isa BlockDiagEquiRect{AzFourier,T}
             @test Cf2 isa BlockDiagEquiRect{QUAzFourier,T}
 
-            # sqrt1
+            # sqrt
             @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0) rtol=rtol
             @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2) rtol=rtol
 
@@ -728,12 +728,18 @@ end
                 end
             end
 
-            # gradients
-            @test_real_gradient(α -> (f0 + α * g0)' * pinv(Cf0) * (f0 + α * g0), 0)
-            @test_real_gradient(α -> (f2 + α * g2)' * pinv(Cf2) * (f2 + α * g2), 0)
-            @test_real_gradient(α -> logdet(α * Cf0), 0)
-            @test_real_gradient(α -> logdet(α * Cf2), 0)
+            # gradients w.r.t. fields
+            @test gradient(f -> dot(f,f), f0)[1] ≈ 2*f0
+            @test gradient(f -> dot(f,f), f2)[1] ≈ 2*f2
+            @test gradient(f0 -> f0' * (pinv(Cf0) * f0), f0)[1] ≈ (2 * pinv(Cf0) * f0)
+            @test gradient(f2 -> f2' * (pinv(Cf2) * f2), f2)[1] ≈ (2 * pinv(Cf2) * f2)
 
+            # gradients through entries of BlockDiagEquiRect
+            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)
+            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)
+            @test_broken gradient(α -> f0' * (pinv(α * Cf0) * f0), 1)[1] isa Real 
+            @test_broken gradient(α -> f2' * (pinv(α * Cf2) * f2), 1)[1] isa Real
+            
         end
 
     end

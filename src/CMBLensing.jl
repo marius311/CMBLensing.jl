@@ -50,6 +50,7 @@ using Tullio
 using UnPack
 using Zygote
 using Zygote: unbroadcast, Numeric, @adjoint, @nograd
+using Zygote.ChainRules: @thunk, NoTangent
 
 
 import Adapt: adapt_structure
@@ -62,6 +63,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero
 import Base.Broadcast: materialize, preprocess, broadcasted
+import Zygote.ChainRules: rrule
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
