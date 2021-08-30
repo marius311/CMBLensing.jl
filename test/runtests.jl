@@ -681,8 +681,12 @@ end
             # creating block-diagonal covariance operators
             Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)
             Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)
+            Bf0 = CMBLensing.Cℓ_to_Beam(:I, f0.proj, Cℓ.total.TT)
+            Bf2 = CMBLensing.Cℓ_to_Beam(:P, f2.proj, Cℓ.total.TT)
             @test Cf0 isa BlockDiagEquiRect{AzFourier,T}
             @test Cf2 isa BlockDiagEquiRect{QUAzFourier,T}
+            @test Bf0 isa BlockDiagEquiRect{AzFourier,T}
+            @test Bf2 isa BlockDiagEquiRect{QUAzFourier,T}
 
             # sqrt
             @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0) rtol=rtol

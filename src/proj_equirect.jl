@@ -69,6 +69,8 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
     if all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂)))
         !any(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan))) || arg_error()
         @unpack (θ, φ, θ∂, φ∂) = kwargs
+        θspan = (θ∂[1], θ∂[end])
+        φspan = (φ∂[1], φ∂[end])
     elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
         !all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂))) || arg_error()
         @unpack (Ny, Nx, θspan, φspan) = kwargs
@@ -362,11 +364,11 @@ end
 
 global_rng_for(::Type{<:BlockDiagEquiRect}) = Random.default_rng()
 
-function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Real}
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Real}
     EquiRectMap(randn(T, pj.Ny, pj.Nx), pj)
 end
 
-function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG) where {T<:Complex}
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Complex}
     qiu = randn(T, pj.Ny, pj.Nx)
     EquiRectQUMap(real(qiu), imag(qiu), pj)
 end
@@ -397,7 +399,7 @@ function Base.size(L::BlockDiagEquiRect{<:AzBasis})
     return (sz, sz)
 end
 
-# covariance operators
+# covariance and beam operators
 # ================================================
 
 function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
@@ -430,7 +432,6 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; un
     return BlockDiagEquiRect{AzFourier}(I▫, proj)
     
 end
-
 
 function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
     
@@ -468,6 +469,34 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, C
     return BlockDiagEquiRect{QUAzFourier}(EB▫, proj)
 
 end
+
+function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+
+    @unpack Ω = proj
+
+    B▪ = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    @tullio B▪.blocks[j,k,iₘ] *= Ω[k]
+
+    return B▪
+end
+
+function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+
+    @unpack θ, Ω = proj
+
+    B▪    = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    dcatΩ = Diagonal(vcat(Ω, Ω))
+    zB    = zeros(T, length(θ), length(θ))
+
+    Beam▪ = BlockDiagEquiRect{QUAzFourier}(
+        map(B->[B zB;zB B]*dcatΩ, eachslice(B▪.blocks; dims=3)),
+        B▪.proj,
+    )
+
+    return Beam▪
+end
+
+Cℓ_to_Beam(pol::Symbol, args...; kwargs...) = Cℓ_to_Beam(Val(pol), args...; kwargs...)
 
 
 # promotion

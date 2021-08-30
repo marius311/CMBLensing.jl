@@ -29,12 +29,14 @@ hide_plots = true
 
 pj = @sblock let 
 
-    θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=128, type=:equiθ)
+    θspan = (2.55,2.7)
+    θ, θ∂ = CC.θ_grid(; θspan, N=128, type=:equiθ)
     ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equiθ)
     ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=250, type=:equicosθ)
     ## θ, θ∂ = CC.θ_grid(; θspan=(2.3,2.7), N=2048, type=:healpix)
 
-    φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-36, 36)), N=2*128-1)
+    φspan = deg2rad.((-15, 15))
+    φ, φ∂ = CC.φ_grid(; φspan, N=2*128-1)
     ## φ, φ∂ = CC.φ_grid(; φspan=deg2rad.((-60, 60)), N=1024)
 
     CMBLensing.ProjEquiRect(; θ, φ, θ∂, φ∂, T=Float64)
@@ -64,108 +66,68 @@ end
     return fig
 end;
 
-# Spectral densities
+
+# Block diagonal cov matrices
 # ==============================
 
-ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ = @sblock let ℓmax = 11000, beamfwhm_arcmin = 30 
+ℓmax, Cℓ, CBeamℓ = @sblock let ℓmax = 11000, beamfwhm_arcmin = 10 
 	ℓ    = 0:ℓmax
-	Cℓ   = camb(;r=0.01, ℓmax);
-	CBBℓ = Cℓ.tensor.BB(ℓ)
-	CEEℓ = Cℓ.unlensed_scalar.EE(ℓ)
-	CΦΦℓ = Cℓ.unlensed_scalar.ϕϕ(ℓ)
-	for cl in (CEEℓ, CBBℓ, CΦΦℓ)
-		cl[.!isfinite.(cl)] .= 0
-	end
+
+    Cℓ = camb(;r=0.01, ℓmax)
 
     beamfwhm_rad = beamfwhm_arcmin |> arcmin -> deg2rad(arcmin/60)
     σ²    = beamfwhm_rad^2 / 8 / log(2)
     CBeamℓ = @. exp( - σ²*ℓ*(ℓ+1) / 2)
 
-	return ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ
-end
-
-@sblock let hide_plots, ℓ, CEEℓ, CBBℓ, CΦΦℓ
-	hide_plots && return 
-	fig, ax = subplots(2)
-	ax[1].plot(ℓ, @. ℓ^2*CEEℓ)
-	ax[1].plot(ℓ, @. ℓ^2*CBBℓ)
-    ax[2].plot(ℓ, @. ℓ^4*CΦΦℓ)
-	ax[1].set_xscale("log")
-	ax[2].set_xscale("log")
-	ax[1].set_yscale("log")
-	ax[2].set_yscale("log")
-	return nothing
-end
-
-
-# Block diagonal cov matrices
-# ==============================
-
-
-
-
-EB▪, Beam▪, Phi▪  = @sblock let ℓ, CEEℓ, CBBℓ, CΦΦℓ, CBeamℓ, pj
-
-    θ, φ, Ω = pj.θ, pj.φ, pj.Ω
-    nθ, nφ  = length(θ), length(φ)
-
-    Γ_Phi  = CC.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CΦΦℓ; ngrid=50_000)
-    Γ_Beam = CC.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CBeamℓ; ngrid=50_000)
-    ΓC_EB  = CC.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)
-
-    T     = ComplexF64 # ComplexF32
-    rT    = real(T)
-    EB▫   = zeros(T,2nθ,2nθ,nφ÷2+1)
-    Beam▫ = zeros(rT,2nθ,2nθ,nφ÷2+1)
-    Phi▫  = zeros(rT,nθ,nθ,nφ÷2+1)
-    
-    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
-
-    prgss = Progress(nθ, 1, "EB▫, Phi▫, Beam▫")
-    for k = 1:nθ
-        for j = 1:nθ
-            Phiγⱼₖℓ⃗       = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Phi,  ptmW)
-            Beamγⱼₖℓ⃗      = CC.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_Beam, ptmW)
-            EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CC.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
-            for ℓ = 1:nφ÷2+1
-                Jℓ = CC.Jperm(ℓ, nφ)
-                Phi▫[j,k, ℓ] = real(Phiγⱼₖℓ⃗[ℓ])
-
-                Beam▫[j,   k   , ℓ] = real(Beamγⱼₖℓ⃗[ℓ])  * Ω[k]
-                Beam▫[j+nθ,k+nθ, ℓ] = real(Beamγⱼₖℓ⃗[Jℓ]) * Ω[k]
-
-                EB▫[j,   k   , ℓ]   = EBγⱼₖℓ⃗[ℓ]
-                EB▫[j,   k+nθ, ℓ]   = EBξⱼₖℓ⃗[ℓ]
-                EB▫[j+nθ,k   , ℓ]   = conj(EBξⱼₖℓ⃗[Jℓ])
-                EB▫[j+nθ,k+nθ, ℓ]   = conj(EBγⱼₖℓ⃗[Jℓ])
-            end
-        end
-        next!(prgss)
-    end
-
-    @show Base.summarysize(EB▫) / 1e9
-    @show Base.summarysize(Phi▫)  / 1e9
-
-    EB▪   = BlockDiagEquiRect{QUAzFourier}(EB▫, pj)
-    Beam▪ = BlockDiagEquiRect{QUAzFourier}(Beam▫, pj)
-    Phi▪  = BlockDiagEquiRect{AzFourier}(Phi▫, pj)
-
-    return EB▪, Beam▪, Phi▪ 
+	return ℓmax, Cℓ, InterpolatedCℓs(CBeamℓ; ℓstart=0)
 end;
 
-# Re-do EB▪ and  Phi▪
+#-
 
-EB▪, Phi▪  = @sblock let Cℓ = camb(;r=0.01, ℓmax=11_000), pj
-    Phi▪ = Cℓ_to_Cov(:I, pj, Cℓ.unlensed_scalar.ϕϕ, ℓmax=11_000)
-    EB▪  = Cℓ_to_Cov(:P, pj, Cℓ.unlensed_scalar.EE, Cℓ.tensor.BB, ℓmax=11_000)
-    return EB▪, Phi▪ 
-end 
+EB▪, Phi▪, IBeam▪, PBeam▪   = @sblock let pj, ℓmax, Cℓ, CBeamℓ
+    Phi▪ = Cℓ_to_Cov(:I, pj, Cℓ.unlensed_scalar.ϕϕ; ℓmax)
+    EB▪  = Cℓ_to_Cov(:P, pj, Cℓ.unlensed_scalar.EE, Cℓ.tensor.BB; ℓmax)
+    IBeam▪ = CMBLensing.Cℓ_to_Beam(:I, pj, CBeamℓ; ℓmax)
+    PBeam▪ = CMBLensing.Cℓ_to_Beam(:P, pj, CBeamℓ; ℓmax)
 
+    return EB▪, Phi▪, IBeam▪, PBeam▪ 
+end; 
+
+#-
 
 @test Phi▪ isa BlockDiagEquiRect
 @test EB▪ isa BlockDiagEquiRect
+@test IBeam▪ isa BlockDiagEquiRect{AzFourier}
+@test PBeam▪ isa BlockDiagEquiRect{QUAzFourier}
 
 
+#- 
+
+wI = white_noise(Float64, pj)
+wP = white_noise(ComplexF64, pj)
+Beam_wI = IBeam▪ * wI
+Beam_wP = PBeam▪ * wP
+
+
+
+
+@sblock let wP, Beam_wP, hide_plots
+    hide_plots && return
+    fig,ax = subplots(2,2, figsize=(12,8))
+    wP[:Px]  .|> real |> imshow(-, fig, ax[1,1])  # Qsim
+    wP[:Px]  .|> imag |> imshow(-, fig, ax[2,1])  # Usim
+    Beam_wP[:Px] .|> real |> imshow(-, fig, ax[1,2]) # Beamed Qsim
+    Beam_wP[:Px] .|> imag |> imshow(-, fig, ax[2,2]) # Beamed Usim
+    ax[1,1].set_title("Q sim") 
+    ax[2,1].set_title("U sim") 
+    ax[1,2].set_title("Beamed Q sim") 
+    ax[2,2].set_title("Beamed U sim") 
+    return fig
+end;
+
+
+
+#- 
 
 
 # Testing out indexing
@@ -217,8 +179,8 @@ end;
 @sblock let f2, f2′, hide_plots
     hide_plots && return
     fig,ax = subplots(2,2, figsize=(12,8))
-    f2[:Px] .|> real |> imshow(-, fig, ax[1,1])  # Qsim
-    f2[:Px] .|> imag |> imshow(-, fig, ax[2,1])  # Usim
+    f2[:Px]  .|> real |> imshow(-, fig, ax[1,1])  # Qsim
+    f2[:Px]  .|> imag |> imshow(-, fig, ax[2,1])  # Usim
     f2′[:Px] .|> real |> imshow(-, fig, ax[1,2]) # Beamed Qsim
     f2′[:Px] .|> imag |> imshow(-, fig, ax[2,2]) # Beamed Usim
     ax[1,1].set_title("Q sim") 
