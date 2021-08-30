@@ -473,9 +473,10 @@ end
 function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack Ω = proj
+    Ω′ = T.(Ω)
 
     B▪ = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
-    @tullio B▪.blocks[j,k,iₘ] *= Ω[k]
+    @tullio B▪.blocks[j,k,iₘ] *= Ω′[k]
 
     return B▪
 end
@@ -483,9 +484,10 @@ end
 function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack θ, Ω = proj
+    Ω′ = T.(Ω)
 
     B▪    = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
-    dcatΩ = Diagonal(vcat(Ω, Ω))
+    dcatΩ = Diagonal(vcat(Ω′, Ω′))
     zB    = zeros(T, length(θ), length(θ))
 
     Beam▪ = BlockDiagEquiRect{QUAzFourier}(
