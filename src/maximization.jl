@@ -156,7 +156,8 @@ function MAP_joint(
     ProgressMeter.update!(pbar)
 
     f = prevf = prevϕ = prev_∇ϕ_lnP = nothing
- 
+    α = Inf
+
     for step = 1:nsteps
 
         # f step
@@ -172,7 +173,7 @@ function MAP_joint(
         f°, = mix(f, ϕ, dsθ)
         ∇ϕ_lnP, = @⌛ gradient(ϕ->-2lnP(:mix,f°,ϕ,dsθ), ϕ)
         s = -(Hϕ⁻¹ * ∇ϕ_lnP)
-        αmax = 0.5 * get_max_lensing_step(ϕ, s)
+        αmax = min(5α, get_max_lensing_step(ϕ,s)/2)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
             χ² = @⌛(sum(unbatch(-2lnP(:mix,f°,ϕ+α*s,dsθ))))
             isnan(χ²) ? T(α/αmax) * prevfloat(T(Inf)) : χ² # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
@@ -190,7 +191,7 @@ function MAP_joint(
             ("CG",         "$(length(argmaxf_lnP_history)) iterations"), 
             ("Linesearch", "$(soln.iterations) bisections")
         ])
-        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
+        push!(history, select((;f,f°,ϕ,∇ϕ_lnP,χ²,α,αmax,lnP=-χ²/2,Hϕ⁻¹,argmaxf_lnP_history), history_keys))
         if (
             !isnothing(ϕtol) &&
             !isnothing(prevϕ) &&
