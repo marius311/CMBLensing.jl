@@ -63,7 +63,7 @@ multiple GPUs.
 function assign_GPU_workers(;print_info=true)
     @everywhere @eval Main using Distributed, CMBLensing
     master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
-    accessible_gpus = Dict(map(workers()) do id
+    accessible_gpus = Dict(asyncmap(workers()) do id
         @eval Main @fetchfrom $id begin
             ds = CUDA.devices()
             # put master's GPU last so we don't double up on it unless we need to
