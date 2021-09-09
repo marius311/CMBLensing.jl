@@ -13,8 +13,8 @@ struct ProjEquiRect{T} <: CartesianProj
     φspan       :: Tuple{Float64,Float64}
     θ           :: Vector{Float64} 
     φ           :: Vector{Float64} 
-    θ∂          :: Vector{Float64} 
-    φ∂          :: Vector{Float64} 
+    θedges      :: Vector{Float64} 
+    φedges      :: Vector{Float64} 
     Ω           :: Vector{Float64} 
     
     storage
@@ -56,31 +56,31 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
 # Proj 
 # ================================================
 
-@memoize function ProjEquiRect(θ, φ, θ∂, φ∂, θspan, φspan, ::Type{T}, storage) where {T}
+@memoize function ProjEquiRect(θ, φ, θedges, φedges, θspan, φspan, ::Type{T}, storage) where {T}
     Ny, Nx = length(θ), length(φ)
-    Ω  = rem2pi(φ∂[2] .- φ∂[1], RoundDown) .* diff(.- cos.(θ∂))
-    ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θ∂, φ∂, Ω, storage)
+    Ω  = rem2pi(φedges[2] .- φedges[1], RoundDown) .* diff(.- cos.(θedges))
+    ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θedges, φedges, Ω, storage)
 end
 
 function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
 
-    arg_error() = error("Constructor takes either (θ, φ, θ∂, φ∂) or (Ny, Nx, θspan, φspan) keyword arguments.")
+    arg_error() = error("Constructor takes either (θ, φ, θedges, φedges) or (Ny, Nx, θspan, φspan) keyword arguments.")
     
-    if all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂)))
+    if all(haskey.(Ref(kwargs), (:θ, :φ, :θedges, :φedges)))
         !any(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan))) || arg_error()
-        @unpack (θ, φ, θ∂, φ∂) = kwargs
-        θspan = (θ∂[1], θ∂[end])
-        φspan = (φ∂[1], φ∂[end])
+        @unpack (θ, φ, θedges, φedges) = kwargs
+        θspan = (θedges[1], θedges[end])
+        φspan = (φedges[1], φedges[end])
     elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
-        !all(haskey.(Ref(kwargs), (:θ, :φ, :θ∂, :φ∂))) || arg_error()
+        !all(haskey.(Ref(kwargs), (:θ, :φ, :θedges, :φedges))) || arg_error()
         @unpack (Ny, Nx, θspan, φspan) = kwargs
-        θ, θ∂ = @ondemand(CirculantCov.θ_grid)(; θspan, N=Ny, type=:equiθ)
-        φ, φ∂ = @ondemand(CirculantCov.φ_grid)(; φspan, N=Nx)
+        θ, θedges = @ondemand(CirculantCov.θ_grid)(; θspan, N=Ny, type=:equiθ)
+        φ, φedges = @ondemand(CirculantCov.φ_grid)(; φspan, N=Nx)
     else
         arg_error()
     end
 
-    ProjEquiRect(θ, φ, θ∂, φ∂, θspan, φspan, real_type(T), storage)
+    ProjEquiRect(θ, φ, θedges, φedges, θspan, φspan, real_type(T), storage)
 
 end
 
