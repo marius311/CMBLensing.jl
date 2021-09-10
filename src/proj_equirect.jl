@@ -143,17 +143,17 @@ function QUAzFourier(f::EquiRectQUMap)
     nθ, nφ, T = f.Ny, f.Nx, real(f.T)
     qiumap = complex.(f.Qx, f.Ux) 
     Uf = m_fft(qiumap, 2) ./ T(√nφ)
-    f▫ = similar(Uf, 2nθ, nφ÷2+1)
+    arr = similar(Uf, 2nθ, nφ÷2+1)
     for ℓ = 1:nφ÷2+1
         if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
-            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
-            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
+            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
+            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
         else
-            f▫[1:nθ, ℓ]     .= Uf[:,ℓ]
-            f▫[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
+            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
+            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
         end
     end
-    EquiRectQUAzFourier(f▫, f.proj)
+    EquiRectQUAzFourier(arr, f.proj)
 end
 
 function QUMap(f::EquiRectQUAzFourier)
@@ -427,7 +427,7 @@ end
 # ================================================
 
 function Cℓ_to_Cov(::Val, proj::ProjEquiRect, args...; kwargs...)
-    error("Run `using CirculantCov` before you can use this function.")
+    error("Run `using CirculantCov` to use this function.")
 end
 
 @init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
@@ -438,11 +438,10 @@ end
         nθ, nφ  = length(θ), length(φ)
         ℓ       = 0:ℓmax
 
-        CIℓ = CI(ℓ)
-        CIℓ[.!isfinite.(CIℓ)] .= 0
+        CIℓ = nan2zero.(CI(ℓ))
 
         @assert real(T) == T
-        I▫  = zeros(T,nθ,nθ,nφ÷2+1)
+        blocks = zeros(T, nθ, nθ, nφ÷2+1)
         # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
         Γ_I  = CirculantCov.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CIℓ; ngrid=50_000)
         # using full resolution ComplexF64 for internal construction
@@ -451,15 +450,15 @@ end
         pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
         for k = 1:nθ
             for j = 1:nθ
-                Iγⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_I,  ptmW)
+                Iγⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_I, ptmW)
                 for ℓ = 1:nφ÷2+1
-                    I▫[j,k, ℓ] = real(Iγⱼₖℓ⃗[ℓ])
+                    blocks[j,k,ℓ] = real(Iγⱼₖℓ⃗[ℓ])
                 end
             end
             next!(pbar)
         end
 
-        return BlockDiagEquiRect{AzFourier}(I▫, proj)
+        return BlockDiagEquiRect{AzFourier}(blocks, proj)
         
     end
 
@@ -469,17 +468,15 @@ end
         nθ, nφ  = length(θ), length(φ)
         ℓ       = 0:ℓmax
 
-        CBBℓ = CBB(ℓ)
-        CEEℓ = CEE(ℓ)
-        CBBℓ[.!isfinite.(CBBℓ)] .= 0
-        CEEℓ[.!isfinite.(CEEℓ)] .= 0
+        CBBℓ = nan2zero.(CBB(ℓ))
+        CEEℓ = nan2zero.(CEE(ℓ))
 
         @assert real(T) == T
-        EB▫   = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
+        blocks = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
         # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
-        ΓC_EB  = CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
+        ΓC_EB = CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
         # using full resolution ComplexF64 for internal construction
-        ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+        ptmW = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
         
         pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
         for k = 1:nθ
@@ -487,16 +484,16 @@ end
                 EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
                 for ℓ = 1:nφ÷2+1
                     Jℓ = Jperm(ℓ, nφ)
-                    EB▫[j,   k   , ℓ] = EBγⱼₖℓ⃗[ℓ]
-                    EB▫[j,   k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
-                    EB▫[j+nθ,k   , ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
-                    EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
+                    blocks[j,    k,    ℓ] = EBγⱼₖℓ⃗[ℓ]
+                    blocks[j,    k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
+                    blocks[j+nθ, k,    ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
+                    blocks[j+nθ, k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
                 end
             end
             next!(pbar)
         end
 
-        return BlockDiagEquiRect{QUAzFourier}(EB▫, proj)
+        return BlockDiagEquiRect{QUAzFourier}(blocks, proj)
 
     end
 
@@ -507,10 +504,10 @@ function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; u
     @unpack Ω = proj
     Ω′ = T.(Ω)
 
-    B▪ = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
-    @tullio B▪.blocks[j,k,iₘ] *= Ω′[k]
+    Cov = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    @tullio Cov.blocks[j,k,iₘ] *= Ω′[k]
 
-    return B▪
+    return Cov
 end
 
 function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
@@ -518,16 +515,16 @@ function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; u
     @unpack θ, Ω = proj
     Ω′ = T.(Ω)
 
-    B▪    = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    Cov   = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
     dcatΩ = Diagonal(vcat(Ω′, Ω′))
     zB    = zeros(T, length(θ), length(θ))
 
-    Beam▪ = BlockDiagEquiRect{QUAzFourier}(
-        map(B->[B zB;zB B]*dcatΩ, eachslice(B▪.blocks; dims=3)),
-        B▪.proj,
+    Beam = BlockDiagEquiRect{QUAzFourier}(
+        map(B->[B zB;zB B]*dcatΩ, eachslice(Cov.blocks; dims=3)),
+        proj,
     )
 
-    return Beam▪
+    return Beam
 end
 
 Cℓ_to_Beam(pol::Symbol, args...; kwargs...) = Cℓ_to_Beam(Val(pol), args...; kwargs...)
