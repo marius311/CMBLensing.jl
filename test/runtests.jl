@@ -53,7 +53,7 @@ Nsides_big = [(128,128), (64,128), (128,64)]
 
 Random.seed!(1)
 
-has_batched_fft = (CMBLensing.fftw_provider() != "mkl") || (storage != Array)
+has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 ##
 
@@ -71,14 +71,6 @@ has_batched_fft = (CMBLensing.fftw_provider() != "mkl") || (storage != Array)
         @test occursin("pixel",sprint(show, MIME("text/plain"), f))
     end
     
-    for m in ((), (MIME("text/plain"),))
-        # unionall types: (the presence of "where" indicates printing correctly
-        # forwarded to the default behavior)
-        @test occursin("where",sprint(show, m..., FieldTuple{<:Any,<:NamedTuple{(:Q,:U)}}))
-        @test occursin("where",sprint(show, m..., FlatMap{<:Any,<:Any,<:Matrix{Real}}))
-        @test occursin("where",sprint(show, m..., FlatQUMap))
-    end
-
 end
 
 ##
@@ -534,7 +526,7 @@ end
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
-    @testset "$L" for (L,rtol) in [(BilinearLens,0.4), (LenseFlow,1e-2)]
+    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.1)]
 
         @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
@@ -542,7 +534,6 @@ end
                 
                 proj = ProjLambert(;Ny,Nx,T,storage)
 
-                ε = sqrt(eps(T))
                 Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
                 @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
                 
@@ -556,8 +547,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
 
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
@@ -569,8 +559,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test FieldTuple(gradient((f′,ϕ) -> f'*(L(ϕ)*f′), f, ϕ))' * FieldTuple(δf,δϕ) ≈ 
-                    (f'*((L(ϕ+ε*δϕ)*(f+ε*δf))-(L(ϕ-ε*δϕ)*(f-ε*δf)))/(2ε)) rtol=rtol
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
                 
             end
 
@@ -612,7 +601,7 @@ end
             δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
             @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
+            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=130)
             @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
             
         end

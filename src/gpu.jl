@@ -86,3 +86,8 @@ function cuda_gc()
     GC.gc(true)
     CUDA.reclaim()
 end
+
+@static if versionof(Zygote)>v"0.6.11"
+    # https://github.com/JuliaGPU/CUDA.jl/issues/982
+    dot(x::CuArray, y::CuArray) = sum(conj.(x) .* y)
+end

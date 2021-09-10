@@ -39,7 +39,7 @@ end
 end
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
-copy_if_fftw(x) = (x isa Array && fftw_provider() == "fftw") ? copy(x) : x
+copy_if_fftw(x) = (x isa Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
 
 
 """

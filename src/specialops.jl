@@ -39,6 +39,12 @@ materialize!(dest::DiagOp, bc::Broadcasted{DiagOpStyle{S}}) where {S} =
     (materialize!(diag(dest), convert(Broadcasted{S}, preprocess(DiagOpStyle{S}(), bc))); dest)
 preprocess(::DiagOpStyle, D::Diagonal) = diag(D)
 
+if VERSION >= v"1.7-beta"
+    # https://github.com/JuliaLang/julia/pull/37898#issuecomment-877755178
+    LinearAlgebra.mat_mat_scalar(A::DiagOp, B::DiagOp, γ::Number) = (A * B) * γ
+end
+
+
 
 # ### BlockDiagIEB
 # 
