@@ -643,10 +643,10 @@ end
             proj′ = ProjEquiRect(;Ny, Nx, T, θspan, φspan=φspan′)
             @test (proj′.Ny == length(proj′.θ) == Ny) && (proj′.Nx == length(proj′.φ) == Nx)
 
-            # Make a linear list `θ∂[1], θ[1], θ∂[2], θ[2], ..., θ∂[n], θ[n], θ∂[n+1]`
+            # Make a linear list `θedges[1], θ[1], θedges[2], θ[2], ..., θedges[n], θ[n], θedges[n+1]`
             # and test that it is strictly increasing. 
-            ∂θ∂ = vcat(vcat(proj′.θ∂[1:end-1]', proj′.θ')[:],  proj′.θ∂[end])
-            @test all(diff(∂θ∂) .> 0)
+            ∂θedges = vcat(vcat(proj′.θedges[1:end-1]', proj′.θ')[:],  proj′.θedges[end])
+            @test all(diff(∂θedges) .> 0)
 
             proj′Δφpix   = rem2pi(proj′.φ[2]-proj′.φ[1],   RoundDown)
             proj′Δφspan  = rem2pi(proj′.φ[end]-proj′.φ[1], RoundDown) + proj′Δφpix

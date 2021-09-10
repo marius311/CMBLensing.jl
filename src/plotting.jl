@@ -127,7 +127,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		if f isa LambertField
 			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
 		elseif f isa EquiRectField
-			extent = rad2deg.([f.φspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+			extent = rad2deg.([f.φspan..., reverse(f.θspan)...]) .* Dict(:deg=>1,:arcmin=>60)[units]
 		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist

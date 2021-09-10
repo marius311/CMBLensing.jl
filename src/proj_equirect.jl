@@ -62,6 +62,26 @@ typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}}
     ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θedges, φedges, Ω, storage)
 end
 
+"""
+    ProjEquiRect(; Ny::Int, Nx::Int, θspan::Tuple, φspan::Tuple,         T=Float32, storage=Array)
+    ProjEquiRect(; θ::Vector, φ::Vector, θedges::Vector, φedges::Vector, T=Float32, storage=Array)
+
+Construct an EquiRect projection object. The projection can either be
+specified by:
+
+* The number of pixels `Ny` and `Nx` (corresponding to the `θ` and `φ`
+  angular directions, respectively) and the span in radians of the
+  field in these directions, `θspan` and `φspan`. The order in which
+  the span tuples are given is irrelevant, either order will refer to
+  the same field. Note, the spans correspond to the field size between
+  outer pixel edges, not from pixel centers. If one wishes to call
+  [`Cℓ_to_Cov`](@ref) with this projection, `φspan` must be an integer
+  multiple of 2π, but other functionality will be available if this is
+  not the case. 
+* A manual list of pixels centers and pixel edges, `θ`, `φ`, `θedges`,
+  `φedges`.
+
+"""
 function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
 
     arg_error() = error("Constructor takes either (θ, φ, θedges, φedges) or (Ny, Nx, θspan, φspan) keyword arguments.")
@@ -73,9 +93,13 @@ function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
         φspan = (φedges[1], φedges[end])
     elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
         !all(haskey.(Ref(kwargs), (:θ, :φ, :θedges, :φedges))) || arg_error()
-        @unpack (Ny, Nx, θspan, φspan) = kwargs
-        θ, θedges = @ondemand(CirculantCov.θ_grid)(; θspan, N=Ny, type=:equiθ)
-        φ, φedges = @ondemand(CirculantCov.φ_grid)(; φspan, N=Nx)
+        @unpack (Nx, Ny, θspan, φspan) = kwargs
+        θspan = (sort(collect(θspan))...,)
+        φspan = (sort(collect(φspan))...,)
+        φedges = rem2pi.(range(φspan..., length=Nx+1),           RoundDown)
+        φ      = rem2pi.(range(φspan..., length=2Nx+1)[2:2:end], RoundDown)
+        θedges = range(θspan..., length=Ny+1)
+        θ      = range(θspan..., length=2Ny+1)[2:2:end]
     else
         arg_error()
     end
@@ -402,71 +426,79 @@ end
 # covariance and beam operators
 # ================================================
 
-function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
-    
-    @unpack θ, φ, Ω = proj
-    nθ, nφ  = length(θ), length(φ)
-    ℓ       = 0:ℓmax
-
-    CIℓ = CI(ℓ)
-    CIℓ[.!isfinite.(CIℓ)] .= 0
-
-    @assert real(T) == T
-    I▫  = zeros(T,nθ,nθ,nφ÷2+1)
-    # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
-    Γ_I  = @ondemand(CirculantCov.Γθ₁θ₂φ₁φ⃗_Iso)(ℓ, CIℓ; ngrid=50_000)
-    # using full resolution ComplexF64 for internal construction
-    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
-
-    pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
-    for k = 1:nθ
-        for j = 1:nθ
-            Iγⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, Γ_I,  ptmW)
-            for ℓ = 1:nφ÷2+1
-                I▫[j,k, ℓ] = real(Iγⱼₖℓ⃗[ℓ])
-            end
-        end
-        next!(pbar)
-    end
-
-    return BlockDiagEquiRect{AzFourier}(I▫, proj)
-    
+function Cℓ_to_Cov(::Val, proj::ProjEquiRect, args...; kwargs...)
+    error("Run `using CirculantCov` before you can use this function.")
 end
 
-function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
-    
-    @unpack θ, φ, Ω = proj
-    nθ, nφ  = length(θ), length(φ)
-    ℓ       = 0:ℓmax
+@init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
-    CBBℓ = CBB(ℓ)
-    CEEℓ = CEE(ℓ)
-    CBBℓ[.!isfinite.(CBBℓ)] .= 0
-    CEEℓ[.!isfinite.(CEEℓ)] .= 0
+    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+        
+        @unpack θ, φ, Ω = proj
+        nθ, nφ  = length(θ), length(φ)
+        ℓ       = 0:ℓmax
 
-    @assert real(T) == T
-    EB▫   = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
-    # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
-    ΓC_EB  = @ondemand(CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol)(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
-    # using full resolution ComplexF64 for internal construction
-    ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
-    
-    pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
-    for k = 1:nθ
-        for j = 1:nθ
-            EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = @ondemand(CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗)(θ[j], θ[k], φ, ΓC_EB..., ptmW)
-            for ℓ = 1:nφ÷2+1
-                Jℓ = Jperm(ℓ, nφ)
-                EB▫[j,   k   , ℓ] = EBγⱼₖℓ⃗[ℓ]
-                EB▫[j,   k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
-                EB▫[j+nθ,k   , ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
-                EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
+        CIℓ = CI(ℓ)
+        CIℓ[.!isfinite.(CIℓ)] .= 0
+
+        @assert real(T) == T
+        I▫  = zeros(T,nθ,nθ,nφ÷2+1)
+        # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+        Γ_I  = CirculantCov.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CIℓ; ngrid=50_000)
+        # using full resolution ComplexF64 for internal construction
+        ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+
+        pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
+        for k = 1:nθ
+            for j = 1:nθ
+                Iγⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_I,  ptmW)
+                for ℓ = 1:nφ÷2+1
+                    I▫[j,k, ℓ] = real(Iγⱼₖℓ⃗[ℓ])
+                end
             end
+            next!(pbar)
         end
-        next!(pbar)
+
+        return BlockDiagEquiRect{AzFourier}(I▫, proj)
+        
     end
 
-    return BlockDiagEquiRect{QUAzFourier}(EB▫, proj)
+    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+        
+        @unpack θ, φ, Ω = proj
+        nθ, nφ  = length(θ), length(φ)
+        ℓ       = 0:ℓmax
+
+        CBBℓ = CBB(ℓ)
+        CEEℓ = CEE(ℓ)
+        CBBℓ[.!isfinite.(CBBℓ)] .= 0
+        CEEℓ[.!isfinite.(CEEℓ)] .= 0
+
+        @assert real(T) == T
+        EB▫   = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
+        # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+        ΓC_EB  = CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
+        # using full resolution ComplexF64 for internal construction
+        ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+        
+        pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
+        for k = 1:nθ
+            for j = 1:nθ
+                EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
+                for ℓ = 1:nφ÷2+1
+                    Jℓ = Jperm(ℓ, nφ)
+                    EB▫[j,   k   , ℓ] = EBγⱼₖℓ⃗[ℓ]
+                    EB▫[j,   k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
+                    EB▫[j+nθ,k   , ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
+                    EB▫[j+nθ,k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
+                end
+            end
+            next!(pbar)
+        end
+
+        return BlockDiagEquiRect{QUAzFourier}(EB▫, proj)
+
+    end
 
 end
 
