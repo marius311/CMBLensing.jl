@@ -59,7 +59,6 @@ function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 	)
 end
 
-
 ### plotting CartesianFields
 
 pretty_name(s) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
@@ -128,7 +127,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		if f isa LambertField
 			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
 		elseif f isa EquiRectField
-			extent = rad2deg.([f.ϕspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+			extent = rad2deg.([f.φspan..., reverse(f.θspan)...]) .* Dict(:deg=>1,:arcmin=>60)[units]
 		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
@@ -221,6 +220,7 @@ end
 
 default_which(::AbstractVecOrMat{<:CartesianS0})  = [:Ix]
 default_which(::AbstractVecOrMat{<:CartesianS2})  = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:EquiRectS2})   = [:Qx :Ux]
 default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try
