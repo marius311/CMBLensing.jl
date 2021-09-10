@@ -1,7 +1,7 @@
 
 using .PyPlot
 using .PyPlot.PyCall
-import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between, imshow
+import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 
 
 ### overloaded 1D plotting

@@ -7,6 +7,7 @@ gitignore
 .tags
 .vscode
 dat
+scratch
 **Untitled*.ipynb
 nb/
 paper2/
