@@ -325,11 +325,11 @@ function load_nolensing_sim(;
     L = lensed_data ? LenseFlow : I,
     kwargs...
 )
-    @unpack f, f̃, ϕ, n, ds, ds₀, Cℓ, proj = load_sim(; L, kwargs...)
+    @unpack f, f̃, ϕ, ds, ds₀, Cℓ, proj = load_sim(; L, kwargs...)
     @unpack d, Cf, Cf̃, Cn, Cn̂, M, M̂, B, B̂ = ds
     Cf_nl = lensed_covariance ? Cf̃ : Cf
     ds_nl = NoLensingDataSet(; d, Cf=Cf_nl, Cn, Cn̂, M, M̂, B, B̂)
-    (;f, f̃, ϕ, n, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
+    (;f, f̃, ϕ, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
 end
 
 
