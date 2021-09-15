@@ -42,12 +42,12 @@ function sample_x_z(prob::CMBLensingMPMProblem{<:NoLensingDataSet}, rng::Abstrac
     (x=d, z=(f,))
 end
 
-function ẑ_at_θ(prob::CMBLensingMPMProblem, d, θ, (f₀,ϕ₀))
+function ẑ_at_θ(prob::CMBLensingMPMProblem, d, θ, (f₀,ϕ₀); ∇z_logLike_atol=nothing)
     @unpack ds = prob
     MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)[1:2]
 end
 
-function ẑ_at_θ(prob::CMBLensingMPMProblem{<:NoLensingDataSet}, d, θ, (f₀,))
+function ẑ_at_θ(prob::CMBLensingMPMProblem{<:NoLensingDataSet}, d, θ, (f₀,); ∇z_logLike_atol=nothing)
     @unpack ds = prob
     (argmaxf_lnP(I, θ, @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...),)
 end
