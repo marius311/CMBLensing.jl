@@ -414,17 +414,19 @@ end
 # broadcasts, which on GPU use ForwardDiff, so write the adjoint by
 # hand for now. likely more performant, in any case. 
 @adjoint function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
-    function back(Δ)
-        Ā = map(1:length(A)) do i
-            sum(
-                real,
-                broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
-                    (ℓedges[i] < ℓ < ℓedges[i+1]) ? Cℓ*Δ : zero(Cℓ)
-                end,
-                dims = ndims(Δ)==4 ? (1,2) : (:)
-            )
+    back = let Cℓ = copy(Cℓ) # need copy bc Cℓ mutated on forward pass
+        function (Δ)
+            Ā = map(1:length(A)) do i
+                sum(
+                    real,
+                    broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
+                        (ℓedges[i] < ℓ < ℓedges[i+1]) ? Δ * Cℓ : zero(Cℓ)
+                    end,
+                    dims = ndims(Δ)==4 ? (1,2) : (:)
+                )
+            end
+            (nothing, nothing, nothing, Ā...)
         end
-        (nothing, nothing, nothing, Ā...)
     end
     bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
