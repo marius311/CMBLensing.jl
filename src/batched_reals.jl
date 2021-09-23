@@ -53,29 +53,31 @@ function batchmap(f, args...; batchsize, map=map)
     mapreduce(unbatch, vcat, map(f, bargs...))
 end
 
-function unbatch(t::Union{Tuple,NamedTuple})
-    N = only(unique(filter(!=(1), map(batch_length, values(t)))))
-    [map(x -> batch_index(x, i), t) for i=1:N]
-end
+# batched Tuples/NamedTuples
+batch(ts::AbstractVector{<:Union{Tuple,NamedTuple}}) = map((t...) -> batch(collect(t)), ts...)
+unbatch(t::Union{Tuple,NamedTuple}) = [map(x -> batch_index(x, i), t) for i=1:batch_length(t)]
+batch_length(t::Union{Tuple,NamedTuple}) = only(unique(filter(!=(1), map(batch_length, values(t)))))
+batch_index(c::Union{Tuple,NamedTuple}, I) = map(x -> batch_index(x, I), c)
 
-function batch(ts::AbstractVector{<:Union{Tuple,NamedTuple}})
-    map(ts...) do tis...
-        batch(collect(tis))
-    end
-end
-
+# batched ComponentArrays
 @init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
     using .ComponentArrays
     function batch(cs::AbstractVector{<:ComponentArray})
         data = map(map(getdata, cs)...) do args...
             batch(collect(args))
         end
-        axis = only(unique(map(getaxes, cs)))
-        ComponentArray(data, axis)
+        axes = only(unique(map(getaxes, cs)))
+        ComponentArray(data, axes)
     end
     function unbatch(c::ComponentArray)
         map(map(unbatch, getdata(c))...) do args...
             ComponentArray([args...], getaxes(c))
         end
+    end
+    function batch_length(c::ComponentArray)
+        only(unique(filter(!=(1), map(batch_length, c))))
+    end
+    function batch_index(c::ComponentArray, I)
+        map(x -> batch_index(x, I), c)
     end
 end

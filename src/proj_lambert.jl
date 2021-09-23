@@ -383,9 +383,11 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _E = $preprocess.(Ref((nothing,C₀.metadata)),      $T.($ensure1d($θname)))
-            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($T.($ensure1d($θname))))
-            Diagonal(LambertEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.El), _E...), C₀.Bl .* _B[1], C₀.metadata))
+            AEs = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
+            CℓE, CℓB = $Zygote.ignore() do
+                copy(C₀.El) .* one.(first(AEs)), copy(C₀.Bl) .* one.(first(AEs)) # gets batching right
+            end
+            Diagonal(LambertEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓE, AEs...), CℓB, C₀.metadata))
         end)
     end
 end

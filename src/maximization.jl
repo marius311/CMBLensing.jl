@@ -144,7 +144,8 @@ function MAP_joint(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
     ProgressMeter.update!(pbar)
 
-    f = prevf = prevϕ = prev_∇ϕ_logpdf = nothing
+    prevϕ = prev_∇ϕ_logpdf = nothing
+    f = prevf = fstart
     α = Inf
 
     for step = 1:nsteps
