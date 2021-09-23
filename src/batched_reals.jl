@@ -44,3 +44,38 @@ struct BatchedVal{V<:Vector}
 end
 batch(v::AbstractVector) = BatchedVal(v)
 batch_index(bv::BatchedVal, I) = getindex(bv.vals, I)
+
+
+# mapping over a batch dimension
+
+function batchmap(f, args...; batchsize, map=map)
+    bargs = (map(batch∘collect, Base.Iterators.partition(arg, batchsize)) for arg in args)
+    mapreduce(unbatch, vcat, map(f, bargs...))
+end
+
+function unbatch(t::Union{Tuple,NamedTuple})
+    N = only(unique(filter(!=(1), map(batch_length, values(t)))))
+    [map(x -> batch_index(x, i), t) for i=1:N]
+end
+
+function batch(ts::AbstractVector{<:Union{Tuple,NamedTuple}})
+    map(ts...) do tis...
+        batch(collect(tis))
+    end
+end
+
+@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
+    using .ComponentArrays
+    function batch(cs::AbstractVector{<:ComponentArray})
+        data = map(map(getdata, cs)...) do args...
+            batch(collect(args))
+        end
+        axis = only(unique(map(getaxes, cs)))
+        ComponentArray(data, axis)
+    end
+    function unbatch(c::ComponentArray)
+        map(map(unbatch, getdata(c))...) do args...
+            ComponentArray([args...], getaxes(c))
+        end
+    end
+end
