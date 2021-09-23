@@ -47,6 +47,15 @@ function (::Type{F})(X::BaseField{B₀,P}, Y::BaseField{B₀,P}, Z::BaseField{B�
     BaseField{B,P}(cat(X.arr, Y.arr, Z.arr, dims=Val(3)), get_metadata_strict(X, Y, Z)) :: F
 end
 
+# consistency checks called from BaseField constructor
+function check_field_consistency(::SpatialBasis{Map}, arr, proj::P) where {P<:CartesianProj}
+    size(arr)[1:2] == (proj.Ny, proj.Nx) || error("$(basetype(P)) metadata (Ny=$(proj.Ny), Nx=$(proj.Nx)) is inconsistent with pixel array size $(size(arr)).")
+end
+function check_field_consistency(::SpatialBasis{Fourier}, arr, proj::P) where {P<:CartesianProj}
+    size(arr)[1:2] == (proj.Ny÷2+1, proj.Nx) || error("$(basetype(P)) metadata (Ny=$(proj.Ny), Nx=$(proj.Nx)) is inconsistent with half-plane Fourier array size $(size(arr)).")
+end
+
+
 
 ### array interface
 # most is inherited from BaseField. the main thing we have specify

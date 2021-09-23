@@ -83,7 +83,49 @@ const SpatialBasis{B,I,P} = Union{B, Basis2Prod{P,B}, Basis3Prod{I,P,B}}
     i == nothing ? error("A $B doesn't have a $k property") : i
 end
 
-# handy aliases
+## applying and converting bases
+
+LenseBasis(                            ::S0Basis)  = Map
+LenseBasis(::Basis2Prod{   <:PolBasis, <:S0Basis}) = QUMap
+LenseBasis(::Basis3Prod{𝐈, <:PolBasis, <:S0Basis}) = IQUMap
+DerivBasis(                            ::S0Basis)  = Fourier
+DerivBasis(::Basis2Prod{   <:PolBasis, <:S0Basis}) = QUFourier
+DerivBasis(::Basis3Prod{𝐈, <:PolBasis, <:S0Basis}) = IQUFourier
+HarmonicBasis(                         ::S0Basis)  = Fourier
+HarmonicBasis(::Basis2Prod{𝐐𝐔,         <:S0Basis}) = QUFourier
+HarmonicBasis(::Basis2Prod{𝐄𝐁,         <:S0Basis}) = EBFourier
+
+# B(::Basis) converts the basis type, e.g. Map(QUFourier()) = QUMap
+(::Type{B})(::B′) where {B<:S0Basis, B′<:S0Basis} = B
+(::Type{B})(::Basis2Prod{  Pol,B′}) where {Pol, B<:S0Basis, B′<:S0Basis} = Basis2Prod{  Pol,B}
+(::Type{B})(::Basis3Prod{𝐈,Pol,B′}) where {Pol, B<:S0Basis, B′<:S0Basis} = Basis3Prod{𝐈,Pol,B}
+
+
+# B(f::Field) where B is a basis converts f to that basis. This is the
+# fallback if the field is already in the right basis.
+(::Type{B})(f::Field{B}) where {B<:Basis} = f
+# This is the fallback if no conversion is explicilty defined, which
+# tries to first convert the basis, e.g. Map(f::BaseQUFourier) becomes
+# Map(QUFourier())(f) which calls QUMap(f). This is also used for
+# Basislike objects like LenseBasis(...)
+(::Type{B})(f::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(f)
+
+# In-place version of the above
+(::Type{B})(f′::Field, f::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(f′,f)
+# And the case where its already in the right basis (but note, we
+# never actually set f′ in this case, which is more efficient, but
+# necessitates some care when using this construct)
+(::Type{B})(f′::Field{B}, f::Field{B}) where {B<:Basis} = f
+
+
+# Basis conversion automatically maps over arrays
+(::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
+
+# The abstract `Basis` type means "any basis", hence this conversion rule:
+Basis(f::Field) = f
+
+
+# used in make_field_aliases below
 basis_aliases = OrderedDict(
     "Map"        => Map,
     "Fourier"    => Fourier,
@@ -136,7 +178,7 @@ for (alias,B) in basis_aliases
 end
 
 
-## generic promotion rules which might change basis
+## generic promotion rules
 basis_promotion_rules = Dict(
     # spin-0
     (Map,        Fourier)     => Map,
@@ -177,38 +219,12 @@ unknown_rule_error(::typeof(promote_basis_strict_rule), ::B₁, ::B₂) where {B
 
 
 
-## applying bases
-
-# Map(B) or Fourier(B) for another basis, B
-(::Type{B})(::Type{B′}) where {B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = B
-(::Type{B})(::Type{Basis2Prod{  Pol,B′}}) where {Pol, B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = Basis2Prod{  Pol,B}
-(::Type{B})(::Type{Basis3Prod{𝐈,Pol,B′}}) where {Pol, B<:Union{Map,Fourier}, B′<:Union{Map,Fourier}} = Basis3Prod{𝐈,Pol,B}
-
-# A "basis-like" object, e.g. the lensing basis Ł or derivative basis Ð. For any
-# particular types of fields, these might be different actual bases, e.g. the
-# lensing basis is Map for S0 but QUMap for S2.
-(::Type{B})(f::F) where {F<:Field,B<:Basislike} = B(F)(f)
-(::Type{B})(f′::Field, f::F) where {F<:Field,B<:Basislike} = B(F)(f′,f)
-(::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
-
-# B(f) where B is a basis converts f to that basis. This is the fallback if the
-# field is already in the right basis.
-(::Type{B})(f::Field{B}) where {B<:Basis} = f
-
-# The abstract `Basis` type means "any basis", hence this conversion rule:
-Basis(f::Field) = f
-
-# B(f′, f) converts f to basis B and stores the result inplace in f′. If f is
-# already in basis B, we just return f (but note, we never actually set f′ in
-# this case, which is more efficient, but necessitates some care when using this
-# construct)
-(::Type{B})(f′::Field{B}, f::Field{B}) where {B<:Basis} = f
-
 # convenience "getter" functions for the B basis type parameter
 basis(f::F) where {F<:Field} = basis(F)
 basis(::Type{<:Field{B}}) where {B<:Basis} = B
 basis(::Type{<:Field}) = Basis
 basis(::AbstractVector) = Basis
+
 
 ### printing
 typealias(::Type{B}) where {B<:Basis} = string(B)
@@ -233,11 +249,6 @@ function Base.summary(io::IO, x::ImplicitField)
         print(io, "⍰-element ")
     end
     Base.showarg(io, x, true)
-end
-
-# without this, *sometimes* IJulia doesnt print the field types right, but I dont really understand it
-@init @require IJulia="7073ff75-c697-5162-941a-fcdaad2a7d2a" begin
-    Base.show(io::IOContext{IOBuffer}, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
 end
 
 
@@ -349,12 +360,6 @@ end
 # its clear we wanted broadcasted multiplication/division. 
 for op in (:*, :/)
     @eval ($op)(a::Field{B}, b::Field{B}) where {B} = broadcast($op, a, b)
-end
-
-# needed unless I convince them to undo the changes here:
-# https://github.com/JuliaLang/julia/pull/35257#issuecomment-657901503
-if VERSION>v"1.4"
-    *(x::Adjoint{<:Number,<:Field}, y::Field) = dot(x.parent,y)
 end
 
 

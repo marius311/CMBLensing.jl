@@ -281,9 +281,6 @@ IEBMap(f::LambertIQUFourier) = f |> IEBFourier |> IEBMap
 IQUMap(f′::LambertIQUMap, f::LambertIQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
 IQUFourier(f′::LambertIQUFourier, f::LambertIQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
-## spin-0 bases applied to spin-2 and spin-(0,2)
-Fourier(f::LambertField{B}) where {B<:BasisProd} = Fourier(B)(f)
-Map(f::LambertField{B}) where {B<:BasisProd} = Map(B)(f)
 
 ## for diagonal operator
 function getindex(D::DiagOp{<:LambertEBFourier}, k::Symbol)

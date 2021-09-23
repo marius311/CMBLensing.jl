@@ -25,10 +25,22 @@ using FiniteDifferences
 using LinearAlgebra
 using Random
 using Random: default_rng
+using Requires
 using Serialization
 using SparseArrays
 using Test
 using Zygote
+
+##
+
+try
+    push!(LOAD_PATH, "@v#.#") # assumes you have CirculantCov in your global environment
+    using CirculantCov
+catch
+    @warn """CirculantCov.jl not found, not testing EquiRect fields.
+    Run `pkg> add https://github.com/EthanAnderes/CirculantCov.jl` to add this package.
+    """
+end
 
 ##
 
@@ -41,7 +53,7 @@ Nsides_big = [(128,128), (64,128), (128,64)]
 
 Random.seed!(1)
 
-has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
+has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 ##
 
@@ -91,6 +103,7 @@ end
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
                 @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
                 @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+                @test_throws ErrorException F(args..., ProjLambert(Nx=Nx+1, Ny=Ny+1))
 
             end
         
@@ -599,44 +612,135 @@ end
 
 ##
 
-@testset "Projections" begin
-    
-    Cℓ = camb()
-    L = LenseFlow{RK4Solver{7}}
-    T = Float64
+@require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
-    @testset "Nside = $Nside" for Nside in Nsides_big
+@testset "EquiRect" begin
 
-        @testset "pol = $pol" for pol in (:I,:P)
+    θspan  = (π/2 .- deg2rad.((-40,-70)))
+    φspan  = deg2rad.((-60, 60))
+    φspan′ = deg2rad.((-50, 50))
+    Cℓ     = camb()
+    rtol   = 1e-5
+
+    @testset "T = $T" for T in (Float32, Float64)
+
+        @testset "Nside = $Nside" for Nside in [(32,64)]
+
+            Ny, Nx = Nside
+
+            # non-periodic
+            proj′ = ProjEquiRect(;Ny, Nx, T, θspan, φspan=φspan′)
+            @test (proj′.Ny == length(proj′.θ) == Ny) && (proj′.Nx == length(proj′.φ) == Nx)
+
+            # Make a linear list `θedges[1], θ[1], θedges[2], θ[2], ..., θedges[n], θ[n], θedges[n+1]`
+            # and test that it is strictly increasing. 
+            ∂θedges = vcat(vcat(proj′.θedges[1:end-1]', proj′.θ')[:],  proj′.θedges[end])
+            @test all(diff(∂θedges) .> 0)
+
+            proj′Δφpix   = rem2pi(proj′.φ[2]-proj′.φ[1],   RoundDown)
+            proj′Δφspan  = rem2pi(proj′.φ[end]-proj′.φ[1], RoundDown) + proj′Δφpix
+            inputΔφspan = φspan′ |> x->rem2pi(x[end]-x[1], RoundDown)
+            @test proj′Δφspan ≈ inputΔφspan
+
+            # with integer fraction of 2π (and Float64)
+            proj = ProjEquiRect(;Ny, Nx, T, θspan, φspan)
+            P = typeof(proj)
+            f0   = EquiRectMap(randn(T, Nside...), proj)
+            f2   = EquiRectQUMap(randn(T, Nside...), randn(T, Nside...), proj)
+
+            @test f0 isa EquiRectMap
+            @test f2 isa EquiRectQUMap
+
+            # transform
+            @test Map(AzFourier(f0)) ≈ f0
+            @test QUMap(QUAzFourier(f2)) ≈ f2
+            @test real(eltype(Map(AzFourier(f0)))) == T
+            @test real(eltype(QUMap(QUAzFourier(f2)))) == T
+
+            # transform (testing equality independent of dot)
+            @test AzFourier(f0)[:Ix]   ≈ f0[:Ix]
+            @test QUAzFourier(f2)[:Px] ≈ f2[:Px]
+            @test Map(f0)[:Il]   ≈ f0[:Il]
+            @test QUMap(f2)[:Pl] ≈ f2[:Pl]
+
+            # dot product independent of basis
+            @test dot(f0,f0) ≈ dot(AzFourier(f0), AzFourier(f0))
+            @test dot(f2,f2) ≈ dot(QUAzFourier(f2), QUAzFourier(f2))
+
+            # creating block-diagonal covariance operators
+            Cf0 = Cℓ_to_Cov(:I, f0.proj, Cℓ.total.TT)
+            Cf2 = Cℓ_to_Cov(:P, f2.proj, Cℓ.total.EE, Cℓ.total.BB)
+            Bf0 = CMBLensing.Cℓ_to_Beam(:I, f0.proj, Cℓ.total.TT)
+            Bf2 = CMBLensing.Cℓ_to_Beam(:P, f2.proj, Cℓ.total.TT)
+            @test Cf0 isa BlockDiagEquiRect{AzFourier,T}
+            @test Cf2 isa BlockDiagEquiRect{QUAzFourier,T}
+            @test Bf0 isa BlockDiagEquiRect{AzFourier,T}
+            @test Bf2 isa BlockDiagEquiRect{QUAzFourier,T}
+
+            # sqrt
+            @test (sqrt(Cf0) * sqrt(Cf0) * f0) ≈ (Cf0 * f0) rtol=rtol
+            @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2) rtol=rtol
+
+            # simulation
+            @test real(eltype(simulate(Cf0) :: EquiRectS0)) == T
+            @test real(eltype(simulate(Cf2) :: EquiRectS2)) == T
             
-            @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
-                Cℓ       = Cℓ,
-                θpix     = 3,
-                Nside    = Nside,
-                T        = T,
-                beamFWHM = 3,
-                pol      = pol,
-                storage  = storage,
-                rng      = default_rng(),
-                pixel_mask_kwargs = (edge_padding_deg=1,)
-            )
-            @unpack Cf,Cϕ = ds₀
-            f°,ϕ° = mix(f,ϕ,ds)
+            # pinv
+            @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=rtol 
+            @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=rtol 
+        
+            @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=rtol
+            @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=rtol
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
+            @test (Cf0 / Cf0 * f0) ≈ f0 rtol=rtol
+            @test (Cf2 / Cf2 * f2) ≈ f2 rtol=rtol
 
-            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
+            # some operator algebra on ops
+            @test (Cf0 + Cf0) * f0 ≈ Cf0 * (2 * f0) ≈ (2 * Cf0) * f0
+            @test (Cf2 + Cf2) * f2 ≈ Cf2 * (2 * f2) ≈ (2 * Cf2) * f2
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=105)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
+            # logdet
+            @test logdet(Cf0) ≈ logabsdet(Cf0)[1]
+            @test logdet(Cf2) ≈ logabsdet(Cf2)[1]
+
+            # adjoint
+            g0 = simulate(Cf0)
+            g2 = simulate(Cf2)
+            @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0 rtol=rtol
+            @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2 rtol=rtol
+            
+            # Test for correct Fourier symmetry in monopole and nyquist f2 
+            let f2kk = f2[:Pl], f2xx = f2[:Px]
+                v = f2kk[1:end÷2,1]
+                w = f2kk[end÷2+1:end,1]
+                @test v ≈ conj.(w)
+                if iseven(size(f2xx,2))
+                    v′ = f2kk[1:end÷2,end]
+                    w′ = f2kk[end÷2+1:end,end]
+                    @test v′ ≈ conj.(w′)
+                end
+            end
+
+            # gradients w.r.t. fields
+            @test gradient(f -> dot(f,f), f0)[1] ≈ 2*f0
+            @test gradient(f -> dot(f,f), f2)[1] ≈ 2*f2
+            @test gradient(f0 -> f0' * (pinv(Cf0) * f0), f0)[1] ≈ (2 * pinv(Cf0) * f0)
+            @test gradient(f2 -> f2' * (pinv(Cf2) * f2), f2)[1] ≈ (2 * pinv(Cf2) * f2)
+
+            # gradients through entries of BlockDiagEquiRect
+            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)
+            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)
+            @test_broken gradient(α -> f0' * (pinv(α * Cf0) * f0), 1)[1] isa Real 
+            @test_broken gradient(α -> f2' * (pinv(α * Cf2) * f2), 1)[1] isa Real
             
         end
-        
+
     end
 
 end
+
+end
+
 
 ##
 

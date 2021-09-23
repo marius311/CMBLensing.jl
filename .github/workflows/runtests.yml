@@ -7,9 +7,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.6', '1.7.0-beta3']
+        julia-version: ['1.6', '1.7.0-beta4']
         os: [ubuntu-latest]
-        JULIA_FFTW_PROVIDER: ['MKL','FFTW']
+        provider: ['mkl','fftw']
       fail-fast: false
     env:
       PYTHON: python3
@@ -22,8 +22,8 @@ jobs:
       - run: >
           sudo apt-get install --no-install-recommends gfortran python3-setuptools python3-wheel
           && pip3 install camb healpy
+          && julia -e 'using Pkg; Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")'
+          && julia --project .github/set_fftw_provider.jl "${{ matrix.provider }}"
       - uses: julia-actions/julia-runtest@master
-        timeout-minutes: 20
+        timeout-minutes: 30
         # continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}
-        env:
-          JULIA_FFTW_PROVIDER: ${{ matrix.JULIA_FFTW_PROVIDER }}
