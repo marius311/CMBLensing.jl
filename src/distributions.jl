@@ -11,5 +11,5 @@ function Distributions.MvNormal(μ::Field, D::Diagonal{T,<:Field{<:Basis,T}}) wh
     MvNormal{real(T),typeof(Σ),typeof(μ)}(μ, Σ)
 end
 function Distributions.MvNormal(μ::Real, D::DiagOp)
-    MvNormal(μ*one(diag(D)), D)
+    μ==0 ? MvNormal(zero(diag(D)), D) : error("μ must be a Field or 0")
 end
