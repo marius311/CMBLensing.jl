@@ -39,11 +39,69 @@ materialize!(dest::DiagOp, bc::Broadcasted{DiagOpStyle{S}}) where {S} =
     (materialize!(diag(dest), convert(Broadcasted{S}, preprocess(DiagOpStyle{S}(), bc))); dest)
 preprocess(::DiagOpStyle, D::Diagonal) = diag(D)
 
-
 if VERSION >= v"1.7-beta"
     # https://github.com/JuliaLang/julia/pull/37898#issuecomment-877755178
     LinearAlgebra.mat_mat_scalar(A::DiagOp, B::DiagOp, γ::Number) = (A * B) * γ
 end
+
+
+
+# ### BlockDiagIEB
+# 
+# A TEB covariance of the form:
+# 
+#    [ΣTT ΣTE  ⋅
+#     ΣTE ΣEE  ⋅
+#      ⋅   ⋅  ΣBB]
+# 
+# We store the 2x2 block as a 2x2 SMatrix, ΣTE, so that we can easily
+# call sqrt/inv on it, and the ΣBB block separately as ΣB. This type
+# is generic with regards to the field type, F.
+struct BlockDiagIEB{T,F} <: ImplicitOp{T}
+    ΣTE :: SMatrix{2,2,Diagonal{T,F},4}
+    ΣB :: Diagonal{T,F}
+end
+# applying
+*(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
+\(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
+function *(L::BlockDiagIEB, f::BaseIEBFourier)
+    (i,e),b = (L.ΣTE * [f.I, f.E]), L.ΣB * f.B
+    BaseIEBFourier(i,e,b)
+end
+# manipulating
+size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
+adjoint(L::BlockDiagIEB) = L
+sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
+pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
+global_rng_for(::Type{BlockDiagIEB{T,F}}) where {T,F} = global_rng_for(F)
+diag(L::BlockDiagIEB) = BaseIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
+similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
+get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
+simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=nothing) = 
+    sqrt(L) * white_noise(similar(diag(L), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
+# arithmetic
+*(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
++(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
+*(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
++(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
++(L::BlockDiagIEB, U::UniformScaling{<:Scalar}) = BlockDiagIEB(@SMatrix[(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
+*(L::BlockDiagIEB, λ::Scalar) = BlockDiagIEB(L.ΣTE * λ, L.ΣB * λ)
+*(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = L * D
++(U::UniformScaling{<:Scalar}, L::BlockDiagIEB) = L + U
+*(λ::Scalar, L::BlockDiagIEB) = L * λ
+# indexing
+function getindex(L::BlockDiagIEB, k::Symbol)
+    @match k begin
+        :IP => L
+        :I => L.ΣTE[1,1]
+        :E => L.ΣTE[2,2]
+        :B => L.ΣB
+        :P => Diagonal(CartesianEBFourier(L[:E].diag, L[:B].diag))
+        (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
+        _ => throw(ArgumentError("Invalid BlockDiagIEB index: $k"))
+    end
+end
+
 
 
 ### Derivative ops
@@ -137,8 +195,6 @@ hash(L::FuncOp, h::UInt64) = foldr(hash, (typeof(L), fieldvalues(L)...), init=h)
 # stores the bandpass weights, Wℓ, and each Field type F should implement
 # preprocess((b,metadata), ::BandPassOp) to describe how this is actually
 # applied. 
-
-abstract type HarmonicBasis <: Basislike end
 
 struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Bottom}
     Wℓ::W

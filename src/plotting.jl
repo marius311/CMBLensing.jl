@@ -60,9 +60,7 @@ function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
 end
 
 
-### plotting FlatFields
-
-plotsize₀ = 4
+### plotting CartesianFields
 
 pretty_name(s) = pretty_name(Val.(Symbol.(split(string(s),"")))...)
 pretty_name(::Val{s}, b::Val) where {s} = "$s "*pretty_name(b)
@@ -71,7 +69,7 @@ pretty_name(::Val{:l}) = "Fourier"
 
 function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, ticklabels=true, axeslabels=false, kwargs...)
     
-	@unpack Nx, Ny, θpix = fieldinfo(f)
+	@unpack Nx, Ny = fieldinfo(f)
 	ismap = endswith(string(k), "x")
 	
 	# default values
@@ -81,7 +79,11 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		else
 			title = pretty_name(k)
 		end
-		title *= " ($(Ny)x$(Nx) @ $(θpix)')"
+		if f isa LambertField
+			title *= " ($(Ny)x$(Nx) @ $(f.θpix)')"
+		elseif f isa EquiRectField
+			title *= " ($(Ny)x$(Nx))"
+		end
 	end
 	if vlim == nothing 
 		vlim = ismap ? :sym : :asym
@@ -123,7 +125,11 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	
 	# make the plot
 	if ismap
-		extent = [-Nx,Nx,-Ny,Ny] .* θpix/Dict(:deg=>60,:arcmin=>1)[units]/2
+		if f isa LambertField
+			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
+		elseif f isa EquiRectField
+			extent = rad2deg.([f.ϕspan..., f.θspan...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 	end
@@ -148,8 +154,13 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 			ax.xaxis.set_major_formatter(MyFmt())
 			ax.yaxis.set_major_formatter(MyFmt())
 			if axeslabels
-				ax.set_xlabel("RA")
-				ax.set_ylabel("Dec")
+				if f isa LambertField
+					ax.set_xlabel("x")
+					ax.set_ylabel("y")
+				elseif f isa EquiRectField
+					ax.set_xlabel(L"\phi")
+					ax.set_ylabel(L"\theta")
+				end
 			end
 		else
 	        ax.set_xlabel(raw"$\ell_x$")
@@ -182,7 +193,7 @@ end
 
 function plot(
 	fs :: AbstractVecOrMat{F}; 
-	plotsize = plotsize₀, 
+	plotsize = 4,
 	which = default_which(fs), 
 	title = nothing, 
 	vlim = nothing, 
@@ -190,10 +201,11 @@ function plot(
 	cmap = nothing,
 	return_all = false, 
 	kwargs...
-) where {F<:FlatField}
+) where {F<:CartesianField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
-    fig,axs = subplots(m, n; figsize=plotsize.*[1.4*n,m], squeeze=false)
+    figsize = plotsize .* [1.4 * n * fs[1].Nx / fs[1].Ny, m]
+	fig,axs = subplots(m, n; figsize, squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
 	
@@ -207,10 +219,10 @@ function plot(
 	
 end
 
-default_which(::AbstractVecOrMat{<:FlatS0})  = [:Ix]
-default_which(::AbstractVecOrMat{<:FlatS2})  = [:Ex :Bx]
-default_which(::AbstractVecOrMat{<:FlatS02}) = [:Ix :Ex :Bx]
-function default_which(fs::AbstractVecOrMat{<:FlatField})
+default_which(::AbstractVecOrMat{<:CartesianS0})  = [:Ix]
+default_which(::AbstractVecOrMat{<:CartesianS2})  = [:Ex :Bx]
+default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
+function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try
         ensuresame((default_which([f]) for f in fs)...)
     catch x
@@ -219,15 +231,15 @@ function default_which(fs::AbstractVecOrMat{<:FlatField})
 end
 
 
-### animations of FlatFields
+### animations of CartesianFields
 
 @doc doc"""
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:FlatField}; kwargs...) = animate([f]; kwargs...)
+animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
 animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:FlatField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
@@ -260,7 +272,21 @@ end
 
 ### plotting HealpixFields
 
-plot(f::HealpixMap; kwargs...) = hp.mollview(collect(f.arr); cmap="RdBu_r", kwargs...)
+function plot(f::HealpixMap; kwargs...)
+	hp.projview(
+		collect(f.arr);
+		cmap                  = "RdBu_r", 
+		graticule             = true,
+		graticule_labels      = true,
+		xlabel                = L"\phi",
+		ylabel                = L"\theta",
+		custom_ytick_labels   = ["$(θ)°" for θ in 150:-30:30],
+		latitude_grid_spacing = 30,
+		cb_orientation        = "vertical",
+		projection_type       = "mollweide",
+		kwargs...
+	)
+end
 
 
 

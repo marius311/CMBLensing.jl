@@ -1,6 +1,6 @@
 
 function make_mask(
-    Nside, θpix; 
+    rng::AbstractRNG, Nside, θpix; 
     edge_padding_deg = 2,
     edge_rounding_deg = 1,
     apodization_deg = 1,
@@ -11,7 +11,7 @@ function make_mask(
     deg2npix(x) = round(Int, x/θpix*60)
     arcmin2npix(x) = round(Int, x/θpix)
     
-    ptsrc = num_ptsrcs==0 ? 1 : .!bleed(sim_ptsrcs(Nside, num_ptsrcs), arcmin2npix(ptsrc_radius_arcmin))
+    ptsrc = num_ptsrcs==0 ? 1 : .!bleed(sim_ptsrcs(rng, Nside, num_ptsrcs), arcmin2npix(ptsrc_radius_arcmin))
     boundary = boundarymask(Nside, deg2npix(edge_padding_deg))
     mask_array = if apodization_deg in (false, 0)
         boundary .& ptsrc
@@ -22,6 +22,8 @@ function make_mask(
     
     FlatMap(Float32.(mask_array), θpix=θpix)
 end
+
+make_mask(args...; kwargs...) = make_mask(Random.default_rng(), args...; kwargs...)
 
 
 # all padding/smoothing/etc... quantities below are in units of numbers of pixels
@@ -55,11 +57,11 @@ function round_edges(img, w)
     .!(@ondemand(ImageFiltering.imfilter)(img, @ondemand(ImageFiltering.Kernel.gaussian)(w)) .< 0.5)
 end
 
-function sim_ptsrcs(Nside,nsources)
+function sim_ptsrcs(rng,Nside,nsources)
     Ny, Nx = Nside .* (1,1)
     m = fill(false,Ny,Nx);
     for i=1:nsources
-        m[rand(1:Ny),rand(1:Nx)] = true
+        m[rand(rng,1:Ny),rand(rng,1:Nx)] = true
     end
     m
 end

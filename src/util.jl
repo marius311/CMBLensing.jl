@@ -265,7 +265,17 @@ end
 struct LazyPyImport
     pkg
 end
-getproperty(p::LazyPyImport, s::Symbol) = getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s)
+function getproperty(p::LazyPyImport, s::Symbol)
+    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
+    Base.invokelatest() do
+        prop = getproperty(pkg, s)
+        if PyCall.pybuiltin(:callable)(prop)
+            (args...; kwargs...) -> Base.invokelatest(prop, args...; kwargs...)
+        else
+            prop
+        end
+    end
+end
 
 @doc doc"""
 
@@ -479,3 +489,7 @@ end
     end
     push!(worker_tasks, t)
 end
+
+
+real_type(T) = promote_type(real(T), Float32)
+@init @require Unitful="1986cc42-f94f-5a68-af5c-568840ba703d" real_type(::Type{<:Unitful.Quantity{T}}) where {T} = real_type(T)

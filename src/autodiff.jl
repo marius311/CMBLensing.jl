@@ -10,6 +10,7 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @nograd ProjLambert
 @nograd fieldinfo
 @nograd hasfield
+@nograd basetype
 
 
 # AD for Fourier Fields can be really subtle because such objects are
@@ -27,10 +28,10 @@ Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 ## constructors and getproperty
 # these are needed to allow you to "bail out" to the underlyig arrays
 # via f.arr and reconstruct them with FlatField(f.arr, f.metadata). 
-@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Map},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Map},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr, nothing)
 end
-@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:FieldMetadata,T,A<:AbstractArray{T},F<:BaseField{B}}
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata))), nothing)
 end
 # the factors here need to cancel the ones in the corresponding constructors above

@@ -41,7 +41,7 @@ Nsides_big = [(128,128), (64,128), (128,64)]
 
 Random.seed!(1)
 
-has_batched_fft = (FFTW.fftw_vendor != :mkl) || (storage != Array)
+has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 ##
 
@@ -582,14 +582,12 @@ end
             @unpack Cf,Cϕ = ds₀
             f°,ϕ° = mix(f,ϕ,ds)
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
             @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
 
             δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=130)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
+            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=1.3)
+            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=1.3)
             
         end
         
