@@ -102,7 +102,7 @@ Keyword arguments:
    iterate quasi-samples, or an integer to compute a fixed-seed
    quasi-sample.
 * `history_keys` — What quantities to include in the returned
-  `history`. Can be any subset of `(:f, :f°, :ϕ, :∇ϕ_lnP, :χ², :lnP)`.
+  `history`. Can be any subset of `(:f, :f°, :ϕ, :∇ϕ_logpdf, :χ², :logpdf)`.
 
 Returns a tuple `(f, ϕ, history)` where `f` is the best-fit (or
 quasi-sample) field, `ϕ` is the lensing potential, and `history`
@@ -205,7 +205,7 @@ function MAP_joint(
 
 end
 
-MAP_joint(θ, ds::NoLensingDataSet; kwargs...) = (argmaxf_lnP(I, θ, ds; kwargs...), nothing)
+MAP_joint(θ, ds::NoLensingDataSet; kwargs...) = (argmaxf_logpdf(I, θ, ds; kwargs...), nothing)
 
 
 @doc doc"""

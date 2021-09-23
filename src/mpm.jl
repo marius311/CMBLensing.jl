@@ -21,30 +21,31 @@ function ∇θ_logLike(prob::CMBLensingMPMProblem, d, θ, z)
     @unpack ds, parameterization = prob
     @set! ds.d = d
     if parameterization == 0
-        gradient(θ -> lnP(parameterization, z..., θ, ds), θ)[1]
+        gradient(θ -> logpdf(ds; z..., θ), θ)[1]
     elseif parameterization == 1
         (f, ϕ) = z
         f̃ = ds.L(ϕ)*f
-        gradient(θ -> lnP(parameterization, f̃, ϕ, θ, ds), θ)[1]
+        gradient(θ -> logpdf(ds; f̃, ϕ, θ), θ)[1]
     elseif parameterization == :mix
-        f°, ϕ° = mix(z..., θ, ds)
-        gradient(θ -> lnP(parameterization, f°, ϕ°, θ, ds), θ)[1]
+        f°, ϕ° = mix(ds; z..., θ)
+        gradient(θ -> logpdf(Mixed(ds); f°, ϕ°, θ), θ)[1]
     end
 end
 
 function sample_x_z(prob::CMBLensingMPMProblem, rng::AbstractRNG, θ) 
-    @unpack d,f,ϕ = resimulate(prob.ds(θ); rng)
-    (x=d, z=(f,ϕ))
+    @unpack d,f,ϕ = simulate(rng, prob.ds(θ))
+    (x=d, z=(;f,ϕ))
 end
 
 function sample_x_z(prob::CMBLensingMPMProblem{<:NoLensingDataSet}, rng::AbstractRNG, θ) 
-    @unpack d,f = resimulate(prob.ds(θ); rng)
-    (x=d, z=(f,))
+    @unpack d,f = simulate(rng, prob.ds(θ))
+    (x=d, z=(;f))
 end
 
 function ẑ_at_θ(prob::CMBLensingMPMProblem, d, θ, (f₀,ϕ₀); ∇z_logLike_atol=nothing)
     @unpack ds = prob
-    MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)[1:2]
+    (f, ϕ) = MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)
+    (;f, ϕ)
 end
 
 function ẑ_at_θ(prob::CMBLensingMPMProblem{<:NoLensingDataSet}, d, θ, (f₀,); ∇z_logLike_atol=nothing)

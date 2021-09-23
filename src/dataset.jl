@@ -13,45 +13,6 @@ function show(io::IO, ds::DataSet)
     end
 end
 
-"""
-    set_distributed_dataset(ds, [storage])
-    get_distributed_dataset()
-
-Sometimes it's more performant to distribute a DataSet object to
-parallel workers just once, and have them refer to it from the global
-state, rather than having it get automatically but repeatedly sent as
-part of closures. This provides that functionality. Use
-`set_distributed_dataset(ds)` from the master process to set the
-global DataSet and `get_distributed_dataset()` from any process to
-retrieve it. Repeated calls will not resend `ds` if it hasn't changed
-(based on `hash(ds)`) and if no new workers have been added since the
-last send. The optional argument `storage` will also adapt the dataset
-to a particular storage on the workers, and can be a symbol, e.g.
-`:CuArray`, in the case that CUDA is not loaded on the master process.
-"""
-function set_distributed_dataset(ds, storage=nothing)
-    myid() == 1 || error("set_distributed_dataset should only be called from the master process.")
-    h = hash((procs(), ds, storage))
-    if h != _distributed_dataset_hash
-        @everywhere workers() @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
-        global _distributed_dataset = ds
-        global _distributed_dataset_hash = h
-    end
-    nothing
-end
-get_distributed_dataset() = _distributed_dataset
-_distributed_dataset = nothing
-_distributed_dataset_hash = nothing
-
-
-struct DistributedDataSet <: DataSet end
-getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
-(::DistributedDataSet)(θ) = get_distributed_dataset()(θ)
-function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
-    Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
-end
-
-
 function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
@@ -402,3 +363,11 @@ end
 get_distributed_dataset() = _distributed_dataset
 _distributed_dataset = nothing
 _distributed_dataset_hash = nothing
+
+
+struct DistributedDataSet <: DataSet end
+getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
+(::DistributedDataSet)(θ) = get_distributed_dataset()(θ)
+function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
+    Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
+end
