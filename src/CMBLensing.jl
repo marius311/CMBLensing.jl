@@ -59,8 +59,8 @@ using Zygote: unbroadcast, Numeric, @adjoint, @nograd
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     abs, adjoint, all, any, axes, broadcast, broadcastable, BroadcastStyle, conj, copy, convert,
-    copy, copyto!, eltype, eps, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
-    iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
+    copy, copyto!, eltype, eps, exp, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
+    iterate, keys, lastindex, length, literal_pow, log, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
@@ -76,7 +76,7 @@ import ChainRules: ProjectTo
 export
     @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
     animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
-    BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,

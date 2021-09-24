@@ -24,7 +24,7 @@ for op in [:+, :-, :*, :/, :<, :<=, :&, :|, :(==), :≈]
         ($op)(a::Real,        b::BatchedReal) = batch(broadcast(($op), a,      b.vals))
     end
 end
-for op in [:-, :!, :sqrt, :one, :zero, :isfinite, :eps]
+for op in [:-, :!, :sqrt, :one, :zero, :isfinite, :eps, :exp, :log]
     @eval ($op)(br::BatchedReal) = batch(broadcast(($op),br.vals))
 end
 for op in [:any, :all]
@@ -38,20 +38,26 @@ Base.show(io::IO, br::BatchedReal) = print(io, "Batched", br.vals)
 hash(bv::BatchedReal, h::UInt64) = foldr(hash, (typeof(bv), bv.vals), init=h)
 hash(arr::AbstractArray{<:BatchedReal}, h::UInt64) = foldr(hash, arr, init=h)
 
+# needed for ForwardDiff
+one(::Type{<:BatchedReal{T}}) where {T} = one(T)
+zero(::Type{<:BatchedReal{T}}) where {T} = zero(T)
+convert(::Type{<:BatchedReal{T}}, x::T) where {T<:Real} = batch([x])
+
+
 # used to denote a batch of things, no other functionality
 struct BatchedVal{V<:Vector}
     vals :: V
 end
 batch(v::AbstractVector) = BatchedVal(v)
 batch_index(bv::BatchedVal, I) = getindex(bv.vals, I)
+batch_length(bv::BatchedVal) = length(bv.vals)
 
 
 # mapping over a batch dimension
+_batchargs(args, batch_size) = (map(batch∘collect, Base.Iterators.partition(arg, batch_size)) for arg in args)
+batch_map(f, args...; batch_size) = mapreduce(unbatch, vcat, map(f, _batchargs(args, batch_size)...))
+batch_pmap(f, args...; batch_size) = mapreduce(unbatch, vcat, pmap(f, _batchargs(args, batch_size)...))
 
-function batchmap(f, args...; batchsize, map=map)
-    bargs = (map(batch∘collect, Base.Iterators.partition(arg, batchsize)) for arg in args)
-    mapreduce(unbatch, vcat, map(f, bargs...))
-end
 
 # batched Tuples/NamedTuples
 batch(ts::AbstractVector{<:Union{Tuple,NamedTuple}}) = map((t...) -> batch(collect(t)), ts...)
