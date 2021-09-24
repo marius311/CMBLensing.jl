@@ -8,6 +8,7 @@ using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partit
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
+using ChainRules
 using Combinatorics
 using CompositeStructs
 using DataStructures
@@ -69,6 +70,7 @@ import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
 import Statistics: std
+import ChainRules: ProjectTo
 
 
 export
@@ -111,7 +113,7 @@ include("field_vectors.jl")
 include("base_fields.jl")
 include("specialops.jl")
 include("flowops.jl")
-include("batched_reals.jl")
+include("batching.jl")
 
 # lensing operators
 include("lenseflow.jl")

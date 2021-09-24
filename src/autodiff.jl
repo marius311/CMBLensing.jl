@@ -184,3 +184,10 @@ function finite_difference(f, xs::Vector; ε=1f-3, progress=false)
         (f(xs₊) .- f(xs₋)) ./ (2ε)
     end
 end
+
+
+# new ChainRules ProjectTo interface. with these here, I think theres
+# a good chance many of the above rules can simply be deleted, but
+# haven't gone through yet to figure out which ones yet
+ProjectTo(f::F) where {F<:Field} = ProjectTo{F}()
+(project::ProjectTo{F})(dx::Field) where {B, F<:Field{B}} = B(dx)

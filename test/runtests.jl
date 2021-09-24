@@ -566,7 +566,7 @@ end
 
     @testset "Nside = $Nside" for Nside in Nsides_big
 
-        @testset "pol = $pol" for pol in (:I,:P)
+        @testset "pol = $pol" for pol in (:I, :P)
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
                 Cℓ       = Cℓ,
@@ -579,15 +579,15 @@ end
                 rng      = default_rng(),
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
-            @unpack Cf,Cϕ = ds₀
-            f°,ϕ° = mix(f,ϕ,ds)
+            @unpack Cf, Cϕ = ds₀
+            f°, ϕ° = mix(ds; f, ϕ)
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
+            @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=1e-4
 
             δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=1.3)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=1.3)
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.3)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.3)
             
         end
         
