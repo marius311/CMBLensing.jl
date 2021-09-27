@@ -329,27 +329,29 @@ adapt_structure(to, L::ParamDependentOp) =
 # multiplied by a field. 
 # L::LazyBinaryOp{λ} lazily represents λ(L.X,L.Y)
 struct LazyBinaryOp{λ} <: ImplicitOp{Bottom}
-    X :: FieldOpScal
-    Y :: FieldOpScal
-    LazyBinaryOp(λ, X::Union{FieldOp,Scalar}, Y::Union{FieldOp,Scalar}) = new{λ}(X, Y)
+    X
+    Y
+    LazyBinaryOp(λ, X, Y) = new{λ}(X, Y)
 end
 
 # creating LazyBinaryOps
 for λ in (:+, :-, :*)
-    @eval begin
-        function ($λ)(
-            X :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
-            Y :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
-        ) where {B₁,B₂}
-            LazyBinaryOp($λ, X, Y)
-        end
-        function ($λ)(
-            X :: DiagOp{<:Field{B}},
-            Y :: DiagOp{<:Field{B}}
-        ) where {B}
-            Diagonal(broadcast($λ, diag(X), diag(Y)))
-        end
+    @eval function ($λ)(
+        X :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
+        Y :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
+    ) where {B₁,B₂}
+        LazyBinaryOp($λ, X, Y)
     end
+    @eval function ($λ)(
+        X :: DiagOp{<:Field{B}},
+        Y :: DiagOp{<:Field{B}}
+    ) where {B}
+        Diagonal(broadcast($λ, diag(X), diag(Y)))
+    end
+end
+for λ in (:+, :-) 
+    @eval ($λ)(X::UniformScaling, Y::ImplicitOp) = LazyBinaryOp($λ, X, Y)
+    @eval ($λ)(X::ImplicitOp, Y::UniformScaling) = LazyBinaryOp($λ, X, Y)
 end
 (*)(X::ImplicitOp,              Y::Scalar)     = LazyBinaryOp(*, X, Y)
 (*)(X::Scalar,                  Y::ImplicitOp) = LazyBinaryOp(*, X, Y)
