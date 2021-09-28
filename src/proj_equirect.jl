@@ -1,147 +1,541 @@
+# TODO: still need to check the spin(+2) or spin(-2) sta
+# TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
+
+
+# Type defs
+# ================================================
 
 struct ProjEquiRect{T} <: CartesianProj
 
-    Ny    :: Int
-    Nx    :: Int
-    θspan :: Tuple{Float64,Float64}
-    ϕspan :: Tuple{Float64,Float64}
-
+    Ny          :: Int
+    Nx          :: Int
+    θspan       :: Tuple{Float64,Float64}
+    φspan       :: Tuple{Float64,Float64}
+    θ           :: Vector{Float64} 
+    φ           :: Vector{Float64} 
+    θedges      :: Vector{Float64} 
+    φedges      :: Vector{Float64} 
+    Ω           :: Vector{Float64} 
+    
     storage
 
 end
 
+struct BlockDiagEquiRect{B<:Basis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray}  <: ImplicitOp{T}
 
-# some extra Bases only relevant for EquiRect
+    blocks :: A
+    blocks_sqrt :: Ref{A}
+    blocks_pinv :: Ref{A}
+    logabsdet :: Ref{Tuple{T,Complex{T}}}
+    proj :: P
+
+end
+
 struct AzFourier <: S0Basis end
 const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
 const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
-
-# make EquiRectMap, EquiRectFourier, etc... type aliases
-make_field_aliases("EquiRect",  ProjEquiRect, extra_aliases=OrderedDict(
-    "AzFourier"    => AzFourier,
-    "QUAzFourier"  => QUAzFourier,
-    "IQUAzFourier" => IQUAzFourier,
-))
+const AzBasis = Union{AzFourier, QUAzFourier, IQUAzFourier}
 
 
-# for printing
+# Type Alias
+# ================================================
+
+make_field_aliases(
+    "EquiRect",  ProjEquiRect, 
+    extra_aliases=OrderedDict(
+        "AzFourier"    => AzFourier,
+        "QUAzFourier"  => QUAzFourier,
+        "IQUAzFourier" => IQUAzFourier,
+    ),
+)
+
 typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
 
-
-function ProjEquiRect(;Ny, Nx, θspan, ϕspan, T=Float32, storage=Array)
-    ProjEquiRect(Ny, Nx, θspan, ϕspan, real_type(T), storage)
-end
-
-@memoize function ProjEquiRect(Ny, Nx, θspan, ϕspan, ::Type{T}, storage) where {T}
-    
-    # make span always be (low, high)
-    θspan = (Float64.(sort(collect(θspan)))...,)
-    ϕspan = (Float64.(sort(collect(ϕspan)))...,)
-
-    ProjEquiRect{T}(Ny, Nx, θspan, ϕspan, storage)
-
-end
-
 typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
+
+# Proj 
+# ================================================
+
+@memoize function ProjEquiRect(θ, φ, θedges, φedges, θspan, φspan, ::Type{T}, storage) where {T}
+    Ny, Nx = length(θ), length(φ)
+    Ω  = rem2pi(φedges[2] .- φedges[1], RoundDown) .* diff(.- cos.(θedges))
+    ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θedges, φedges, Ω, storage)
+end
+
+"""
+    ProjEquiRect(; Ny::Int, Nx::Int, θspan::Tuple, φspan::Tuple,         T=Float32, storage=Array)
+    ProjEquiRect(; θ::Vector, φ::Vector, θedges::Vector, φedges::Vector, T=Float32, storage=Array)
+
+Construct an EquiRect projection object. The projection can either be
+specified by:
+
+* The number of pixels `Ny` and `Nx` (corresponding to the `θ` and `φ`
+  angular directions, respectively) and the span in radians of the
+  field in these directions, `θspan` and `φspan`. The order in which
+  the span tuples are given is irrelevant, either order will refer to
+  the same field. Note, the spans correspond to the field size between
+  outer pixel edges, not from pixel centers. If one wishes to call
+  [`Cℓ_to_Cov`](@ref) with this projection, `φspan` must be an integer
+  multiple of 2π, but other functionality will be available if this is
+  not the case. 
+* A manual list of pixels centers and pixel edges, `θ`, `φ`, `θedges`,
+  `φedges`.
+
+"""
+function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
+
+    arg_error() = error("Constructor takes either (θ, φ, θedges, φedges) or (Ny, Nx, θspan, φspan) keyword arguments.")
+    
+    if all(haskey.(Ref(kwargs), (:θ, :φ, :θedges, :φedges)))
+        !any(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan))) || arg_error()
+        @unpack (θ, φ, θedges, φedges) = kwargs
+        θspan = (θedges[1], θedges[end])
+        φspan = (φedges[1], φedges[end])
+    elseif all(haskey.(Ref(kwargs), (:Ny, :Nx, :θspan, :φspan)))
+        !all(haskey.(Ref(kwargs), (:θ, :φ, :θedges, :φedges))) || arg_error()
+        @unpack (Nx, Ny, θspan, φspan) = kwargs
+        θspan = (sort(collect(θspan))...,)
+        φspan = (sort(collect(φspan))...,)
+        φedges = rem2pi.(range(φspan..., length=Nx+1),           RoundDown)
+        φ      = rem2pi.(range(φspan..., length=2Nx+1)[2:2:end], RoundDown)
+        θedges = range(θspan..., length=Ny+1)
+        θ      = range(θspan..., length=2Ny+1)[2:2:end]
+    else
+        arg_error()
+    end
+
+    ProjEquiRect(θ, φ, θedges, φedges, θspan, φspan, real_type(T), storage)
+
+end
+
+
+
+# Field Basis
+# ================================================
+"""
+Jperm(ℓ::Int, n::Int) return the column number in the J matrix U^2
+where U is unitary FFT. The J matrix looks like this:
+
+|1   0|
+|  / 1|
+| / / |
+|0 1  |
+
+"""
+function Jperm(ℓ::Int, n::Int)
+    @assert 1 <= ℓ <= n
+    ℓ==1 ? 1 : n - ℓ + 2
+end
+
+# AzFourier <-> Map
+function AzFourier(f::EquiRectMap)
+    nφ, T = f.Nx, real(f.T)
+    EquiRectAzFourier(m_rfft(f.arr, 2) ./ T(√nφ), f.proj)
+end
+
+function Map(f::EquiRectAzFourier)
+    nφ, T = f.Nx, real(f.T)
+    EquiRectMap(m_irfft(f.arr, nφ, 2) .* T(√nφ), f.proj)
+end
+
+# QUAzFourier <-> QUMap
+function QUAzFourier(f::EquiRectQUMap)
+    nθ, nφ, T = f.Ny, f.Nx, real(f.T)
+    qiumap = complex.(f.Qx, f.Ux) 
+    Uf = m_fft(qiumap, 2) ./ T(√nφ)
+    arr = similar(Uf, 2nθ, nφ÷2+1)
+    for ℓ = 1:nφ÷2+1
+        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
+            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
+            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
+        else
+            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
+            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
+        end
+    end
+    EquiRectQUAzFourier(arr, f.proj)
+end
+
+function QUMap(f::EquiRectQUAzFourier)
+    nθₓ2, nφ½₊1 = size(f.arr)
+    nθ, nφ, T = f.Ny, f.Nx, real(f.T)
+    @assert nφ½₊1 == nφ÷2+1
+    @assert 2nθ   == nθₓ2
+
+    pθk = similar(f.arr, nθ, nφ)
+    for ℓ = 1:nφ½₊1
+        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
+            pθk[:,ℓ] .= f.arr[1:nθ,ℓ]
+        else
+            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]
+            pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
+        end
+    end
+    qiumap = m_ifft(pθk, 2) .* T(√nφ)
+    EquiRectQUMap(cat(real(qiumap), imag(qiumap), dims=3), f.proj)
+end
+
+
+function Base.getindex(f::EquiRectS0, k::Symbol)
+    @match k begin
+        :Ix => Map(f).arr
+        :Il => AzFourier(f).arr
+        _ => error("Invalid EquiRectS0 index $k")
+    end
+end
+function Base.getindex(f::EquiRectS2, k::Symbol)
+    @match k begin
+        :Qx => QUMap(f).Qx
+        :Ux => QUMap(f).Ux
+        :Px => (qu=QUMap(f); complex.(qu.Qx,qu.Ux))
+        :Pl => QUAzFourier(f).arr
+        _ => error("Invalid EquiRectS2 index $k")
+    end
+end
+
 function Base.summary(io::IO, f::EquiRectField)
     @unpack Ny,Nx,Nbatch = f
     print(io, "$(length(f))-element $Ny×$Nx$(Nbatch==1 ? "" : "(×$Nbatch)")-pixel ")
     Base.showarg(io, f, true)
 end
 
+# block-diagonal operator
+# ================================================
 
-### basis conversion
+# ## Constructors
 
-AzFourier(f::EquiRectMap) = EquiRectAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-Map(f::EquiRectAzFourier) = EquiRectMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
-
-QUAzFourier(f::EquiRectQUMap) = EquiRectQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-QUMap(f::EquiRectQUAzFourier) = EquiRectQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
-
-IQUAzFourier(f::EquiRectIQUMap) = EquiRectIQUAzFourier(m_rfft(f.arr, (2,)), f.metadata)
-IQUMap(f::EquiRectIQUAzFourier) = EquiRectIQUMap(m_irfft(f.arr, f.Nx, (2,)), f.metadata)
-
-
-# TODO: remaining conversion rules
-
-
-### block-diagonal operator
-
-struct BlockDiagEquiRect{B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}} <: ImplicitOp{T}
-    blocks :: A
-    blocks_sqrt :: Ref{A} # lazily computed/saved sqrt of operator
-    proj :: P
-end
-function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:Basis, P<:ProjEquiRect, T, A<:AbstractArray{T}}
-    BlockDiagEquiRect{B,P,T,A}(block_matrix, Ref{A}(), proj)
+function BlockDiagEquiRect{B}(block_matrix::A, proj::P) where {B<:AzBasis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray}
+    real(eltype(A)) == T || error("Mismatched eltype between $P and $A")
+    BlockDiagEquiRect{B,T,P,A}(block_matrix, Ref{A}(), Ref{A}(), Ref{Tuple{T,Complex{T}}}((0,0)), proj)
 end
 
-size(L::BlockDiagEquiRect) = (fill(L.proj.Nx * L.proj.Ny, 2)...,)
+# The following allows construction by a vector of blocks
 
-function sqrt(L::BlockDiagEquiRect{B}) where {B}
-    if !isassigned(L.blocks_sqrt)
-        L.blocks_sqrt[] = mapslices(sqrt, L.blocks, dims=(1,2))
+function BlockDiagEquiRect{B}(vector_of_blocks::Vector{A}, proj::P) where {B<:AzBasis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractMatrix}
+    block_matrix = similar(vector_of_blocks[1], size(vector_of_blocks[1])..., length(vector_of_blocks))
+    for b in eachindex(vector_of_blocks)
+        block_matrix[:,:,b] .= vector_of_blocks[b]
     end
-    BlockDiagEquiRect{B}(L.blocks_sqrt[], L.proj)
+    BlockDiagEquiRect{B}(block_matrix, proj)
 end
 
-*(L::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = L * B(f)
+# ## Linear Algebra: tullio accelerated (operator, field)
 
-function *(B::BlockDiagEquiRect{AzFourier}, f::EquiRectAzFourier)
-    promote_metadata_strict(B.proj, f.proj) # ensure same projection
-    EquiRectAzFourier(@tullio(Bf[p,iₘ] := B.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.metadata)
+# M * f
+
+(*)(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
+
+function (*)(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
-function *(B::BlockDiagEquiRect{QUAzFourier}, f::EquiRectQUAzFourier)
-    # TODO: implement S2 multiplication
-    error("not implemented")
+(*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
+
+function (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
+    promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
+    F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
+
+function rrule(::typeof(*), M::BlockDiagEquiRect{B}, f::EquiRectField{B′}) where {B<:Basis, B′<:Basis}
+    function times_pullback(Δ)
+        BΔ, Bf = B(Δ), B(f)
+        Zygote.ChainRules.NoTangent(), @thunk(BlockDiagEquiRect{B}(@tullio(M̄[p,q,iₘ] := Bf.arr[p,iₘ] * conj(BΔ.arr[q,iₘ])), M.proj)'), B′(M' * BΔ)
+    end
+    M * f, times_pullback
+end
+
+
+# ## Linear Algebra: tullio accelerated (operator, operator)
+
+# M₁ * M₂
+function (*)(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
+    promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * M₂.blocks[j,q,iₘ]), M₁.proj)
+end
+
+# M₁' * M₂
+function (*)(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+    promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := conj(M₁.parent.blocks[j,p,iₘ]) * M₂.blocks[j,q,iₘ]), M₁.parent.proj)
+end
+
+# M₁ * M₂'
+function (*)(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
+    promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
+    BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * conj(M₂.parent.blocks[q,j,iₘ])), M₁.proj)
+end
+
+# M₁ + M₂, M₁ - M₂, M₁ \ M₂, M₁ / M₂ ... also with mixed adjoints
+# QUESTION: some of these may be sped up with @tullio
+
+for op in (:+, :-, :/, :\)
+
+    @eval function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
+        promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( $op, eachslice(M₁.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
+            M₁.proj,
+        )
+    end
+
+    @eval function Base.$op(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+        promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( (m1,m2)->$op(m1',m2), eachslice(M₁.parent.blocks;dims=3), eachslice(M₂.blocks;dims=3) ),
+            M₁.proj
+        )
+    end
+
+    @eval function Base.$op(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
+        promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
+        BlockDiagEquiRect{B}(
+            map( (m1,m2)->$op(m1,m2'), eachslice(M₁.blocks;dims=3), eachslice(M₂.parent.blocks;dims=3) ),
+            M₁.proj,
+        )
+    end
+
+end
+
+for op in (:*, :/)
+    @eval Base.$op(a::Scalar, M::BlockDiagEquiRect{B}) where {B} = BlockDiagEquiRect{B}(broadcast($op, a, M.blocks), M.proj)
+    @eval Base.$op(M::BlockDiagEquiRect{B}, a::Scalar) where {B} = BlockDiagEquiRect{B}(broadcast($op, a, M.blocks), M.proj)
+    @eval Base.$op(a::Scalar, M::Adjoint{T,<:BlockDiagEquiRect{B}}) where {B,T} = (conj(a) * M.parent)'
+    @eval Base.$op(M::Adjoint{T,<:BlockDiagEquiRect{B}}, a::Scalar) where {B,T} = (conj(a) * M.parent)'
+end
+
+
+
+# ## Linear Algebra: with arguments (operator, )
+
+function LinearAlgebra.sqrt(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
+    if !isassigned(M.blocks_sqrt)
+        M.blocks_sqrt[] = mapslices(sqrt, M.blocks, dims=(1,2))
+    end
+    BlockDiagEquiRect{B}(M.blocks_sqrt[], M.proj)
+end
+
+function LinearAlgebra.pinv(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
+    if !isassigned(M.blocks_pinv)
+        M.blocks_pinv[] = mapslices(pinv, M.blocks, dims=(1,2))
+    end
+    BlockDiagEquiRect{B}(M.blocks_pinv[], M.proj)
+end
+
+# logdet and logabsdet
+
+function LinearAlgebra.logdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis} 
+    l, s = logabsdet(M)
+    l + log(s)
+end
+
+function LinearAlgebra.logabsdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis} 
+    if M.logabsdet[] == (0,0)
+        M.logabsdet[] = mapreduce(logabsdet, ((l1,s1),(l2,s2))->(l1+l2,s1*s2), eachslice(M.blocks, dims=3))
+    end
+    M.logabsdet[]
+end
+
+@adjoint function LinearAlgebra.logabsdet(M::BlockDiagEquiRect)
+    logabsdet(M), Δ -> (Δ[1] * pinv(M)',)
+end
+
+# dot products
+
+LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr)
+
+# needed by AD
+function LinearAlgebra.dot(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+    (@tullio a[] := conj(M₁.parent.blocks[q,p,iₘ]) * M₂.blocks[p,q,iₘ])[]
+end
+
+
+
+# mapblocks 
+# =====================================
+
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:AzBasis} 
+    mapblocks(fun, M, B(f))
+end
+
+function mapblocks(fun::Function, M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
+    promote_metadata_strict(M.proj, f.proj) # ensure same projection
+    Mfarr = similar(f.arr)
+    y_    = eachcol(Mfarr)
+    x_    = eachcol(f.arr)
+    Mb_   = eachslice(M.blocks; dims = 3) 
+    for (y, x, Mb) in zip(y_, x_, Mb_)
+        y .= fun(Mb, x)
+    end
+    F(Mfarr, f.proj)
+end 
+
+function mapblocks(fun::Function, Ms::BlockDiagEquiRect{B}...) where {B<:AzBasis}
+    map(M->promote_metadata_strict(M.proj, Ms[1].proj), Ms) 
+    BlockDiagEquiRect{B}(
+        map(
+            i->fun(getindex.(getproperty.(Ms,:blocks),:,:,i)...), # This looks miserable:(
+            axes(Ms[1].blocks,3),
+        ),
+        Ms[1].proj,
+    )
+end 
+
+# Other methods
+# ========================================= 
+
+# ## simulation
+
+global_rng_for(::Type{<:BlockDiagEquiRect}) = Random.default_rng()
+
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Real}
+    EquiRectMap(randn(T, pj.Ny, pj.Nx), pj)
+end
+
+function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Complex}
+    qiu = randn(T, pj.Ny, pj.Nx)
+    EquiRectQUMap(real(qiu), imag(qiu), pj)
+end
+
+white_noise(ξ::EquiRectField{Map, T},         rng::AbstractRNG) where {T} = white_noise(T, ξ.proj, rng)
+white_noise(ξ::EquiRectField{QUMap, T},       rng::AbstractRNG) where {T} = white_noise(Complex{T}, ξ.proj, rng)
+white_noise(ξ::EquiRectField{AzFourier, T},   rng::AbstractRNG) where {T} = AzFourier(white_noise(T, ξ.proj, rng))
+white_noise(ξ::EquiRectField{QUAzFourier, T}, rng::AbstractRNG) where {T} = QUAzFourier(white_noise(Complex{T}, ξ.proj, rng))
+
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,T}) where {T}
+    sqrt(M) * white_noise(T, M.proj, rng)
+end
+
+function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,T}) where {T}
+    sqrt(M) * white_noise(Complex{T}, M.proj, rng) 
+end
+
+# adapt_structure
 
 function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.blocks_sqrt), adapt(storage, L.proj))
+    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
 end
 
-function simulate(rng::AbstractRNG, L::BlockDiagEquiRect{AzFourier,ProjEquiRect{T}}) where {T}
-    @unpack Ny, Nx, θspan = L.proj
-    z = EquiRectMap(randn(rng, T, Ny, Nx) .* sqrt.(sin.(range(θspan..., length=Ny))), L.proj)
-    sqrt(L) * z
+function Base.size(L::BlockDiagEquiRect{<:AzBasis})  
+    n,m,p = size(L.blocks)
+    @assert n==m
+    sz = n*p
+    return (sz, sz)
 end
 
+# covariance and beam operators
+# ================================================
 
+function Cℓ_to_Cov(::Val, proj::ProjEquiRect, args...; kwargs...)
+    error("Run `using CirculantCov` to use this function.")
+end
 
-### covariance operators
+@init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
-# can't depend on Legendre.jl since its not in the general registry
-Cℓ_to_Cov(::Val, ::ProjEquiRect{T}, args...; kwargs...) where {T} = 
-    error("You must run `using Legendre` for this method to be available.")
+    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+        
+        @unpack θ, φ, Ω = proj
+        nθ, nφ  = length(θ), length(φ)
+        ℓ       = 0:ℓmax
 
-@init @require Legendre="7642852e-7f09-11e9-134e-0940411082b6" begin
+        CIℓ = nan2zero.(CI(ℓ))
 
-    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
-        @unpack Ny, Nx, θspan, ϕspan = proj
-        ϕspan_ratio = 2π / abs(-(ϕspan...))
-        if !(ϕspan_ratio ≈ round(Int, ϕspan_ratio))
-            error("ϕspan=$ϕspan must span integer multiple of 2π")
-        else
-            ϕspan_ratio = round(Int, ϕspan_ratio)
+        @assert real(T) == T
+        blocks = zeros(T, nθ, nθ, nφ÷2+1)
+        # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+        Γ_I  = CirculantCov.Γθ₁θ₂φ₁φ⃗_Iso(ℓ, CIℓ; ngrid=50_000)
+        # using full resolution ComplexF64 for internal construction
+        ptmW    = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+
+        pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
+        for k = 1:nθ
+            for j = 1:nθ
+                Iγⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗(θ[j], θ[k], φ, Γ_I, ptmW)
+                for ℓ = 1:nφ÷2+1
+                    blocks[j,k,ℓ] = real(Iγⱼₖℓ⃗[ℓ])
+                end
+            end
+            next!(pbar)
         end
-        Cℓ = T.(nan2zero.(Cℓ[0:ℓmax]))
-        Nm = Nx÷2+1
-        θs = T.(range(reverse(θspan)..., length=Ny))
-        λ = T.(Legendre.λlm(0:ℓmax, 0:ϕspan_ratio*(Nm-1), cos.(θs))[:,:,1:ϕspan_ratio:end])
-        @tullio blocks[p,q,iₘ] := λ[p,ℓ,iₘ] * λ[q,ℓ,iₘ] * Cℓ[ℓ] * (iₘ==1 ? 2 : 4)
-        BlockDiagEquiRect{AzFourier}(blocks, proj)
+
+        return BlockDiagEquiRect{AzFourier}(blocks, proj)
+        
     end
 
-    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, Cℓ::InterpolatedCℓs; units=1, ℓmax=500) where {T}
-        error("Not implemented")
-        # TODO: implement building S2 covariance
+    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+        
+        @unpack θ, φ, Ω = proj
+        nθ, nφ  = length(θ), length(φ)
+        ℓ       = 0:ℓmax
+
+        CBBℓ = nan2zero.(CBB(ℓ))
+        CEEℓ = nan2zero.(CEE(ℓ))
+
+        @assert real(T) == T
+        blocks = zeros(Complex{T},2nθ,2nθ,nφ÷2+1)
+        # TODO: do we want ngrid as an optional argmuent to Cℓ_to_Cov?
+        ΓC_EB = CirculantCov.ΓCθ₁θ₂φ₁φ⃗_CMBpol(ℓ, CEEℓ, CBBℓ; ngrid=50_000)    
+        # using full resolution ComplexF64 for internal construction
+        ptmW = FFTW.plan_fft(Vector{ComplexF64}(undef, nφ)) 
+        
+        pbar = Progress(nθ, progress ? 1 : Inf, "Cℓ_to_Cov: ")
+        for k = 1:nθ
+            for j = 1:nθ
+                EBγⱼₖℓ⃗, EBξⱼₖℓ⃗ = CirculantCov.γθ₁θ₂ℓ⃗_ξθ₁θ₂ℓ⃗(θ[j], θ[k], φ, ΓC_EB..., ptmW)
+                for ℓ = 1:nφ÷2+1
+                    Jℓ = Jperm(ℓ, nφ)
+                    blocks[j,    k,    ℓ] = EBγⱼₖℓ⃗[ℓ]
+                    blocks[j,    k+nθ, ℓ] = EBξⱼₖℓ⃗[ℓ]
+                    blocks[j+nθ, k,    ℓ] = conj(EBξⱼₖℓ⃗[Jℓ])
+                    blocks[j+nθ, k+nθ, ℓ] = conj(EBγⱼₖℓ⃗[Jℓ])
+                end
+            end
+            next!(pbar)
+        end
+
+        return BlockDiagEquiRect{QUAzFourier}(blocks, proj)
+
     end
 
 end
 
+function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
-### promotion
+    @unpack Ω = proj
+    Ω′ = T.(Ω)
+
+    Cov = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    @tullio Cov.blocks[j,k,iₘ] *= Ω′[k]
+
+    return Cov
+end
+
+function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+
+    @unpack θ, Ω = proj
+    Ω′ = T.(Ω)
+
+    Cov   = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
+    dcatΩ = Diagonal(vcat(Ω′, Ω′))
+    zB    = zeros(T, length(θ), length(θ))
+
+    Beam = BlockDiagEquiRect{QUAzFourier}(
+        map(B->[B zB;zB B]*dcatΩ, eachslice(Cov.blocks; dims=3)),
+        proj,
+    )
+
+    return Beam
+end
+
+Cℓ_to_Beam(pol::Symbol, args...; kwargs...) = Cℓ_to_Beam(Val(pol), args...; kwargs...)
+
+
+# promotion
+# ================================================
+
+promote_basis_generic_rule(::Map, ::AzFourier) = Map()
+
+promote_basis_generic_rule(::QUMap, ::QUAzFourier) = QUMap()
 
 # used in broadcasting to decide the resulting metadata when
 # broadcasting over two fields
@@ -151,7 +545,7 @@ function promote_metadata_strict(metadata₁::ProjEquiRect{T₁}, metadata₂::P
         metadata₁.Ny    === metadata₂.Ny    &&
         metadata₁.Nx    === metadata₂.Nx    &&
         metadata₁.θspan === metadata₂.θspan &&   
-        metadata₁.ϕspan === metadata₂.ϕspan   
+        metadata₁.φspan === metadata₂.φspan   
     )
         
         # always returning the "wider" metadata even if T₁==T₂ helps
@@ -160,8 +554,8 @@ function promote_metadata_strict(metadata₁::ProjEquiRect{T₁}, metadata₂::P
         
     else
         error("""Can't broadcast two fields with the following differing metadata:
-        1: $(select(fields(metadata₁),(:Ny,:Nx,:θspan,:ϕspan)))
-        2: $(select(fields(metadata₂),(:Ny,:Nx,:θspan,:ϕspan)))
+        1: $(select(fields(metadata₁),(:Ny,:Nx,:θspan,:φspan)))
+        2: $(select(fields(metadata₂),(:Ny,:Nx,:θspan,:φspan)))
         """)
     end
 
@@ -205,14 +599,14 @@ end
 function adapt_structure(storage, proj::ProjEquiRect{T}) where {T}
     # TODO: make sure these are consistent with any arguments that
     # were added to the memoized constructor
-    @unpack Ny, Nx, θspan, ϕspan = proj
+    @unpack Ny, Nx, θspan, φspan = proj
     T′ = eltype(storage)
-    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), θspan, ϕspan, storage)
+    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), θspan, φspan, storage)
 end
 adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
 
 
-### etc...
-# TODO: see proj_lambert.jl and adapt the things there for EquiRect
-# maps, or even better, figure out what can be factored out into
-# generic code that works for both Lambert and EquiRect
+# @adjoint function (::Type{F})(arr::A, proj::P) where {B<:SpatialBasis{AzFourier},P<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
+#     # F(arr, proj), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(proj.Nx))'), nothing)
+#     F(arr, proj), Δ -> (Δ.arr, nothing)
+# end
