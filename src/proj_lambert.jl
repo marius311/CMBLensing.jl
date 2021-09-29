@@ -576,9 +576,9 @@ function ud_grade(
             f = Diagonal(LambertFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
         end
         if mode == :map
-            fnew = LambertField{Map(B)}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = LambertField{Map(B())}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
         else
-            fnew = LambertField{Fourier(B)}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+            fnew = LambertField{Fourier(B())}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
         end
         if deconv_pixwin
             fnew = Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew
