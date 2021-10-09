@@ -24,7 +24,6 @@ using FFTW
 using FiniteDifferences
 using LinearAlgebra
 using Random
-using Random: default_rng
 using Requires
 using Serialization
 using SparseArrays
@@ -589,7 +588,6 @@ end
                 beamFWHM = 3,
                 pol      = pol,
                 storage  = storage,
-                rng      = default_rng(),
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
             @unpack Cf, Cϕ = ds₀
@@ -597,7 +595,7 @@ end
 
             @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=1e-4
 
-            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
+            δf,δϕ = simulate(Cf), simulate(Cϕ)
 
             @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.3)
             @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.3)
@@ -726,8 +724,8 @@ end
             @test gradient(f2 -> f2' * (pinv(Cf2) * f2), f2)[1] ≈ (2 * pinv(Cf2) * f2)
 
             # gradients through entries of BlockDiagEquiRect
-            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)
-            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)
+            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)  rtol=1e-2
+            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)  rtol=1e-2
             @test_broken gradient(α -> f0' * (pinv(α * Cf0) * f0), 1)[1] isa Real 
             @test_broken gradient(α -> f2' * (pinv(α * Cf2) * f2), 1)[1] isa Real
             

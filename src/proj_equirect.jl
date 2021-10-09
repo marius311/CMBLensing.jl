@@ -386,14 +386,12 @@ end
 
 # ## simulation
 
-global_rng_for(::Type{<:BlockDiagEquiRect}) = Random.default_rng()
-
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,T}) where {T}
-    sqrt(M) * EquiRectMap(randn!(similar(M.blocks, M.proj.Ny, M.proj.Nx)), M.proj)
+    sqrt(M) * EquiRectMap(randn!(rng, similar(M.blocks, T, M.proj.Ny, M.proj.Nx)), M.proj)
 end
 
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,T}) where {T}
-    sqrt(M) * EquiRectQUMap(randn!(similar(M.blocks, M.proj.Ny, M.proj.Nx, 2)), M.proj)
+    sqrt(M) * EquiRectQUMap(randn!(rng, similar(M.blocks, T, M.proj.Ny, M.proj.Nx, 2)), M.proj)
 end
 
 # adapt_structure

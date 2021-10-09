@@ -99,7 +99,7 @@ getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs), s)
 propertynames(f::FieldTuple) = (:fs, propertynames(f.fs)...)
 
 ### simulation
-white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(f, rng), ξ.fs))
+randn!(rng::AbstractRNG, ξ::FieldTuple) = FieldTuple(map(f -> randn!(rng, f), ξ.fs))
 
 ### Diagonal-ops
 # need a method specific for FieldTuple since we don't carry around
@@ -119,7 +119,4 @@ tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagon
 # misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
 batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
-function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
-    only(unique(map_tupleargs(global_rng_for, FS)))
-end
 getindex(ft::FieldTuple, k::Symbol) = ft.fs[k]

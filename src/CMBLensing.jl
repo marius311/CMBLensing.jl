@@ -73,6 +73,7 @@ import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
 import Measurements: ±
 import Statistics: std
 import ChainRules: ProjectTo
+import Random: randn!
 
 
 export
@@ -82,7 +83,7 @@ export
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
-    firsthalf, fixed_white_noise, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
+    firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, InterpolatedCℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
@@ -91,7 +92,7 @@ export
     ParamDependentOp, pixwin, PowerLens, ProjLambert, ProjEquiRect, ProjHealpix, project,
     QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
+    ud_grade, unbatch, unmix, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
 
 # bunch of sampling-related exports

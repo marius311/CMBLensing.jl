@@ -127,6 +127,13 @@ function MAP_joint(
     aggressive_gc = false
 )
 
+
+    sample_or_argmax_f = 
+        quasi_sample == false ? argmaxf_logpdf :
+        quasi_sample == true ? sample_f : 
+        quasi_sample isa AbstractRNG ? (args...; kwargs...) -> sample_f(quasi_sample, args...; kwargs...) : 
+        error("`quasi_sample` should be true, false, or an AbstractRNG")
+
     dsθ = copy(ds(θ))
     dsθ.G = I # MAP estimate is invariant to G so avoid wasted computation
 
@@ -151,8 +158,6 @@ function MAP_joint(
     for step = 1:nsteps
 
         # f step
-        isa(quasi_sample,Int) && seed!(global_rng_for(ϕ), quasi_sample)
-        sample_or_argmax_f = quasi_sample ? sample_f : argmaxf_logpdf
         (f, argmaxf_logpdf_history) = @⌛ sample_or_argmax_f(
             dsθ, 
             (;ϕ, θ);

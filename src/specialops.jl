@@ -3,9 +3,7 @@
 # we use Base.Diagonal(f) for diagonal operators so very little specific code is
 # actually needed here. 
 
-simulate(rng::AbstractRNG, D::DiagOp; Nbatch=nothing) = 
-    sqrt(D) * white_noise(similar(diag(D), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
-global_rng_for(D::DiagOp) = global_rng_for(diag(D))
+simulate(rng::AbstractRNG, D::DiagOp; Nbatch=nothing) = sqrt(D) * randn!(rng, similar(diag(D), Nbatch))
 
 # automatic basis conversion (and NaN-zeroing)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
@@ -73,12 +71,10 @@ size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
-global_rng_for(::Type{BlockDiagIEB{T,F}}) where {T,F} = global_rng_for(F)
 diag(L::BlockDiagIEB) = BaseIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
-simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=nothing) = 
-    sqrt(L) * white_noise(similar(diag(L), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
+simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=nothing) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch))
 # arithmetic
 *(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
 +(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
@@ -297,7 +293,7 @@ end
 
 @auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
 @auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 getindex(L::ParamDependentOp, x) = getindex(L.op, x)

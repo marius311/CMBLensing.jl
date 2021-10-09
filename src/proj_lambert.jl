@@ -341,14 +341,6 @@ end
 
 
 
-### simulation
-_white_noise(ξ::LambertField, rng::AbstractRNG) = 
-    (randn!(rng, similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
-white_noise(ξ::LambertS0,  rng::AbstractRNG) = LambertMap(_white_noise(ξ,rng)...)
-white_noise(ξ::LambertS2,  rng::AbstractRNG) = LambertEBMap(_white_noise(ξ,rng)...)
-white_noise(ξ::LambertS02, rng::AbstractRNG) = LambertIEBMap(_white_noise(ξ,rng)...)
-
-
 ### creating covariance operators
 # fixed covariances
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
