@@ -89,7 +89,7 @@ function resimulate!(
     ds::DataSet; 
     f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
     Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
-    rng=global_rng_for(ds.d), seed=nothing
+    rng=Random.default_rng(), seed=nothing
 )
 
     (f̃ != nothing) || (n != nothing) && error("Passing f̃ or n to `resimulate!` has been removed.")
@@ -99,3 +99,6 @@ function resimulate!(
     (;ds, f, f̃, ϕ, d)
     
 end
+
+
+Base.@deprecate white_noise(f::Field, rng::AbstractRNG) randn!(rng, f)

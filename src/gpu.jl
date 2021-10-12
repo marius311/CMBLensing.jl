@@ -21,7 +21,6 @@ function cuda(f, args...; threads=256)
 end
 
 is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
-global_rng_for(::Type{<:CuArray}) = curand_rng()
 
 # handy conversion functions and macros
 @doc doc"""

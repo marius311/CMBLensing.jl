@@ -233,7 +233,7 @@ function sample_joint(
     end
     
     # seed
-    @everywhere @eval CMBLensing seed!(global_rng_for($storage))
+    @everywhere @eval CMBLensing seed!()
 
     # distribute the dataset object to workers once
     set_distributed_dataset(ds, storage)

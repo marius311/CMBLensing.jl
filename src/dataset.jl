@@ -148,7 +148,7 @@ Keyword arguments:
   polarization, or both. 
 * `T = Float32` — Precision, either `Float32` or `Float64`.
 * `storage = Array` — Set to `CuArray` to use GPU.
-* `Nbatch = 1` — Number of batches of data in this dataset.
+* `Nbatch = nothing` — Number of batches of data in this dataset.
 * `μKarcminT = 3` — Noise level in temperature in μK-arcmin.
 * `ℓknee = 100` — 1/f noise knee.
 * `αknee = 3` — 1/f noise slope.
@@ -174,7 +174,7 @@ function load_sim(;
     pol,
     T = Float32,
     storage = Array,
-    Nbatch = 1,
+    Nbatch = nothing,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -310,7 +310,7 @@ function load_sim(;
         )
     end
 
-    if Nbatch > 1
+    if Nbatch != nothing
         d = ds.d *= batch(ones(Int,Nbatch))
         ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end

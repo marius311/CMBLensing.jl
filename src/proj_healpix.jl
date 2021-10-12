@@ -58,16 +58,16 @@ end
 
 ## ProjEquiRect
 function θϕ_to_ij(proj::ProjEquiRect, θ, ϕ)
-    @unpack Ny, Nx, θspan, ϕspan = proj
+    @unpack Ny, Nx, θspan, φspan = proj
     i =        (θ - θspan[1])             / abs(-(θspan...)) * Ny
-    j = rem2pi((ϕ - ϕspan[1]), RoundDown) / abs(-(ϕspan...)) * Nx
+    j = rem2pi((ϕ - φspan[1]), RoundDown) / abs(-(φspan...)) * Nx
     (i, j)
 end
 
 function ij_to_θϕ(proj::ProjEquiRect, i, j)
-    @unpack Ny, Nx, θspan, ϕspan = proj
+    @unpack Ny, Nx, θspan, φspan = proj
     θ = abs(-(θspan...)) / Ny * i + θspan[1]
-    ϕ = abs(-(ϕspan...)) / Nx * j + ϕspan[1]
+    ϕ = abs(-(φspan...)) / Nx * j + φspan[1]
     (θ, ϕ)
 end
 
