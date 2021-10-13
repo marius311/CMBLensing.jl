@@ -149,7 +149,7 @@ make_field_aliases("Base", Proj)
 
 # simulation
 randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B<:SpatialBasis{Map}} = (randn!(rng, ξ.arr); ξ)
-randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B} = (ξ.arr .= B(randn!(rng, Map(ξ))).arr; ξ)
+randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B} = randn!(rng, Map(ξ))
 
 
 # useful for enumerating some cases below and in plotting
