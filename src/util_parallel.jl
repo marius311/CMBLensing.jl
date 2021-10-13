@@ -24,13 +24,12 @@ _mpi_rank() = nothing
         print_info = true,
     )
         
-        if !MPI.Initialized()
-            MPI.Init()
-        end
+        MPI.Initialized() || MPI.Init()
         size = MPI.Comm_size(MPI.COMM_WORLD)
         rank = MPI.Comm_rank(MPI.COMM_WORLD)
 
-        if size>1
+        if size > 1 && nworkers() == 1
+
             # workers don't return from this call:
             start_main_loop(
                 Dict("TCP"=>TCP_TRANSPORT_ALL,"MPI"=>MPI_TRANSPORT_ALL)[transport],
@@ -39,10 +38,16 @@ _mpi_rank() = nothing
             )
             
             if @isdefined(CUDA) && CUDA.functional()
-                assign_GPU_workers(;print_info=false)
+                assign_GPU_workers(print_info=false)
             end
 
             print_info && proc_info()
+
+            return true
+
+        else
+
+            return false
 
         end
 
