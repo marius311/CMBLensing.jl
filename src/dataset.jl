@@ -24,7 +24,7 @@ adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds)
 
 # called when simulating a DataSet, this gets the batching right
 function simulate(rng::AbstractRNG, ds::DataSet, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}})
-    Nbatch = (isnothing(ds.d) || batch_length(ds.d) == 1) ? nothing : batch_length(ds.d)
+    Nbatch = (isnothing(ds.d) || batch_length(ds.d) == 1) ? () : batch_length(ds.d)
     rand(rng, dist; Nbatch)
 end
 

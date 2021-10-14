@@ -88,7 +88,7 @@ resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
 function resimulate!(
     ds::DataSet; 
     f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
-    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
+    Nbatch=(isnothing(ds.d) ? 1 : ds.d.Nbatch),
     rng=Random.default_rng(), seed=nothing
 )
 

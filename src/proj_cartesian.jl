@@ -61,8 +61,8 @@ end
 # most is inherited from BaseField. the main thing we have specify
 # here has to do with which dimension is the "batch" dimension
 # (dimension 4), since that is not assumed in BaseField
-similar(f::CartesianField{B}, Nbatch::Int) where {B} = CartesianField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
-similar(f::CartesianField{B}, Nbatch::Nothing) where {B} = similar(f)
+similar(f::CartesianField{B}, Nbatch::Int) where {B} = 
+    CartesianField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
 nonbatch_dims(f::CartesianField) = ntuple(identity, min(3, ndims(f.arr)))
 require_unbatched(f::CartesianField) = (f.Nbatch==1) || error("This function not implemented for batched fields.")
 pol_slice(f::CartesianField, i) = (:, :, i, ..)

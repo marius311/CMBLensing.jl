@@ -211,7 +211,7 @@ function sample_joint(
 
     # rundat is a Dict with all the args and kwargs minus a few removed ones
     rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap), init=Base.@locals()), kwargs)
-    rundat[:Nbatch] = batch_length(ds.d)
+    rundat[:Nbatch] = batch_length(ds.d) == 1 ? () : batch_length(ds.d)
     rundat[:Ω] = (;)
 
     # dont adapt things passed in kwargs when we adapt the state dict
@@ -333,7 +333,7 @@ end
 function gibbs_initialize_θ!(state, ds::DataSet)
     @unpack θstart, θrange, Ω, nchains, Nbatch = state
     θ = @match θstart begin
-        :prior => map(range->batch((first(range) .+ rand(Nbatch) .* (last(range) - first(range)))...), θrange)
+        :prior => map(range->batch((first(range) .+ rand(Nbatch...) .* (last(range) - first(range)))...), θrange)
         (_::NamedTuple) => θstart
         _ => throw(ArgumentError(θstart))
     end

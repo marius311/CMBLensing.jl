@@ -1,5 +1,5 @@
 
-function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=nothing)
+function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=())
     dist.μ + simulate(rng, Diagonal(dist.Σ.diag); Nbatch)
 end
 function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field)
