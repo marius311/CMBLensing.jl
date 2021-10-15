@@ -1,6 +1,6 @@
 
-if get(ENV, "CMBLENSING_TEST_CUDA", false) == "1"
-    using Adapt, CUDA
+using CUDA
+if CUDA.functional()
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
     storage = CuArray
@@ -19,6 +19,7 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
+using Adapt
 using FileIO
 using FFTW
 using FiniteDifferences
@@ -101,7 +102,7 @@ end
                 @test (f = F(args...; kwargs...)) isa F
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
                 @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
-                @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+                @test (save(".test_field.jld2", "f", cpu(f)); load(".test_field.jld2", "f") == cpu(f))
                 @test_throws ErrorException F(args..., ProjLambert(Nx=Nx+1, Ny=Ny+1))
 
             end
@@ -597,8 +598,8 @@ end
 
             δf,δϕ = simulate(Cf), simulate(Cϕ)
 
-            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.3)
-            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.3)
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.4)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.4)
             
         end
         
