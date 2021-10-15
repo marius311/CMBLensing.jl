@@ -369,7 +369,7 @@ _distributed_dataset_hash = nothing
 
 struct DistributedDataSet <: DataSet end
 getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
-(::DistributedDataSet)(θ) = get_distributed_dataset()(θ)
+(::DistributedDataSet)(args...) = get_distributed_dataset()(args...)
 function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
     Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
 end

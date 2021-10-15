@@ -31,7 +31,7 @@ _mpi_rank() = nothing
         if size > 1 && nworkers() == 1
 
             # workers don't return from this call:
-            start_main_loop(
+            global _mpi_manager = start_main_loop(
                 Dict("TCP"=>TCP_TRANSPORT_ALL,"MPI"=>MPI_TRANSPORT_ALL)[transport],
                 stdout_to_master=stdout_to_master,
                 stderr_to_master=stderr_to_master
@@ -43,15 +43,13 @@ _mpi_rank() = nothing
 
             print_info && proc_info()
 
-            return true
-
-        else
-
-            return false
+            _mpi_manager
 
         end
 
     end
+
+    stop_MPI_workers() = @isdefined(_mpi_manager) && MPIClusterManagers.stop_main_loop(_mpi_manager)
 
     _mpi_rank() = MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : nothing
     
