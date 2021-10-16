@@ -303,7 +303,7 @@ firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
 USE_SUM_KBN = true
-use_sum_kbn!(flag) = USE_SUM_KBN=flag
+use_sum_kbn!(flag) = (global USE_SUM_KBN = flag)
 
 # type-stable combination of summing and dropping dims, which uses
 # either sum or sum_kbn (to reduce roundoff error), depending on
