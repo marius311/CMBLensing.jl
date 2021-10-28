@@ -44,19 +44,19 @@ end
 
 function ẑ_at_θ(prob::CMBLensingMuseProblem, d, θ, (f₀,ϕ₀); ∇z_logLike_atol=nothing)
     @unpack ds = prob
-    (f, ϕ) = MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)
-    (;f, ϕ)
+    (f, ϕ, history) = MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)
+    (;f, ϕ), history
 end
 
 function ẑ_at_θ(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, d, θ, (f₀,); ∇z_logLike_atol=nothing)
     @unpack ds = prob
-    (argmaxf_lnP(I, θ, @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...),)
+    (argmaxf_logpdf(I, θ, @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...),)
 end
 
-function muse!(result::MuseResult, prob::CMBLensingMuseProblem, θ₀; kwargs...)
+function muse!(result::MuseResult, prob::CMBLensingMuseProblem, θ₀=nothing; kwargs...)
     muse!(result, prob, prob.ds.d, θ₀; kwargs...)
 end
 
-function muse!(result::MuseResult, ds::DataSet, θ₀; parameterization=0, MAP_joint_kwargs=(;), kwargs...)
+function muse!(result::MuseResult, ds::DataSet, θ₀=nothing; parameterization=0, MAP_joint_kwargs=(;), kwargs...)
     muse!(result, CMBLensingMuseProblem(ds; parameterization, MAP_joint_kwargs), θ₀; kwargs...)
 end
