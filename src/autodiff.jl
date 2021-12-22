@@ -193,3 +193,5 @@ ProjectTo(::F) where {F<:Field} = ProjectTo{F}()
 ProjectTo(::L) where {L<:FieldOp} = ProjectTo{L}()
 (project::ProjectTo{F})(dx::Field) where {B, F<:Field{B}} = B(dx)
 (project::ProjectTo{L})(dx::FieldOp) where {L<:FieldOp} = dx
+
+Zygote.wrap_chainrules_output(dxs::LazyBinaryOp) = dxs
