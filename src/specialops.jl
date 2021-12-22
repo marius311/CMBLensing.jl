@@ -293,7 +293,7 @@ end
 
 @auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
 @auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :size)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 getindex(L::ParamDependentOp, x) = getindex(L.op, x)

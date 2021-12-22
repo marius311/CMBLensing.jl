@@ -287,7 +287,7 @@ function load_sim(;
     end
     
     # creating lensing operator cache
-    Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
+    Lϕ = alloc_cache(L(Map(diag(Cϕ))), Map(diag(Cf)))
 
     # put everything in DataSet
     ds = BaseDataSet(;Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)

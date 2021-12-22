@@ -155,7 +155,7 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
 end
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
-    Complex{T}.(nan2zero.(Cℓ.(proj.ℓmag)))
+    T.(nan2zero.(Cℓ.(proj.ℓmag)))
 end
 
 
