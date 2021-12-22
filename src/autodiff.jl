@@ -132,7 +132,7 @@ end
 # I haven't derived their version, but numerically the one gives the right answer where as their doesn't...
 @adjoint function pinv(L::Union{FieldOp, FieldOrOpMatrix})
     L⁻¹ = pinv(L)
-    L⁻¹, Δ->(-L⁻¹' * Δ * L⁻¹',)
+    L⁻¹, Δ->(@thunk(-L⁻¹' * Δ * L⁻¹'),)
 end
 
 @adjoint sqrt(L::DiagOp) = (z=sqrt(L);), Δ -> ((pinv(z)/2)'*Δ,)
