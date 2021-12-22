@@ -189,5 +189,7 @@ end
 # new ChainRules ProjectTo interface. with these here, I think theres
 # a good chance many of the above rules can simply be deleted, but
 # haven't gone through yet to figure out which ones yet
-ProjectTo(f::F) where {F<:Field} = ProjectTo{F}()
+ProjectTo(::F) where {F<:Field} = ProjectTo{F}()
+ProjectTo(::L) where {L<:FieldOp} = ProjectTo{L}()
 (project::ProjectTo{F})(dx::Field) where {B, F<:Field{B}} = B(dx)
+(project::ProjectTo{L})(dx::FieldOp) where {L<:FieldOp} = dx

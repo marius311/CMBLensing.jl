@@ -39,7 +39,7 @@ adapt_structure(::CUDA.CuArrayAdaptor, proj::ProjLambert) = adapt_structure(CuAr
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
     # todo: remove needing to go through cpu here:
-    gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
+    gpu(T.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
 end
 
 
