@@ -69,11 +69,19 @@ pol_slice(f::CartesianField, i) = (:, :, i, ..)
 
 
 ### properties
-# generic
+# metadata
 getproperty(f::CartesianField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::CartesianField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
 getproperty(f::CartesianField, ::Val{:T})      = eltype(f)
 getproperty(f::CartesianField, ::Val{:proj})   = getfield(f, :metadata)
+# sub-components
+getproperty(f::CartesianField{B}, k::Union{typeof.(Val.((:Ix,:Qx,:Ux,:Ex,:Bx,:Il,:Ql,:Ul,:El,:Bl)))...}) where {B} = 
+    view(getfield(f,:arr), pol_slice(f, pol_index(B(), k))...)
+getproperty(f::CartesianField{B}, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B)))...}) where {B₀, B<:SpatialBasis{B₀}} =
+    BaseField{B₀}(_reshape_batch(view(getfield(f,:arr), pol_slice(f, pol_index(B(), k))...)), getfield(f,:metadata))
+getproperty(f::CartesianS02{Basis3Prod{𝐈,B₂,B₀}}, ::Val{:P}) where {B₂,B₀} = 
+    BaseField{Basis2Prod{B₂,B₀}}(view(getfield(f,:arr), pol_slice(f, 2:3)...), getfield(f,:metadata))
+getproperty(f::CartesianS2, ::Val{:P}) = f
 
 
 ### indices

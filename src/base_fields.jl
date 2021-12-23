@@ -37,6 +37,7 @@ lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
 @propagate_inbounds setindex!(f::BaseField, X, I::Union{Int,Colon,AbstractArray}...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
 copy(f::BaseField{B}) where {B} = BaseField{B}(copy(f.arr), f.metadata)
+(==)(f₁::BaseField, f₂::BaseField) = strict_compatible_metadata(f₁,f₂) && (f₁.arr == f₂.arr)
 
 
 ## promotion
@@ -128,6 +129,11 @@ promote_metadata_strict_rule(metadata,   ::Nothing) = metadata
 promote_metadata_strict_rule(::Nothing,  ::Nothing) = nothing
 promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
 
+function strict_compatible_metadata(f₁::BaseField, f₂::BaseField)
+    try; promote_metadata_strict(f₁.metadata, f₂.metadata); true
+    catch; false; end
+end
+
 
 ## properties
 getproperty(f::BaseField, s::Symbol)           = getproperty(f,Val(s))
@@ -150,38 +156,3 @@ make_field_aliases("Base", Proj)
 # simulation
 randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B<:SpatialBasis{Map}} = (randn!(rng, ξ.arr); ξ)
 randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B} = randn!(rng, Map(ξ))
-
-
-# useful for enumerating some cases below and in plotting
-_sub_components = [
-    (:BaseMap,        (:Ix=>:, :I=>:)),
-    (:BaseFourier,    (:Il=>:, :I=>:)),
-    (:BaseQUMap,      (:Qx=>1, :Ux=>2, :Q =>1, :U=>2, :P=>:)),
-    (:BaseQUFourier,  (:Ql=>1, :Ul=>2, :Q =>1, :U=>2, :P=>:)),
-    (:BaseEBMap,      (:Ex=>1, :Bx=>2, :E =>1, :B=>2, :P=>:)),
-    (:BaseEBFourier,  (:El=>1, :Bl=>2, :E =>1, :B=>2, :P=>:)),
-    (:BaseIQUMap,     (:Ix=>1, :Qx=>2, :Ux=>3, :I=>1, :Q=>2, :U=>3, :P=>2:3, :IP=>:)),
-    (:BaseIQUFourier, (:Il=>1, :Ql=>2, :Ul=>3, :I=>1, :Q=>2, :U=>3, :P=>2:3, :IP=>:)),
-    (:BaseIEBMap,     (:Ix=>1, :Ex=>2, :Bx=>3, :I=>1, :E=>2, :B=>3, :P=>2:3, :IP=>:)),
-    (:BaseIEBFourier, (:Il=>1, :El=>2, :Bl=>3, :I=>1, :E=>2, :B=>3, :P=>2:3, :IP=>:)),
-]
-
-# sub-components like f.Ix, f.Q, f.P, etc...
-for (F, props) in _sub_components
-    for (k, I) in props
-        if String(k)[end] in "xl"
-            if I == (:)
-                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = getfield(f,:arr)
-            else
-                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = view(getfield(f,:arr), pol_slice(f,$I)...)
-            end
-        else
-            if I == (:)
-                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = f
-            else
-                B = (k == :P) ? Basis2Prod{basis(@eval($F)).parameters[end-1:end]...} : basis(@eval($F)).parameters[end]
-                @eval getproperty(f::$F, ::Val{$(QuoteNode(k))}) = BaseField{$B}(_reshape_batch(view(getfield(f,:arr), pol_slice(f,$I)...)), f.metadata)
-            end
-        end
-    end
-end

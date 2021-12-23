@@ -62,16 +62,16 @@ end
 # applying
 *(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
 \(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
-function *(L::BlockDiagIEB, f::BaseIEBFourier)
+function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
     (i,e),b = (L.ΣTE * [f.I, f.E]), L.ΣB * f.B
-    BaseIEBFourier(i,e,b)
+    BaseIEBFourier{P}(i,e,b)
 end
 # manipulating
 size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
-diag(L::BlockDiagIEB) = BaseIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
+diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
