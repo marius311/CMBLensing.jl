@@ -1,6 +1,6 @@
 
 using CUDA
-if CUDA.functional()
+if CUDA.functional() && !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
     storage = CuArray
@@ -100,7 +100,6 @@ end
             ]
                 local f
                 @test (f = F(args...; kwargs...)) isa F
-                @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
                 @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
                 @test (save(".test_field.jld2", "f", cpu(f)); load(".test_field.jld2", "f") == cpu(f))
                 @test_throws ErrorException F(args..., ProjLambert(Nx=Nx+1, Ny=Ny+1))
