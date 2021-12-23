@@ -56,7 +56,7 @@ RUN pip install --no-cache-dir \
         cython \
         julia \
         "jupyterlab>=3" \
-        "jupyter-client>=7" \
+        jupyter-client==6.1.12 \
         jupytext \
         matplotlib \
         "nbconvert<6" \
