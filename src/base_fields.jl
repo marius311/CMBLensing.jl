@@ -37,6 +37,7 @@ lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
 @propagate_inbounds setindex!(f::BaseField, X, I::Union{Int,Colon,AbstractArray}...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
 copy(f::BaseField{B}) where {B} = BaseField{B}(copy(f.arr), f.metadata)
+(==)(f₁::BaseField, f₂::BaseField) = strict_compatible_metadata(f₁,f₂) && (f₁.arr == f₂.arr)
 
 
 ## promotion
@@ -128,6 +129,11 @@ promote_metadata_strict_rule(metadata,   ::Nothing) = metadata
 promote_metadata_strict_rule(::Nothing,  ::Nothing) = nothing
 promote_metadata_strict_rule(::Any,      ::Any) = Unknown()
 
+function strict_compatible_metadata(f₁::BaseField, f₂::BaseField)
+    try; promote_metadata_strict(f₁.metadata, f₂.metadata); true
+    catch; false; end
+end
+
 
 ## properties
 getproperty(f::BaseField, s::Symbol)           = getproperty(f,Val(s))
@@ -150,5 +156,3 @@ make_field_aliases("Base", Proj)
 # simulation
 randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B<:SpatialBasis{Map}} = (randn!(rng, ξ.arr); ξ)
 randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B} = randn!(rng, Map(ξ))
-
-

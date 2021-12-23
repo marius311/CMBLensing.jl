@@ -49,7 +49,6 @@ end
 pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
-==(a::CuBaseField, b::CuBaseField) = (==)(promote(a.arr, b.arr)...)
 sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 # adapting of SparseMatrixCSC ↔ CuSparseMatrixCSR (otherwise dense arrays created)
@@ -92,4 +91,5 @@ end
 end
 
 # prevents unnecessary CuArray views in some cases
+Base.view(arr::CuArray{T,2}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
 Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
