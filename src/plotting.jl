@@ -126,17 +126,20 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		if f isa LambertField
 			extent = [-Nx,Nx,-Ny,Ny] .* f.θpix / 2 / Dict(:deg=>60,:arcmin=>1)[units]
+			aspect = 1
 		elseif f isa EquiRectField
 			extent = rad2deg.([f.φspan..., reverse(f.θspan)...]) .* Dict(:deg=>1,:arcmin=>60)[units]
+			aspect = abs(-(f.φspan...)) / abs(-(f.θspan...)) * sin(mean(f.θspan))
 		end
 	else
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
+		aspect = 1
 	end
 	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
 	cax = ax.matshow(
 		clamp.(arr, vmin, vmax); 
-		vmin=vmin, vmax=vmax, extent=extent,
-		cmap=cmap, rasterized=true, norm=norm,
+		vmin, vmax, extent, aspect, cmap, norm, 
+		rasterized=true,
 		kwargs...
 	)
 	

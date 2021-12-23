@@ -386,28 +386,12 @@ end
 
 # ## simulation
 
-global_rng_for(::Type{<:BlockDiagEquiRect}) = Random.default_rng()
-
-function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Real}
-    EquiRectMap(randn(T, pj.Ny, pj.Nx), pj)
-end
-
-function white_noise(::Type{T}, pj::ProjEquiRect, rng::AbstractRNG=Random.default_rng()) where {T<:Complex}
-    qiu = randn(T, pj.Ny, pj.Nx)
-    EquiRectQUMap(real(qiu), imag(qiu), pj)
-end
-
-white_noise(ξ::EquiRectField{Map, T},         rng::AbstractRNG) where {T} = white_noise(T, ξ.proj, rng)
-white_noise(ξ::EquiRectField{QUMap, T},       rng::AbstractRNG) where {T} = white_noise(Complex{T}, ξ.proj, rng)
-white_noise(ξ::EquiRectField{AzFourier, T},   rng::AbstractRNG) where {T} = AzFourier(white_noise(T, ξ.proj, rng))
-white_noise(ξ::EquiRectField{QUAzFourier, T}, rng::AbstractRNG) where {T} = QUAzFourier(white_noise(Complex{T}, ξ.proj, rng))
-
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{AzFourier,T}) where {T}
-    sqrt(M) * white_noise(T, M.proj, rng)
+    sqrt(M) * EquiRectMap(randn!(rng, similar(M.blocks, T, M.proj.Ny, M.proj.Nx)), M.proj)
 end
 
 function simulate(rng::AbstractRNG, M::BlockDiagEquiRect{QUAzFourier,T}) where {T}
-    sqrt(M) * white_noise(Complex{T}, M.proj, rng) 
+    sqrt(M) * EquiRectQUMap(randn!(rng, similar(M.blocks, T, M.proj.Ny, M.proj.Nx, 2)), M.proj)
 end
 
 # adapt_structure

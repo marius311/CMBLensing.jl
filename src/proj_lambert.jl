@@ -42,7 +42,7 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
 end
 
 ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) = 
-    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), storage)
+    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), basetype(storage))
 
 @memoize function ProjLambert(Ny, Nx, θpix, rotator, ::Type{T}, storage) where {T}
 
@@ -155,7 +155,7 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
 end
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
-    Complex{T}.(nan2zero.(Cℓ.(proj.ℓmag)))
+    T.(nan2zero.(Cℓ.(proj.ℓmag)))
 end
 
 
@@ -341,14 +341,6 @@ end
 
 
 
-### simulation
-_white_noise(ξ::LambertField, rng::AbstractRNG) = 
-    (randn!(rng, similar(ξ.arr, real(eltype(ξ)), ξ.Ny, size(ξ.arr)[2:end]...)), ξ.metadata)
-white_noise(ξ::LambertS0,  rng::AbstractRNG) = LambertMap(_white_noise(ξ,rng)...)
-white_noise(ξ::LambertS2,  rng::AbstractRNG) = LambertEBMap(_white_noise(ξ,rng)...)
-white_noise(ξ::LambertS02, rng::AbstractRNG) = LambertIEBMap(_white_noise(ξ,rng)...)
-
-
 ### creating covariance operators
 # fixed covariances
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
@@ -371,8 +363,11 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _A = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
-            Diagonal(LambertFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.arr), _A...), C₀.metadata))
+            As = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
+            CℓI = $Zygote.ignore() do
+                copy(C₀.Il) .* one.(first(As))# gets batching right
+            end
+            Diagonal(LambertFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓI, As...), C₀.metadata))
         end)
     end
 end
@@ -380,9 +375,11 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            _E = $preprocess.(Ref((nothing,C₀.metadata)),      $T.($ensure1d($θname)))
-            _B = $preprocess.(Ref((nothing,C₀.metadata)), one.($T.($ensure1d($θname))))
-            Diagonal(LambertEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, copy(C₀.El), _E...), C₀.Bl .* _B[1], C₀.metadata))
+            AEs = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
+            CℓE, CℓB = $Zygote.ignore() do
+                copy(C₀.El) .* one.(first(AEs)), copy(C₀.Bl) .* one.(first(AEs)) # gets batching right
+            end
+            Diagonal(LambertEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓE, AEs...), CℓB, C₀.metadata))
         end)
     end
 end
@@ -411,17 +408,19 @@ end
 # broadcasts, which on GPU use ForwardDiff, so write the adjoint by
 # hand for now. likely more performant, in any case. 
 @adjoint function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
-    function back(Δ)
-        Ā = map(1:length(A)) do i
-            sum(
-                real,
-                broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
-                    (ℓedges[i] < ℓ < ℓedges[i+1]) ? Cℓ*Δ : zero(Cℓ)
-                end,
-                dims = ndims(Δ)==4 ? (1,2) : (:)
-            )
+    back = let Cℓ = copy(Cℓ) # need copy bc Cℓ mutated on forward pass
+        function (Δ)
+            Ā = map(1:length(A)) do i
+                sum(
+                    real,
+                    broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
+                        (ℓedges[i] < ℓ < ℓedges[i+1]) ? Δ * Cℓ : zero(Cℓ)
+                    end,
+                    dims = ndims(Δ)==4 ? (1,2) : (:)
+                )
+            end
+            (nothing, nothing, nothing, Ā...)
         end
-        (nothing, nothing, nothing, Ā...)
     end
     bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
 end
@@ -572,9 +571,9 @@ function ud_grade(
             f = Diagonal(LambertFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
         end
         if mode == :map
-            fnew = LambertField{Map(B)}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = LambertField{Map(B())}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
         else
-            fnew = LambertField{Fourier(B)}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+            fnew = LambertField{Fourier(B())}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
         end
         if deconv_pixwin
             fnew = Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew

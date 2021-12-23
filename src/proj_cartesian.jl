@@ -36,7 +36,7 @@ function (::Type{F})(X::A, Y::A, Z::A; Proj=default_proj(F), kwargs...) where {B
     BaseField{B,<:CartesianProj}(X, Y, Z, Proj(;Ny=size(X,1), Nx=size(X,2), T, storage=basetype(A), kwargs...))
 end
 
-## constructing from other fields
+# constructing from other fields
 function (::Type{F})(X::BaseField{B₀,P}, Y::BaseField{B₀,P}) where {B₀<:Union{Map,Fourier}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},B₀}, P<:CartesianProj, F<:BaseField{B,<:CartesianProj}}
     BaseField{B,P}(cat(X.arr, Y.arr, dims=Val(3)), get_metadata_strict(X, Y)) :: F
 end
@@ -61,8 +61,9 @@ end
 # most is inherited from BaseField. the main thing we have specify
 # here has to do with which dimension is the "batch" dimension
 # (dimension 4), since that is not assumed in BaseField
-similar(f::CartesianField{B}, Nbatch::Int) where {B} = CartesianField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
-nonbatch_dims(f::CartesianField) = ntuple(identity,min(3,ndims(f.arr)))
+similar(f::CartesianField{B}, Nbatch::Int) where {B} = 
+    CartesianField{B}(similar(f.arr, size(f.arr,1), size(f.arr,2), size(f.arr,3), Nbatch), f.metadata)
+nonbatch_dims(f::CartesianField) = ntuple(identity, min(3, ndims(f.arr)))
 require_unbatched(f::CartesianField) = (f.Nbatch==1) || error("This function not implemented for batched fields.")
 pol_slice(f::CartesianField, i) = (:, :, i, ..)
 

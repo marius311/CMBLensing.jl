@@ -138,7 +138,6 @@ propertynames(f::BaseField) = (fieldnames(typeof(f))..., fieldnames(typeof(f.met
 
 
 ## CMBLensing-specific stuff
-global_rng_for(::Type{BaseField{B,M,T,A}}) where {B,M,T,A} = global_rng_for(A)
 fieldinfo(f::BaseField) = f # for backwards compatibility
 get_storage(f::BaseField) = typeof(f.arr)
 adapt_structure(to, f::BaseField{B}) where {B} = BaseField{B}(adapt(to, f.arr), adapt(to, f.metadata))
@@ -148,14 +147,8 @@ hash(f::BaseField, h::UInt64) = foldr(hash, (typeof(f), cpu(f.arr), f.metadata),
 default_proj(::Type{F}) where {F<:BaseField{<:Any,<:Proj}} = Base.unwrap_unionall(F).parameters[2].ub
 make_field_aliases("Base", Proj)
 
-### basis-like definitions
-LenseBasis(::Type{<:BaseS0})    = Map
-LenseBasis(::Type{<:BaseS2})    = QUMap
-LenseBasis(::Type{<:BaseS02})   = IQUMap
-DerivBasis(::Type{<:BaseS0})    = Fourier
-DerivBasis(::Type{<:BaseS2})    = QUFourier
-DerivBasis(::Type{<:BaseS02})   = IQUFourier
-HarmonicBasis(::Type{<:BaseS0}) = Fourier
-HarmonicBasis(::Type{<:BaseQU}) = QUFourier
-HarmonicBasis(::Type{<:BaseEB}) = EBFourier
+# simulation
+randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B<:SpatialBasis{Map}} = (randn!(rng, ξ.arr); ξ)
+randn!(rng::AbstractRNG, ξ::BaseField{B}) where {B} = randn!(rng, Map(ξ))
+
 

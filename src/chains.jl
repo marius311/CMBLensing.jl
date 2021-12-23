@@ -89,7 +89,7 @@ function Base.print_array(io::IO, cs::Chains; indent="  ")
         print(io, "  ")
         Base.summary(io, c)
         println(io)
-        Base.print_array(io, c, indent="    ")
+        Base.print_array(io, c)#, indent="    ")
     end
 end
 function lastindex(c::Chains, d)
