@@ -526,7 +526,7 @@ end
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
-    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.1)]
+    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.2)]
 
         @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
