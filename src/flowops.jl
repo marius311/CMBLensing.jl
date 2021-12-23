@@ -30,12 +30,25 @@ function negδvelocityᴴ end
 
 # FlowOpWithAdjoint provide their own velocity for computing the gradient
 
+
+# note the weird use of task_local_storage below is b/c if we dont
+# need the pullback w.r.t. ϕ, we can save time by running the
+# transpose flow, rather than the transpose-δ flow. however, Zygote
+# has no capibility to know that here in the code, so we use this ugly
+# hack which requires the higher level function to have specified :ϕ
+# is constant by setting a task_local_storage. this can be made much
+# more clean once we switch to Diffractor
+
 @adjoint function *(Lϕ::FlowOpWithAdjoint{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B}
     cLϕ = cache(Lϕ,f)
     f̃ = cLϕ * f
     function back(Δ)
-        (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
-        δϕ, B(δf)
+        if :ϕ in get(task_local_storage(), :AD_constants, ())
+            nothing, B(cLϕ' * Δ)
+        else
+            (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
+            δϕ, B(δf)
+        end
     end
     f̃, back
 end
@@ -44,8 +57,12 @@ end
     cLϕ = cache(Lϕ,f̃)
     f = cLϕ \ f̃
     function back(Δ)
-        (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
-        δϕ, B(δf)
+        if :ϕ in get(task_local_storage(), :AD_constants, ())
+            nothing, B(cLϕ' \ Δ)
+        else
+            (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
+            δϕ, B(δf)
+        end
     end
     f, back
 end

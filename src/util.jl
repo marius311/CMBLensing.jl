@@ -266,7 +266,15 @@ struct LazyPyImport
     pkg
 end
 function getproperty(p::LazyPyImport, s::Symbol)
-    Base.@invokelatest(getproperty(@ondemand(PyCall.pyimport)(getfield(p,:pkg)), s))
+    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
+    Base.invokelatest() do
+        prop = getproperty(pkg, s)
+        if PyCall.pybuiltin(:callable)(prop)
+            (args...; kwargs...) -> Base.invokelatest(prop, args...; kwargs...)
+        else
+            prop
+        end
+    end
 end
 
 @doc doc"""
@@ -295,7 +303,7 @@ firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
 USE_SUM_KBN = true
-use_sum_kbn!(flag) = USE_SUM_KBN=flag
+use_sum_kbn!(flag) = (global USE_SUM_KBN = flag)
 
 # type-stable combination of summing and dropping dims, which uses
 # either sum or sum_kbn (to reduce roundoff error), depending on

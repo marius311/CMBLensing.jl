@@ -30,6 +30,7 @@ copy(f::FieldTuple) = FieldTuple(map(copy,f.fs))
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
+get_storage(f::FieldTuple) = only(unique(map(get_storage, f.fs)))
 adapt_structure(to, f::FieldTuple) = FieldTuple(map(f->adapt(to,f),f.fs))
 similar(ft::FieldTuple) = FieldTuple(map(similar,ft.fs))
 similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar(f,T),ft.fs))
@@ -98,7 +99,7 @@ getproperty(f::FieldTuple, ::Val{s}) where {s} = getproperty(getfield(f,:fs), s)
 propertynames(f::FieldTuple) = (:fs, propertynames(f.fs)...)
 
 ### simulation
-white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(f, rng), ξ.fs))
+randn!(rng::AbstractRNG, ξ::FieldTuple) = FieldTuple(map(f -> randn!(rng, f), ξ.fs))
 
 ### Diagonal-ops
 # need a method specific for FieldTuple since we don't carry around
@@ -107,17 +108,15 @@ white_noise(ξ::FieldTuple, rng::AbstractRNG) = FieldTuple(map(f -> white_noise(
 (\)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal(d)\f, D.diag.fs, f.fs))
 
 
-# # promote before recursing for these 
+# promote before recursing for these 
 dot(a::FieldTuple, b::FieldTuple) = reduce(+, map(dot, getfield.(promote(a,b),:fs)...), init=0)
 hash(ft::FieldTuple, h::UInt64) = foldr(hash, (typeof(ft), ft.fs), init=h)
 
 # logdet & trace
-logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, L.diag.fs), init=0)
+@auto_adjoint logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, L.diag.fs), init=0)
 tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagonal, L.diag.fs), init=0)
 
 # misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
 batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
-function global_rng_for(::Type{<:FieldTuple{<:Union{FS,NamedTuple{Names,FS}}}}) where {Names,FS<:Tuple} 
-    only(unique(map_tupleargs(global_rng_for, FS)))
-end
+getindex(ft::FieldTuple, k::Symbol) = ft.fs[k]

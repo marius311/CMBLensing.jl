@@ -245,7 +245,7 @@ If `L` depends on `θ`, evaluates `logdet(L(θ))` offset by its fiducial value a
 `L()`. Otherwise, returns 0.
 """
 logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
-logdet(L::Int, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
+logdet(L::Union{Int,UniformScaling{Bool}}, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
 logdet(L, θ) = logdet(L)
 
 
@@ -253,34 +253,15 @@ logdet(L, θ) = logdet(L)
 ### Simulation
 
 @doc doc"""
-    simulate(Σ; rng=global_rng_for(Σ), seed=nothing)
+    simulate([rng], Σ)
     
 Draw a simulation from the covariance matrix `Σ`, i.e. draw a random vector
 $\xi$ such that the covariance $\langle \xi \xi^\dagger \rangle = \Sigma$. 
 
 The random number generator `rng` will be used and advanced in the proccess, and
-is by default the appropriate one depending on if `Σ` is backed by `Array` or
-`CuArray`.
-
-The `seed` argument can also be used to seed the `rng`.
+defaults to `Random.default_rng()`.
 """
-function simulate(Σ; rng=global_rng_for(Σ), seed=nothing, kwargs...)
-    isnothing(seed) || seed!(rng, seed)
-    simulate(rng, Σ; kwargs...)
-end
-function white_noise(ξ; rng=global_rng_for(ξ), seed=nothing, kwargs...)
-    isnothing(seed) || seed!(rng, seed)
-    white_noise(ξ, rng; kwargs...)
-end
-function fixed_white_noise(ξ; rng=global_rng_for(Σ), seed=nothing, kwargs...)
-    isnothing(seed) || seed!(rng, seed)
-    fixed_white_noise(ξ, rng; kwargs...)
-end
-
-
-global_rng_for(x::T) where {T<:AbstractArray} = global_rng_for(T)
-global_rng_for(::Type{<:Array}) = Random.default_rng()
-
+simulate(Σ::FieldOp, args...) = simulate(Random.default_rng(), Σ, args...)
 
 
 ### spin adjoints

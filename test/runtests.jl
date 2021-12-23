@@ -1,6 +1,6 @@
 
-if get(ENV, "CMBLENSING_TEST_CUDA", false) == "1"
-    using Adapt, CUDA
+using CUDA
+if CUDA.functional()
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
     storage = CuArray
@@ -19,12 +19,12 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
+using Adapt
 using FileIO
 using FFTW
 using FiniteDifferences
 using LinearAlgebra
 using Random
-using Random: default_rng
 using Requires
 using Serialization
 using SparseArrays
@@ -102,7 +102,7 @@ end
                 @test (f = F(args...; kwargs...)) isa F
                 @test @inferred(F(getproperty.(Ref(f),ks)..., f.metadata)) == f
                 @test (io=IOBuffer(); serialize(io,f); seekstart(io); deserialize(io) == f)
-                @test (save(".test_field.jld2", "f", f); load(".test_field.jld2", "f") == f)
+                @test (save(".test_field.jld2", "f", cpu(f)); load(".test_field.jld2", "f") == cpu(f))
                 @test_throws ErrorException F(args..., ProjLambert(Nx=Nx+1, Ny=Ny+1))
 
             end
@@ -526,7 +526,7 @@ end
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
-    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.1)]
+    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.2)]
 
         @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
@@ -579,7 +579,7 @@ end
 
     @testset "Nside = $Nside" for Nside in Nsides_big
 
-        @testset "pol = $pol" for pol in (:I,:P)
+        @testset "pol = $pol" for pol in (:I, :P)
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
                 Cℓ       = Cℓ,
@@ -589,20 +589,17 @@ end
                 beamFWHM = 3,
                 pol      = pol,
                 storage  = storage,
-                rng      = default_rng(),
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
-            @unpack Cf,Cϕ = ds₀
-            f°,ϕ° = mix(f,ϕ,ds)
+            @unpack Cf, Cϕ = ds₀
+            f°, ϕ° = mix(ds; f, ϕ)
 
-            @test lnP(0,f,ϕ,ds) ≈ lnP(1,    f̃,  ϕ , ds) rtol=1e-4
-            @test lnP(0,f,ϕ,ds) ≈ lnP(:mix, f°, ϕ°, ds) rtol=1e-4
+            @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=1e-4
 
-            δf,δϕ = simulate(Cf, rng=default_rng()), simulate(Cϕ, rng=default_rng())
+            δf,δϕ = simulate(Cf), simulate(Cϕ)
 
-            @test_real_gradient(α->lnP(0,    f +α*δf, ϕ +α*δϕ, ds), 0, atol=0.5)
-            @test_real_gradient(α->lnP(1,    f̃ +α*δf, ϕ +α*δϕ, ds), 0, atol=130)
-            @test_real_gradient(α->lnP(:mix, f°+α*δf, ϕ°+α*δϕ, ds), 0, atol=0.5)
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=2)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=2)
             
         end
         
@@ -728,8 +725,8 @@ end
             @test gradient(f2 -> f2' * (pinv(Cf2) * f2), f2)[1] ≈ (2 * pinv(Cf2) * f2)
 
             # gradients through entries of BlockDiagEquiRect
-            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)
-            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)
+            @test gradient(α -> logabsdet(α * Cf0)[1], 1)[1] ≈ size(Cf0,1)  rtol=1e-2
+            @test gradient(α -> logabsdet(α * Cf2)[1], 1)[1] ≈ size(Cf2,1)  rtol=1e-2
             @test_broken gradient(α -> f0' * (pinv(α * Cf0) * f0), 1)[1] isa Real 
             @test_broken gradient(α -> f2' * (pinv(α * Cf2) * f2), 1)[1] isa Real
             
