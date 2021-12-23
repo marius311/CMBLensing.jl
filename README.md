@@ -9,10 +9,10 @@
 CMBLensing.jl is a next-generation tool for analysis of the lensed Cosmic Microwave Background. It is written in [Julia](https://julialang.org/) and transparently callable from Python.
 
 
-At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the CMB lensing problem. It also contains tools to quickly manipulate and process CMB maps, set up modified posteriors, and take gradients using automatic differentiation.
+At its heart, CMBLensing.jl maximizes, samples, or performs MUSE inference on the Bayesian posterior for the CMB lensing problem. It also contains tools to quickly manipulate and process CMB maps, set up modified posteriors with a probabilistic programming language, and take gradients using automatic differentiation.
 
 ### Highlights
-* Fully Nvidia GPU compatible (1-2 order of magnitude speedups over CPU, depending on the problem size and hardware).
+* Fully Nvidia GPU compatible (1-2 orders of magnitude speedups over CPU, depending on the problem size and hardware).
 * Automatic differentiation (via [Zygote.jl](https://fluxml.ai/Zygote.jl/)) provides for-free gradients of your custom posteriors.
 * Includes the following algorithms to lense a map:
     * `LenseFlow` ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753))
@@ -21,6 +21,7 @@ At its heart, CMBLensing.jl maximizes or samples the Bayesian posterior for the 
     * Bilinear interpolation
 * Maximize and sample $\mathcal{P}(f,\phi,\theta\,|\,d)$, the joint maximum a posteriori estimate of the lensing potential, $\phi$, the  temperature and/or polarization fields, $f$, and cosmological parameters, $\theta$ ([Millea, Anderes, & Wandelt 2017](https://arxiv.org/abs/1708.06753), [Millea, Anderes, & Wandelt 2020](https://arxiv.org/abs/2002.00965))
 * Maximize $\mathcal{P}(\phi\,|\,d,\theta)$, i.e. the marginal maximum a posteriori estimate of the lensing potential, $\phi$, at fixed cosmological parameters, $\theta$ ([Carron & Lewis 2017](https://arxiv.org/abs/1704.08230))
+* Compute MUSE inferences of bandpowers of $\phi$ and unlensed $f$ via [MuseInference.jl](https://github.com/marius311/MuseInference.jl) ([Millea & Seljak, 2021](https://arxiv.org/abs/2112.09354)).
 * Do basic quadratic estimation of $\phi$ ([Hu & Okamoto 2003](https://arxiv.org/abs/astro-ph/0111606))
 
 ## Documentation
@@ -38,9 +39,8 @@ You can also clone the repostiory and open the notebooks in [docs/src](https://g
 
 * Julia 1.6+
 * _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
-* _(recommended)_ FFTW.jl built with [`JULIA_FFTW_PROVIDER=MKL`](https://juliamath.github.io/FFTW.jl/stable/#Installation-1) for faster CPU FFTs 
 * _(recommended)_ Python 3 + matplotlib (used for plotting)
-* _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s
+* _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s (run `pip install --user camb`)
 * _(recommended)_ [JuliaMono](https://github.com/cormullion/juliamono/releases) font to ensure characters like `f̃, ϕ, ∇, ℓ`, etc... are rendered correctly
 * _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
@@ -54,7 +54,8 @@ pkg> add CMBLensing
 
 (type `]` at the Julia REPL to reach the `pkg>` prompt)
 
-It's recommended to link Julia to Intel MKL FFT libraries, which provide significantly faster FFTs when running on CPU. This can be done easily by running `ENV["JULIA_FFTW_PROVIDER"]="MKL"; using Pkg; Pkg.build("FFTW")` from Julia and restarting the session (see also [here](https://github.com/JuliaMath/FFTW.jl#mkl)).
+*(recommended)* After installing, switch your Julia to use Intel MKL FFT libraries, which provide significantly faster FFTs when running on CPU. You can do so by running `using CMBLensing.FFTW; FFTW.set_provider!("mkl")` from the same environment in which you added CMBLensing. This only needs to be done once per-environment (see also [here](https://github.com/JuliaMath/FFTW.jl#mkl)).
+
 
 ### Docker installation
 

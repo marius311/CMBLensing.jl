@@ -139,7 +139,7 @@ Info from the iterations of the solver can be returned if
         end
     end
     ProgressMeter.finish!(prog)
-    isnothing(history_keys) ? bestx : (bestx, history)
+    (bestx, history)
 end
 
 

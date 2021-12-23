@@ -1,11 +1,10 @@
 
+### abstract DataSet
 
 abstract type DataSet end
 
 copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
-
 hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
-
 function show(io::IO, ds::DataSet)
     println(io, typeof(ds), ": ")
     ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
@@ -14,34 +13,6 @@ function show(io::IO, ds::DataSet)
     end
 end
 
-"""
-    set_distributed_dataset(ds, [storage])
-    get_distributed_dataset()
-
-Sometimes it's more performant to distribute a DataSet object to
-parallel workers just once, and have them refer to it from the global
-state, rather than having it get automatically but repeatedly sent as
-part of closures. This provides that functionality. Use
-`set_distributed_dataset(ds)` from the master process to set the
-global DataSet and `get_distributed_dataset()` from any process to
-retrieve it. Repeated calls will not resend `ds` if it hasn't changed
-(based on `hash(ds)`) and if no new workers have been added since the
-last send. The optional argument `storage` will also adapt the dataset
-to a particular storage on the workers, and can be a symbol, e.g.
-`:CuArray`, in the case that CUDA is not loaded on the master process.
-"""
-function set_distributed_dataset(ds, storage=nothing)
-    h = hash((procs(), ds, storage))
-    if h != _distributed_dataset_hash
-        @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
-        global _distributed_dataset_hash = h
-    end
-    nothing
-end
-get_distributed_dataset() = _distributed_dataset
-_distributed_dataset = nothing
-_distributed_dataset_hash = nothing
-
 function (ds::DataSet)(θ) 
     DS = typeof(ds)
     DS(map(fieldvalues(ds)) do v
@@ -49,15 +20,24 @@ function (ds::DataSet)(θ)
     end...)
 end
 (ds::DataSet)(;θ...) = ds((;θ...))
-
 adapt_structure(to, ds::DS) where {DS <: DataSet} = DS(adapt(to, fieldvalues(ds))...)
 
+# called when simulating a DataSet, this gets the batching right
+function simulate(rng::AbstractRNG, ds::DataSet, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}})
+    Nbatch = (isnothing(ds.d) || batch_length(ds.d) == 1) ? () : batch_length(ds.d)
+    rand(rng, dist; Nbatch)
+end
+
+# mixed DataSet wrapper, 
+struct Mixed{DS<:DataSet} <: DataSet
+    ds :: DS
+end
 
 
-### Concrete DataSet objects
+### builtin DataSet objects
 
 @kwdef mutable struct NoLensingDataSet <: DataSet
-    d                # data
+    d = nothing      # data
     Cf               # unlensed field covariance
     Cn               # noise covariance
     Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
@@ -77,81 +57,69 @@ end
     Nϕ = nothing     # some estimate of the ϕ noise, used in several places for preconditioning
 end
 
+@fwdmodel function (ds::BaseDataSet)(; f, ϕ, θ=(;), d=ds.d)
+    @unpack Cf, Cϕ, Cn, L, M, B = ds
+    f ~ MvNormal(0, Cf(θ))
+    ϕ ~ MvNormal(0, Cϕ(θ))
+    f̃ ← L(ϕ) * f
+    μ = M(θ) * (B(θ) * f̃)
+    d ~ MvNormal(μ, Cn(θ))
+end
 
+@fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d=ds.d)
+    @unpack Cf, Cn, M, B = ds
+    f ~ MvNormal(0, Cf(θ))
+    μ = M(θ) * (B(θ) * f)
+    d ~ MvNormal(μ, Cn(θ))
+end
 
-
-@doc doc"""
-    resimulate(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
-
-Make a new DataSet with the data replaced by a simulation. Keyword
-argument fields will be used instead of new simulations, if they are
-provided. 
-
-Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
-"""
-resimulate(ds::DataSet; kwargs...) = resimulate!(copy(ds); kwargs...)
-
-@doc doc"""
-    resimulate!(ds::DataSet; [f, ϕ, n, f̃, rng, seed])
-
-Replace the data in this DataSet in-place with a simulation. Keyword
-argument fields will be used instead of new simulations, if they are
-provided. 
-
-Returns a named tuple of `(;ds, f, ϕ, n, f̃)`.
-"""
-function resimulate!(
-    ds::DataSet; 
-    f=nothing, ϕ=nothing, n=nothing, f̃=nothing,
-    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
-    rng=global_rng_for(ds.d), seed=nothing
-)
-
-    @unpack M,B,L,Cϕ,Cf,Cn,d = ds()
-    
-    if isnothing(f̃)
-        if isnothing(ϕ)
-            ϕ = simulate(Cϕ; Nbatch, rng, seed)
-        end
-        if isnothing(f)
-            f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
-        end
-        f̃ = L(ϕ)*f
-    else
-        f = ϕ = nothing
-    end
-    if isnothing(n)
-        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
-    end
-
-    ds.d = d = M*B*f̃ + n
-    
-    (;ds,f,ϕ,n,f̃,d)
-    
+# performance optimization (shouldn't need this once we have Diffractor)
+function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d=ds.d)
+    @unpack Cf, Cϕ, Cn, L, M, B = ds
+    (Lϕ, Mθ, Bθ) = (L(ϕ), M(θ), B(θ))
+    Lϕ' * Bθ' * Mθ' * pinv(Cn(θ)) * (d - Mθ * Bθ * Lϕ * f) - pinv(Cf(θ)) * f
 end
 
 
-function resimulate!(
-    ds::NoLensingDataSet; 
-    f=nothing, n=nothing,
-    Nbatch=(isnothing(ds.d) ? nothing : ds.d.Nbatch),
-    rng=global_rng_for(ds.d), seed=nothing
-)
-
-    @unpack M,B,Cf,Cn,d = ds()
-    
-    if isnothing(f)
-        f = simulate(Cf; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+1))
-    end
-    if isnothing(n)
-        n = simulate(Cn; Nbatch, rng, seed = (isnothing(seed) ? nothing : seed+2))
-    end
-
-    ds.d = d = M*B*f + n
-    
-    (;ds,f,n,d)
-    
+## mixing
+function Distributions.logpdf(mds::Mixed{<:DataSet}; θ=(;), Ω...)
+    ds = mds.ds
+    logpdf(ds; unmix(ds; θ, Ω...)...) - logdet(ds.D, θ) - logdet(ds.G, θ)
 end
+
+"""
+    mix(ds::DataSet; f, ϕ, [θ])
+    
+Compute the mixed `(f°, ϕ°)` from the unlensed field `f` and lensing potential
+`ϕ`, given the definition of the mixing matrices in `ds` evaluated at parameters
+`θ` (or at fiducial values if no `θ` provided).
+"""
+function mix(ds::DataSet; f, ϕ, θ=(;), Ω...)
+    @unpack D, G, L = ds
+    f° = L(ϕ) * D(θ) * f
+    ϕ° = G(θ) * ϕ
+    (; f°, ϕ°, θ, Ω...)
+end
+
+
+"""
+    unmix(f°, ϕ°,    ds::DataSet)
+    unmix(f°, ϕ°, θ, ds::DataSet)
+
+Compute the unmixed/unlensed `(f, ϕ)` from the mixed field `f°` and mixed
+lensing potential `ϕ°`, given the definition of the mixing matrices in `ds`
+evaluated at parameters `θ` (or at fiducial values if no `θ` provided). 
+"""
+function unmix(ds::DataSet; f°, ϕ°, θ=(;), Ω...)
+    @unpack D, G, L = ds
+    ϕ = G(θ) \ ϕ°
+    f = D(θ) \ (L(ϕ) \ f°)
+    (; f, ϕ, θ, Ω...)
+end
+
+# maybe keep this
+lnPriorθ(θ, ds::DataSet) = 0
+
 
 
 
@@ -182,7 +150,7 @@ Keyword arguments:
   polarization, or both. 
 * `T = Float32` — Precision, either `Float32` or `Float64`.
 * `storage = Array` — Set to `CuArray` to use GPU.
-* `Nbatch = 1` — Number of batches of data in this dataset.
+* `Nbatch = nothing` — Number of batches of data in this dataset.
 * `μKarcminT = 3` — Noise level in temperature in μK-arcmin.
 * `ℓknee = 100` — 1/f noise knee.
 * `αknee = 3` — 1/f noise slope.
@@ -208,7 +176,7 @@ function load_sim(;
     pol,
     T = Float32,
     storage = Array,
-    Nbatch = 1,
+    Nbatch = nothing,
     
     # noise parameters, or set Cℓn or even Cn directly
     μKarcminT = 3,
@@ -231,8 +199,8 @@ function load_sim(;
     fiducial_θ = (;),
     rfid = nothing,
     
-    rng = global_rng_for(storage),
     seed = nothing,
+    rng = MersenneTwister(seed),
     D = nothing,
     G = nothing,
     Nϕ_fac = 2,
@@ -293,7 +261,7 @@ function load_sim(;
     if (M == nothing)
         Mfourier = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * bandpass_mask.diag.Wℓ for k in ks)...; units=1)
         if (pixel_mask_kwargs != nothing)
-            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
+            Mpix = adapt(storage, Diagonal(F(repeated(T.(make_mask(copy(rng),Nside,θpix; pixel_mask_kwargs...).Ix),nF)..., proj)))
         else
             Mpix = I
         end
@@ -319,14 +287,14 @@ function load_sim(;
     end
     
     # creating lensing operator cache
-    Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
+    Lϕ = alloc_cache(L(Map(diag(Cϕ))), Map(diag(Cf)))
 
     # put everything in DataSet
-    ds = BaseDataSet(;d=nothing, Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
+    ds = BaseDataSet(;Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
     
     # simulate data
-    @unpack ds,f,f̃,ϕ,n = resimulate(ds; rng, seed)
-
+    @unpack f,f̃,ϕ,d = simulate(rng, ds)
+    ds.d = d
 
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
     ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
@@ -344,12 +312,12 @@ function load_sim(;
         )
     end
 
-    if Nbatch > 1
-        ds.d *= batch(ones(Int,Nbatch))
+    if Nbatch != nothing
+        d = ds.d *= batch(ones(Int,Nbatch))
         ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     
-    return (;f, f̃, ϕ, n, ds, ds₀=ds(), Cℓ, proj)
+    return (;f, f̃, ϕ, d, ds, ds₀=ds(), Cℓ, proj)
     
 end
 
@@ -360,9 +328,53 @@ function load_nolensing_sim(;
     L = lensed_data ? LenseFlow : I,
     kwargs...
 )
-    @unpack f, f̃, ϕ, n, ds, ds₀, Cℓ, proj = load_sim(; L, kwargs...)
+    @unpack f, f̃, ϕ, ds, ds₀, Cℓ, proj = load_sim(; L, kwargs...)
     @unpack d, Cf, Cf̃, Cn, Cn̂, M, M̂, B, B̂ = ds
     Cf_nl = lensed_covariance ? Cf̃ : Cf
     ds_nl = NoLensingDataSet(; d, Cf=Cf_nl, Cn, Cn̂, M, M̂, B, B̂)
-    (;f, f̃, ϕ, n, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
+    (;f, f̃, ϕ, ds=ds_nl, ds₀=ds_nl(), Cℓ, proj)
+end
+
+
+### distributed DataSet
+
+"""
+    set_distributed_dataset(ds, [storage])
+    get_distributed_dataset()
+
+Sometimes it's more performant to distribute a DataSet object to
+parallel workers just once, and have them refer to it from the global
+state, rather than having it get automatically but repeatedly sent as
+part of closures. This provides that functionality. Use
+`set_distributed_dataset(ds)` from the master process to set the
+global DataSet and `get_distributed_dataset()` from any process to
+retrieve it. Repeated calls will not resend `ds` if it hasn't changed
+(based on `hash(ds)`) and if no new workers have been added since the
+last send. The optional argument `storage` will also adapt the dataset
+to a particular storage on the workers, and can be a symbol, e.g.
+`:CuArray`, in the case that CUDA is not loaded on the master process.
+"""
+function set_distributed_dataset(ds, storage=nothing; distribute=true)
+    h = hash((procs(), ds, storage))
+    if h != _distributed_dataset_hash
+        if distribute
+            @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
+        else
+            global _distributed_dataset = adapt(eval(storage), ds)
+        end
+        global _distributed_dataset_hash = h
+    end
+    nothing
+end
+get_distributed_dataset() = _distributed_dataset
+_distributed_dataset = nothing
+_distributed_dataset_hash = nothing
+
+
+struct DistributedDataSet <: DataSet end
+set_distributed_dataset(ds::DistributedDataSet, storage=nothing; distribute=true) = nothing
+getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
+(::DistributedDataSet)(args...) = get_distributed_dataset()(args...)
+function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
+    Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
 end

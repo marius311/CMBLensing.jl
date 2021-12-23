@@ -4,12 +4,12 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.2'
-      jupytext_version: 1.4.1
+      format_version: '1.3'
+      jupytext_version: 1.13.4
   kernelspec:
-    display_name: Julia 1.6.0
+    display_name: Julia 1.7.0
     language: julia
-    name: julia-1.6
+    name: julia-1.7
 ---
 
 # MAP estimation
@@ -117,20 +117,12 @@ fJ, ϕJ, history = MAP_joint(ds, nsteps=30, progress=true);
 # Examine results
 
 
-The expected value of the final best-fit $\chi^2 (=-2\log \mathcal{P}$) is given by the number degrees of freedom in the data, i.e. the total number of pixels in T and/or EB.
+The `history` variable gives some info about the run, and more info can be saved by passing `history_keys` argument to [`MAP_joint`](api/#CMBLensing.MAP_joint). By default, we get just the value of the posterior, which we can use to check the maximizer has asymptoted to a maximum value:
 
 ```julia
-χ² = -2history[end][:lnP]
-```
-
-```julia
-dof = length(Map(f)[:])
-```
-
-Here's how far away our final $\chi^2$ is from this expectation, in units of $\sigma$. We expect this should be somewhere in the range (-3,3) for about 99.7% of simulated datasets.
-
-```julia
-(χ² - dof)/sqrt(2dof)
+plot(getindex.(history, :logpdf))
+xlabel("step")
+ylabel("logpdf");
 ```
 
 Here's the best-fit $\phi$ relative to the truth,

@@ -3,9 +3,7 @@
 # we use Base.Diagonal(f) for diagonal operators so very little specific code is
 # actually needed here. 
 
-simulate(rng::AbstractRNG, D::DiagOp; Nbatch=nothing) = 
-    sqrt(D) * white_noise(similar(diag(D), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
-global_rng_for(D::DiagOp) = global_rng_for(diag(D))
+simulate(rng::AbstractRNG, D::DiagOp; Nbatch=()) = sqrt(D) * randn!(rng, similar(diag(D), Nbatch...))
 
 # automatic basis conversion (and NaN-zeroing)
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
@@ -73,12 +71,10 @@ size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
 pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
-global_rng_for(::Type{BlockDiagIEB{T,F}}) where {T,F} = global_rng_for(F)
 diag(L::BlockDiagIEB) = BaseIEBFourier(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
-simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=nothing) = 
-    sqrt(L) * white_noise(similar(diag(L), (isnothing(Nbatch) || Nbatch==1 ? () : (Nbatch,))...), rng)
+simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
 # arithmetic
 *(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
 +(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
@@ -297,7 +293,7 @@ end
 
 @auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
 @auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f
-for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :global_rng_for)
+for F in (:inv, :pinv, :sqrt, :adjoint, :Diagonal, :diag, :simulate, :zero, :one, :logdet, :size)
     @eval $F(L::ParamDependentOp) = $F(L.op)
 end
 getindex(L::ParamDependentOp, x) = getindex(L.op, x)
@@ -329,27 +325,29 @@ adapt_structure(to, L::ParamDependentOp) =
 # multiplied by a field. 
 # L::LazyBinaryOp{λ} lazily represents λ(L.X,L.Y)
 struct LazyBinaryOp{λ} <: ImplicitOp{Bottom}
-    X :: FieldOpScal
-    Y :: FieldOpScal
-    LazyBinaryOp(λ, X::Union{FieldOp,Scalar}, Y::Union{FieldOp,Scalar}) = new{λ}(X, Y)
+    X
+    Y
+    LazyBinaryOp(λ, X, Y) = new{λ}(X, Y)
 end
 
 # creating LazyBinaryOps
 for λ in (:+, :-, :*)
-    @eval begin
-        function ($λ)(
-            X :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
-            Y :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
-        ) where {B₁,B₂}
-            LazyBinaryOp($λ, X, Y)
-        end
-        function ($λ)(
-            X :: DiagOp{<:Field{B}},
-            Y :: DiagOp{<:Field{B}}
-        ) where {B}
-            Diagonal(broadcast($λ, diag(X), diag(Y)))
-        end
+    @eval function ($λ)(
+        X :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₁}}},
+        Y :: Union{ImplicitOp, Adjoint{<:Any,<:ImplicitOp}, DiagOp{<:Field{B₂}}}
+    ) where {B₁,B₂}
+        LazyBinaryOp($λ, X, Y)
     end
+    @eval function ($λ)(
+        X :: DiagOp{<:Field{B}},
+        Y :: DiagOp{<:Field{B}}
+    ) where {B}
+        Diagonal(broadcast($λ, diag(X), diag(Y)))
+    end
+end
+for λ in (:+, :-) 
+    @eval ($λ)(X::UniformScaling, Y::ImplicitOp) = LazyBinaryOp($λ, X, Y)
+    @eval ($λ)(X::ImplicitOp, Y::UniformScaling) = LazyBinaryOp($λ, X, Y)
 end
 (*)(X::ImplicitOp,              Y::Scalar)     = LazyBinaryOp(*, X, Y)
 (*)(X::Scalar,                  Y::ImplicitOp) = LazyBinaryOp(*, X, Y)
@@ -370,5 +368,8 @@ end
 @auto_adjoint (*)(L::LazyBinaryOp{*}, f::Field) = L.X * (L.Y * f)
 @auto_adjoint (\)(L::LazyBinaryOp{*}, f::Field) = L.Y \ (L.X \ f)
 @auto_adjoint (*)(L::LazyBinaryOp{^}, f::Field) = foldr((L.Y>0 ? (*) : (\)), fill(L.X, abs(L.Y::Integer)), init=f)
+
+# misc
+getindex(L::LazyBinaryOp, i::Int) = i==1 ? L.X : i==2 ? L.Y : error("Can only index LazyBinaryOp by 1 or 2")
 adapt_structure(to, L::LazyBinaryOp{λ}) where {λ} = LazyBinaryOp(λ, adapt(to,L.X), adapt(to,L.Y))
 hash(L::LazyBinaryOp, h::UInt64) = foldr(hash, (typeof(L), L.X, L.Y), init=h)

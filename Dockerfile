@@ -12,6 +12,7 @@ RUN apt-get update \
         libbz2-dev \
         libcfitsio-dev \
         libffi-dev \
+        libjpeg8-dev \
         liblzma-dev \
         libncurses5-dev \
         libncursesw5-dev \
@@ -28,7 +29,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.0-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.0-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -68,7 +69,7 @@ RUN pip install --no-cache-dir \
 RUN mkdir -p $HOME/src/camb \
     && curl -L https://github.com/cmbant/camb/tarball/21a56ef | tar zxf - -C $HOME/src/camb --strip=1 \
     && cd $HOME/src/camb \
-    && python setup.py make install
+    && NONNATIVE=1 python setup.py make install 
 
 
 ## build args
@@ -102,7 +103,7 @@ RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
 # reduce memory usage during package load (the latter is necessary otherwise we
 # hit the mybinder memory limit)
 RUN test $PACKAGECOMPILE = 0 \
-    || julia -e 'using PackageCompiler; create_sysimage([:CMBLensing],cpu_target="generic",replace_default=true)'
+    || julia -e 'using PackageCompiler, Libdl; create_sysimage(["CMBLensing"], cpu_target="generic", sysimage_path=abspath(Sys.BINDIR,"..","lib","julia","sys."*Libdl.dlext))'
 
 ## execute documentation notebooks and save outputs
 COPY --chown=1000 docs/src $HOME/CMBLensing/docs/src

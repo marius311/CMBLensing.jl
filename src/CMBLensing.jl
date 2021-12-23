@@ -8,12 +8,15 @@ using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partit
 using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
+using ChainRules
 using Combinatorics
 using CompositeStructs
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
     @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
+using Distributions
+using Distributions: PDiagMat
 using EllipsisNotation
 using FileIO
 using FFTW
@@ -57,8 +60,8 @@ using Zygote.ChainRules: @thunk, NoTangent
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     abs, adjoint, all, any, axes, broadcast, broadcastable, BroadcastStyle, conj, copy, convert,
-    copy, copyto!, eltype, eps, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
-    iterate, keys, lastindex, length, literal_pow, mapreduce, materialize!,
+    copy, copyto!, eltype, eps, exp, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
+    iterate, keys, lastindex, length, literal_pow, log, mapreduce, materialize!,
     materialize, one, permutedims, print_array, promote, promote_rule,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
@@ -69,25 +72,27 @@ import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
 import Measurements: ±
 import Statistics: std
+import ChainRules: ProjectTo
+import Random: randn!
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, animate,
-    argmaxf_lnP, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
-    BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
+    animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
-    firsthalf, fixed_white_noise, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
+    firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
     get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, InterpolatedCℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
-    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, load_camb_Cℓs,
+    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
-    mean_std_and_errors, MidPass, mix, nan2zero, noiseCℓs,
+    mean_std_and_errors, MidPass, mix, Mixed, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, ProjLambert, ProjEquiRect, ProjHealpix, project,
-    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_joint, shiftℓ, 
+    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
-    ud_grade, unbatch, unmix, white_noise, Ð, Ł,  
+    ud_grade, unbatch, unmix, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
 
 # bunch of sampling-related exports
@@ -111,7 +116,7 @@ include("field_vectors.jl")
 include("base_fields.jl")
 include("specialops.jl")
 include("flowops.jl")
-include("batched_reals.jl")
+include("batching.jl")
 
 # lensing operators
 include("lenseflow.jl")
@@ -132,12 +137,18 @@ include("bilinearlens.jl")
 function animate end
 @init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
 
+# PPL
+include("distributions.jl")
+include("simpleppl.jl")
+
 # sampling and maximizing the posteriors
 include("dataset.jl")
-include("posterior.jl")
 include("maximization.jl")
 include("sampling.jl")
 include("chains.jl")
+
+# deprecated stuff
+include("deprecated.jl")
 
 # other estimates
 include("quadratic_estimate.jl")
@@ -148,6 +159,9 @@ include("autodiff.jl")
 # gpu
 is_gpu_backed(x) = false
 @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
+
+# muse
+@init @require MuseEstimate="43b88160-90c7-4f71-933b-9d65205cd921" include("muse.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
