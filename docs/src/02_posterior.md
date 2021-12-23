@@ -5,12 +5,12 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.2'
-      jupytext_version: 1.4.1
+      format_version: '1.3'
+      jupytext_version: 1.13.4
   kernelspec:
-    display_name: Julia 1.6.0
+    display_name: Julia 1.7.0
     language: julia
-    name: julia-1.6
+    name: julia-1.7
 ---
 
 # The Lensing Posterior
@@ -84,7 +84,7 @@ and we have used the slighly sloppy notation $x^2/\mathbb{C}$ to mean $x^\dagger
 using CMBLensing, PyPlot
 ```
 
-CMBLensing uses the function `lnP` to compute the log of the joint posterior probability. 
+CMBLensing uses the function `logpdf` to compute the log of the joint posterior probability. 
 
 
 To evaluate this posterior, we need the arguments of the probability distribution, $f$, $\phi$, and $\theta$. We also need the data $d$ and host of other operators and covariances which enter the expressions above, which CMBLensing stores in a `DataSet` object.
@@ -126,46 +126,37 @@ plot(diag(ds.Cf), which=[:El :Bl])
 We can now evaluate the posterior, for example at the true $f$ and $\phi$:
 
 ```julia
--2*lnP(0, f, ϕ, ds)
+logpdf(ds; f, ϕ)
 ```
 
-The first argument, in this case `0`, indicates the parameterization. We can compute the posterior given a couple of different parametrizations,
-
-* The unlensed parametrization, $\mathcal{P}(f,\phi,\theta\,|\,d)$
-* The lensed parametrization, $\mathcal{P}(\tilde f,\phi,\theta\,|\,d)$ where $\tilde f$ are the _lensed_ CMB fields.
-* The mixed parametrization, $\mathcal{P}(f^\prime, \phi^\prime, \theta \,|\, d)$ where $f^\prime$ and $\phi^\prime$ are the _mixed_ CMB fields and lensing potential (this is a parametrization which attemps to decorrelate the posterior as much as possible; you may want to read [our paper](https://arxiv.org/TBD) which describes this in more detail).
-
-For the unlensed and lensed parametrizations, pass `0` and `1` as the first argument  (these refer to auxillary "time" variable in the LenseFlow expansion, $f(x+t\nabla\phi)$; at $t=0$ we have the unlensed field, and at $t=1$ we have the lensed field). If we use the lensed parametrization, then the $f$ argument to the function is expected to be the lensed field. The mixed parametrization can be specified by passing `:mix` as the first argment, in which case the $f$ argument is expected to be the mixed field.
-
-
-For example, the following is the same point in parameter space that we evaluated above, just in a different parametrization (any differences to the above value are numerical):
+There is a particular change-of-variables called the "mixed parameterization" (see [our paper](https://arxiv.org/abs/2002.00965) for details) which helps make the the posterior a little less correlated and more amenable to sampling and maximization. We can apply the change-of-variables to some point in parameter space as:
 
 ```julia
--2*lnP(1, ds.L(ϕ)*f, ϕ, ds)
+f°, ϕ° = mix(ds; f, ϕ);
 ```
 
-We expect minus twice the posterior evaluated at the truth to be distributed like a $\chi^2$ distribution where the degrees of freedom equals the number of pixels in $d$, $f$, and $\phi$ (i.e. in each of the three Gaussian terms in the posterior). Since these maps are 256x256 and $d$ and $f$ have both Q and U maps, this is:
+Then we can evaluate the posterior in the mixed parameterization:
 
 ```julia
-(2+2+1)*256^2
+logpdf(Mixed(ds); f°, ϕ°)
 ```
 
-which the previous result is within a few sigma of.
+Note that this is the same value as above since we are just evaluating the same point in parameter space, just parameterized in terms of different variables.
 
 
 Above, we didn't specify any cosmological parameters, $\theta$. Because of that, they were fixed at their fiducial values (i.e. the fiducial values which generated the simulated data in the call to `load_sim` earlier). Current only two parameters can be varied, $r$ (tensor-to-scalar ratio), and $A_\phi$ (the amplitude of $C_\ell^{\phi \phi}$). They can be specified as follows, with non-specified parameters left at their fiducial:
 
 ```julia
--2*lnP(0, f, ϕ, (Aϕ=1.1,), ds)
+logpdf(ds; f, ϕ, θ=(Aϕ=1.1,))
 ```
 
 You can see the slight change compared to what we got above. We can even compute a whole slice through the posterior along $A_\phi$:
 
 ```julia
 Aϕs = range(0.5,1.5,length=50)
-plot(Aϕs, [lnP(0, f, ϕ, (Aϕ=Aϕ,), ds) for Aϕ in Aϕs])
+plot(Aϕs, [logpdf(ds; f, ϕ, θ=(;Aϕ)) for Aϕ in Aϕs])
 xlabel(raw"$A_\phi$")
-ylabel(raw"$\mathcal{P}(f_{\rm true}, \phi_{\rm true}, A_\phi\,|\,d)$");
+ylabel(raw"$\log\mathcal{P}(f_{\rm true}, \phi_{\rm true}, A_\phi\,|\,d)$");
 ```
 
 ## Wiener filtering
@@ -180,10 +171,10 @@ $$
 This is simply the Wiener filter of the data given a signal covariance which includes correlations induced by $\phi$, and we can compute it by inverting the operator in brackets above with e.g. conjugate gradient. 
 
 
-In CMBLensing.jl, the `argmaxf_lnP` function performs this task. Its arguments are similar to `lnP`,
+In CMBLensing.jl, the `argmaxf_logpdf` function performs this task. Its arguments are similar to `logpdf`,
 
 ```julia
-f_wf = argmaxf_lnP(ϕ, (Aϕ=1,), ds, conjgrad_kwargs=(tol=1e-1,progress=true));
+f_wf, = argmaxf_logpdf(ds, (;ϕ); conjgrad_kwargs=(tol=1e-1,progress=true));
 ```
 
 Wiener filtering effectively delenses the data by a given $\phi$. Here we are Wiener filtering at the true $\phi$, so this is perfect delensing. Note below the large amount of B mode power in the data, as well as the aliasing near the border mask, and how this is removed in the Wiener filtered B, which visually is tracing the true B map up to the level of the noise.
@@ -207,34 +198,28 @@ Zygote provides the `gradient` function, which takes a function for which to eva
 gradient(x->3x^2+2x, 1)
 ```
 
-Gradients of the CMB lensing posterior work in exactly the same way. For example, to take the gradient with respect to $\phi$ in the lensed parametrization, where we fix $f$ to the Wiener filter computed above and evaluate the gradient at $\phi=0$, we can do:
+Gradients of the CMB lensing posterior work in exactly the same way. For example, to take the gradient with respect to $\phi$ in the mixed parametrization, where we fix $f$ to the Wiener filter computed above and evaluate the gradient at $\phi=0$, we can do:
 
 ```julia
-gϕ = gradient(ϕ -> lnP(1,f_wf,ϕ,ds), 0ϕ)[1];
+gϕ = gradient(ϕ° -> logpdf(Mixed(ds); f°=f_wf, ϕ°), 0ϕ)[1];
 ```
 
-Here's what this gradient looks like multiplied by $\mathbb{C}_\phi$. This is actually the first gradient step in the iterative joint maximum a posteriori estimation. The feature you see below is the mean-field in this estimate due to the mask:
+Here's what this gradient looks like multiplied by $\mathbb{C}_\phi$. This is actually the first gradient step in the iterative joint maximum a posteriori estimation. You can see below this very broadly matches the truth:
 
 ```julia
-plot(ds.Cϕ*gϕ)
+plot([ds.Cϕ*gϕ ϕ], title=["gradient step" "true ϕ"])
 ```
 
 You are free to manipulate the fields inside of the function whose gradient is being taken, and Zygote will automatically propagate the chain rule for you:
 
 ```julia
-gradient(ϕ -> -2lnP(1,f_wf,3ϕ,ds), 0ϕ)[1] ≈ -6 * gradient(ϕ -> lnP(1,f_wf,ϕ,ds), 0ϕ)[1]
+gradient(ϕ -> -2logpdf(ds; f=f_wf, ϕ=3ϕ), 0ϕ)[1] ≈ -6 * gradient(ϕ -> logpdf(ds; f=f_wf, ϕ), 0ϕ)[1]
 ```
 
-Automatic differentiation with respect to any and all arguments of `lnP` works, including the cosmological parameters:
+Automatic differentiation with respect to any and all arguments of `logpdf` works, including the cosmological parameters:
 
 ```julia
-gradient(Aϕ -> lnP(1,f_wf,ϕ,(Aϕ=Aϕ,),ds), 1)[1]
+gradient(Aϕ -> logpdf(ds; f, ϕ, θ=(;Aϕ)), 1)
 ```
 
 Currently Zygote is working with many (but not all) operations that you can do to fields. If you run into things which Zygote is not able to differentiate successfully (generally you'll get some error), please feel free to file an [Issue](https://github.com/marius311/CMBLensing.jl/issues) with CMBLensing.jl.
-
-
-## Marginal posterior
-
-
-_work in progress_

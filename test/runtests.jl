@@ -598,8 +598,8 @@ end
 
             δf,δϕ = simulate(Cf), simulate(Cϕ)
 
-            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.4)
-            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.4)
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=2)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=2)
             
         end
         
