@@ -111,15 +111,16 @@ HarmonicBasis(::Basis2Prod{𝐄𝐁,         <:S0Basis}) = EBFourier
 (::Type{B})(f::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(f)
 
 # In-place version of the above
-(::Type{B})(f′::Field, f::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(f′,f)
+(::Type{B})(dst::Field, src::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(dst,src)
 # And the case where its already in the right basis (but note, we
 # never actually set f′ in this case, which is more efficient, but
 # necessitates some care when using this construct)
-(::Type{B})(f′::Field{B}, f::Field{B}) where {B<:Basis} = f
+(::Type{B})(dst::Field{B}, src::Field{B}) where {B<:Basis} = src
 
 
 # Basis conversion automatically maps over arrays
-(::Type{B})(a::AbstractArray{<:Field}...) where {B<:Basis} = B.(a...)
+(::Type{B})(a::AbstractArray{<:Field}) where {B<:Basis} = B.(a)
+(::Type{B})(dst::AbstractArray{<:Field}, src::AbstractArray{<:Field}) where {B<:Basis} = B.(dst,src)
 
 # The abstract `Basis` type means "any basis", hence this conversion rule:
 Basis(f::Field) = f

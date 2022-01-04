@@ -15,4 +15,4 @@ function Distributions.MvNormal(μ::Real, D::DiagOp)
     μ==0 ? MvNormal(zero(diag(D)), D) : error("μ must be a Field or 0")
 end
 
-Zygote.@adjoint PDiagMat(dim, dg) = PDiagMat(dim, dg), Δ -> (length(diag(Δ)), diag(Δ))
+Zygote.@adjoint PDiagMat(dim, dg) = PDiagMat(dim, dg), Δ -> (nothing, diag(Δ))
