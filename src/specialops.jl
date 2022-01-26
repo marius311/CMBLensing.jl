@@ -150,6 +150,8 @@ const ∇ᵢ = @SVector[Diagonal(∇diag(coord, COVARIANT,     1)) for coord=1:2
 const ∇ = ∇ⁱ # ∇ is contravariant by default if not specified
 const ∇² = Diagonal(∇²diag())
 
+adjoint(::typeof(∇²)) = ∇²;
+
 
 @doc doc"""
     gradhess(f)

@@ -319,8 +319,8 @@ function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
         if USE_SUM_KBN
             dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) 
         else
-            dropdims(mapslices(sum,         A,  dims=dims), dims=dims)
-        end :: Array{T,N-length(dims)}
+            dropdims(sum(A, dims=dims), dims=dims)
+        end :: AbstractArray{T,N-length(dims)}
     end
 end
 @adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
