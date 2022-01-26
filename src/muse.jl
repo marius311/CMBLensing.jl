@@ -1,8 +1,8 @@
 
-# interface with MuseEstimate.jl
+# interface with MuseInference.jl
 
-using .MuseEstimate: AbstractMuseProblem, MuseResult
-import .MuseEstimate: ∇θ_logLike, sample_x_z, ẑ_at_θ, muse!
+using .MuseInference: AbstractMuseProblem, MuseResult
+import .MuseInference: ∇θ_logLike, sample_x_z, ẑ_at_θ, muse!
 
 export CMBLensingMuseProblem
 
@@ -16,8 +16,7 @@ function CMBLensingMuseProblem(ds; parameterization=0, MAP_joint_kwargs=(;))
     CMBLensingMuseProblem(ds, parameterization, MAP_joint_kwargs)
 end
 
-
-function ∇θ_logLike(prob::CMBLensingMuseProblem, d, θ, z) 
+function ∇θ_logLike(prob::CMBLensingMuseProblem, d, z, θ) 
     @unpack ds, parameterization = prob
     @set! ds.d = d
     if parameterization == 0
@@ -44,13 +43,13 @@ function sample_x_z(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, rng::Abstra
     (x=d, z=FieldTuple(;f))
 end
 
-function ẑ_at_θ(prob::CMBLensingMuseProblem, d, θ, (f₀,ϕ₀); ∇z_logLike_atol=nothing)
+function ẑ_at_θ(prob::CMBLensingMuseProblem, d, (f₀,ϕ₀), θ; ∇z_logLike_atol=nothing)
     @unpack ds = prob
     (f, ϕ, history) = MAP_joint(θ, @set(ds.d=d); fstart=f₀, ϕstart=ϕ₀, prob.MAP_joint_kwargs...)
     FieldTuple(;f, ϕ), history
 end
 
-function ẑ_at_θ(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, d, θ, (f₀,); ∇z_logLike_atol=nothing)
+function ẑ_at_θ(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, d, (f₀,), θ; ∇z_logLike_atol=nothing)
     @unpack ds = prob
     FieldTuple(f=argmaxf_logpdf(I, θ, @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...))
 end

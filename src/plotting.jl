@@ -135,10 +135,10 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 		extent = [-1,1,-1,1] .* fieldinfo(f).nyquist
 		aspect = 1
 	end
-	norm = vscale == :log ? matplotlib.colors.LogNorm() : nothing
+	norm = vscale == :log ? matplotlib.colors.LogNorm(;vmin,vmax) : matplotlib.colors.Normalize(;vmin,vmax)
 	cax = ax.matshow(
 		clamp.(arr, vmin, vmax); 
-		vmin, vmax, extent, aspect, cmap, norm, 
+		extent, aspect, cmap, norm, 
 		rasterized=true,
 		kwargs...
 	)

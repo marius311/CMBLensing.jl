@@ -39,7 +39,7 @@ adapt_structure(::CUDA.CuArrayAdaptor, proj::ProjLambert) = adapt_structure(CuAr
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
     # todo: remove needing to go through cpu here:
-    gpu(Complex{T}.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
+    gpu(T.(nan2zero.(Cℓ.(cpu(proj.ℓmag)))))
 end
 
 
@@ -90,3 +90,6 @@ end
     # https://github.com/JuliaGPU/CUDA.jl/issues/982
     dot(x::CuArray, y::CuArray) = sum(conj.(x) .* y)
 end
+
+# prevents unnecessary CuArray views in some cases
+Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)

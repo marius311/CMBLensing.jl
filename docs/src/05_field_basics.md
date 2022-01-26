@@ -4,12 +4,12 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.2'
-      jupytext_version: 1.4.1
+      format_version: '1.3'
+      jupytext_version: 1.13.4
   kernelspec:
-    display_name: Julia 1.6.0
+    display_name: Julia 1.7.0
     language: julia
-    name: julia-1.6
+    name: julia-1.7
 ---
 
 # Field Basics

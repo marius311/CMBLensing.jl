@@ -133,7 +133,7 @@ end
 # I haven't derived their version, but numerically the one gives the right answer where as their doesn't...
 @adjoint function pinv(L::Union{FieldOp, FieldOrOpMatrix})
     L⁻¹ = pinv(L)
-    L⁻¹, Δ->(@thunk(-L⁻¹' * Δ * L⁻¹'),)
+    L⁻¹, Δ->(@thunk(-L⁻¹' * (Δ * L⁻¹')),)
 end
 
 @adjoint sqrt(L::DiagOp) = (z=sqrt(L);), Δ -> ((pinv(z)/2)'*Δ,)
@@ -189,5 +189,9 @@ end
 # new ChainRules ProjectTo interface. with these here, I think theres
 # a good chance many of the above rules can simply be deleted, but
 # haven't gone through yet to figure out which ones yet
-ProjectTo(f::F) where {F<:Field} = ProjectTo{F}()
+ProjectTo(::F) where {F<:Field} = ProjectTo{F}()
+ProjectTo(::L) where {L<:FieldOp} = ProjectTo{L}()
 (project::ProjectTo{F})(dx::Field) where {B, F<:Field{B}} = B(dx)
+(project::ProjectTo{L})(dx::FieldOp) where {L<:FieldOp} = dx
+
+Zygote.wrap_chainrules_output(dxs::LazyBinaryOp) = dxs

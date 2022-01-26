@@ -287,7 +287,7 @@ function load_sim(;
     end
     
     # creating lensing operator cache
-    Lϕ = alloc_cache(L(diag(Cϕ)),diag(Cf))
+    Lϕ = alloc_cache(L(Map(diag(Cϕ))), Map(diag(Cf)))
 
     # put everything in DataSet
     ds = BaseDataSet(;Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)
@@ -354,10 +354,14 @@ last send. The optional argument `storage` will also adapt the dataset
 to a particular storage on the workers, and can be a symbol, e.g.
 `:CuArray`, in the case that CUDA is not loaded on the master process.
 """
-function set_distributed_dataset(ds, storage=nothing)
+function set_distributed_dataset(ds, storage=nothing; distribute=true)
     h = hash((procs(), ds, storage))
     if h != _distributed_dataset_hash
-        @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
+        if distribute
+            @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
+        else
+            global _distributed_dataset = adapt(eval(storage), ds)
+        end
         global _distributed_dataset_hash = h
     end
     nothing
@@ -368,6 +372,7 @@ _distributed_dataset_hash = nothing
 
 
 struct DistributedDataSet <: DataSet end
+set_distributed_dataset(ds::DistributedDataSet, storage=nothing; distribute=true) = nothing
 getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
 (::DistributedDataSet)(args...) = get_distributed_dataset()(args...)
 function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)

@@ -526,7 +526,7 @@ end
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
 
-    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.1)]
+    @testset "$L" for (L,atol) in [(BilinearLens,300), (LenseFlow,0.2)]
 
         @testset "Nside = ($Ny,$Nx)" for (Ny,Nx) in Nsides_big
 
@@ -598,8 +598,8 @@ end
 
             δf,δϕ = simulate(Cf), simulate(Cϕ)
 
-            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=1.4)
-            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=1.4)
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=2)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=2)
             
         end
         
