@@ -124,14 +124,15 @@ function MAP_joint(
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
     quasi_sample = false,
     history_keys = (:logpdf,),
-    aggressive_gc = false
+    aggressive_gc = false,
+    logPriorϕ = ϕ -> 0,
 )
 
 
     sample_or_argmax_f = 
         quasi_sample == false ? argmaxf_logpdf :
         quasi_sample == true ? sample_f : 
-        quasi_sample isa AbstractRNG ? (args...; kwargs...) -> sample_f(quasi_sample, args...; kwargs...) : 
+        quasi_sample isa AbstractRNG ? (args...; kwargs...) -> sample_f(copy(quasi_sample), args...; kwargs...) : 
         error("`quasi_sample` should be true, false, or an AbstractRNG")
 
     dsθ = copy(ds(θ))
@@ -168,11 +169,11 @@ function MAP_joint(
 
         # ϕ step
         f°, = mix(dsθ; f, ϕ)
-        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ), ϕ)
+        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ)+logPriorϕ(ϕ), ϕ)
         s = (Hϕ⁻¹ * ∇ϕ_logpdf)
         αmax = min(5α, get_max_lensing_step(ϕ,s)/2)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            total_logpdf = @⌛(sum(unbatch(-logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, dsθ.d))))
+            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, dsθ.d)+logPriorϕ(ϕ+α*s)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
