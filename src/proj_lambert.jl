@@ -414,7 +414,7 @@ end
                 sum(
                     real,
                     broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
-                        (ℓedges[i] < ℓ < ℓedges[i+1]) ? Δ * Cℓ : zero(Cℓ)
+                        (ℓedges[i] < ℓ < ℓedges[i+1]) ? Δ * Cℓ : zero(Δ)
                     end,
                     dims = ndims(Δ)==4 ? (1,2) : (:)
                 )
