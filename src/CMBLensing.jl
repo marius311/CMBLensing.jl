@@ -161,7 +161,7 @@ is_gpu_backed(x) = false
 @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
 
 # muse
-@init @require MuseEstimate="43b88160-90c7-4f71-933b-9d65205cd921" include("muse.jl")
+@init @require MuseInference="43b88160-90c7-4f71-933b-9d65205cd921" include("muse.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
