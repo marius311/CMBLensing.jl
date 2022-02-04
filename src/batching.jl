@@ -62,8 +62,12 @@ batch_pmap(f, args...; batch_size) = mapreduce(unbatch, vcat, pmap(f, _batchargs
 # batched Tuples/NamedTuples
 batch(ts::AbstractVector{<:Union{Tuple,NamedTuple}}) = map((t...) -> batch(collect(t)), ts...)
 unbatch(t::Union{Tuple,NamedTuple}) = [map(x -> batch_index(x, i), t) for i=1:batch_length(t)]
-batch_length(t::Union{Tuple,NamedTuple}) = only(unique(filter(!=(1), map(batch_length, values(t)))))
 batch_index(c::Union{Tuple,NamedTuple}, I) = map(x -> batch_index(x, I), c)
+function batch_length(t::Union{Tuple,NamedTuple})
+    reduce(map(batch_length, values(t))) do n, m
+        n == m ? n : only(filter(!=(1), (n,m)))
+    end
+end
 
 # batched ComponentArrays
 @init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
