@@ -201,12 +201,16 @@ function plot(
 	vlim = nothing, 
 	vscale = nothing,
 	cmap = nothing,
-	return_all = false, 
+	return_all = false,
+	aspect = nothing,
 	kwargs...
 ) where {F<:CartesianField}
 	
     (m,n) = size(tuple.(fs, which)[:,:])
-    figsize = plotsize .* [1.4 * n * fs[1].Nx / fs[1].Ny, m]
+	if isnothing(aspect)
+		aspect = all('x' in string(w) for w in [""] .* string.(which)) ? fs[1].Nx / fs[1].Ny : 1
+	end
+    figsize = plotsize .* [1.4 * n * aspect, m]
 	fig,axs = subplots(m, n; figsize, squeeze=false)
     axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
