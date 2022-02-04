@@ -21,7 +21,7 @@ macro fwdmodel(def)
             push!(rand_vars, var)
             return :(ismissing($var) ? (_vars[$(QuoteNode(var))] = $var = $simulate(rng, $model_name, $dist)) : (_vars[$(QuoteNode(var))] = $var))
         elseif @capture(x, var_ ← rhs_)
-            return :(_vars[$(QuoteNode(var))] = $var = $rhs)
+            return :(_vars[$(QuoteNode(var))] = $var = (Base.@isdefined($var) && !ismissing($var) ? $var : $rhs))
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
             if !(f in maybe_local_var) && isdefined(__module__, f)
