@@ -234,6 +234,7 @@ function load_camb_Cℓs(;
             custom_tensor_params = merge(custom_tensor_params, (ℓmax=ℓmax,))
         end
         tensor = camb(;custom_tensor_params...).tensor
+        params = custom_tensor_params
     else
         tensor = Dict([:ℓ,:TT,:EE,:BB,:TE] .=> collect.(eachcol(readdlm(unlensed_tensor_filename,skipstart=1)[2:end,1:5])))
         ℓ = pop!(tensor,:ℓ)
@@ -241,12 +242,13 @@ function load_camb_Cℓs(;
             @. tensor[x] /= ℓ*(ℓ+1)/(2π)
         end
         tensor = (;(k=>_extrapolateCℓs(ℓ,Cℓ) for (k,Cℓ) in tensor)...)
+        params = (;)
     end
     
     unlensed_total = (;(k=>unlensed_scalar[k]+tensor[k] for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
     total          = (;(k=>lensed_scalar[k]+tensor[k]   for k in [:TT,:EE,:BB,:TE])..., ϕϕ=Cℓϕϕ)
     
-    (;unlensed_scalar,tensor,lensed_scalar,unlensed_total,total)
+    (;unlensed_scalar,tensor,lensed_scalar,unlensed_total,total,params)
     
 end
 
