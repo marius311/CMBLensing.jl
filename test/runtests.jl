@@ -1,6 +1,6 @@
 
 using CUDA
-if CUDA.functional() && !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
+if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU") && CUDA.functional()
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
     storage = CuArray

@@ -302,7 +302,7 @@ end
 firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
-USE_SUM_KBN = true
+USE_SUM_KBN = false
 use_sum_kbn!(flag) = (global USE_SUM_KBN = flag)
 
 # type-stable combination of summing and dropping dims, which uses
@@ -317,10 +317,10 @@ function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
         end :: T
     else
         if USE_SUM_KBN
-            dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) 
+            dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
         else
             dropdims(sum(A, dims=dims), dims=dims)
-        end :: AbstractArray{T,N-length(dims)}
+        end
     end
 end
 @adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
