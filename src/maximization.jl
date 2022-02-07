@@ -168,19 +168,19 @@ function MAP_joint(
         aggressive_gc && cuda_gc()
 
         # ϕ step
-        f°, = mix(dsθ; f, ϕ)
-        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ)+logPriorϕ(ϕ), ϕ)
+        f°, = mix(dsθ; f, ϕ, θ)
+        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ, θ)+logPriorϕ(ϕ), ϕ)
         s = (Hϕ⁻¹ * ∇ϕ_logpdf)
         αmax = min(5α, get_max_lensing_step(ϕ,s)/2)
         soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, dsθ.d)+logPriorϕ(ϕ+α*s)))))
+            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, θ, dsθ.d)+logPriorϕ(ϕ+α*s)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
         ϕ += α * s
         
         # finalize
-        _logpdf = @⌛ logpdf(Mixed(dsθ); f°, ϕ°=ϕ, dsθ.d)
+        _logpdf = @⌛ logpdf(Mixed(dsθ); f°, ϕ°=ϕ, θ, dsθ.d)
         total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
