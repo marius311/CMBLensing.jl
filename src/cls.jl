@@ -62,7 +62,7 @@ end
 for op in (:^, :sqrt, :abs)
     @eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
 end
-std(x::Vector{<:InterpolatedCℓs}) = sqrt(mean(x.^2) - mean(x)^2)
+std(x::Vector{<:InterpolatedCℓs}) = sqrt(abs(mean(x.^2) - mean(x)^2))
 shiftℓ(Δℓ, Cℓ; factor=false) = InterpolatedCℓs(factor ? Cℓ.ℓ .* Δℓ : Cℓ.ℓ .+ Δℓ, Cℓ.Cℓ)
 
 
