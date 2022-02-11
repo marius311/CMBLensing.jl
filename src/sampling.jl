@@ -106,18 +106,23 @@ function grid_and_sample(logpdfs::Vector, xs::AbstractVector; progress=false, ns
     interp_logpdfs = loess(xs, logpdfs, span=span)
     
     # normalize the PDF. note the smoothing is done of the log PDF.
-    cdf(x) = quadgk(nan2zero∘exp∘interp_logpdfs,xmin,x,rtol=1e-3)[1]
+    cdf(x) = quadgk(nan2zero∘exp∘interp_logpdfs,xmin,x,rtol=1e-4)[1]
     logA = nan2zero(log(cdf(xmax)))
     logpdfs = (interp_logpdfs.ys .-= logA)
     interp_logpdfs.bs[:,1] .-= logA
     
+    # bracket the sample by conservatively saying we won't draw a
+    # point with loglike < -1000 of the peak
+    xmin′ = xs[findnext(>(maximum(logpdfs)-1000), logpdfs, 1)]
+    xmax′ = xs[findprev(>(maximum(logpdfs)-1000), logpdfs, length(logpdfs))]
+
     # draw samples via inverse transform sampling
     θsamples = @showprogress (progress ? 1 : Inf) map(1:nsamples) do i
         r = rand()
-        if (cdf(xmin)-r)*(cdf(xmax)-r) >= 0
-            first(logpdfs) > last(logpdfs) ? xmin : xmax
+        if (cdf(xmin′)-r)*(cdf(xmax′)-r) >= 0
+            first(logpdfs) > last(logpdfs) ? xmin′ : xmax′
         else
-            fzero(x->cdf(x)-r, xmin, xmax, xatol=(xmax-xmin)*1e-3)
+            find_zero(x->cdf(x)-r, (xmin′, xmax′), Roots.Brent(), xatol=(xmax-xmin)*1e-4)
         end
     end
     
