@@ -42,20 +42,23 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
 end
 
 ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) = 
-    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), basetype(storage))
+    ProjLambert(Ny, Nx, Float64(θpix), Float64.(rotator), real_type(T), storage)
 
 @memoize function ProjLambert(Ny, Nx, θpix, rotator, ::Type{T}, storage) where {T}
 
-    Δx           = T(deg2rad(θpix/60))
-    Δℓx          = T(2π/(Nx*Δx))
-    Δℓy          = T(2π/(Ny*Δx))
-    nyquist      = T(2π/(2Δx))
-    Ωpix         = T(Δx^2)
+    # storage might be e.g. CuArrayAdaptor which will force T to be Float32
+    T′           = eltype(adapt(storage, Vector{T}()))
+
+    Δx           = T′(deg2rad(θpix/60))
+    Δℓx          = T′(2π/(Nx*Δx))
+    Δℓy          = T′(2π/(Ny*Δx))
+    nyquist      = T′(2π/(2Δx))
+    Ωpix         = T′(Δx^2)
     ℓy           = adapt(storage, (ifftshift(-Ny÷2:(Ny-1)÷2) .* Δℓy)[1:Ny÷2+1])
     ℓx           = adapt(storage, (ifftshift(-Nx÷2:(Nx-1)÷2) .* Δℓx))
-    ℓmag         = @. sqrt(ℓx'^2 + ℓy^2)
-    ϕ            = @. angle(ℓx' + im*ℓy)
-    sin2ϕ, cos2ϕ = @. sin(2ϕ), cos(2ϕ)
+    ℓmag         = adapt(storage, @. sqrt(ℓx'^2 + ℓy^2))
+    ϕ            = adapt(storage, @. angle(ℓx' + im*ℓy))
+    sin2ϕ, cos2ϕ = adapt(storage, @. sin(2ϕ), cos(2ϕ))
     if iseven(Ny)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
@@ -168,8 +171,7 @@ end
 # "===" branch of the "promote_*" methods)
 function adapt_structure(storage, proj::ProjLambert{T}) where {T}
     @unpack Ny, Nx, θpix = proj
-    T′ = eltype(storage)
-    ProjLambert(;Ny, Nx, θpix, T=(T′==Any ? T : real(T′)), storage)
+    ProjLambert(;Ny, Nx, θpix, T, storage)
 end
 adapt_structure(::Nothing, proj::ProjLambert{T}) where {T} = proj
 

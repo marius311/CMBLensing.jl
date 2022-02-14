@@ -28,13 +28,9 @@ is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
     gpu(x)
 
 Recursively moves x to GPU, but unlike `CUDA.cu`, doesn't also convert
-to Float32. Equivalent to `adapt_structure(CuArray, x)`. Returns nothing.
+to Float32. Equivalent to `adapt_structure(CuArray, x)`.
 """
 gpu(x) = adapt_structure(CuArray, x)
-
-
-
-adapt_structure(::CUDA.CuArrayAdaptor, proj::ProjLambert) = adapt_structure(CuArray{Float32}, proj)
 
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T,<:CuArray}) where {T}
