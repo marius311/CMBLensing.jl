@@ -149,7 +149,6 @@ Keyword arguments:
 
 * `nsamps_per_chain` — The number of samples per chain.
 * `nchains = 1` — Number of chains in parallel.
-* `nchunk = 1` — Number of steps between parallel chain communication.
 * `nsavemaps = 1` — Number of steps in between saving maps into chain.
 * `nburnin_always_accept = 0` — Number of steps at the beginning of
   the chain to always accept HMC steps regardless of integration

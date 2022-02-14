@@ -1,6 +1,17 @@
 
 ## wiener filter
 
+
+
+# Should return an operator which is fast to apply and which
+# approximates the Hessian of logpdf w.r.t. f. The fallback here uses
+# the "approximate" B̂, M̂, and Cn̂ operators
+function Hessian_f_preconditioner(ds :: DataSet)
+    @unpack Cf, B̂, M̂, Cn̂ = ds
+    pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+end
+
+
 @doc doc"""
     argmaxf_logpdf(ds::DataSet, Ω::NamedTuple, [d = ds.d]; kwargs...)
 
@@ -24,12 +35,8 @@ function argmaxf_logpdf(
     offset = false,
 )
     
-    @unpack Cf, B̂, M̂, Cn̂ = ds
-
-    # TODO: generalize this to something like: A_preconditioner = preconditioner(ds)[:f]
-    A_preconditioner = pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
-
-    zero_f = zero(diag(Cf))
+    Hess_preconditioner = Hessian_f_preconditioner(ds)
+    zero_f = zero(diag(ds.Cf))
 
     # brittle (but working) performance hack until we switch to Diffractor (see also flowops.jl)
     task_local_storage(:AD_constants, keys(Ω)) do 
@@ -38,8 +45,8 @@ function argmaxf_logpdf(
         b  = -gradientf_logpdf(ds; f=zero_f, d=d,       Ω...)
         a₀ =  gradientf_logpdf(ds; f=zero_f, d=zero(d), Ω...)
         offset && (b += a₀)
-        A = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), Ω...) - a₀))
-        conjugate_gradient(A_preconditioner, A, b, (isnothing(fstart) ? zero_f : fstart); conjgrad_kwargs...)
+        Hess = FuncOp(f -> (gradientf_logpdf(ds; f, d=zero(d), Ω...) - a₀))
+        conjugate_gradient(Hess_preconditioner, Hess, b, (isnothing(fstart) ? zero_f : fstart); conjgrad_kwargs...)
 
     end
 
