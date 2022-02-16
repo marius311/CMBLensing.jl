@@ -54,7 +54,7 @@ BroadcastStyle(S::FieldTupleStyle, ::DefaultArrayStyle{0}) = S
 
 
 @generated function materialize(bc::Broadcasted{FieldTupleStyle{S,Names}}) where {S,Names}
-    wrapper = Names == Nothing ? :tuple : :(NamedTuple{$Names})
+    wrapper = Names == Nothing ? :(tuple) : :(NamedTuple{$Names} ∘ tuple)
     exprs = map_tupleargs(S, tuple(1:tuple_type_len(S)...)) do Sᵢ, i
         :(materialize(convert(Broadcasted{$Sᵢ}, preprocess(($(S.parameters[i])(),FieldTupleComponent{$i}()), bc))))
     end
