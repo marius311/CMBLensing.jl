@@ -376,14 +376,11 @@ end
 
 @⌛ function gibbs_sample_f!(state, ds::DataSet)
     @unpack f, Ω, progress, conjgrad_kwargs = state
-    f, = sample_f(
-        ds, 
-        delete(Ω,:f),
-        fstart = ismissing(f) ? nothing : f, 
-        conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
-    )
+    fstart = get(state, :sample_f_start_from_previous, false) && !ismissing(f) ? f : nothing
+    conjgrad_kwargs = (progress=(progress==:verbose), conjgrad_kwargs...)
+    f, sample_f_history = sample_f(ds, delete(Ω,:f); fstart, conjgrad_kwargs)
     @set! Ω.f = f
-    @pack! state = f, Ω
+    @pack! state = f, Ω, sample_f_history
 end
 
 @⌛ function gibbs_sample_ϕ!(state, ds::DataSet)
