@@ -22,12 +22,12 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 	end
 
 	# Loess-interpolated
-	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; kwargs...)
+	@eval function ($plot)(f::Function, m::Loess.LoessModel, args...; label=nothing, kwargs...)
 	    l, = ($plot)(m.xs, f.(m.ys), ".", args...; kwargs...)
         xs′ = vcat(map(1:length(m.xs)-1) do i
 		    collect(range(m.xs[i],m.xs[i+1],length=10))[1:end-1]
 		end..., [last(m.xs)])
-	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), kwargs...)
+	    ($plot)(xs′, f.(m.(xs′)), args...; c=l.get_color(), label, kwargs...)
 	end
 	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
 
@@ -40,14 +40,14 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 end
 
 # 2D KDE
-function plot(k::GetDistKDE{2}, args...; color=nothing, kwargs...)
+function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, kwargs...)
 	@unpack colors = pyimport("matplotlib")
 	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels([0.95,0.68]); Inf]
 	if color == nothing
 		color = gca()._get_lines.get_next_color()
 	end
 	contourf(args...; colors=[(colors.to_rgb(color)..., α) for α in (0.4, 0.8)], kwargs...)
-	contour(args...;  colors=color, kwargs...)
+	contour(args...;  colors=color, label, kwargs...)
 end
 
 # Cℓ band
