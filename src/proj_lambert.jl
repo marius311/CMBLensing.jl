@@ -78,6 +78,12 @@ function Base.summary(io::IO, f::LambertField)
     Base.showarg(io, f, true)
 end
 
+# allow proj.T
+getproperty(proj::ProjLambert, k::Symbol) = getproperty(proj, Val(k))
+getproperty(proj::ProjLambert{T}, ::Val{:T}) where {T} = T
+getproperty(proj::ProjLambert, ::Val{k}) where {k} = getfield(proj, k)
+
+
 ### promotion
 
 # used in broadcasting to decide the resulting metadata when

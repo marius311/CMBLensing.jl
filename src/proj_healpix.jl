@@ -134,19 +134,25 @@ function project((hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
     _project(ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)'), hpx_map => cart_proj)
 end
 
-function project((hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:ProjLambert{T}}) where {T}
-    @unpack Ny, Nx, rotator = cart_proj
+function project((hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
+    @unpack Ny, Nx, T, rotator = cart_proj
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
     Q = _project(θϕs, hpx_map.Q => cart_proj)
     U = _project(θϕs, hpx_map.U => cart_proj)
     ψpol = reshape((hp.Rotator((0,-90,0)) * hp.Rotator(rotator)).angle_ref(first.(θϕs)[:], last.(θϕs)[:]), Ny, Nx)
-    QU_flat = @. (Q.arr + im * U.arr) * exp(im * 2 * ψpol)
+    QU_flat = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
     FlatQUMap(real.(QU_flat), imag.(QU_flat), cart_proj)
 end
 
+function project((hpx_map, cart_proj)::Pair{<:HealpixIQUMap,<:CartesianProj})
+    I = project(hpx_map.I => cart_proj)
+    P = project(hpx_map.P => cart_proj)
+    BaseField{IQUMap}(cat(I.Ix, P.Qx, P.Ux, dims=3), cart_proj)
+end
+
 function _project(θϕs, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
-    @unpack Ny, Nx = cart_proj
-    BaseMap(reshape(hp.get_interp_val(collect(hpx_map), first.(θϕs)[:], last.(θϕs)[:]), Ny, Nx), cart_proj)
+    @unpack Ny, Nx, T = cart_proj
+    BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), first.(θϕs)[:], last.(θϕs)[:]), Ny, Nx)), cart_proj)
 end
 
 
@@ -171,5 +177,28 @@ function project((cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_map.proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
+    _project((is, js), cart_map => hpx_proj)
+end
+
+function project((cart_map, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
+    @unpack Nside = hpx_proj
+    @unpack rotator, T = cart_map
+    (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
+    ijs = θϕ_to_ij.(cart_map.proj, θs, ϕs)
+    is, js = first.(ijs), last.(ijs)
+    ψpol = (hp.Rotator((0,-90,0)) * hp.Rotator(rotator)).angle_ref(θs, ϕs)
+    Q = _project((is, js), cart_map[:Q] => hpx_proj)
+    U = _project((is, js), cart_map[:U] => hpx_proj)
+    QU_flat = @. (Q.arr + im * U.arr) * exp(-im * 2 * T(ψpol))
+    HealpixQUMap(real.(QU_flat), imag.(QU_flat))
+end
+
+function project((cart_map, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix})
+    I = project(cart_map[:I] => hpx_proj)
+    P = project(cart_map[:P] => hpx_proj)
+    HealpixIQUMap(I.Ix, P.Qx, P.Ux)
+end
+
+function _project((is, js), (cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
     HealpixMap(@ondemand(Images.bilinear_interpolation).(Ref(cpu(Map(cart_map).Ix)), is, js), hpx_proj)
 end
