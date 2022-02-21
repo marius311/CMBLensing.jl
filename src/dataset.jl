@@ -77,7 +77,7 @@ end
 function gradientf_logpdf(ds::BaseDataSet; f, ϕ, θ=(;), d=ds.d)
     @unpack Cf, Cϕ, Cn, L, M, B = ds
     (Lϕ, Mθ, Bθ) = (L(ϕ), M(θ), B(θ))
-    Lϕ' * Bθ' * Mθ' * pinv(Cn(θ)) * (d - Mθ * Bθ * Lϕ * f) - pinv(Cf(θ)) * f
+    Lϕ' * (Bθ' * (Mθ' * (pinv(Cn(θ)) * (d - Mθ * (Bθ * (Lϕ * f)))))) - pinv(Cf(θ)) * f
 end
 
 

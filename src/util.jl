@@ -192,9 +192,14 @@ macro ondemand(ex)
     get_root_package(x) = @capture(x, a_.b_) ? get_root_package(a) : x
     quote
         @eval import $(get_root_package(ex))
-        (args...; kwargs...) -> Base.invokelatest($(esc(ex)), args...; kwargs...)
+        InvokeLatestFunction($(esc(ex)))
     end
 end
+struct InvokeLatestFunction
+    func
+end
+(func::InvokeLatestFunction)(args...; kwargs...) = Base.@invokelatest(func.func(args...; kwargs...))
+Base.broadcast(func::InvokeLatestFunction, args...; kwargs...) = Base.@invokelatest(broadcast(func.func, args...; kwargs...))
 
 
 
