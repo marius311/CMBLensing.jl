@@ -64,26 +64,28 @@ Workers may be distributed across different hosts, and each host can have
 multiple GPUs.
 """
 function assign_GPU_workers(;print_info=true)
-    @everywhere @eval Main using Distributed, CMBLensing
-    master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
-    accessible_gpus = Dict(asyncmap(workers()) do id
-        @eval Main @fetchfrom $id begin
-            ds = CUDA.devices()
-            # put master's GPU last so we don't double up on it unless we need to
-            $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
-        end
-    end)
-    claimed = Set()
-    assignments = Dict(map(workers()) do myid
-        for (gpu_id, gpu_uuid) in accessible_gpus[myid]
-            if !(gpu_uuid in claimed)
-                push!(claimed, gpu_uuid)
-                return myid => gpu_id
+    if nworkers() > 1
+        @everywhere @eval Main using Distributed, CMBLensing
+        master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
+        accessible_gpus = Dict(asyncmap(workers()) do id
+            @eval Main @fetchfrom $id begin
+                ds = CUDA.devices()
+                # put master's GPU last so we don't double up on it unless we need to
+                $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
             end
-        end
-        error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
-    end)
-    @everywhere workers() device!($assignments[myid()])
+        end)
+        claimed = Set()
+        assignments = Dict(map(workers()) do myid
+            for (gpu_id, gpu_uuid) in accessible_gpus[myid]
+                if !(gpu_uuid in claimed)
+                    push!(claimed, gpu_uuid)
+                    return myid => gpu_id
+                end
+            end
+            error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
+        end)
+        @everywhere workers() device!($assignments[myid()])
+    end
     print_info && proc_info()
 end
 

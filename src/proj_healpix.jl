@@ -53,7 +53,7 @@ end
 ### Projection
 
 # adding more flat projections in the future should be as easy as
-# defining pairs of functions like the above two for other cases
+# defining pairs of functions like the following two for other cases
 
 
 ## ProjEquiRect
@@ -71,6 +71,12 @@ function ij_to_θϕ(proj::ProjEquiRect, i, j)
     (θ, ϕ)
 end
 
+# rotation angle of the coordinate basis between the sphere and
+# projection, at (θ,ϕ)
+function get_ψpol(proj::ProjEquiRect, θ, ϕ)
+    0
+end
+
 
 ## ProjLambert
 # 
@@ -83,6 +89,7 @@ end
 
 function broadcasted(::typeof(ij_to_θϕ), proj::ProjLambert, is, js)
     @unpack Δx, Ny, Nx, rotator = proj
+    R = hp.Rotator(rotator)
     θϕs = broadcast(is, js) do i, j
         x = Δx * (j - Nx÷2 - 0.5)
         y = Δx * (i - Ny÷2 - 0.5)
@@ -91,7 +98,6 @@ function broadcasted(::typeof(ij_to_θϕ), proj::ProjLambert, is, js)
         ϕ = atan(-x, -y)
         θ, ϕ
     end
-    R = hp.Rotator(rotator)
     θϕs = reshape(R.get_inverse()(first.(θϕs)[:], last.(θϕs)[:]), 2, size(θϕs)...)
     tuple.(θϕs[1,:,:], θϕs[2,:,:])
 end
@@ -110,6 +116,12 @@ function broadcasted(::typeof(θϕ_to_ij), proj::ProjLambert, θs, ϕs)
     end
 end
 
+function broadcasted(::typeof(get_ψpol), proj::ProjLambert, θs, ϕs)
+    @unpack rotator = proj
+    R = hp.Rotator((0,-90,0)) * hp.Rotator(rotator)
+    @assert size(θs) == size(ϕs)
+    reshape(R.angle_ref(materialize(θs)[:], materialize(ϕs)[:]), size(θs)...)
+end
 
 
 ## Healpix => Cartesian
@@ -131,15 +143,16 @@ are rotated to be aligned with the local coordinates (sometimes called
 """
 function project((hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
     @unpack Ny, Nx = cart_proj
-    _project(ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)'), hpx_map => cart_proj)
+    θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
+    _project(θϕs, hpx_map => cart_proj)
 end
 
 function project((hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
-    @unpack Ny, Nx, T, rotator = cart_proj
+    @unpack Ny, Nx, T = cart_proj
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
+    ψpol = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
     Q = _project(θϕs, hpx_map.Q => cart_proj)
     U = _project(θϕs, hpx_map.U => cart_proj)
-    ψpol = reshape((hp.Rotator((0,-90,0)) * hp.Rotator(rotator)).angle_ref(first.(θϕs)[:], last.(θϕs)[:]), Ny, Nx)
     QU_flat = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
     FlatQUMap(real.(QU_flat), imag.(QU_flat), cart_proj)
 end
@@ -186,7 +199,7 @@ function project((cart_map, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_map.proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
-    ψpol = (hp.Rotator((0,-90,0)) * hp.Rotator(rotator)).angle_ref(θs, ϕs)
+    ψpol = get_ψpol.(cart_map.proj, θs, ϕs)
     Q = _project((is, js), cart_map[:Q] => hpx_proj)
     U = _project((is, js), cart_map[:U] => hpx_proj)
     QU_flat = @. (Q.arr + im * U.arr) * exp(-im * 2 * T(ψpol))

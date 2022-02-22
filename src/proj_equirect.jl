@@ -53,6 +53,13 @@ typealias_def(::Type{<:ProjEquiRect{T}}) where {T} = "ProjEquiRect{$T}"
 
 typealias_def(::Type{F}) where {B,M<:ProjEquiRect,T,A,F<:EquiRectField{B,M,T,A}} = "EquiRect$(typealias(B)){$(typealias(A))}"
 
+# allow proj.T
+getproperty(proj::ProjEquiRect, k::Symbol) = getproperty(proj, Val(k))
+getproperty(proj::ProjEquiRect{T}, ::Val{:T}) where {T} = T
+getproperty(proj::ProjEquiRect, ::Val{k}) where {k} = getfield(proj, k)
+
+
+
 # Proj 
 # ================================================
 
