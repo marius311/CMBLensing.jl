@@ -42,12 +42,21 @@ has some extra indexing properties for convenience:
 
 
 """
-function load_chains(filename; burnin=0, thin=1, join=false, unbatch=true, dropmaps=false, burnin_chunks=0)
+function load_chains(
+    filename; 
+    burnin = 0,
+    thin = 1,
+    join = false,
+    unbatch = true,
+    dropmaps = false,
+    burnin_chunks = 0,
+    progress = true
+)
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
-        @showprogress for (isfirst,k) in flagfirst(chunk_ks)
+        @showprogress (progress ? 1 : Inf) for (isfirst,k) in flagfirst(chunk_ks)
             if isfirst
                 chains = read(io,k)
             else
@@ -137,8 +146,8 @@ wrap_chains(chain::Vector) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
-    D = batch_length(chain[end][:lnP])
-    (D==1) && return chain
+    D = batch_length(chain[end][:logpdf])
+    (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
