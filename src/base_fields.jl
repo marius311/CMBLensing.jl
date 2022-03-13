@@ -134,6 +134,11 @@ function strict_compatible_metadata(f₁::BaseField, f₂::BaseField)
     catch; false; end
 end
 
+## mapping
+
+# this comes up in Zygote.broadcast_forward, and the generic falls back to a regular Array
+map(func, f::BaseField{B}) where {B} = BaseField{B}(map(func, f.arr), f.metadata)
+
 
 ## properties
 getproperty(f::BaseField, s::Symbol)           = getproperty(f,Val(s))

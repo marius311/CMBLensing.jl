@@ -60,9 +60,9 @@ using Zygote.ChainRules: @thunk, NoTangent
 import Adapt: adapt_structure
 import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     abs, adjoint, all, any, axes, broadcast, broadcastable, BroadcastStyle, conj, copy, convert,
-    copy, copyto!, eltype, eps, exp, fill!, getindex, getproperty, hash, hcat, hvcat, inv, isfinite,
-    iterate, keys, lastindex, length, literal_pow, log, mapreduce, materialize!,
-    materialize, one, permutedims, print_array, promote, promote_rule,
+    copy, copyto!, eltype, eps, exp, fill!, getindex, getproperty, hash, haskey, hcat, hvcat, inv, isfinite,
+    iterate, keys, lastindex, length, literal_pow, log, map, mapreduce, materialize!,
+    materialize, merge, one, permutedims, print_array, promote, promote_rule,
     promote_rule, promote_type, propertynames, real, setindex!, setproperty!, show,
     show_datatype, show_vector, similar, size, sqrt, string, sum, summary,
     transpose, zero

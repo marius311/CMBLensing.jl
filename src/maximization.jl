@@ -1,17 +1,6 @@
 
 ## wiener filter
 
-
-
-# Should return an operator which is fast to apply and which
-# approximates the Hessian of logpdf w.r.t. f. The fallback here uses
-# the "approximate" B̂, M̂, and Cn̂ operators
-function Hessian_f_preconditioner(ds :: DataSet)
-    @unpack Cf, B̂, M̂, Cn̂ = ds
-    pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
-end
-
-
 @doc doc"""
     argmaxf_logpdf(ds::DataSet, Ω::NamedTuple, [d = ds.d]; kwargs...)
 
@@ -35,7 +24,7 @@ function argmaxf_logpdf(
     offset = false,
 )
     
-    Hess_preconditioner = Hessian_f_preconditioner(ds)
+    Hess_preconditioner = Hessian_logpdf_preconditioner(:f, ds)
     zero_f = zero(diag(ds.Cf))
 
     # brittle (but working) performance hack until we switch to Diffractor (see also flowops.jl)
@@ -119,10 +108,10 @@ contains the history of steps during the run.
 MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
 function MAP_joint(
     θ, 
-    ds :: DataSet;
+    ds :: DataSet,
+    Ωstart = FieldTuple(ϕ=zero(diag(ds.Cϕ)),);
     nsteps = 20,
     Nϕ = :qe,
-    ϕstart = nothing,
     fstart = nothing,
     ϕtol = nothing,
     αtol = 1e-4,
@@ -132,9 +121,12 @@ function MAP_joint(
     quasi_sample = false,
     history_keys = (:logpdf,),
     aggressive_gc = false,
-    logPriorϕ = ϕ -> 0,
+    logPrior = (;_...) -> 0,
 )
 
+    if isfinite(nburnin_update_hessian)
+        keys((;Ωstart...,)) == (:ϕ,) || error("nburnin_update_hessian only implemented for (f,ϕ)-only maximization.")
+    end
 
     sample_or_argmax_f = 
         quasi_sample == false ? argmaxf_logpdf :
@@ -145,49 +137,55 @@ function MAP_joint(
     dsθ = copy(ds(θ))
     dsθ.G = I # MAP estimate is invariant to G so avoid wasted computation
 
-    ϕ = Map(isnothing(ϕstart) ? zero(diag(ds.Cϕ)) : ϕstart)
-    T = eltype(ϕ)
-    
-    # compute approximate inverse ϕ Hessian used in gradient descent, possibly
-    # from quadratic estimate
-    if (Nϕ == :qe)
-        Nϕ = quadratic_estimate(dsθ).Nϕ/2
-    end
-    Hϕ⁻¹ = (Nϕ == nothing) ? dsθ.Cϕ : pinv(pinv(dsθ.Cϕ) + pinv(Nϕ))
+    Ω = Ωstart
+    T = real(eltype(ds.d))
 
     history = []
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
     ProgressMeter.update!(pbar)
 
-    prevϕ = prev_∇ϕ_logpdf = nothing
+    prevΩ = prevΩ° = prev_∇Ω°_logpdf = HΩ° = nothing
     f = prevf = fstart
-    α = Inf
+    α = 10
 
     for step = 1:nsteps
 
-        # f step
+        ## f step
         (f, argmaxf_logpdf_history) = @⌛ sample_or_argmax_f(
             dsθ, 
-            (;ϕ, θ);
+            (;Ω..., θ);
             fstart = prevf, 
             conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...)
         )
         aggressive_gc && cuda_gc()
 
-        # ϕ step
-        f°, = mix(dsθ; f, ϕ, θ)
-        ∇ϕ_logpdf, = @⌛ gradient(ϕ->logpdf(Mixed(dsθ); f°, ϕ°=ϕ, θ)+logPriorϕ(ϕ), ϕ)
-        s = (Hϕ⁻¹ * ∇ϕ_logpdf)
-        αmax = min(5α, get_max_lensing_step(ϕ,s)/2)
-        soln = @ondemand(Optim.optimize)(0, T(αmax), @ondemand(Optim.Brent)(); abs_tol=αtol) do α
-            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, ϕ°=ϕ+α*s, θ, dsθ.d)+logPriorϕ(ϕ+α*s)))))
+        ## ϕ step
+        # gradient
+        (;f°) = Ω° = mix(dsθ; f, Ω..., θ)
+        Ω° = FieldTuple(delete(Ω°, (:f°, :θ)))
+        ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ) + logPrior(;Ω°...), Ω°)
+        # Hessian
+        if step > nburnin_update_hessian
+            HΩ°⁻¹_unsmooth = Diagonal(abs.(Fourier(Ω°.ϕ° - prevΩ°.ϕ°) ./ Fourier(∇Ω°_logpdf.ϕ° - prev_∇Ω°_logpdf.ϕ°)))
+            HΩ°⁻¹_smooth = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(HΩ°⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
+            HΩ° = Diagonal(FieldTuple(ϕ°=diag(pinv(HΩ°⁻¹_smooth))))
+        elseif HΩ° == nothing
+            HΩ° = Hessian_logpdf_preconditioner(keys((;Ω°...,)), ds)
+        end
+        # line search
+        s = pinv(HΩ°) * ∇Ω°_logpdf
+        αmax = haskey(Ω°,:ϕ°) ? min(5α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 5α
+        soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
+            Ω°′ = Ω°+α*s
+            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ) + logPrior(;Ω°′...)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)
-        ϕ += α * s
+        Ω° += α * s
         
-        # finalize
-        _logpdf = @⌛ logpdf(Mixed(dsθ); f°, ϕ°=ϕ, θ, dsθ.d)
+        ## finalize
+        _logpdf = @⌛ logpdf(Mixed(dsθ); f°, Ω°..., θ)
+        Ω = delete(unmix(ds; f°, Ω°..., θ), (:f, :θ))
         total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
@@ -196,26 +194,22 @@ function MAP_joint(
             ("CG",         "$(length(argmaxf_logpdf_history)) iterations"), 
             ("Linesearch", "$(soln.iterations) bisections")
         ])
-        push!(history, select((;f,f°,ϕ,∇ϕ_logpdf,total_logpdf,α,αmax,logpdf=_logpdf,Hϕ⁻¹,argmaxf_logpdf_history), history_keys))
+        push!(history, select((;f°,f,Ω°...,Ω...,∇Ω°_logpdf,total_logpdf,α,αmax,logpdf=_logpdf,HΩ°,argmaxf_logpdf_history), history_keys))
+        
+        # early stop based on tolerance
         if (
-            !isnothing(ϕtol) &&
-            !isnothing(prevϕ) &&
-            sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (ϕ - prevϕ))) / sqrt(2length(ϕ)))) < ϕtol
+            !isnothing(ϕtol) && !isnothing(prevΩ) && haskey(prevΩ,:ϕ) &&
+            sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (Ω.ϕ - prevΩ.ϕ))) / sqrt(2length(Ω.ϕ)))) < ϕtol
         )
             break
-        else
-            if step > nburnin_update_hessian
-                Hϕ⁻¹_unsmooth = Diagonal(abs.(Fourier(ϕ - prevϕ) ./ Fourier(∇ϕ_logpdf - prev_∇ϕ_logpdf)))
-                Hϕ⁻¹ = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(Hϕ⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
-            end
-            prevf, prevϕ, prev_∇ϕ_logpdf = f, ϕ, ∇ϕ_logpdf
         end
+        prevf, prevΩ, prevΩ°, prev_∇Ω°_logpdf = f, Ω, Ω°, ∇Ω°_logpdf
 
     end
 
     ProgressMeter.finish!(pbar)
 
-    f, ϕ, history
+    (;f, Ω..., history)
 
 end
 

@@ -117,9 +117,23 @@ function unmix(ds::DataSet; f°, ϕ°, θ=(;), Ω...)
     (; f, ϕ, θ, Ω...)
 end
 
-# maybe keep this
-lnPriorθ(θ, ds::DataSet) = 0
 
+## preconditioning
+
+# Should return an operator which is fast to apply and which
+# approximates the Hessian of logpdf w.r.t. the symbols in Ω.
+
+Hessian_logpdf_preconditioner(Ω::Union{Symbol,Tuple}, ds::DataSet) = Hessian_logpdf_preconditioner(Val(Ω), ds)
+
+function Hessian_logpdf_preconditioner(Ω::Val{:f}, ds::DataSet)
+    @unpack Cf, B̂, M̂, Cn̂ = ds
+    pinv(Cf) + B̂'*M̂'*pinv(Cn̂)*M̂*B̂
+end
+
+function Hessian_logpdf_preconditioner(Ω::Val{(:ϕ°,)}, ds::DataSet)
+    @unpack Cϕ, Nϕ = ds
+    Diagonal(FieldTuple(ϕ°=diag(pinv(Cϕ)+pinv(Nϕ/2))))
+end
 
 
 

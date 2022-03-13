@@ -37,6 +37,8 @@ similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar
 similar(ft::FieldTuple, Nbatch::Int) = FieldTuple(map(f->similar(f,Nbatch),ft.fs))
 sum(f::FieldTuple; dims=:) = dims == (:) ? sum(sum, f.fs) : error("sum(::FieldTuple, dims=$dims not supported")
 
+merge(nt::NamedTuple, ft::FieldTuple) = merge(nt, ft.fs)
+
 ### broadcasting
 # see base_fields.jl for more explanation of all these pieces, its the
 # exact same principle 
@@ -120,3 +122,4 @@ tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagon
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
 batch_index(ft::FieldTuple, I) = FieldTuple(map(f -> batch_index(f, I), ft.fs))
 getindex(ft::FieldTuple, k::Symbol) = ft.fs[k]
+haskey(ft::FieldTuple, k::Symbol) = haskey(ft.fs, k)
