@@ -112,7 +112,7 @@ quasi-sample) field, `ϕ` is the lensing potential, and `history`
 contains the history of steps during the run. 
 
 """
-MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
+MAP_joint(ds::DataSet, args...; kwargs...) = MAP_joint((;), ds, args...; kwargs...)
 function MAP_joint(
     θ, 
     ds :: DataSet,
