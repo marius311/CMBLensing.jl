@@ -72,33 +72,40 @@ gradientf_logpdf(ds::DataSet; f, Ω...) = gradient(f -> logpdf(ds; f, Ω...), f)
 
 @doc doc"""
 
-    MAP_joint(ds::DataSet; kwargs...)
+    MAP_joint([θ], ds::DataSet, [Ωstart=(ϕ=0,)]; kwargs...)
  
 Compute the maximum a posteriori (i.e. "MAP") estimate of the joint
 posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$, or compute a
 quasi-sample. 
 
+Positional arguments:
+
+* `[θ]` — Optional θ at which to do maximization.
+* `ds::DataSet` — The DataSet which defines the posterior
+* `[Ωstart=(ϕ=0,)]` — Optional starting point for the non-Gaussian
+  fields to optimize over. The maximizer does a coordinate descent
+  which alternates between updating `f` which the posterior is assumed
+  to be Gaussian in, and updating the fields in `Ωstart` (which by
+  default is just `ϕ`).
 
 Keyword arguments:
 
 * `nsteps` — The maximum number of iterations for the maximizer.
-* `ϕstart = 0` — Starting point of the maximizer.
 * `ϕtol = nothing` — If given, stop when `ϕ` updates reach this
   tolerance. `ϕtol` is roughly the relative per-pixel standard
   deviation between changes to `ϕ` and draws from the `ϕ` prior.
   Values in the range $10^{-2}-10^{-4}$ are reasonable. 
-* `nburnin_update_hessian = 10` — How many steps to wait before
+* `nburnin_update_hessian = Inf` — How many steps to wait before
   starting to do diagonal updates to the Hessian
 * `conjgrad_kwargs = (;)` — Passed to the inner call to
   [`conjugate_gradient`](@ref).
 * `progress = true` — Whether to show the progress bar.
-* `Nϕ = :qe` — Noise to use in the initial approximation to the
-   Hessian. Can give `:qe` to use the quadratic estimate noise.
 * `quasi_sample = false` — `false` to compute the MAP, `true` to
    iterate quasi-samples, or an integer to compute a fixed-seed
    quasi-sample.
 * `history_keys` — What quantities to include in the returned
-  `history`. Can be any subset of `(:f, :f°, :ϕ, :∇ϕ_logpdf, :χ², :logpdf)`.
+  `history`. Can be any subset of `(:f, :f°, :ϕ, :∇ϕ_logpdf, :χ²,
+  :logpdf)`.
 
 Returns a tuple `(f, ϕ, history)` where `f` is the best-fit (or
 quasi-sample) field, `ϕ` is the lensing potential, and `history`
@@ -111,7 +118,6 @@ function MAP_joint(
     ds :: DataSet,
     Ωstart = FieldTuple(ϕ=Map(zero(diag(ds.Cϕ))));
     nsteps = 20,
-    Nϕ = :qe,
     fstart = nothing,
     ϕtol = nothing,
     αtol = 1e-4,
