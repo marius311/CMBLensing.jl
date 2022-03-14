@@ -132,7 +132,7 @@ end
 
 function Hessian_logpdf_preconditioner(Ω::Val{(:ϕ°,)}, ds::DataSet)
     @unpack Cϕ, Nϕ = ds
-    Diagonal(FieldTuple(ϕ°=diag(pinv(Cϕ)+pinv(Nϕ/2))))
+    Diagonal(FieldTuple(ϕ°=diag(pinv(Cϕ)+pinv(Nϕ))))
 end
 
 

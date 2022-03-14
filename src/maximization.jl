@@ -109,7 +109,7 @@ MAP_joint(ds::DataSet; kwargs...) = MAP_joint((;), ds; kwargs...)
 function MAP_joint(
     θ, 
     ds :: DataSet,
-    Ωstart = FieldTuple(ϕ=zero(diag(ds.Cϕ)),);
+    Ωstart = FieldTuple(ϕ=Map(zero(diag(ds.Cϕ))));
     nsteps = 20,
     Nϕ = :qe,
     fstart = nothing,
@@ -161,7 +161,7 @@ function MAP_joint(
 
         ## ϕ step
         # gradient
-        (;f°) = Ω° = mix(dsθ; f, Ω..., θ)
+        @unpack f° = (Ω° = mix(dsθ; f, Ω..., θ))
         Ω° = FieldTuple(delete(Ω°, (:f°, :θ)))
         ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ) + logPrior(;Ω°...), Ω°)
         # Hessian
@@ -170,7 +170,7 @@ function MAP_joint(
             HΩ°⁻¹_smooth = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(HΩ°⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
             HΩ° = Diagonal(FieldTuple(ϕ°=diag(pinv(HΩ°⁻¹_smooth))))
         elseif HΩ° == nothing
-            HΩ° = Hessian_logpdf_preconditioner(keys((;Ω°...,)), ds)
+            HΩ° = Hessian_logpdf_preconditioner(keys((;Ω°...,)), dsθ)
         end
         # line search
         s = pinv(HΩ°) * ∇Ω°_logpdf
@@ -185,7 +185,7 @@ function MAP_joint(
         
         ## finalize
         _logpdf = @⌛ logpdf(Mixed(dsθ); f°, Ω°..., θ)
-        Ω = delete(unmix(ds; f°, Ω°..., θ), (:f, :θ))
+        Ω = delete(unmix(dsθ; f°, Ω°..., θ), (:f, :θ))
         total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
