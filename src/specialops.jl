@@ -75,6 +75,7 @@ diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.Σ
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
+logdet(L::BlockDiagIEB) = logdet(L.ΣTE[1,1]*L.ΣTE[2,2]-L.ΣTE[1,2]*L.ΣTE[2,1]) + logdet(L.ΣB)
 # arithmetic
 *(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
 +(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])

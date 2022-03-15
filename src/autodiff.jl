@@ -99,7 +99,9 @@ end
 @adjoint /(f::Adjoint{<:Any,<:Field}, L::Union{DiagOp,ImplicitOp}) = Zygote.pullback((f,L)->(L'\f')', f, L)
 # special case for some ops which are constant by definition
 @adjoint *(L::Union{FuncOp,DiagOp{<:∇diag}}, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
-
+# todo: need to fix this to allow gradient w.r.t. entries of a BlockDiagIEB
+@adjoint *(L::BlockDiagIEB, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
+@adjoint \(L::BlockDiagIEB, f::Field{B}) where {B} = L\f, Δ->(nothing, B(L'\Δ))
 
 
 ## FieldVectors

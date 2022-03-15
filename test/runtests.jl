@@ -578,7 +578,7 @@ end
 
     @testset "Nside = $Nside" for Nside in Nsides_big
 
-        @testset "pol = $pol" for pol in (:I, :P)
+        @testset "pol = $pol" for pol in (:I, :P, :IP)
             
             @unpack f,f̃,ϕ,ds,ds₀ = load_sim(
                 Cℓ       = Cℓ,
@@ -593,12 +593,13 @@ end
             @unpack Cf, Cϕ = ds₀
             f°, ϕ° = mix(ds; f, ϕ)
 
-            @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=1e-4
+            @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=3e-4
 
             δf,δϕ = simulate(Cf), simulate(Cϕ)
 
-            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=3)
-            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=3)
+            atol = pol==:IP ? 30 : 3
+            @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=atol)
+            @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=atol)
             
         end
         

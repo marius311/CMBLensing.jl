@@ -1,18 +1,22 @@
 
-function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}; Nbatch=())
-    dist.μ + simulate(rng, Diagonal(dist.Σ.diag); Nbatch)
+struct PDFieldOpWrapper{L} <: AbstractPDMat{Real}
+    op :: L
 end
-function Distributions.logpdf(dist::MvNormal{<:Any,<:PDiagMat{<:Any,<:Field}}, f::Field)
-    z = dist.μ - f
-    Σ = Diagonal(dist.Σ)
-    -(z' * pinv(Σ) * z + logdet(Σ)) / 2
-end
-function Distributions.MvNormal(μ::Field, D::Diagonal{T,<:Field{<:Basis,T}}) where {T<:Real}
-    Σ = PDiagMat(length(diag(D)), diag(D))
-    MvNormal{T,typeof(Σ),typeof(μ)}(μ, Σ)
-end
-function Distributions.MvNormal(μ::Real, D::DiagOp)
-    μ==0 ? MvNormal(zero(diag(D)), D) : error("μ must be a Field or 0")
-end
+Zygote.ProjectTo(::PDFieldOpWrapper) = identity
 
-Zygote.@adjoint PDiagMat(dim, dg) = PDiagMat(dim, dg), Δ -> (nothing, diag(Δ))
+
+function Base.rand(rng::AbstractRNG, dist::MvNormal{<:Any,<:PDFieldOpWrapper}; Nbatch=())
+    dist.μ + simulate(rng, dist.Σ.op; Nbatch)
+end
+function Distributions.logpdf(dist::MvNormal{<:Any,<:PDFieldOpWrapper}, f::Field)
+    z = dist.μ - f
+    Σ = dist.Σ.op
+    -(z' * (pinv(Σ) * z) + logdet(Σ)) / 2
+end
+function Distributions.MvNormal(μ::Field, Σ::FieldOp{<:Real})
+    PDΣ = PDFieldOpWrapper(Σ)
+    MvNormal{real(eltype(μ)),typeof(PDΣ),typeof(μ)}(μ, PDΣ)
+end
+function Distributions.MvNormal(μ::Real, Σ::FieldOp{<:Real})
+    μ==0 ? MvNormal(zero(diag(Σ)), Σ) : error("μ must be a Field or 0")
+end
