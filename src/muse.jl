@@ -6,19 +6,20 @@ import .MuseInference: ∇θ_logLike, sample_x_z, ẑ_at_θ, muse!
 
 export CMBLensingMuseProblem
 
-struct CMBLensingMuseProblem{DS<:DataSet} <: AbstractMuseProblem
+struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS
+    ds_for_sims :: DS_SIM
     parameterization
     MAP_joint_kwargs
     θ_fixed
     x
 end
 
-function CMBLensingMuseProblem(ds; parameterization=0, MAP_joint_kwargs=(;), θ_fixed=(;))
-    CMBLensingMuseProblem(ds, parameterization, MAP_joint_kwargs, θ_fixed, ds.d)
+function CMBLensingMuseProblem(ds, ds_for_sims=ds; parameterization=0, MAP_joint_kwargs=(;), θ_fixed=(;))
+    CMBLensingMuseProblem(ds, ds_for_sims, parameterization, MAP_joint_kwargs, θ_fixed, ds.d)
 end
 
-mergeθ(prob::CMBLensingMuseProblem, θ) = (;prob.θ_fixed..., θ...)
+mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
 
 function ∇θ_logLike(prob::CMBLensingMuseProblem, d, z, θ) 
     @unpack ds, parameterization = prob
@@ -38,12 +39,12 @@ function ∇θ_logLike(prob::CMBLensingMuseProblem, d, z, θ)
 end
 
 function sample_x_z(prob::CMBLensingMuseProblem, rng::AbstractRNG, θ) 
-    @unpack d,f,ϕ = simulate(rng, prob.ds, θ = mergeθ(prob, θ))
+    @unpack d,f,ϕ = simulate(rng, prob.ds_for_sims, θ = mergeθ(prob, θ))
     (x=d, z=FieldTuple(;f,ϕ))
 end
 
 function sample_x_z(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, rng::AbstractRNG, θ) 
-    @unpack d,f = simulate(rng, prob.ds, θ = mergeθ(prob, θ))
+    @unpack d,f = simulate(rng, prob.ds_for_sims, θ = mergeθ(prob, θ))
     (x=d, z=FieldTuple(;f))
 end
 
