@@ -98,6 +98,9 @@ function getindex(L::BlockDiagIEB, k::Symbol)
         _ => throw(ArgumentError("Invalid BlockDiagIEB index: $k"))
     end
 end
+# hashing
+hash(L::BlockDiagIEB, h::UInt64) = foldr(hash, (typeof(L), L.ΣTE[1,1], L.ΣTE[1,2], L.ΣTE[2,2], L.ΣB), init=h)
+
 
 
 
