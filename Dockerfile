@@ -54,6 +54,7 @@ RUN curl https://pyenv.run | bash \
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
 RUN pip install --no-cache-dir \
         cython \
+        "jinja2<3.1.0" \
         julia \
         "jupyterlab>=3" \
         jupyter-client==6.1.12 \
