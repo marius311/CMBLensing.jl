@@ -159,7 +159,7 @@ function LinearInterpolation(xdat::AbstractVector, ydat::AbstractVector; extrapo
     @assert issorted(xdat)
     @assert extrapolation_bc isa Number || extrapolation_bc == :line
     
-    m = diff(ydat) ./ diff(xdat)
+    m = diff(ydat) ./ diff(collect(xdat))
     
     function (x::Number)
         
