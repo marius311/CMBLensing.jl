@@ -37,6 +37,7 @@ using NamedTupleTools: select, delete
 using PDMats
 using Pkg
 using Printf
+using Profile
 using ProgressMeter
 using QuadGK
 using Random
@@ -104,6 +105,7 @@ export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!,
 
 
 # util
+include("util_dynamic_import.jl")
 include("util.jl")
 include("util_fft.jl")
 include("util_parallel.jl")

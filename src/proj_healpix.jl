@@ -213,5 +213,6 @@ function project((cart_map, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix})
 end
 
 function _project((is, js), (cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
-    HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_map).Ix)), is, js), hpx_proj)
+    @dynamic import Images
+    HealpixMap(broadcast(Images.bilinear_interpolation, Ref(cpu(Map(cart_map).Ix)), is, js), hpx_proj)
 end

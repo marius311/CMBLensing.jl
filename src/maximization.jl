@@ -130,6 +130,8 @@ function MAP_joint(
     logPrior = (;_...) -> 0,
 )
 
+    @dynamic import Optim
+
     if isfinite(nburnin_update_hessian)
         keys((;Ωstart...,)) == (:ϕ,) || error("nburnin_update_hessian only implemented for (f,ϕ)-only maximization.")
     end
@@ -181,7 +183,7 @@ function MAP_joint(
         # line search
         s = pinv(HΩ°) * ∇Ω°_logpdf
         αmax = haskey(Ω°,:ϕ°) ? min(5α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 5α
-        soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
+        soln = Optim.optimize(T(0), T(αmax), Optim.Brent(); abs_tol=T(αtol)) do α
             Ω°′ = Ω°+α*s
             total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ) + logPrior(;Ω°′...)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828

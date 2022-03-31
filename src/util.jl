@@ -179,28 +179,8 @@ macro subst(ex)
 
 end
 
-
-"""
-    @ondemand(Package.function)(args...; kwargs...)
-    @ondemand(Package.Submodule.function)(args...; kwargs...)
-
-Just like calling `Package.function` or `Package.Submodule.function`, but
-`Package` will be loaded on-demand if it is not already loaded. The call is no
-longer inferrable.
-"""
 macro ondemand(ex)
-    get_root_package(x) = @capture(x, a_.b_) ? get_root_package(a) : x
-    quote
-        @eval import $(get_root_package(ex))
-        InvokeLatestFunction($(esc(ex)))
-    end
 end
-struct InvokeLatestFunction
-    func
-end
-(func::InvokeLatestFunction)(args...; kwargs...) = Base.@invokelatest(func.func(args...; kwargs...))
-Base.broadcast(func::InvokeLatestFunction, args...; kwargs...) = Base.@invokelatest(broadcast(func.func, args...; kwargs...))
-
 
 
 get_kwarg_names(func::Function) = Vector{Symbol}(Base.kwarg_decl(first(methods(func))))
@@ -271,7 +251,8 @@ struct LazyPyImport
     pkg
 end
 function getproperty(p::LazyPyImport, s::Symbol)
-    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
+    @dynamic import PyCall
+    pkg = PyCall.pyimport(getfield(p,:pkg))
     Base.invokelatest() do
         prop = getproperty(pkg, s)
         if PyCall.pybuiltin(:callable)(prop)

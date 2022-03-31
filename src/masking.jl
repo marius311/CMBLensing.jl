@@ -38,23 +38,26 @@ function boundarymask(Nside, pad)
 end
 
 function bleed(img, w)
+    @dynamic import ImageMorphology
     Ny,Nx = size(img)
-    nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(img),:I)
+    nearest = getfield.(ImageMorphology.feature_transform(img), :I)
     [norm(nearest[i,j] .- [i,j]) < w for i=1:Ny,j=1:Nx]
 end
 
 function cos_apod(img, w, smooth_distance=false)
+    @dynamic import ImageMorphology, ImageFiltering
     Ny,Nx = size(img)
-    nearest = getfield.(@ondemand(ImageMorphology.feature_transform)(.!img),:I)
+    nearest = getfield.(ImageMorphology.feature_transform(.!img),:I)
     distance = [norm(nearest[i,j] .- [i,j]) for i=1:Ny,j=1:Nx]
     if smooth_distance!=false
-        distance = @ondemand(ImageFiltering.imfilter)(distance, @ondemand(ImageFiltering.Kernel.gaussian)(smooth_distance))
+        distance = ImageFiltering.imfilter(distance, ImageFiltering.Kernel.gaussian(smooth_distance))
     end
     @. (1-cos(min(distance,w)/w*pi))/2
 end
 
 function round_edges(img, w)
-    .!(@ondemand(ImageFiltering.imfilter)(img, @ondemand(ImageFiltering.Kernel.gaussian)(w)) .< 0.5)
+    @dynamic import ImageFiltering
+    .!(ImageFiltering.imfilter(img, ImageFiltering.Kernel.gaussian(w)) .< 0.5)
 end
 
 function sim_ptsrcs(rng,Nside,nsources)

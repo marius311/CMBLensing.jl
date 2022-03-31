@@ -182,8 +182,10 @@ chain where the error on the mean and standard deviation is estimated with
 bootstrap resampling using the calculated "effective sample size" of the chain.
 """
 function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2, tol=50)
+
+    @dynamic import PyCall
     
-    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples; tol)[1])
+    Neff = round(Int, length(samples) / PyCall.pyimport(:emcee).autocorr.integrated_time(samples; tol)[1])
     
     μ = mean(samples)
     σ = std(samples)
@@ -202,9 +204,10 @@ Get a string represntation of `μ ± σ` in "parenthesis" format, e.g. `1.234 ±
 0.012` becomes `1.234(12)`.
 """
 function paren_errors(μ, σ; N_in_paren=2)
+    @dynamic import Formatting
     N = round(Int, floor(log10(1/σ))) + N_in_paren
     fmt = "%.$(N)f"
-    @ondemand(Formatting.sprintf1)(fmt, μ)*"($(round(Int,σ*10^N)))"
+    Formatting.sprintf1(fmt, μ)*"($(round(Int,σ*10^N)))"
 end
 
 
@@ -230,7 +233,8 @@ Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html),
 which must be installed.
 """
 function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral")
-    getdist = @ondemand(PyCall.pyimport)("getdist")
+    @dynamic import PyCall
+    getdist = PyCall.pyimport("getdist")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
@@ -239,12 +243,13 @@ function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="int
 end
 
 function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothing)), normalize="integral", smooth_scale_2D=nothing)
+    @dynamic import PyCall
     if size(samples,1) == 2
         samples = samples'
     elseif size(samples,2) != 2
         error("KDE only supports 1 or 2 dimensional samples.")
     end
-    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist = PyCall.pyimport("getdist")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])

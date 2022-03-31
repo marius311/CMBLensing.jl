@@ -24,3 +24,4 @@ docs/src-staging/0*
 profiling
 posts
 *.mem
+.CondaPkg

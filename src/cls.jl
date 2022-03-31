@@ -123,58 +123,54 @@ end
     
     params = Base.@locals
     
-    camb = @ondemand(PyCall.pyimport)(:camb)
+    @dynamic import PyCall: pyimport
     
-    Base.invokelatest() do
-    
-        ℓmax′ = min(5000,ℓmax)
-        cp = camb.set_params(
-            ombh2 = ωb,
-            omch2 = ωc,
-            tau = τ,
-            mnu = Σmν,
-            cosmomc_theta = θs,
-            H0 = H0,
-            ns = nₛ,
-            nt = nₜ,
-            As = exp(logA)*1e-10,
-            pivot_scalar = k_pivot,
-            pivot_tensor = k_pivot,
-            lmax = ℓmax′,
-            r = r,
-            Alens = AL,
-        )
-        cp.max_l_tensor = ℓmax′
-        cp.max_eta_k_tensor = 2ℓmax′
-        cp.WantScalars = true
-        cp.WantTensors = true
-        cp.DoLensing = true
-        cp.set_nonlinear_lensing(true)
+    ℓmax′ = min(5000,ℓmax)
+    cp = pyimport(:camb).set_params(
+        ombh2 = ωb,
+        omch2 = ωc,
+        tau = τ,
+        mnu = Σmν,
+        cosmomc_theta = θs,
+        H0 = H0,
+        ns = nₛ,
+        nt = nₜ,
+        As = exp(logA)*1e-10,
+        pivot_scalar = k_pivot,
+        pivot_tensor = k_pivot,
+        lmax = ℓmax′,
+        r = r,
+        Alens = AL,
+    )
+    cp.max_l_tensor = ℓmax′
+    cp.max_eta_k_tensor = 2ℓmax′
+    cp.WantScalars = true
+    cp.WantTensors = true
+    cp.DoLensing = true
+    cp.set_nonlinear_lensing(true)
 
-        res = camb.get_results(cp)
-        
-        
-        ℓ  = collect(2:ℓmax -1)
-        ℓ′ = collect(2:ℓmax′-1)
-        α = (10^6*cp.TCMB)^2
-        toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
+    res = pyimport(:camb).get_results(cp)
     
-        Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
     
-        return (;
-            map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
-                Symbol(k) => (;
-                    map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
-                        Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
-                    end..., 
-                    ϕϕ = Cℓϕϕ
-                )
-            end...,
-            params = (;params...)
-        )
-    
-    end
+    ℓ  = collect(2:ℓmax -1)
+    ℓ′ = collect(2:ℓmax′-1)
+    α = (10^6*cp.TCMB)^2
+    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
 
+    Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
+
+    return (;
+        map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
+            Symbol(k) => (;
+                map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
+                    Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
+                end..., 
+                ϕϕ = Cℓϕϕ
+            )
+        end...,
+        params = (;params...)
+    )
+    
 end
 
 @doc """
