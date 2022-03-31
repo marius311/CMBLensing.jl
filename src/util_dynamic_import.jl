@@ -14,20 +14,18 @@ macro dynamic(import_statements)
 
     @assert Base.is_expr(import_statements, :import)
     
-    function is_module_loaded_in_world(import_statement)
-        imported_module = Base.is_expr(import_statement, :(:)) ? import_statement.args[1].args[1] : import_statement.args[1]
-        :(isdefined($__module__, $(QuoteNode(imported_module))) && (try $imported_module.eval(true); catch ex; false; end))
-    end
-    
     quote
-        # if any of the packages are not yet imported in the current
-        # world (using the modules' eval method as a check)
-        if !$(Expr(:&&, map(is_module_loaded_in_world, import_statements.args)...))
+
+        # do the imports
+        world = Base.get_world_counter()
+        @eval $import_statements
+
+        # if the import necessitated a world-age increase, it means we
+        # need reinvoke the function in the new world to get the
+        # necessary methods
+        if Base.get_world_counter() != world
 
             locals = Base.@locals()
-
-            # do the imports
-            @eval $import_statements
 
             # figure out what method we're in. in the case of a
             # closure, need to reconstruct the callable object
