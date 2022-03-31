@@ -7,15 +7,15 @@ loaded until the first time the function gets run. Note that, in order
 to avoid world-age errors, the function is effectively "restarted from
 the top" after the first time a given `@dynamic` is encountered, so be
 careful not to modify a global state or do costly work inside the
-function before the import. Calls to newly imported methods are not
-inferrable.
+function before the import. The function containing the import will no
+longer be inferrable.
 """
 macro dynamic(import_statements)
 
-    @assert Base.isexpr(import_statements, :import)
+    @assert Base.is_expr(import_statements, :import)
     
     function is_module_loaded_in_world(import_statement)
-        imported_module = Base.isexpr(import_statement, :(:)) ? import_statement.args[1].args[1] : import_statement.args[1]
+        imported_module = Base.is_expr(import_statement, :(:)) ? import_statement.args[1].args[1] : import_statement.args[1]
         :(isdefined($__module__, $(QuoteNode(imported_module))) && (try $imported_module.eval(true); catch ex; false; end))
     end
     
