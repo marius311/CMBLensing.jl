@@ -10,20 +10,32 @@ careful not to modify a global state or do costly work inside the
 function before the import. The function containing the import will no
 longer be inferrable.
 """
-macro dynamic(import_statements)
+macro dynamic(import_statement)
 
-    @assert Base.is_expr(import_statements, :import)
+    @assert Base.is_expr(import_statement, :import)
+    
+    # every `import Foo[: bar]` gets a `import Foo: eval as
+    # ##Foo_eval` so we can check if the module's functions are
+    # callable in the current world, and without polluting the module
+    # namespace
+    imported_modules = Base.is_expr(import_statement.args[1], :(:)) ? [import_statement.args[1].args[1]] : import_statement.args
+    module_evals = [gensym("$(join(ex.args,"_"))_eval") for ex in imported_modules]
+    imported_module_evals = [
+        Expr(:import, Expr(:(:), mod, Expr(:as, Expr(:(.), :eval), eval))) 
+        for (mod,eval) in zip(imported_modules, module_evals)
+    ]
     
     quote
 
-        # do the imports
-        world = Base.get_world_counter()
-        @eval $import_statements
+        # always do the imports incase new functions have been imported
+        @eval begin
+            $import_statement
+            $(imported_module_evals...)
+        end
 
-        # if the import necessitated a world-age increase, it means we
-        # need reinvoke the function in the new world to get the
-        # necessary methods
-        if Base.get_world_counter() != world
+        # check if we have access to all the imported modules'
+        # functions (using the modules' eval as a proxy)
+        if !$(Expr(:&&, [:(try $eval(true); catch; false; end) for eval in module_evals]...))
 
             locals = Base.@locals()
 
