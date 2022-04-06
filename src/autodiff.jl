@@ -1,9 +1,15 @@
 
-# this does basis promotion, unlike Zygote's default for AbstractArrays
-Zygote.accum(a::Field, b::Field) = a+b
-Zygote.accum(a::FieldTuple, b::FieldTuple) = Zygote.accum.(a,b)
-# this may create a LazyBinaryOp, unlike Zygote's
-Zygote.accum(a::FieldOp, b::FieldOp) = a+b
+# accum is basically supposed to do addition, but Zygotes default for
+# Arrays does a broadcast which doesnt do a potentially needed basis
+# conversion.
+function Zygote.accum(x::Field, y::Field)
+    x === nothing ? y : 
+    y === nothing ? x :
+    x + y
+end
+Zygote.accum(x::Field, y::Field, zs::Field...) = Zygote.accum(Zygote.accum(x, y), zs...)
+# TODO: we might need to a vararg version of this too:
+Zygote.accum(a::FieldOp, b::FieldOp) = a + b
 
 
 # constant functions, as far as AD is concerned
@@ -11,6 +17,7 @@ Zygote.accum(a::FieldOp, b::FieldOp) = a+b
 @nograd fieldinfo
 @nograd hasfield
 @nograd basetype
+@nograd get_storage
 
 
 # AD for Fourier Fields can be really subtle because such objects are
