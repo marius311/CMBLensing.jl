@@ -127,7 +127,6 @@ function MAP_joint(
     quasi_sample = false,
     history_keys = (:logpdf,),
     aggressive_gc = false,
-    logPrior = (;_...) -> 0,
 )
 
     if isfinite(nburnin_update_hessian)
@@ -143,16 +142,15 @@ function MAP_joint(
     dsθ = copy(ds(θ))
     dsθ.G = I # MAP estimate is invariant to G so avoid wasted computation
 
-    Ω = Ωstart
-    T = real(eltype(ds.d))
-
+    
     history = []
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
     ProgressMeter.update!(pbar)
-
+    
     prevΩ = prevΩ° = prev_∇Ω°_logpdf = HΩ° = nothing
+    Ω = Ωstart
     f = prevf = fstart
-    α = 10
+    α = 1
 
     for step = 1:nsteps
 
@@ -169,7 +167,7 @@ function MAP_joint(
         # gradient
         @unpack f° = (Ω° = mix(dsθ; f, Ω..., θ))
         Ω° = FieldTuple(delete(Ω°, (:f°, :θ)))
-        ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ) + logPrior(;Ω°...), Ω°)
+        ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ), Ω°)
         # Hessian
         if step > nburnin_update_hessian
             HΩ°⁻¹_unsmooth = Diagonal(abs.(Fourier(Ω°.ϕ° - prevΩ°.ϕ°) ./ Fourier(∇Ω°_logpdf.ϕ° - prev_∇Ω°_logpdf.ϕ°)))
@@ -180,10 +178,11 @@ function MAP_joint(
         end
         # line search
         s = pinv(HΩ°) * ∇Ω°_logpdf
-        αmax = haskey(Ω°,:ϕ°) ? min(5α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 5α
+        αmax = haskey(Ω°,:ϕ°) ? min(2α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 2α
+        T = real(eltype(f))
         soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
             Ω°′ = Ω°+α*s
-            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ) + logPrior(;Ω°′...)))))
+            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
         α = T(soln.minimizer)

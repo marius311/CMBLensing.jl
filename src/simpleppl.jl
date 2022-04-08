@@ -24,7 +24,7 @@ macro fwdmodel(def)
             return :(_vars[$(QuoteNode(var))] = $var = (Base.@isdefined($var) && !ismissing($var) ? $var : $rhs))
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
-            if !(f in maybe_local_var) && isdefined(__module__, f)
+            if (f isa Symbol) && !(f in maybe_local_var) && isdefined(__module__, f)
                 if is_simpleppl_model(getfield(__module__, f))
                     return :($f($(Simulate()), _vars, rng, $(args...); $(kwargs...)))
                 end
@@ -50,7 +50,7 @@ macro fwdmodel(def)
             return :($var = $rhs)
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
-            if !(f in maybe_local_var) && isdefined(__module__, f)
+            if (f isa Symbol) && !(f in maybe_local_var) && isdefined(__module__, f)
                 if is_simpleppl_model(getfield(__module__, f))
                     return :($f($(Logpdf()), _logpdf, $(args...); $(kwargs...)))
                 end
