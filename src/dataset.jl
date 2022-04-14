@@ -190,6 +190,7 @@ function load_sim(;
     pol,
     T = Float32,
     storage = Array,
+    rotator = (0,90,0),
     Nbatch = nothing,
     
     # noise parameters, or set Cℓn or even Cn directly
@@ -224,7 +225,7 @@ function load_sim(;
     
     # projection
     Ny, Nx = Nside .* (1,1)
-    proj = ProjLambert(;Ny, Nx, θpix, T, storage)
+    proj = ProjLambert(; Ny, Nx, θpix, T, storage, rotator)
 
     # the biggest ℓ on the 2D fourier grid
     ℓmax = round(Int,ceil(√2*proj.nyquist)+1)

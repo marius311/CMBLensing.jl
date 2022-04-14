@@ -176,8 +176,8 @@ end
 # speed-up subsequent broadcasts which would otherwise not hit the
 # "===" branch of the "promote_*" methods)
 function adapt_structure(storage, proj::ProjLambert{T}) where {T}
-    @unpack Ny, Nx, θpix = proj
-    ProjLambert(;Ny, Nx, θpix, T, storage)
+    @unpack Ny, Nx, θpix, rotator = proj
+    ProjLambert(;Ny, Nx, θpix, T, storage, rotator)
 end
 adapt_structure(::Nothing, proj::ProjLambert{T}) where {T} = proj
 
