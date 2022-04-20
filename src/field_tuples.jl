@@ -58,13 +58,13 @@ BroadcastStyle(S::FieldTupleStyle, ::DefaultArrayStyle{0}) = S
 @generated function materialize(bc::Broadcasted{FieldTupleStyle{S,Names}}) where {S,Names}
     wrapper = Names == Nothing ? :(tuple) : :(NamedTuple{$Names} ∘ tuple)
     exprs = map_tupleargs(S, tuple(1:tuple_type_len(S)...)) do Sᵢ, i
-        :(materialize(convert(Broadcasted{$Sᵢ}, preprocess(($(S.parameters[i])(),FieldTupleComponent{$i}()), bc))))
+        :(materialize(convert(Broadcasted{$Sᵢ}, preprocess(($Sᵢ(),FieldTupleComponent{$i}()), bc))))
     end
     :(FieldTuple($wrapper($(exprs...))))
 end
 @generated function materialize!(dst::FieldTuple, bc::Broadcasted{FieldTupleStyle{S,Names}}) where {S,Names}
     exprs = map_tupleargs(S, tuple(1:tuple_type_len(S)...)) do Sᵢ, i
-        :(materialize!(dst.fs[$i], convert(Broadcasted{$Sᵢ}, preprocess(($(S.parameters[i])(),FieldTupleComponent{$i}()), bc))))
+        :(materialize!(dst.fs[$i], convert(Broadcasted{$Sᵢ}, preprocess(($Sᵢ(),FieldTupleComponent{$i}()), bc))))
     end
     :(begin $(exprs...) end; dst)
 end
@@ -72,9 +72,6 @@ end
 struct FieldTupleComponent{i} end
 
 preprocess(::Tuple{<:Any,FieldTupleComponent{i}}, ft::FieldTuple) where {i} = ft.fs[i]
-
-preprocess(dest::Tuple{FieldTupleStyle{S},<:Any}, bc::Broadcasted) where {S} = 
-    broadcasted(S(), bc.f, preprocess_args(dest, bc.args)...)
 
 
 ### promotion
