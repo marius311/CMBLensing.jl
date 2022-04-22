@@ -177,8 +177,11 @@ end
     end
 end
 
-
-@adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(A, Δ))
+# todo: basetype needed because it seems sometimes the array comes
+# back complex when it was real on the forward pass. seems likely that
+# thats a consequences of some incorrect/missing ProjectTo's
+# somewhere, find them...
+@adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(basetype(A), Δ))
 
 # finite difference Hessian using Zygote gradients
 # todo: delete, just use FiniteDifferences
