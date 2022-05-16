@@ -15,6 +15,7 @@ end
 # which takes a single Tuple/NamedTuple:
 (::Type{FT})(;kwargs...) where {FT<:FieldTuple} = FT((;kwargs...))
 (::Type{FT})(f1::Field,f2::Field,fs::Field...) where {FT<:FieldTuple} = FT((f1,f2,fs...))
+FieldTuple(pairs::Vector{<:Pair}) = FieldTuple(NamedTuple(pairs))
 
 ### printing
 getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]

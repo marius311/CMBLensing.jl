@@ -40,13 +40,13 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 end
 
 # 2D KDE
-function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, kwargs...)
+function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
 	@unpack colors = pyimport("matplotlib")
-	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels([0.95,0.68]); Inf]
+	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels(levels); Inf]
 	if color == nothing
 		color = gca()._get_lines.get_next_color()
 	end
-	contourf(args...; colors=[(colors.to_rgb(color)..., α) for α in (0.4, 0.8)], kwargs...)
+	filled && contourf(args...; colors=[(colors.to_rgb(color)..., α) for α in (0.4, 0.8)], kwargs...)
 	contour(args...;  colors=color, label, kwargs...)
 end
 
