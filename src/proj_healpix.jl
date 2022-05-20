@@ -124,7 +124,20 @@ function broadcasted(::typeof(get_ψpol), proj::ProjLambert, θs, ϕs)
 end
 
 
+# stores some precomputed quantities for doing projections
+struct Projector
+    proj_in
+    proj_out
+    θs
+    ϕs
+    is
+    js
+    ψpol
+end
+
+
 ## Healpix => Cartesian
+
 
 """
     project(healpix_map::HealpixField => cart_proj::CartesianProj)
@@ -141,32 +154,40 @@ specified. If `healpix_map` is a `HealpixQU`, Q/U polarization angles
 are rotated to be aligned with the local coordinates (sometimes called
 "polarization flattening").
 """
-function project((hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
-    @unpack Ny, Nx = cart_proj
-    θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
-    _project(θϕs, hpx_map => cart_proj)
+function project((hpx_map, cart_proj)::Pair{<:HealpixField,<:CartesianProj})
+    project(Projector(hpx_map.proj => cart_proj), hpx_map => cart_proj)
 end
 
-function project((hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
-    @unpack Ny, Nx, T = cart_proj
-    θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
-    ψpol = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
-    Q = _project(θϕs, hpx_map.Q => cart_proj)
-    U = _project(θϕs, hpx_map.U => cart_proj)
-    QU_flat = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
-    FlatQUMap(real.(QU_flat), imag.(QU_flat), cart_proj)
+function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
+    (;Ny, Nx, T) = cart_proj
+    (;θs, ϕs) = projector
+    BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
 end
 
-function project((hpx_map, cart_proj)::Pair{<:HealpixIQUMap,<:CartesianProj})
-    I = project(hpx_map.I => cart_proj)
-    P = project(hpx_map.P => cart_proj)
+function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
+    (;Ny, Nx, T) = cart_proj
+    (;ψpol) = projector
+    Q = project(projector, hpx_map.Q => cart_proj)
+    U = project(projector, hpx_map.U => cart_proj)
+    QU_pol_flattened = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
+    FlatQUMap(real.(QU_pol_flattened), imag.(QU_pol_flattened), cart_proj)
+end
+
+function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixIQUMap,<:CartesianProj})
+    I = project(projector, hpx_map.I => cart_proj)
+    P = project(projector, hpx_map.P => cart_proj)
     BaseField{IQUMap}(cat(I.Ix, P.Qx, P.Ux, dims=3), cart_proj)
 end
 
-function _project(θϕs, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
-    @unpack Ny, Nx, T = cart_proj
-    BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), first.(θϕs)[:], last.(θϕs)[:]), Ny, Nx)), cart_proj)
+function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj})
+    (;Ny, Nx) = cart_proj
+    (;Nside) = hpx_proj
+    θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
+    θs, ϕs = first.(θϕs)[:], last.(θϕs)[:]
+    ψpol = get_ψpol.(cart_proj, θs, ϕs)
+    Projector(hpx_proj, cart_proj, θs, ϕs, nothing, nothing, ψpol)
 end
+
 
 
 ## Cartesian => Healpix
@@ -185,33 +206,50 @@ specified. Optional keyword argument `rotator` is a `healpy.Rotator`
 object specifying a rotation which rotates the north pole to the
 center of the desired field. 
 """
-function project((cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+function project((cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix}; method=:bilinear)
     @unpack Nside = hpx_proj
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_map.proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
-    _project((is, js), cart_map => hpx_proj)
+    _project(Val(method), (is, js), cart_map => hpx_proj)
 end
 
-function project((cart_map, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
+function project((cart_map, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix}; method=:bilinear)
     @unpack Nside = hpx_proj
     @unpack rotator, T = cart_map
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_map.proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
     ψpol = get_ψpol.(cart_map.proj, θs, ϕs)
-    Q = _project((is, js), cart_map[:Q] => hpx_proj)
-    U = _project((is, js), cart_map[:U] => hpx_proj)
+    Q = _project(Val(method), (is, js), cart_map[:Q] => hpx_proj)
+    U = _project(Val(method), (is, js), cart_map[:U] => hpx_proj)
     QU_flat = @. (Q.arr + im * U.arr) * exp(-im * 2 * T(ψpol))
     HealpixQUMap(real.(QU_flat), imag.(QU_flat))
 end
 
-function project((cart_map, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix})
-    I = project(cart_map[:I] => hpx_proj)
-    P = project(cart_map[:P] => hpx_proj)
+function project((cart_map, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix}; method=:bilinear)
+    I = project(cart_map[:I] => hpx_proj; method)
+    P = project(cart_map[:P] => hpx_proj; method)
     HealpixIQUMap(I.Ix, P.Qx, P.Ux)
 end
 
-function _project((is, js), (cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix})
+
+end
+
+function _project(::Val{:bilinear}, (is, js), (cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
     HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_map).Ix)), is, js), hpx_proj)
+end
+
+function _project(::Val{:fft}, (is, js), (cart_map, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+    (;Ny, Nx) = cart_map
+    T = real(eltype(cart_map))
+    (;Nside) = hpx_proj
+    ijs  = reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx])
+    ijs′ = reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx])
+    h = HealpixMap(zeros(T, 12*Nside^2))
+    Ix = complex.(cart_map[:Ix][:])
+    h_patch = real.(@ondemand(NFFT.nfft)(ijs′, @ondemand(NFFT.nfft_adjoint)(ijs, (Ny, Nx), Ix))) / (Ny * Nx)
+    h.arr[[k for (k,(i,j)) in enumerate(zip(is, js)) if 1 <= i <= Ny && 1 <= j <= Nx]] .= h_patch;    
+    h
 end

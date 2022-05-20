@@ -7,7 +7,7 @@ gitignore
 .tags
 .vscode
 dat
-scratch
+scratch*
 **Untitled*.ipynb
 nb/
 paper2/
@@ -24,3 +24,4 @@ docs/src-staging/0*
 profiling
 posts
 *.mem
+.CondaPkg

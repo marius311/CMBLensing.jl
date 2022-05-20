@@ -317,7 +317,7 @@ end
 
 function LinearAlgebra.sqrt(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     if !isassigned(M.blocks_sqrt)
-        M.blocks_sqrt[] = mapslices(sqrt, M.blocks, dims=(1,2))
+        M.blocks_sqrt[] = mapslices(B->real.(sqrt(B)), M.blocks, dims=(1,2))
     end
     BlockDiagEquiRect{B}(M.blocks_sqrt[], M.proj)
 end
