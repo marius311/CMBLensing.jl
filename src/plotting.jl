@@ -217,10 +217,8 @@ function plot(
 	
 	if return_all
 		(fig, axs, which)
-	elseif isdefined(Main,:IJulia) && Main.IJulia.inited
-		nothing # on IJulia, returning the figure can lead to it getting displayed twice
 	else
-		fig # returning the figure works on Juno/VSCode/Pluto
+		maybe_return_fig(fig)
 	end
 	
 end
@@ -293,6 +291,7 @@ function plot(f::HealpixMap; kwargs...)
 		projection_type       = "mollweide",
 		kwargs...
 	)
+	maybe_return_fig()
 end
 
 
@@ -307,6 +306,15 @@ function figure(plotfn::Function, args...; kwargs...)
 	plotfn()
 	gcf()
 end
+
+function maybe_return_fig(fig = gcf())
+	if isdefined(Main,:IJulia) && Main.IJulia.inited
+		nothing # on IJulia, returning the figure can lead to it getting displayed twice
+	else
+		fig # returning the figure works on Juno/VSCode/Pluto
+	end
+end
+
 
 
 ### chains

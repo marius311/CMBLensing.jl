@@ -72,7 +72,7 @@ pol_slice(f::CartesianField, i) = (:, :, i, ..)
 # metadata
 getproperty(f::CartesianField, ::Val{:Nbatch}) = size(getfield(f,:arr), 4)
 getproperty(f::CartesianField, ::Val{:Npol})   = size(getfield(f,:arr), 3)
-getproperty(f::CartesianField, ::Val{:T})      = eltype(f)
+getproperty(f::CartesianField, ::Val{:T})      = getproperty(getfield(f, :metadata), :T)
 getproperty(f::CartesianField, ::Val{:proj})   = getfield(f, :metadata)
 
 
