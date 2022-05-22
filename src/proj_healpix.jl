@@ -3,8 +3,10 @@
 # The main functionality of broadcasting, indexing, and projection for
 # a few field types is implemented, but not much beyond that. 
 
-
-@init global hp = lazy_pyimport("healpy")
+@init begin
+    global hp = lazy_pyimport("healpy")
+    @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" using .NFFT: plan_nfft
+end
 
 struct ProjHealpix <: Proj
     Nside :: Int
@@ -222,14 +224,15 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
     ψpol = get_ψpol.(cart_proj, θs, ϕs)
     hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
     if method == :fft
+        @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
         # ij indices mapped to [-0.5,0.5] and in the format NFFT wants
         # them for 1) a cartesian grid and 2) where the healpix
         # pixel centers fall in this grid
         nfft_ijs_grid  = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx]))
         nfft_ijs       = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx]))
         # two plans needed for FFT resampling
-        nfft_plan_grid = NFFT.plan_nfft(nfft_ijs_grid,  (Ny, Nx))
-        nfft_plan      = NFFT.plan_nfft(nfft_ijs, (Ny, Nx))
+        nfft_plan_grid = plan_nfft(nfft_ijs_grid,  (Ny, Nx))
+        nfft_plan      = plan_nfft(nfft_ijs, (Ny, Nx))
     else
         nfft_plan = nfft_plan_grid = nothing
     end
