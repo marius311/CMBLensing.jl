@@ -179,14 +179,14 @@ function project((hpx_map, cart_proj)::Pair{<:HealpixField,<:CartesianProj}; met
 end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
-    (;Ny, Nx, T) = cart_proj
-    (;θs, ϕs) = projector
+    @unpack (Ny, Nx, T) = cart_proj
+    @unpack (θs, ϕs) = projector
     BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
 end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
-    (;T) = cart_proj
-    (;ψpol) = projector
+    @unpack (T) = cart_proj
+    @unpack (ψpol) = projector
     Q = project(projector, hpx_map.Q => cart_proj)
     U = project(projector, hpx_map.U => cart_proj)
     QU_pol_flattened = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
@@ -200,8 +200,8 @@ function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixIQUMa
 end
 
 function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; method::Symbol=:bilinear)
-    (;Ny, Nx) = cart_proj
-    (;Nside) = hpx_proj
+    @unpack (Ny, Nx) = cart_proj
+    @unpack (Nside) = hpx_proj
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
     θs, ϕs = first.(θϕs), last.(θϕs)
     ψpol = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
@@ -231,8 +231,8 @@ function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; me
 end
 
 function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; method::Symbol=:bilinear)
-    (;Nside) = hpx_proj
-    (;Ny, Nx, T, storage) = cart_proj
+    @unpack (Nside) = hpx_proj
+    @unpack (Ny, Nx, T, storage) = cart_proj
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
@@ -257,15 +257,15 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
 end
 
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
-    (;is, js) = projector
+    @unpack (is, js) = projector
     HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_field).Ix)), is, js), hpx_proj)
 end
 
 function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
     @assert projector.proj_in == cart_field.proj && projector.proj_out == hpx_proj
-    (;Ny, Nx, T) = cart_field
-    (;Nside) = hpx_proj
-    (;nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
+    @unpack (Ny, Nx, T) = cart_field
+    @unpack (Nside) = hpx_proj
+    @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
     splayed_pixels = Map(cart_field).arr[:]
     hpx_map = Zygote.Buffer(splayed_pixels, 12*Nside^2) # need Buffer for AD bc we mutate this array below
     Zygote.@ignore fill!(hpx_map.data, 0)
@@ -275,8 +275,8 @@ function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:Cart
 end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
-    (;T) = cart_field
-    (;ψpol) = projector
+    @unpack (T) = cart_field
+    @unpack (ψpol) = projector
     Q = project(projector, Ł(cart_field).Q => hpx_proj).arr
     U = project(projector, Ł(cart_field).U => hpx_proj).arr
     Q_flat = @. Q * cos(2ψpol) + U * sin(2ψpol)
