@@ -48,6 +48,22 @@ end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{Fourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
 end
+# preserve field type for sub-component property getters
+function _getproperty_subcomponent_pullback(f, k)
+    g = zero(f)
+    function getproperty_pullback(Δ)
+        getproperty(g, k) .= Δ
+        (g, nothing)
+    end
+    getproperty(f, k), getproperty_pullback
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{B}, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B)))...}) where {B₀, B<:SpatialBasis{B₀}}
+    _getproperty_subcomponent_pullback(f, k)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseS02{Basis3Prod{𝐈,B₂,B₀}}, k::Val{:P}) where {B₂,B₀}
+    _getproperty_subcomponent_pullback(f, k)
+end
+# if accumulting from one branch that was just a f.metadata
 Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothing(nt.arr)); f)
 
 # FieldTuple

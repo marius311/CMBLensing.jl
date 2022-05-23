@@ -172,7 +172,8 @@ end
 # ### FuncOp
 
 # An Op which applies some arbitrary function to its argument.
-# Transpose and/or inverse operations which are not specified will return an error.
+# Transpose and/or inverse operations which are not specified will
+# return an error.
 @kwdef struct FuncOp <: ImplicitOp{Bottom}
     op   = nothing
     opᴴ  = nothing
@@ -189,6 +190,17 @@ adjoint(L::FuncOp) = FuncOp(L.opᴴ,L.op,L.op⁻ᴴ,L.op⁻¹)
 inv(L::FuncOp) = FuncOp(L.op⁻¹,L.op⁻ᴴ,L.op,L.opᴴ)
 adapt_structure(to, L::FuncOp) = FuncOp(adapt(to, fieldvalues(L))...)
 hash(L::FuncOp, h::UInt64) = foldr(hash, (typeof(L), fieldvalues(L)...), init=h)
+@adjoint function *(L::FuncOp, f::Field)
+    # if we were given an adjoint function, use that for pullback,
+    # otherwise let Zygote do it
+    if L.opᴴ == nothing
+        y, bk = Zygote.pullback(L.op, f)
+        y, Δ -> (nothing, bk(Δ)[1])
+    else
+        L * f, Δ -> (nothing, L' * Δ)
+    end
+end
+
 
 
 ### BandPassOp

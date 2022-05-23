@@ -3,10 +3,7 @@
 # The main functionality of broadcasting, indexing, and projection for
 # a few field types is implemented, but not much beyond that. 
 
-@init begin
-    global hp = lazy_pyimport("healpy")
-    @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" using .NFFT: plan_nfft
-end
+@init global hp = lazy_pyimport("healpy")
 
 struct ProjHealpix <: Proj
     Nside :: Int
@@ -50,6 +47,8 @@ function promote_metadata_strict(metadata₁::ProjHealpix, metadata₂::ProjHeal
         error("Can't broadcast Healpix maps with two different Nsides ($metadata₁.Nside, $metadata₂.Nside).")
     end
 end
+
+dot(a::HealpixField, b::HealpixField) = sum((Ł(a) .* Ł(b)).arr)
 
 
 ### Projection
@@ -119,10 +118,10 @@ function broadcasted(::typeof(θϕ_to_ij), proj::ProjLambert, θs, ϕs)
 end
 
 function broadcasted(::typeof(get_ψpol), proj::ProjLambert, θs, ϕs)
-    @unpack rotator = proj
+    @unpack rotator, T = proj
     R = hp.Rotator((0,-90,0)) * hp.Rotator(rotator)
     @assert size(θs) == size(ϕs)
-    reshape(R.angle_ref(materialize(θs)[:], materialize(ϕs)[:]), size(θs)...)
+    T.(reshape(R.angle_ref(materialize(θs)[:], materialize(ϕs)[:]), size(θs)...))
 end
 
 
@@ -142,6 +141,22 @@ end
 
 
 ## Healpix => Cartesian
+
+
+# some NFFT stuff needed for method=:fft projections
+cu_nfft_loaded = false
+@init begin
+    @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" begin
+        using .NFFT: plan_nfft, AbstractNFFTPlan
+        Zygote.@adjoint function *(plan::Union{Adjoint{<:Any,<:AbstractNFFTPlan}, AbstractNFFTPlan}, x::AbstractArray{T}) where {T}
+            function mul_nfft_plan_pullback(Δ)
+                (nothing, T.(adjoint(plan) * complex(Δ)))
+            end
+            plan * x, mul_nfft_plan_pullback
+        end
+    end        
+    @require CuNFFT="a9291f20-7f4c-4d50-b30d-4e07b13252e1" global cu_nfft_loaded = true
+end
 
 
 """
@@ -225,18 +240,20 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
     hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
     if method == :fft
         @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
+        (storage isa Type && storage <: Array) || cu_nfft_loaded || error("Load the `CuNFFT` package to make `method=:fft` available on GPU.")
         # ij indices mapped to [-0.5,0.5] and in the format NFFT wants
         # them for 1) a cartesian grid and 2) where the healpix
         # pixel centers fall in this grid
         nfft_ijs_grid  = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx]))
         nfft_ijs       = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx]))
         # two plans needed for FFT resampling
-        nfft_plan_grid = plan_nfft(storage, nfft_ijs_grid, (Ny, Nx))
-        nfft_plan      = plan_nfft(storage, nfft_ijs, (Ny, Nx))
+        arr_type = typeof(nfft_ijs)
+        nfft_plan_grid = plan_nfft(arr_type, nfft_ijs_grid, (Ny, Nx))
+        nfft_plan      = plan_nfft(arr_type, nfft_ijs, (Ny, Nx))
     else
         nfft_plan = nfft_plan_grid = nothing
     end
-    Projector{method}(hpx_proj, cart_proj, nothing, nothing, is, js, ψpol, hpx_idxs_in_patch, nfft_plan, nfft_plan_grid)
+    Projector{method}(cart_proj, hpx_proj, nothing, nothing, is, js, ψpol, hpx_idxs_in_patch, nfft_plan, nfft_plan_grid)
 end
 
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
@@ -245,27 +262,30 @@ function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<
 end
 
 function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+    @assert projector.proj_in == cart_field.proj && projector.proj_out == hpx_proj
     (;Ny, Nx, T) = cart_field
     (;Nside) = hpx_proj
     (;nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
     splayed_pixels = Map(cart_field).arr[:]
-    hpx_map = HealpixMap(similar(splayed_pixels, 12*Nside^2))
-    hpx_patch = real.(nfft_plan * (adjoint(nfft_plan_grid) * complex.(splayed_pixels))) ./ (Ny * Nx)
-    hpx_map.arr[hpx_idxs_in_patch] .= hpx_patch;    
-    hpx_map
+    hpx_map = Zygote.Buffer(splayed_pixels, 12*Nside^2) # need Buffer for AD bc we mutate this array below
+    Zygote.@ignore fill!(hpx_map.data, 0)
+    hpx_patch = real.(nfft_plan * (adjoint(nfft_plan_grid) * complex(splayed_pixels))) ./ (Ny * Nx)
+    hpx_map[hpx_idxs_in_patch] = hpx_patch
+    HealpixMap(copy(hpx_map), hpx_proj)
 end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
     (;T) = cart_field
     (;ψpol) = projector
-    Q = project(projector, cart_field[:Q] => hpx_proj)
-    U = project(projector, cart_field[:U] => hpx_proj)
-    QU_flat = @. (Q.arr + im * U.arr) * exp(-im * 2 * T(ψpol))
-    HealpixQUMap(real.(QU_flat), imag.(QU_flat))
+    Q = project(projector, Ł(cart_field).Q => hpx_proj).arr
+    U = project(projector, Ł(cart_field).U => hpx_proj).arr
+    Q_flat = @. Q * cos(2ψpol) + U * sin(2ψpol)
+    U_flat = @. U * cos(2ψpol) - Q * sin(2ψpol)
+    HealpixQUMap([Q_flat; U_flat], hpx_proj)
 end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix})
-    I = project(projector, cart_field[:I] => hpx_proj; method)
-    P = project(projector, cart_field[:P] => hpx_proj; method)
-    HealpixIQUMap(I.Ix, P.Qx, P.Ux)
+    I = project(projector, cart_field.I => hpx_proj)
+    P = project(projector, cart_field.P => hpx_proj)
+    HealpixIQUMap([I.arr; P.arr], hpx_proj)
 end
