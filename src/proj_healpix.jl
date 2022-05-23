@@ -221,7 +221,7 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
     (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_proj, θs, ϕs)
     is, js = first.(ijs), last.(ijs)
-    ψpol = get_ψpol.(cart_proj, θs, ϕs)
+    ψpol = adapt(storage, get_ψpol.(cart_proj, θs, ϕs))
     hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
     if method == :fft
         @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
@@ -231,8 +231,8 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
         nfft_ijs_grid  = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx]))
         nfft_ijs       = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx]))
         # two plans needed for FFT resampling
-        nfft_plan_grid = plan_nfft(nfft_ijs_grid,  (Ny, Nx))
-        nfft_plan      = plan_nfft(nfft_ijs, (Ny, Nx))
+        nfft_plan_grid = plan_nfft(storage, nfft_ijs_grid, (Ny, Nx))
+        nfft_plan      = plan_nfft(storage, nfft_ijs, (Ny, Nx))
     else
         nfft_plan = nfft_plan_grid = nothing
     end
@@ -248,9 +248,9 @@ function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:Cart
     (;Ny, Nx, T) = cart_field
     (;Nside) = hpx_proj
     (;nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
-    hpx_map = HealpixMap(zeros(T, 12*Nside^2))
-    splayed_pixels = complex.(Map(cart_field).arr[:])
-    hpx_patch = real.(nfft_plan * (adjoint(nfft_plan_grid) * splayed_pixels)) ./ (Ny * Nx)
+    splayed_pixels = Map(cart_field).arr[:]
+    hpx_map = HealpixMap(similar(splayed_pixels, 12*Nside^2))
+    hpx_patch = real.(nfft_plan * (adjoint(nfft_plan_grid) * complex.(splayed_pixels))) ./ (Ny * Nx)
     hpx_map.arr[hpx_idxs_in_patch] .= hpx_patch;    
     hpx_map
 end
