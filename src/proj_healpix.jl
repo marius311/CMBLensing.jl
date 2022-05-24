@@ -160,19 +160,52 @@ end
 
 
 """
-    project(healpix_map::HealpixField => cart_proj::CartesianProj)
+    project(healpix_field::HealpixField => cart_proj::CartesianProj; [method = :bilinear])
+    project(cart_field::FlatField => healpix_proj::ProjHealpix; [method=:bilinear])
 
-Project `healpix_map` to a cartisian projection specified by
-`cart_proj`. E.g.:
+Project a `healpix_field` to a cartesian projection specified by
+`cart_proj`, or project a `cart_field` back up to sphere on the
+Healpix pixelization specified by `healpix_proj`. E.g. 
 
-    healpix_map = HealpixMap(rand(12*2048^2))
-    flat_proj = ProjLambert(Ny=128, Nx=128, θpix=3, T=Float32)
-    f = project(healpix_map => flat_proj; rotator=pyimport("healpy").Rotator((0,28,23)))
+    # sphere to cartesian
+    healpix_field = HealpixMap(rand(12*2048^2))
+    cart_proj = ProjLambert(Ny=128, Nx=128, θpix=3, T=Float32, rotator=(0,30,0))
+    f = project(healpix_field => cart_proj)
+
+    # and back to sphere
+    project(f => ProjHealpix(512))
+
+The `(Ny, Nx, θpix, rotator)` parameters of `cart_proj` control the
+size and location of the projected region.
 
 The use of `=>` is to help remember in which order the arguments are
-specified. If `healpix_map` is a `HealpixQU`, Q/U polarization angles
-are rotated to be aligned with the local coordinates (sometimes called
-"polarization flattening").
+specified. 
+
+For either projection direction, if the field is a QU or IQU field,
+polarization angles are rotated to be aligned with the local
+coordinates (sometimes called "polarization flattening").
+
+The projection interpolates the original map at the positions of the
+centers of the projected map pixels. `method` controls how this
+interpolation is done, and can be one of:
+
+* `:bilinear` — Bilinear interpolation (default)
+* `:fft` — FFT-based interpolation, which uses a non-uniform FFT to
+  evaluate the discrete Fourier series of the field at arbitrary new
+  positions. This is currently implemented only for cartesian to
+  Healpix projection. To make this mode available, you must load the
+  `NFFT` package first. For GPU fields, you must also load `CuNFFT`.
+  Projection with `method=:fft` is both GPU compatible and
+  automatically differentiable.
+
+A pre-computation step can be cached by first doing, 
+
+    projector = CMBLensing.Projector(healpix_map.proj => cart_proj, method=:fft)
+    f = project(projector, healpix_map => cart_proj) 
+
+which makes subsequent `project` calls significantly faster. Note the
+`method` argument is specified in the precomputation step.
+
 """
 function project((hpx_map, cart_proj)::Pair{<:HealpixField,<:CartesianProj}; method::Symbol=:bilinear)
     project(Projector(hpx_map.proj => cart_proj; method), hpx_map => cart_proj)
@@ -212,20 +245,6 @@ end
 
 ## Cartesian => Healpix
 
-"""
-    project(flat_map::FlatField => healpix_proj::ProjHealpix; [rotator])
-
-Reproject a `flat_map` back onto the sphere in a Healpix projection
-specified by `healpix_proj`. E.g.
-
-    flat_map = FlatMap(rand(128,128))
-    f = project(flat_map => ProjHealpix(2048); rotator=pyimport("healpy").Rotator((0,28,23)))
-
-The use of `=>` is to help remember in which order the arguments are
-specified. Optional keyword argument `rotator` is a `healpy.Rotator`
-object specifying a rotation which rotates the north pole to the
-center of the desired field. 
-"""
 function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; method::Symbol=:bilinear)
     project(Projector(cart_map.proj => hpx_proj; method), cart_map => hpx_proj)
 end
