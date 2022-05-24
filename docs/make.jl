@@ -26,11 +26,11 @@ function convert_equations(file)
     return file
 end
 
+# for debug build. for prod built, md files will have been deleted
+run(`jupytext --to notebook --update "src/*.md"`)
 for file in readdir("src")
     if endswith(file, "ipynb")
         file |> convert_to_markdown |> convert_equations
-    elseif !startswith(file, ".")
-        cp("src/$file", "src-staging/$file", force=true)
     end
 end
 rm("src-staging/index.md",force=true)
@@ -38,20 +38,27 @@ symlink("../../README.md","src-staging/index.md")
 
 
 # highlight output cells (i.e. anything withouout a language specified) white
-
-@eval Documenter.Writers.HTMLWriter function mdconvert(c::Markdown.Code, parent::MDBlockContext; kwargs...)
+# note: "output" language is added by us in documenter.tpl
+@eval Documenter.Writers.HTMLWriter function mdconvert(c::Markdown.Code, parent::MDBlockContext; settings::Union{HTML,Nothing}=nothing, kwargs...)
     @tags pre code
-    language = isempty(c.language) ? "none" : c.language
-    pre[".language-$(language)"](code[".language-$(language)"](c.code))
+    language = Utilities.codelang(c.language)
+    if language == "documenter-ansi" || language == "output" # From @repl blocks (through MultiCodeBlock)
+        return pre(domify_ansicoloredtext(c.code, "language-output hljs"))
+    elseif settings !== nothing && settings.prerender &&
+           !(isempty(language) || language == "nohighlight")
+        r = hljs_prerender(c, settings)
+        r !== nothing && return r
+    end
+    class = isempty(language) ? "nohighlight" : "language-$(language)"
+    return pre(code[".$(class) .hljs"](c.code))
 end
 
 # adds the MyBinder button on each page that is a notebook
-
 @eval Documenter.Writers.HTMLWriter function render_navbar(ctx, navnode, edit_page_link::Bool)
     @tags div header nav ul li a span img
 
     # The breadcrumb (navigation links on top)
-    navpath = @show Documents.navpath(navnode)
+    navpath = Documents.navpath(navnode)
     header_links = map(navpath) do nn
         title = mdconvert(pagetitle(ctx, nn); droplinks=true)
         nn.page === nothing ? li(a[".is-disabled"](title)) : li(a[:href => navhref(ctx, nn, navnode)](title))
@@ -66,7 +73,7 @@ end
     if edit_page_link
         pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
         nbpath = foldl(replace,["src-staging"=>"src",".md"=>".ipynb"], init=pageurl)
-        if @show isfile(nbpath)
+        if isfile(nbpath)
             url = "https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/$(basename(nbpath))"
             push!(navbar_right.nodes, a[".docs-right", :href => url](img[:src => "https://mybinder.org/badge_logo.svg"]()))
         end

@@ -25,3 +25,9 @@ profiling
 posts
 *.mem
 .CondaPkg
+Manifest.toml
+LocalPreferences.toml
+dev
+docs/src-staging/index.md
+poetry.lock
+pyproject.toml

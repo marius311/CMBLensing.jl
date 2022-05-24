@@ -1,15 +1,21 @@
 ---
 jupyter:
   jupytext:
+    notebook_metadata_filter: language_info
     text_representation:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.4
+      jupytext_version: 1.13.8
   kernelspec:
-    display_name: Julia 1.7.0
+    display_name: Julia 1.7.2
     language: julia
     name: julia-1.7
+  language_info:
+    file_extension: .jl
+    mimetype: application/julia
+    name: julia
+    version: 1.7.2
 ---
 
 # MAP estimation

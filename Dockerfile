@@ -29,7 +29,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.0-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -90,9 +90,9 @@ ARG JULIA_FFTW_PROVIDER=FFTW
 # other changes to files in src/ won't have to redo these steps
 COPY --chown=1000 Project.toml $HOME/CMBLensing/
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
-RUN mkdir $HOME/CMBLensing/src && touch $HOME/CMBLensing/src/CMBLensing.jl
+RUN mkdir $HOME/CMBLensing/src && mkdir $HOME/CMBLensing/docs/build && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
-RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"dev ~/CMBLensing; instantiate"' \
+RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"status; dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
 RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
@@ -124,6 +124,8 @@ COPY --chown=1000 docs/src-staging $HOME/CMBLensing/docs/src-staging
 COPY --chown=1000 README.md $HOME/CMBLensing/
 # shortens array output in Julia notebooks
 ENV LINES=10
+ARG MAKEDOCS=0
+RUN test $MAKEDOCS = 0 || julia ../make.jl
 
 ## set up Jupyterlab
 ENV PORT 8888
