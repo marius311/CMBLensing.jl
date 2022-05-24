@@ -1,5 +1,5 @@
-pre.language-output {
-    background-color: white;
+code.language-output {
+    background-color: white !important;
 }
 
 @font-face {

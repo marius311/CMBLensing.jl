@@ -30,7 +30,7 @@ The best place to get started is to read the [documentation](https://cosmicmar.c
 
 Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). 
 
-You can also clone the repostiory and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommended to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
+You can also clone the repository and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommended to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
 
 
 ## Installation
@@ -64,12 +64,12 @@ Also provided is a Docker container which includes a Jupyterlab server and all t
 ```sh
 git clone https://github.com/marius311/CMBLensing.jl.git
 cd CMBLensing.jl
-docker-compose pull
-docker-compose up
+docker-compose pull main
+docker-compose up main
 ```
 
 The first time you run this, it will automatically download the (~1Gb) container from the Docker hub. The command will prompt you with the URL which you should open in a browser to access the notebook.
 
-To run the notebook on a different port than the default `8888`, do `PORT=1234 docker-compose up` where `1234` is whatever port number you want.
+To run the notebook on a different port than the default `8888`, do `PORT=1234 docker-compose up main` where `1234` is whatever port number you want.
 
-You can also build the container locally by replacing `docker-compose pull` with `docker-compose build` above.
+You can also build the container locally by replacing `docker-compose pull main` with `docker-compose build main`.

@@ -1,17 +1,39 @@
 version: "3"
 
 services:
-  cmblensing:
+
+  main:
     image: marius311/cmblensing.jl:${TAG:-stable}
     build:
       context: .
+      args:
+        PACKAGECOMPILE: 0
+        MAKEDOCS: 1
     ports:
-     - "${PORT:-8888}:${PORT:-8888}"
+      - "${PORT:-8888}:${PORT:-8888}"
+      - "${DOCS:-8000}:${DOCS:-8000}"
     hostname: localhost
     environment:
-     - PORT=${PORT:-8888}
-    # uncomment to mount local files into container for easier development:
-    # volumes: 
-    #  - "./src:/home/cosmo/CMBLensing/src"
-    #  - "./docs/src:/home/cosmo/CMBLensing/docs/src"
-    #  - "/home/cosmo/.julia"
+      - PORT=${PORT:-8888}
+      - DOCS=${DOCS:-8000}
+    command: ["sh", "-c", "python3 -m http.server $$DOCS -d /home/cosmo/CMBLensing/docs/build & jupyter lab --ip=0.0.0.0 --no-browser --port $$PORT"]
+
+  debug:
+    build:
+      context: .
+      args:
+        RUNDOCS: 0
+        PRECOMPILE: 0
+        PACKAGECOMPILE: 0
+    ports:
+      - "${PORT:-8888}:${PORT:-8888}"
+      - "${DOCS:-8000}:${DOCS:-8000}"
+    hostname: localhost
+    environment:
+      - PORT=${PORT:-8888}
+      - DOCS=${DOCS:-8000}
+    volumes:
+      - "./src:/home/cosmo/CMBLensing/src"
+      - "./docs:/home/cosmo/CMBLensing/docs"
+      - "/home/cosmo/.julia"
+    command: ["sh", "-c", "python3 -m http.server $$DOCS -d /home/cosmo/CMBLensing/docs/build & jupyter lab --ip=0.0.0.0 --no-browser --port $$PORT"]

@@ -172,7 +172,7 @@ Keyword arguments:
   kwargs to pass to [`symplectic_integrate`](@ref). E.g.
   `[(N=50,ϵ=0.1),(N=25,ϵ=0.01)]` would do 50 large steps then 25
   smaller steps per each Gibbs pass. If specified, `nhmc` is ignored.
-* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_lnP`](@ref) in
+* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_logpdf`](@ref) in
   the Wiener Filter Gibbs step.
 * `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when
   computing the starting point.

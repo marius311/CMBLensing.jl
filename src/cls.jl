@@ -189,7 +189,7 @@ have the normal CAMB postfixes: `scalCls.dat`, `tensCls.dat`, `lensedCls.dat`,
 arguments. `custom_tensor_params` can be used to call CAMB directly for the
 `unlensed_tensors`, rather than reading them from a file (since alot of times this file
 doesn't get saved). The value should be a Dict/NamedTuple which will be passed
-to a call to [`camb`](@ref), e.g. `custom_tensor_params=(r=0,)` for zero
+to a call to `camb`, e.g. `custom_tensor_params=(r=0,)` for zero
 tensors. 
 
 """

@@ -4,11 +4,14 @@
 Pages = ["api.md"]
 ```
 
+```@index
+Pages = ["api.md"]
+```
+
 ## Simulation
 ```@docs
 load_sim
-resimulate
-resimulate!
+simulate
 ```
 
 ## Lensing estimation
@@ -17,23 +20,8 @@ resimulate!
 MAP_joint
 MAP_marg
 sample_joint
-argmaxf_lnP
+argmaxf_logpdf
 quadratic_estimate
-```
-
-## Field constructors
-
-```@docs
-FlatMap
-FlatFourier
-FlatQUMap
-FlatQUFourier
-FlatEBMap
-FlatEBFourier
-FlatIQUMap
-FlatIQUFourier
-FlatIEBMap
-FlatIEBFourier
 ```
 
 ## Lensing operators
@@ -65,18 +53,8 @@ Filter  = x -> !(x in [
     MAP_joint,
     MAP_marg,
     sample_joint,
-    argmaxf_lnP,
+    argmaxf_logpdf,
     quadratic_estimate,
-    FlatMap,
-    FlatFourier,
-    FlatQUMap,
-    FlatQUFourier,
-    FlatEBMap,
-    FlatEBFourier,
-    FlatIQUMap,
-    FlatIQUFourier,
-    FlatIEBMap,
-    FlatIEBFourier,
     LenseFlow,
     BilinearLens,
     Taylens,

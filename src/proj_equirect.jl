@@ -82,7 +82,7 @@ specified by:
   the span tuples are given is irrelevant, either order will refer to
   the same field. Note, the spans correspond to the field size between
   outer pixel edges, not from pixel centers. If one wishes to call
-  [`Cℓ_to_Cov`](@ref) with this projection, `φspan` must be an integer
+  `Cℓ_to_Cov` with this projection, `φspan` must be an integer
   multiple of 2π, but other functionality will be available if this is
   not the case. 
 * A manual list of pixels centers and pixel edges, `θ`, `φ`, `θedges`,

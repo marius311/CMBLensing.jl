@@ -159,7 +159,8 @@ cu_nfft_loaded = false
 end
 
 
-"""
+@doc doc"""
+
     project(healpix_field::HealpixField => cart_proj::CartesianProj; [method = :bilinear])
     project(cart_field::FlatField => healpix_proj::ProjHealpix; [method=:bilinear])
 
@@ -167,13 +168,15 @@ Project a `healpix_field` to a cartesian projection specified by
 `cart_proj`, or project a `cart_field` back up to sphere on the
 Healpix pixelization specified by `healpix_proj`. E.g. 
 
-    # sphere to cartesian
-    healpix_field = HealpixMap(rand(12*2048^2))
-    cart_proj = ProjLambert(Ny=128, Nx=128, θpix=3, T=Float32, rotator=(0,30,0))
-    f = project(healpix_field => cart_proj)
+```julia
+# sphere to cartesian
+healpix_field = HealpixMap(rand(12*2048^2))
+cart_proj = ProjLambert(Ny=128, Nx=128, θpix=3, T=Float32, rotator=(0,30,0))
+f = project(healpix_field => cart_proj)
 
-    # and back to sphere
-    project(f => ProjHealpix(512))
+# and back to sphere
+project(f => ProjHealpix(512))
+```
 
 The `(Ny, Nx, θpix, rotator)` parameters of `cart_proj` control the
 size and location of the projected region.
@@ -200,8 +203,10 @@ interpolation is done, and can be one of:
 
 A pre-computation step can be cached by first doing, 
 
-    projector = CMBLensing.Projector(healpix_map.proj => cart_proj, method=:fft)
-    f = project(projector, healpix_map => cart_proj) 
+```julia
+projector = CMBLensing.Projector(healpix_map.proj => cart_proj, method=:fft)
+f = project(projector, healpix_map => cart_proj) 
+```
 
 which makes subsequent `project` calls significantly faster. Note the
 `method` argument is specified in the precomputation step.
