@@ -220,10 +220,11 @@ end
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
     @unpack (T) = cart_proj
     @unpack (ψpol) = projector
-    Q = project(projector, hpx_map.Q => cart_proj)
-    U = project(projector, hpx_map.U => cart_proj)
-    QU_pol_flattened = @. (Q.arr + im * U.arr) * exp(im * 2 * T(ψpol))
-    FlatQUMap(real.(QU_pol_flattened), imag.(QU_pol_flattened), cart_proj)
+    Q = project(projector, Ł(hpx_map).Q => cart_proj).arr
+    U = project(projector, Ł(hpx_map).U => cart_proj).arr
+    Q_flat = @. Q * cos(2ψpol) - U * sin(2ψpol)
+    U_flat = @. U * cos(2ψpol) + Q * sin(2ψpol)
+    FlatQUMap(cat(Q_flat, U_flat, dims=3), cart_proj)
 end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixIQUMap,<:CartesianProj})
@@ -300,11 +301,11 @@ function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS
     U = project(projector, Ł(cart_field).U => hpx_proj).arr
     Q_flat = @. Q * cos(2ψpol) + U * sin(2ψpol)
     U_flat = @. U * cos(2ψpol) - Q * sin(2ψpol)
-    HealpixQUMap([Q_flat; U_flat], hpx_proj)
+    HealpixQUMap(cat(Q_flat, U_flat, dims=2), hpx_proj)
 end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS02, <:ProjHealpix})
     I = project(projector, cart_field.I => hpx_proj)
     P = project(projector, cart_field.P => hpx_proj)
-    HealpixIQUMap([I.arr; P.arr], hpx_proj)
+    HealpixIQUMap(cat(I.arr, P.arr, dims=2), hpx_proj)
 end
