@@ -123,7 +123,7 @@ HarmonicBasis(::Basis2Prod{𝐄𝐁,         <:S0Basis}) = EBFourier
 (::Type{B})(dst::AbstractArray{<:Field}, src::AbstractArray{<:Field}) where {B<:Basis} = B.(dst,src)
 
 # The abstract `Basis` type means "any basis", hence this conversion rule:
-Basis(f::Field) = f
+Basis(f) = f
 
 
 # used in make_field_aliases below
