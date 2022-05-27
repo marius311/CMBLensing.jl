@@ -18,7 +18,7 @@ end
 FieldTuple(pairs::Vector{<:Pair}) = FieldTuple(NamedTuple(pairs))
 
 ### printing
-getindex(f::FieldTuple,::Colon) = vcat(getindex.(values(f.fs),:)...)[:]
+getindex(f::FieldTuple,::Colon) = mapreduce(collect, vcat, values(f.fs))
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 typealias_def(::Type{<:FieldTuple{NamedTuple{Names,FS},T}}) where {Names,FS<:Tuple,T} =
     "Field-($(join(map(string,Names),",")))-$FS"
@@ -102,10 +102,12 @@ propertynames(f::FieldTuple) = (:fs, propertynames(f.fs)...)
 randn!(rng::AbstractRNG, ξ::FieldTuple) = FieldTuple(map(f -> randn!(rng, f), ξ.fs))
 
 ### Diagonal-ops
+Diagonal_or_scalar(x::Number) = x
+Diagonal_or_scalar(x) = Diagonal(x)
 # need a method specific for FieldTuple since we don't carry around
 # the basis in a way that works with the default implementation
-(*)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal(d)*f, D.diag.fs, f.fs))
-(\)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal(d)\f, D.diag.fs, f.fs))
+(*)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal_or_scalar(d)*f, D.diag.fs, f.fs))
+(\)(D::DiagOp{<:FieldTuple}, f::FieldTuple) = FieldTuple(map((d,f)->Diagonal_or_scalar(d)\f, D.diag.fs, f.fs))
 
 
 # promote before recursing for these 
@@ -113,8 +115,8 @@ dot(a::FieldTuple, b::FieldTuple) = reduce(+, map(dot, getfield.(promote(a,b),:f
 hash(ft::FieldTuple, h::UInt64) = foldr(hash, (typeof(ft), ft.fs), init=h)
 
 # logdet & trace
-@auto_adjoint logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal, diag(L).fs), init=0)
-tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagonal, diag(L).fs), init=0)
+@auto_adjoint logdet(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(logdet∘Diagonal_or_scalar, diag(L).fs), init=0)
+tr(L::Diagonal{<:Union{Real,Complex}, <:FieldTuple}) = reduce(+, map(tr∘Diagonal_or_scalar, diag(L).fs), init=0)
 
 # misc
 batch_length(ft::FieldTuple) = only(unique(map(batch_length, ft.fs)))
