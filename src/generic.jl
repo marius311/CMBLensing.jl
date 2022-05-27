@@ -226,7 +226,7 @@ unknown_rule_error(::typeof(promote_basis_strict_rule), ::B₁, ::B₂) where {B
 basis(f::F) where {F<:Field} = basis(F)
 basis(::Type{<:Field{B}}) where {B<:Basis} = B
 basis(::Type{<:Field}) = Basis
-basis(::AbstractVector) = Basis
+basis(::Union{Number,AbstractVector}) = Basis # allows them to be in FieldTuple
 
 
 ### printing
