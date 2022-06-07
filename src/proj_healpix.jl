@@ -129,12 +129,13 @@ end
 struct Projector{method}
     proj_in
     proj_out
-    θs
-    ϕs
-    is
-    js
-    ψpol
-    hpx_idxs_in_patch
+    θs                # θ,ϕ of cartesian pixel centers and ψpol at those positions
+    ϕs                # ⋅
+    ψpol_θϕs          # ⋅
+    is                # i,j (fractional) indices of healpix pixel centers and ψpol at those positions
+    js                # ⋅
+    ψpol_ijs          # ⋅
+    hpx_idxs_in_patch # healpix pixel indices inside the patch we're projecting
     nfft_plan
     nfft_plan_grid
 end
@@ -233,7 +234,7 @@ end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
     @unpack (T) = cart_proj
-    @unpack (ψpol) = projector
+    ψpol = projector.ψpol_θϕs
     Q = project(projector, Ł(hpx_map).Q => cart_proj).arr
     U = project(projector, Ł(hpx_map).U => cart_proj).arr
     Q_flat = @. Q * cos(2ψpol) - U * sin(2ψpol)
@@ -250,13 +251,20 @@ end
 function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; method::Symbol=:bilinear)
     @unpack (Ny, Nx, T, storage) = cart_proj
     @unpack (Nside) = hpx_proj
+
+    # θ,ϕ of cartesian pixel centers and ψpol at those positions
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
     θs, ϕs = first.(θϕs), last.(θϕs)
-    ψpol = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
+    ψpol_θϕs = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
+    
+    # i,j (fractional) indices of healpix pixel centers and ψpol at those positions
     (θs′, ϕs′) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
     ijs = θϕ_to_ij.(cart_proj, θs′, ϕs′)
     is, js = first.(ijs), last.(ijs)
+    ψpol_ijs = adapt(storage, get_ψpol.(cart_proj, θs′, ϕs′))
+
     hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
+
     if method == :fft
         @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
         (storage isa Type && storage <: Array) || cu_nfft_loaded || error("Load the `CuNFFT` package to make `method=:fft` available on GPU.")
@@ -272,7 +280,13 @@ function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; me
     else
         nfft_plan = nfft_plan_grid = nothing
     end
-    Projector{method}(hpx_proj, cart_proj, θs[:], ϕs[:], nothing, nothing, ψpol, hpx_idxs_in_patch, nfft_plan, nfft_plan_grid)
+
+    Projector{method}(
+        hpx_proj, cart_proj, 
+        θs[:], ϕs[:], ψpol_θϕs, 
+        is, js, ψpol_ijs, 
+        hpx_idxs_in_patch, nfft_plan, nfft_plan_grid
+    )
 end
 
 
@@ -284,29 +298,7 @@ function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; me
 end
 
 function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; method::Symbol=:bilinear)
-    @unpack (Nside) = hpx_proj
-    @unpack (Ny, Nx, T, storage) = cart_proj
-    (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
-    ijs = θϕ_to_ij.(cart_proj, θs, ϕs)
-    is, js = first.(ijs), last.(ijs)
-    ψpol = adapt(storage, get_ψpol.(cart_proj, θs, ϕs))
-    hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
-    if method == :fft
-        @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
-        (storage isa Type && storage <: Array) || cu_nfft_loaded || error("Load the `CuNFFT` package to make `method=:fft` available on GPU.")
-        # ij indices mapped to [-0.5,0.5] and in the format NFFT wants
-        # them for 1) a cartesian grid and 2) where the healpix
-        # pixel centers fall in this grid
-        nfft_ijs_grid  = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx]))
-        nfft_ijs       = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx]))
-        # two plans needed for FFT resampling
-        arr_type = typeof(nfft_ijs)
-        nfft_plan_grid = plan_nfft(arr_type, nfft_ijs_grid, (Ny, Nx))
-        nfft_plan      = plan_nfft(arr_type, nfft_ijs, (Ny, Nx))
-    else
-        nfft_plan = nfft_plan_grid = nothing
-    end
-    Projector{method}(cart_proj, hpx_proj, nothing, nothing, is, js, ψpol, hpx_idxs_in_patch, nfft_plan, nfft_plan_grid)
+    Projector(hpx_proj => cart_proj; method) # precomputed quantities same inependent of order
 end
 
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
@@ -329,7 +321,7 @@ end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
     @unpack (T) = cart_field
-    @unpack (ψpol) = projector
+    ψpol = projector.ψpol_ijs
     Q = project(projector, Ł(cart_field).Q => hpx_proj).arr
     U = project(projector, Ł(cart_field).U => hpx_proj).arr
     Q_flat = @. Q * cos(2ψpol) + U * sin(2ψpol)
