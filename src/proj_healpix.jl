@@ -255,7 +255,7 @@ function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; me
     # θ,ϕ of cartesian pixel centers and ψpol at those positions
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
     θs, ϕs = first.(θϕs), last.(θϕs)
-    ψpol_θϕs = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
+    ψpol_θϕs = adapt(storage, get_ψpol.(cart_proj, first.(θϕs), last.(θϕs)))
     
     # i,j (fractional) indices of healpix pixel centers and ψpol at those positions
     (θs′, ϕs′) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
