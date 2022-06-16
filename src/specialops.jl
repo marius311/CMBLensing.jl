@@ -74,6 +74,7 @@ pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
 diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
+adapt_structure(storage, L::BlockDiagIEB) = BlockDiagIEB(adapt.(Ref(storage), L.ΣTE), adapt(storage, L.ΣB))
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
 logdet(L::BlockDiagIEB) = logdet(L.ΣTE[1,1]*L.ΣTE[2,2]-L.ΣTE[1,2]*L.ΣTE[2,1]) + logdet(L.ΣB)
 # arithmetic

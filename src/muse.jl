@@ -13,10 +13,11 @@ struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     MAP_joint_kwargs
     θ_fixed
     x
+    latent_vars
 end
 
-function CMBLensingMuseProblem(ds, ds_for_sims=ds; parameterization=0, MAP_joint_kwargs=(;), θ_fixed=(;))
-    CMBLensingMuseProblem(ds, ds_for_sims, parameterization, MAP_joint_kwargs, θ_fixed, ds.d)
+function CMBLensingMuseProblem(ds, ds_for_sims=ds; parameterization=0, MAP_joint_kwargs=(;), θ_fixed=(;), latent_vars=nothing)
+    CMBLensingMuseProblem(ds, ds_for_sims, parameterization, MAP_joint_kwargs, θ_fixed, ds.d, latent_vars)
 end
 
 mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
@@ -36,8 +37,12 @@ end
 
 function sample_x_z(prob::CMBLensingMuseProblem, rng::AbstractRNG, θ) 
     sim = simulate(rng, prob.ds_for_sims, θ = mergeθ(prob, θ))
-    # this is a guess at what the latent space is, specific datasets may need to override:
-    z = FieldTuple(delete(sim, (:f̃, :d, :μ))) 
+    if prob.latent_vars == nothing
+        # this is a guess which might not work for everything necessarily
+        z = FieldTuple(delete(sim, (:f̃, :d, :μ))) 
+    else
+        z = FieldTuple(select(sim, prob.latent_vars))
+    end
     x = sim.d
     (;x, z)
 end

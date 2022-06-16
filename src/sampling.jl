@@ -401,7 +401,7 @@ function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, 
             kwargs...
         )
         accept = batch(@. always_accept | (log(rand()) < $unbatch(ΔH)))
-        @. x = accept * xtest + (1 - accept) * x
+        x = @. accept * xtest + (1 - accept) * x
     end
     x, ΔH, accept
 end
