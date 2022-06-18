@@ -29,7 +29,7 @@ function ∇θ_logLike(prob::CMBLensingMuseProblem, d, z, θ)
         gradient(θ -> logpdf(ds; z..., θ = mergeθ(prob, θ)), θ)[1]
     elseif parameterization == :mix
         z° = mix(ds; z..., θ = mergeθ(prob, θ))
-        gradient(θ -> logpdf(Mixed(ds); z..., θ = mergeθ(prob, θ)), θ)[1]
+        gradient(θ -> logpdf(Mixed(ds); z°..., θ = mergeθ(prob, θ)), θ)[1]
     else
         error("parameterization should be 0 or :mix")
     end

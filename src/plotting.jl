@@ -9,13 +9,13 @@ import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 for plot in (:plot, :loglog, :semilogx, :semilogy)
 
 	# Cℓs
-    @eval function ($plot)(ic::InterpolatedCℓs, args...; kwargs...)
+    @eval function ($plot)(ic::Cℓs, args...; kwargs...)
 		($plot)(ic.ℓ, ic.Cℓ, args...; kwargs...)
 	end
-	@eval function ($plot)(ic::NamedTuple{<:Any,<:NTuple{<:Any,<:InterpolatedCℓs}}, args...; kwargs...)
+	@eval function ($plot)(ic::NamedTuple{<:Any,<:NTuple{<:Any,<:Cℓs}}, args...; kwargs...)
 		($plot).(values(ic), args...; kwargs...)
 	end
-	@eval function ($plot)(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
+	@eval function ($plot)(ic::Cℓs{<:Measurement}, args...; kwargs...)
 		errorbar(ic.ℓ, Measurements.value.(ic.Cℓ), Measurements.uncertainty.(ic.Cℓ), args...; marker=".", ls="", capsize=2, kwargs...)
 		($plot) in [:loglog,:semilogx] && xscale("log")
 		($plot) in [:loglog,:semilogy] && yscale("log")
@@ -51,7 +51,7 @@ function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0
 end
 
 # Cℓ band
-function fill_between(ic::InterpolatedCℓs{<:Measurement}, args...; kwargs...)
+function fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
 		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,

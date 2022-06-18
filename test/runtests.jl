@@ -329,9 +329,9 @@ end
 
 @testset "Cℓs" begin
     
-    @test InterpolatedCℓs(1:100, rand(100))      isa AbstractCℓs{Float64}
-    @test InterpolatedCℓs(1:100, rand(100) .± 1) isa AbstractCℓs{Measurement{Float64}}
-    @test (InterpolatedCℓs(1:100, 1:100) * ℓ²)[50] == 50^3
+    @test Cℓs(1:100, rand(100)).Cℓ isa Vector{Float64}
+    @test Cℓs(1:100, rand(100) .± 1).Cℓ isa Vector{Measurement{Float64}}
+    @test (Cℓs(1:100, 1:100) * ℓ²)[50] == 50^3
     
 end
 
@@ -546,7 +546,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)
 
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
@@ -558,7 +558,7 @@ end
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
                 δf, δϕ = simulate(Cf), simulate(Cϕ)
-                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), 0, atol=atol)
+                @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)
                 
             end
 

@@ -211,11 +211,11 @@ end
 # preprocess((b,metadata), ::BandPassOp) to describe how this is actually
 # applied. 
 
-struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Bottom}
+struct BandPass{W<:Cℓs} <: ImplicitField{HarmonicBasis,Bottom}
     Wℓ::W
 end
-BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
-BandPassOp(Wℓ::InterpolatedCℓs) = Diagonal(BandPass(Wℓ))
+BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(Cℓs(promote(collect(ℓ),collect(Wℓ))...)))
+BandPassOp(Wℓ::Cℓs) = Diagonal(BandPass(Wℓ))
 cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
 cos_ramp_down(length) = 1 .- cos_ramp_up(length)
 HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])

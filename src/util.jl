@@ -66,19 +66,49 @@ macro namedtuple(exs...)
 end
 
 
+"""
+    @auto_adjoint foo(args...; kwargs...) = body
+
+is equivalent to 
+
+    _foo(args...; kwargs...) = body
+    foo(args...; kwargs...) = _foo(args...; kwargs...)
+    @adjoint foo(args...; kwargs...) = Zygote.pullback(_foo, args...; kwargs...)
+
+That is, it defines the function as well as a Zygote adjoint which
+takes a gradient explicitly through the body of the function, rather
+than relying on rules which may be defined for `foo`. Mainly useful in
+the case that `foo` is a common function with existing rules, but
+which you do *not* want to be used.
+"""
+macro auto_adjoint(funcdef)
+    sdef = splitdef(funcdef)
+    name = sdef[:name]
+    sdef[:name] = symname = gensym(string(name))
+    defs = []
+    push!(defs, combinedef(sdef))
+    sdef[:name] = name
+    sdef[:body] = :($symname($(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :(Core.@__doc__ $(combinedef(sdef))))
+    sdef[:body] = :($Zygote.pullback($symname, $(sdef[:args]...); $(sdef[:kwargs]...)))
+    push!(defs, :($Zygote.@adjoint $(combinedef(sdef))))
+    esc(Expr(:block, defs...))
+end
+
+
 
 # these allow pinv and sqrt of SMatrices of Diagonals to work correctly, which
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
 permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
-function sqrt(A::SMatrix{2,2,<:Diagonal})
+@auto_adjoint function sqrt(A::SMatrix{2,2,<:Diagonal})
     # A = [a b; c d]
     a,c,b,d = A 
     s = sqrt(a*d-b*c)
-    t = pinv(sqrt(a+d+2s))
+    t = pinv(sqrt(a+(d+2s)))
     @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
 end
-function pinv(A::SMatrix{2,2,<:Diagonal})
+@auto_adjoint function pinv(A::SMatrix{2,2,<:Diagonal})
     # A = [a b; c d]
     a,c,b,d = A 
     idet = pinv(a*d-b*c)
@@ -411,35 +441,6 @@ select_known_rule(rule, x, y, R₁::Any,       R₂::Any)     = (R₁ == R₂) ?
 select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_error(rule, x, y)
 
 
-
-"""
-    @auto_adjoint foo(args...; kwargs...) = body
-
-is equivalent to 
-
-    _foo(args...; kwargs...) = body
-    foo(args...; kwargs...) = _foo(args...; kwargs...)
-    @adjoint foo(args...; kwargs...) = Zygote.pullback(_foo, args...; kwargs...)
-
-That is, it defines the function as well as a Zygote adjoint which
-takes a gradient explicitly through the body of the function, rather
-than relying on rules which may be defined for `foo`. Mainly useful in
-the case that `foo` is a common function with existing rules, but
-which you do *not* want to be used.
-"""
-macro auto_adjoint(funcdef)
-    sdef = splitdef(funcdef)
-    name = sdef[:name]
-    sdef[:name] = symname = gensym(string(name))
-    defs = []
-    push!(defs, combinedef(sdef))
-    sdef[:name] = name
-    sdef[:body] = :($symname($(sdef[:args]...); $(sdef[:kwargs]...)))
-    push!(defs, :(Core.@__doc__ $(combinedef(sdef))))
-    sdef[:body] = :($Zygote.pullback($symname, $(sdef[:args]...); $(sdef[:kwargs]...)))
-    push!(defs, :($Zygote.@adjoint $(combinedef(sdef))))
-    esc(Expr(:block, defs...))
-end
 
 string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
 

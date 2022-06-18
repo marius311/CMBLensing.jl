@@ -1,3 +1,13 @@
+### ReTest
+
+```
+using ReTest, TestEnv
+TestEnv.activate()
+using CMBLensing
+ReTest.hijack(CMBLensing, revise=true)
+retest("filter", dry=false, verbose=2)
+```
+
 ### Documentation
 
 1. Run `docker-compose up --build debug` 

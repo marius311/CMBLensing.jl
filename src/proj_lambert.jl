@@ -164,7 +164,7 @@ function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
 end
 
 function Cℓ_to_2D(Cℓ, proj::ProjLambert{T}) where {T}
-    T.(nan2zero.(Cℓ.(proj.ℓmag)))
+    T.(nan2zero.(Cℓ(proj.ℓmag)))
 end
 
 
@@ -227,7 +227,7 @@ end
 function JLD2.rconvert(::Type{<:ProjLambert}, (_,s)::Tuple{Val{ProjLambert},NamedTuple})
     ProjLambert(; storage=Array, s...)
 end
-
+Base.convert(::Type{<:Cℓs}, Cℓ::Cℓs) = Cℓ
 
 
 ### basis conversion
@@ -352,10 +352,10 @@ end
 ### creating covariance operators
 # fixed covariances
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
-function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::InterpolatedCℓs; units=proj.Ωpix)
+function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::Cℓs; units=proj.Ωpix)
     Diagonal(LambertFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
 end
-function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::InterpolatedCℓs, CℓBB::InterpolatedCℓs; units=proj.Ωpix)
+function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::Cℓs, CℓBB::Cℓs; units=proj.Ωpix)
     Diagonal(LambertEBFourier(Cℓ_to_2D(CℓEE,proj), Cℓ_to_2D(CℓBB,proj), proj) / units)
 end
 function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, CℓTE; kwargs...)
@@ -370,16 +370,16 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::
     # https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
     C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
-        ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
+        $ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
             As = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
             CℓI = $Zygote.ignore() do
                 copy(C₀.Il) .* one.(first(As))# gets batching right
             end
-            Diagonal(LambertFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓI, As...), C₀.metadata))
+            $Diagonal($LambertFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓI, As...), C₀.metadata))
         end)
     end
 end
-function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::InterpolatedCℓs; kwargs...) where {T}
+function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::Cℓs; kwargs...) where {T}
     C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
     @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
         ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
@@ -518,9 +518,9 @@ function get_Cℓ(f₁::LambertS0, f₂::LambertS0=f₁; Δℓ=50, ℓedges=0:Δ
 
     if err_estimate
         σℓ  = sqrt.((Cℓ² ./ A .- Cℓ.^2) ./ N)
-        InterpolatedCℓs(ℓ./A,  Cℓ./A .± σℓ)
+        Cℓs(ℓ./A,  Cℓ./A .± σℓ)
     else
-        InterpolatedCℓs(ℓ./A,  Cℓ./A)
+        Cℓs(ℓ./A,  Cℓ./A)
     end
 end
 
