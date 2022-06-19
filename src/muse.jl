@@ -2,7 +2,7 @@
 # interface with MuseInference.jl
 
 using .MuseInference: AbstractMuseProblem, MuseResult
-import .MuseInference: ∇θ_logLike, sample_x_z, ẑ_at_θ, muse!
+import .MuseInference: ∇θ_logLike, sample_x_z, ẑ_at_θ, muse!, standardizeθ
 
 export CMBLensingMuseProblem
 
@@ -21,6 +21,11 @@ function CMBLensingMuseProblem(ds, ds_for_sims=ds; parameterization=0, MAP_joint
 end
 
 mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
+
+function standardizeθ(prob, θ)
+    θ isa Union{NamedTuple,ComponentVector} || error("θ should be a NamedTuple or ComponentVector")
+    1f0 * ComponentVector(θ) # ensure component vector and float
+end
 
 function ∇θ_logLike(prob::CMBLensingMuseProblem, d, z, θ) 
     @unpack ds, parameterization = prob
