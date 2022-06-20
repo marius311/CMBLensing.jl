@@ -194,7 +194,7 @@ function MAP_joint(
         total_logpdf = sum(unbatch(_logpdf))
         next!(pbar, showvalues = [
             ("step",       step), 
-            ("logpdf",     *(map(x->@sprintf("%.2f, ",x), unbatch(_logpdf))...)[1:end-2]),
+            ("logpdf",     join(map(x->@sprintf("%.2f",x), [unbatch(_logpdf)...]), ", ")),
             ("α",          α), 
             ("CG",         "$(length(argmaxf_logpdf_history)) iterations"), 
             ("Linesearch", "$(soln.iterations) bisections")
