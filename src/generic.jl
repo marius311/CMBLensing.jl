@@ -94,6 +94,8 @@ DerivBasis(::Basis3Prod{𝐈, <:PolBasis, <:S0Basis}) = IQUFourier
 HarmonicBasis(                         ::S0Basis)  = Fourier
 HarmonicBasis(::Basis2Prod{𝐐𝐔,         <:S0Basis}) = QUFourier
 HarmonicBasis(::Basis2Prod{𝐄𝐁,         <:S0Basis}) = EBFourier
+HarmonicBasis(::Basis3Prod{𝐈, 𝐐𝐔,      <:S0Basis}) = IQUFourier
+HarmonicBasis(::Basis3Prod{𝐈, 𝐄𝐁,      <:S0Basis}) = IEBFourier
 
 # B(::Basis) converts the basis type, e.g. Map(QUFourier()) = QUMap
 (::Type{B})(::B′) where {B<:S0Basis, B′<:S0Basis} = B
