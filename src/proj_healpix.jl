@@ -127,8 +127,8 @@ end
 
 # stores some precomputed quantities for doing projections
 struct Projector{method}
-    proj_in
-    proj_out
+    cart_proj
+    hpx_proj
     θs                # θ,ϕ of cartesian pixel centers and ψpol at those positions
     ϕs                # ⋅
     ψpol_θϕs          # ⋅
@@ -218,13 +218,14 @@ function project((hpx_map, cart_proj)::Pair{<:HealpixField,<:CartesianProj}; met
 end
 
 function project(projector::Projector{:bilinear}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
+    @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (θs, ϕs) = projector
     BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
 end
 
 function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
-    @assert projector.proj_in == hpx_map.proj && projector.proj_out == cart_proj
+    @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (Nside) = hpx_map
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
@@ -282,7 +283,7 @@ function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; me
     end
 
     Projector{method}(
-        hpx_proj, cart_proj, 
+        cart_proj, hpx_proj,
         θs[:], ϕs[:], ψpol_θϕs, 
         is, js, ψpol_ijs, 
         hpx_idxs_in_patch, nfft_plan, nfft_plan_grid
@@ -302,12 +303,13 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
 end
 
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+    @assert projector.cart_proj == cart_field.proj && projector.hpx_proj == hpx_proj
     @unpack (is, js) = projector
     HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_field).Ix)), is, js), hpx_proj)
 end
 
 function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
-    @assert projector.proj_in == cart_field.proj && projector.proj_out == hpx_proj
+    @assert projector.cart_proj == cart_field.proj && projector.hpx_proj == hpx_proj
     @unpack (Ny, Nx, T) = cart_field
     @unpack (Nside) = hpx_proj
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
