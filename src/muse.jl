@@ -22,7 +22,7 @@ end
 
 mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
 
-function standardizeθ(prob, θ)
+function standardizeθ(prob::CMBLensingMuseProblem, θ)
     θ isa Union{NamedTuple,ComponentVector} || error("θ should be a NamedTuple or ComponentVector")
     1f0 * ComponentVector(θ) # ensure component vector and float
 end
