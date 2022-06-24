@@ -258,6 +258,10 @@ function sample_joint(
         @unpack step = states[1]
         chain_chunks = map(copy, repeated([], nchains))
     else
+        if filename != nothing
+            @info "Starting new chain at $filename"
+            rm(filename, force=true)
+        end
         chunks_index = step = 1
         chain_chunks = nothing
     end
