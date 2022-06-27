@@ -127,14 +127,15 @@ end
 
 # stores some precomputed quantities for doing projections
 struct Projector{method}
-    proj_in
-    proj_out
-    θs
-    ϕs
-    is
-    js
-    ψpol
-    hpx_idxs_in_patch
+    cart_proj
+    hpx_proj
+    θs                # θ,ϕ of cartesian pixel centers and ψpol at those positions
+    ϕs                # ⋅
+    ψpol_θϕs          # ⋅
+    is                # i,j (fractional) indices of healpix pixel centers and ψpol at those positions
+    js                # ⋅
+    ψpol_ijs          # ⋅
+    hpx_idxs_in_patch # healpix pixel indices inside the patch we're projecting
     nfft_plan
     nfft_plan_grid
 end
@@ -216,15 +217,25 @@ function project((hpx_map, cart_proj)::Pair{<:HealpixField,<:CartesianProj}; met
     project(Projector(hpx_map.proj => cart_proj; method), hpx_map => cart_proj)
 end
 
-function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
+function project(projector::Projector{:bilinear}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
+    @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (θs, ϕs) = projector
     BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
 end
 
+function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
+    @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
+    @unpack (Ny, Nx, T) = cart_proj
+    @unpack (Nside) = hpx_map
+    @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
+    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(hpx_map[hpx_idxs_in_patch]))) ./ (length(hpx_idxs_in_patch))
+    FlatMap(reshape(splayed_pixels, Ny, Nx), cart_proj)
+end
+
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
     @unpack (T) = cart_proj
-    @unpack (ψpol) = projector
+    ψpol = projector.ψpol_θϕs
     Q = project(projector, Ł(hpx_map).Q => cart_proj).arr
     U = project(projector, Ł(hpx_map).U => cart_proj).arr
     Q_flat = @. Q * cos(2ψpol) - U * sin(2ψpol)
@@ -239,30 +250,22 @@ function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixIQUMa
 end
 
 function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; method::Symbol=:bilinear)
-    @unpack (Ny, Nx) = cart_proj
+    @unpack (Ny, Nx, T, storage) = cart_proj
     @unpack (Nside) = hpx_proj
+
+    # θ,ϕ of cartesian pixel centers and ψpol at those positions
     θϕs = ij_to_θϕ.(cart_proj, 1:Ny, (1:Nx)')
     θs, ϕs = first.(θϕs), last.(θϕs)
-    ψpol = get_ψpol.(cart_proj, first.(θϕs), last.(θϕs))
-    Projector{method}(hpx_proj, cart_proj, θs[:], ϕs[:], nothing, nothing, ψpol, nothing, nothing, nothing)
-end
-
-
-
-## Cartesian => Healpix
-
-function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; method::Symbol=:bilinear)
-    project(Projector(cart_map.proj => hpx_proj; method), cart_map => hpx_proj)
-end
-
-function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; method::Symbol=:bilinear)
-    @unpack (Nside) = hpx_proj
-    @unpack (Ny, Nx, T, storage) = cart_proj
-    (θs, ϕs) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
-    ijs = θϕ_to_ij.(cart_proj, θs, ϕs)
+    ψpol_θϕs = adapt(storage, get_ψpol.(cart_proj, first.(θϕs), last.(θϕs)))
+    
+    # i,j (fractional) indices of healpix pixel centers and ψpol at those positions
+    (θs′, ϕs′) = hp.pix2ang(Nside, 0:(12*Nside^2-1))
+    ijs = θϕ_to_ij.(cart_proj, θs′, ϕs′)
     is, js = first.(ijs), last.(ijs)
-    ψpol = adapt(storage, get_ψpol.(cart_proj, θs, ϕs))
+    ψpol_ijs = adapt(storage, get_ψpol.(cart_proj, θs′, ϕs′))
+
     hpx_idxs_in_patch = adapt(storage, [k for (k,(i,j)) in enumerate(zip(is, js)) if 1<=i<=Ny && 1<=j<=Nx])
+
     if method == :fft
         @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
         (storage isa Type && storage <: Array) || cu_nfft_loaded || error("Load the `CuNFFT` package to make `method=:fft` available on GPU.")
@@ -278,16 +281,35 @@ function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; me
     else
         nfft_plan = nfft_plan_grid = nothing
     end
-    Projector{method}(cart_proj, hpx_proj, nothing, nothing, is, js, ψpol, hpx_idxs_in_patch, nfft_plan, nfft_plan_grid)
+
+    Projector{method}(
+        cart_proj, hpx_proj,
+        θs[:], ϕs[:], ψpol_θϕs, 
+        is, js, ψpol_ijs, 
+        hpx_idxs_in_patch, nfft_plan, nfft_plan_grid
+    )
+end
+
+
+
+## Cartesian => Healpix
+
+function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; method::Symbol=:bilinear)
+    project(Projector(cart_map.proj => hpx_proj; method), cart_map => hpx_proj)
+end
+
+function Projector((cart_proj,hpx_proj)::Pair{<:CartesianProj,<:ProjHealpix}; method::Symbol=:bilinear)
+    Projector(hpx_proj => cart_proj; method) # precomputed quantities same inependent of order
 end
 
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
+    @assert projector.cart_proj == cart_field.proj && projector.hpx_proj == hpx_proj
     @unpack (is, js) = projector
     HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_field).Ix)), is, js), hpx_proj)
 end
 
 function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
-    @assert projector.proj_in == cart_field.proj && projector.proj_out == hpx_proj
+    @assert projector.cart_proj == cart_field.proj && projector.hpx_proj == hpx_proj
     @unpack (Ny, Nx, T) = cart_field
     @unpack (Nside) = hpx_proj
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
@@ -301,7 +323,7 @@ end
 
 function project(projector::Projector, (cart_field, hpx_proj)::Pair{<:CartesianS2, <:ProjHealpix})
     @unpack (T) = cart_field
-    @unpack (ψpol) = projector
+    ψpol = projector.ψpol_ijs
     Q = project(projector, Ł(cart_field).Q => hpx_proj).arr
     U = project(projector, Ł(cart_field).U => hpx_proj).arr
     Q_flat = @. Q * cos(2ψpol) + U * sin(2ψpol)

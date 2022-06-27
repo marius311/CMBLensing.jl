@@ -6,35 +6,45 @@
 # while not worrying about carrying around the ℓ labels, as well as automatically
 # interpolating to any ℓ.
 
-abstract type AbstractCℓs{T} end
+abstract type AbstractCℓs end
 
-struct InterpolatedCℓs{T,I} <: AbstractCℓs{T}
-    etp :: I
+struct Cℓs{TCℓ,Tℓ} <: AbstractCℓs
+    ℓ :: Vector{Tℓ}
+    Cℓ :: Vector{TCℓ}
     concrete :: Bool
+    itp # intentionally type-unstable as workaround to https://github.com/JuliaIO/JLD2.jl/issues/401
 end
-InterpolatedCℓs(Cℓ; ℓstart=1, kwargs...) = InterpolatedCℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
-function InterpolatedCℓs(ℓ, Cℓ::AbstractVector{T}; concrete=true) where {T}
+Cℓs(Cℓ; ℓstart=1, kwargs...) = Cℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
+function Cℓs(ℓ, Cℓ; concrete=true)
     idx = (!isnan).(Cℓ)
-    Cℓ′ = identity.(Cℓ[idx])
-    itp = LinearInterpolation(ℓ[idx], Cℓ′, extrapolation_bc=NaN)
-    InterpolatedCℓs{eltype(Cℓ′),typeof(itp)}(itp, concrete)
+    ℓ = identity.(ℓ[idx])
+    Cℓ = identity.(Cℓ[idx])
+    itp = LinearInterpolation(ℓ, Cℓ, extrapolation_bc=NaN)
+    Cℓs(ℓ, Cℓ, concrete, itp)
 end
-getproperty(ic::InterpolatedCℓs, s::Symbol) = getproperty(ic,Val(s))
-getproperty(ic::InterpolatedCℓs, ::Val{:ℓ}) = ic.etp.xdat
-getproperty(ic::InterpolatedCℓs, ::Val{:Cℓ}) = ic.etp.ydat
-getproperty(ic::InterpolatedCℓs, ::Val{s}) where {s} = getfield(ic,s)
-propertynames(ic::IC) where {IC<:InterpolatedCℓs} = (:ℓ, :Cℓ, fieldnames(IC)...)
-new_ℓs(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = 
+function new_ℓs(ic1::Cℓs, ic2::Cℓs)
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
+end
+getindex(ic::Cℓs, idx) = ic.itp.(idx)
+(ic::Cℓs)(idx) = ic.itp.(idx)
+# custom JLD2 serialization bc the default for LinearInterpolation
+# creates a closure which isnt future-proof when deserializing
+function JLD2.writeas(::Type{<:Cℓs{TCℓ,Tℓ}}) where {TCℓ,Tℓ}
+    Tuple{Val{Cℓs},NamedTuple{(:ℓ,:Cℓ,:concrete),Tuple{Vector{Tℓ},Vector{TCℓ},Bool}}}
+end
+function JLD2.wconvert(::Type{<:Tuple{Val{Cℓs},NamedTuple}}, ic::Cℓs)
+    (Val(Cℓs), (;ic.ℓ, ic.Cℓ, ic.concrete))
+end
+function JLD2.rconvert(::Type{<:Cℓs}, (_,s)::Tuple{Val{Cℓs},NamedTuple})
+    Cℓs(s.ℓ, s.Cℓ; s.concrete)
+end
 
-getindex(ic::InterpolatedCℓs, idx) = ic.etp.(idx)
-(ic::InterpolatedCℓs)(idx) = ic.etp.(idx)
 
 
-struct FuncCℓs{T,F<:Function} <: AbstractCℓs{T}
+struct FuncCℓs{F<:Function} <: AbstractCℓs
     f :: F
     concrete :: Bool
-    FuncCℓs(f::F) where {F<:Function} = new{Any,F}(f,false)
+    FuncCℓs(f::F) where {F<:Function} = new{F}(f,false)
 end
 getindex(fc::FuncCℓs, idx) = fc.f.(idx)
 broadcastable(fc::FuncCℓs) = Ref(fc)
@@ -43,16 +53,16 @@ broadcastable(fc::FuncCℓs) = Ref(fc)
 toDℓ = FuncCℓs(ℓ -> ℓ*(ℓ+1)/2π)
 toCℓ = FuncCℓs(ℓ -> 2π/(ℓ*(ℓ+1)))
 
-# algebra with InterpolatedCℓs and FuncCℓs
-promote(ic::InterpolatedCℓs, fc::FuncCℓs) = (ic, InterpolatedCℓs(ic.ℓ, fc[ic.ℓ], concrete=fc.concrete))
-promote(fc::FuncCℓs, ic::InterpolatedCℓs) = reverse(promote(ic,fc))
+# algebra with Cℓs and FuncCℓs
+promote(ic::Cℓs, fc::FuncCℓs) = (ic, Cℓs(ic.ℓ, fc[ic.ℓ], concrete=fc.concrete))
+promote(fc::FuncCℓs, ic::Cℓs) = reverse(promote(ic,fc))
 # todo: may make sense to hook into the broadcasting API and make much of
 # the below more succinct:
 for op in (:*, :/, :+, :-, :±)
     @eval ($op)(ac1::AbstractCℓs, ac2::AbstractCℓs) = ($op)(promote(ac1,ac2)...)
-    @eval ($op)(ic1::InterpolatedCℓs, ic2::InterpolatedCℓs) = (ℓ = new_ℓs(ic1,ic2); InterpolatedCℓs(ℓ, broadcast($op,ic1[ℓ],ic2[ℓ]), concrete=(ic1.concrete||ic2.concrete)))
-    @eval ($op)(x::Real, ic::InterpolatedCℓs) = InterpolatedCℓs(ic.ℓ, broadcast($op,x,ic.Cℓ), concrete=ic.concrete)
-    @eval ($op)(ic::InterpolatedCℓs, x::Real) = InterpolatedCℓs(ic.ℓ, broadcast($op,ic.Cℓ,x), concrete=ic.concrete)
+    @eval ($op)(ic1::Cℓs, ic2::Cℓs) = (ℓ = new_ℓs(ic1,ic2); Cℓs(ℓ, broadcast($op,ic1[ℓ],ic2[ℓ]), concrete=(ic1.concrete||ic2.concrete)))
+    @eval ($op)(x::Real, ic::Cℓs) = Cℓs(ic.ℓ, broadcast($op,x,ic.Cℓ), concrete=ic.concrete)
+    @eval ($op)(ic::Cℓs, x::Real) = Cℓs(ic.ℓ, broadcast($op,ic.Cℓ,x), concrete=ic.concrete)
     @eval ($op)(x::Real, fc::FuncCℓs) = FuncCℓs(ℓ -> ($op)(x,fc.f(ℓ)))
     @eval ($op)(fc::FuncCℓs, x::Real) = FuncCℓs(ℓ -> ($op)(fc.f(ℓ),x))
     @eval ($op)(fc1::FuncCℓs, fc2::FuncCℓs) = FuncCℓs(ℓ -> ($op)(fc1.f(ℓ),fc2.f(ℓ)))
@@ -60,10 +70,10 @@ for op in (:*, :/, :+, :-, :±)
     @eval ($op)(v::AbstractArray, fc::FuncCℓs) = broadcast($op, v, fc)
 end
 for op in (:^, :sqrt, :abs)
-    @eval ($op)(ic::InterpolatedCℓs, args...) = InterpolatedCℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
+    @eval ($op)(ic::Cℓs, args...) = Cℓs(ic.ℓ, broadcast($op, ic.Cℓ, args...), concrete=ic.concrete)
 end
-std(x::Vector{<:InterpolatedCℓs}) = sqrt(abs(mean(x.^2) - mean(x)^2))
-shiftℓ(Δℓ, Cℓ; factor=false) = InterpolatedCℓs(factor ? Cℓ.ℓ .* Δℓ : Cℓ.ℓ .+ Δℓ, Cℓ.Cℓ)
+std(x::Vector{<:Cℓs}) = sqrt(abs(mean(x.^2) - mean(x)^2))
+shiftℓ(Δℓ, Cℓ; factor=false) = Cℓs(factor ? Cℓ.ℓ .* Δℓ : Cℓ.ℓ .+ Δℓ, Cℓ.Cℓ)
 
 
 function get_Cℓ end
@@ -77,25 +87,24 @@ function get_ρℓ(f1,f2; kwargs...)
     Cℓ1 = get_Cℓ(f1; kwargs...)
     Cℓ2 = get_Cℓ(f2; kwargs...)
     Cℓx = get_Cℓ(f1,f2; kwargs...)
-    InterpolatedCℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
+    Cℓs(Cℓ1.ℓ, @. Cℓx.Cℓ/sqrt(Cℓ1.Cℓ*Cℓ2.Cℓ))
 end
 
 
 # used to powerlaw extrapolate Cℓs at very high-ℓ (usually ℓ>6000) just so we
 # don't have deal with zeros / infinities there
-function extrapolate_Cℓs(ℓout, ℓin, Cℓ)
-    InterpolatedCℓs(ℓout, 
-        if all(Cℓ .> 0)
-            itp = LinearInterpolation(log.(ℓin), log.(Cℓ), extrapolation_bc = :line)
-            @. (exp(itp(log(ℓout))))
-        else
-            LinearInterpolation(ℓin, Cℓ, extrapolation_bc = 0).(ℓout)
-        end,
-        concrete=false
-    )
+function extrapolate_Cℓs(ℓ_out, ℓ_in, Cℓ_in)
+    if all(Cℓ_in .> 0)
+        itp = LinearInterpolation(log.(ℓ_in), log.(Cℓ_in), extrapolation_bc = :line)
+        Cℓ_out = @. exp(itp(log(ℓ_out)))
+    else
+        # probably a cross-spectra, don't do anything fancy here
+        Cℓ_out = LinearInterpolation(ℓ_in, Cℓ_in, extrapolation_bc = 0).(ℓ_out)
+    end
+    Cℓs(ℓ_out, Cℓ_out, concrete=false)
 end
 
-function smooth(Cℓ::InterpolatedCℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.ℓ), xscale=:linear, yscale=:linear, smoothing=0.75)
+function smooth(Cℓ::Cℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.ℓ), xscale=:linear, yscale=:linear, smoothing=0.75)
     (fx, fx⁻¹) = @match xscale begin
         :linear => (identity, identity)
         :log    => (log,      exp)
@@ -107,7 +116,7 @@ function smooth(Cℓ::InterpolatedCℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.
         _ => throw(ArgumentError("'xscale' should be :log or :linear"))
     end
     
-    InterpolatedCℓs(newℓs, fy⁻¹.(Loess.predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
+    Cℓs(newℓs, fy⁻¹.(Loess.predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
 end
 
 
@@ -207,7 +216,7 @@ function load_camb_Cℓs(;
     lensed_scalar_filename   = path_prefix*lensed_scalar_postfix
     lenspotential_filename   = path_prefix*lenspotential_postfix
     
-    _extrapolateCℓs(ℓ,Cℓ) = ℓmax == nothing ? InterpolatedCℓs(ℓ,Cℓ,concrete=false) : extrapolate_Cℓs(2:ℓmax,ℓ,Cℓ)
+    _extrapolateCℓs(ℓ,Cℓ) = ℓmax == nothing ? Cℓs(ℓ,Cℓ,concrete=false) : extrapolate_Cℓs(2:ℓmax,ℓ,Cℓ)
     
     ℓ,Cℓϕϕ = collect.(eachcol(readdlm(lenspotential_filename,skipstart=1)[1:end,[1,6]]))
     @. Cℓϕϕ /= (ℓ*(ℓ+1))^2/2π
@@ -269,9 +278,9 @@ function noiseCℓs(;μKarcminT, beamFWHM=0, ℓmax=8000, ℓknee=100, αknee=3)
 
     return (;
         map([:TT,:EE,:BB]) do x
-            x => InterpolatedCℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) ./ Bℓ .* Nℓ1f)
+            x => Cℓs(ℓ, fill((x==:TT ? 1 : 2)*(deg2rad(μKarcminT/60))^2,ℓmax-1) ./ Bℓ .* Nℓ1f)
         end...,
-        TE = InterpolatedCℓs(ℓ, zeros(ℓmax-1))
+        TE = Cℓs(ℓ, zeros(ℓmax-1))
     )
 end
 
@@ -282,5 +291,5 @@ Compute the beam power spectrum, often called $W_\ell$. A map should be
 multiplied by the square root of this.
 """
 function beamCℓs(;beamFWHM, ℓmax=8000)
-    InterpolatedCℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))
+    Cℓs(2:ℓmax, @. exp(-(2:ℓmax)^2*deg2rad(beamFWHM/60)^2/(8*log(2))))
 end

@@ -2,14 +2,16 @@
 # accum is basically supposed to do addition, but Zygotes default for
 # Arrays does a broadcast which doesnt do a potentially needed basis
 # conversion.
-function Zygote.accum(x::Field, y::Field)
+function _plus_accum(x, y)
     x === nothing ? y : 
     y === nothing ? x :
     x + y
 end
-Zygote.accum(x::Field, y::Field, zs::Field...) = Zygote.accum(Zygote.accum(x, y), zs...)
-# TODO: we might need to a vararg version of this too:
-Zygote.accum(a::FieldOp, b::FieldOp) = a + b
+_plus_accum(x, y, zs...) = Zygote.accum(Zygote.accum(x, y), zs...)
+Zygote.accum(x::Field, y::Field) = _plus_accum(x, y)
+Zygote.accum(x::Field, y::Field, zs::Field...) = _plus_accum(x, y, zs...)
+Zygote.accum(x::FieldOp, y::FieldOp) = _plus_accum(x, y)
+Zygote.accum(x::FieldOp, y::FieldOp, zs::FieldOp...) = _plus_accum(x, y, zs...)
 
 
 # constant functions, as far as AD is concerned
@@ -158,10 +160,15 @@ end
 # I haven't derived their version, but numerically the one gives the right answer where as their doesn't...
 @adjoint function pinv(L::Union{FieldOp, FieldOrOpMatrix})
     L⁻¹ = pinv(L)
-    L⁻¹, Δ->(@thunk(-L⁻¹' * (Δ * L⁻¹')),)
+    field_pinv_pullback(Δ) = (@thunk(-L⁻¹' * (Δ * L⁻¹')),)
+    L⁻¹, field_pinv_pullback
 end
 
-@adjoint sqrt(L::DiagOp) = (z=sqrt(L);), Δ -> ((pinv(z)/2)'*Δ,)
+@adjoint function sqrt(L::DiagOp)
+    z = sqrt(L)
+    field_sqrt_pullback(Δ) = (Diagonal((pinv(z)/2)'*Δ),)
+    z, field_sqrt_pullback
+end
 
 
 # some stuff which arguably belongs in Zygote or ChainRules

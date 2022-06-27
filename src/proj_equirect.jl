@@ -423,7 +423,7 @@ end
 
 @init @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
-    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+    function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
         
         @unpack θ, φ, Ω = proj
         nθ, nφ  = length(θ), length(φ)
@@ -453,7 +453,7 @@ end
         
     end
 
-    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::InterpolatedCℓs, CBB::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+    function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::Cℓs, CBB::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
         
         @unpack θ, φ, Ω = proj
         nθ, nφ  = length(θ), length(φ)
@@ -490,7 +490,7 @@ end
 
 end
 
-function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack Ω = proj
     Ω′ = T.(Ω)
@@ -501,7 +501,7 @@ function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; u
     return Cov
 end
 
-function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::InterpolatedCℓs; units=1, ℓmax=10_000, progress=true) where {T}
+function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack θ, Ω = proj
     Ω′ = T.(Ω)

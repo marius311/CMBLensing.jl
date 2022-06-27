@@ -208,10 +208,13 @@ function sample_joint(
     MAP_kwargs = (nsteps=40,),
     metadata = nothing,
     progress = false,
+    verbose_timing = false,
     storage = nothing,
     grid_and_sample_kwargs = (;),
     kwargs...
 )
+
+    (nfilewrite % nsavemaps == 0) || error("nsavemaps should be an integer factor of nfilewrite")
 
     # rundat is a Dict with all the args and kwargs minus a few removed ones
     rundat = merge!(foldl(delete!, (:ds, :gibbs_initializers, :gibbs_samplers, :kwargs, :pmap), init=Base.@locals()), kwargs)
@@ -243,40 +246,40 @@ function sample_joint(
     set_distributed_dataset(ds, storage)
 
     # initialize chains
+    states = map(copy, repeated(rundat, nchains))
     if (filename != nothing) && isfile(filename) && resume
-
         @info "Resuming chain at $filename"
-        local chunks_index, prev_chunks
-        jldopen(filename,"r") do io
-            chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")]) + 1
-            states = last.(read(io, "chunks_$(chunks_index-1)"))
-            merge!.(states, Ref(rundat))
-            @unpack step = states[1]
-            chain_chunks = map(copy, repeated([], nchains))
+        chunks_index = jldopen(filename,"r") do io
+            chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")], init=0) + 1
+            (chunks_index == 1) && error("Can't resume chain which contains no samples: $filename")
+            merge!.(states, last.(read(io, "chunks_$(chunks_index-1)")))
+            chunks_index
         end
-
+        @unpack step = states[1]
+        chain_chunks = map(copy, repeated([], nchains))
     else
-
-        chunks_index = step = 1
-
-        states = pmap(map(copy, repeated(rundat, nchains))) do state
-            state = _adapt(storage, state)
-            for gibbs_initialize! in gibbs_initializers
-                gibbs_initialize!(state, get_distributed_dataset())
-            end
-            @pack! state = step
-            _adapt(Array, state)
-        end
-        chain_chunks = [Any[filter_for_saving(state, step)] for state in states]
-        
         if filename != nothing
-            save(filename, "rundat", cpu(rundat))
+            @info "Starting new chain at $filename"
+            rm(filename, force=true)
         end
-
+        chunks_index = step = 1
+        chain_chunks = nothing
     end
-    
+    states = pmap(states) do state
+        state = _adapt(storage, state)
+        for gibbs_initialize! in gibbs_initializers
+            gibbs_initialize!(state, get_distributed_dataset())
+        end
+        _adapt(Array, state)
+    end
+    # for new chain, save initial state
+    if chain_chunks == nothing 
+        chain_chunks = [Any[filter_for_saving(state, step)] for state in states]
+    end
+
+
     # setup progressbar
-    setindex!.(states, copy.(Ref(OrderedDict{String,Any}("step"=>step))), :pbar_dict)
+    setindex!.(states, copy.(Ref(OrderedDict{String,Any}())), :pbar_dict)
     if progress == :summary
         pbar = Progress(nsamps_per_chain-step, dt=0, desc="Gibbs chain: ")
         ProgressMeter.update!(pbar, showvalues=[("step", step)])
@@ -291,8 +294,7 @@ function sample_joint(
         state₁, = states = pmap(states) do state
             
             state = @⌛ _adapt(storage, state)
-            @unpack step, pbar_dict = state
-                
+
             timing = @⌛ "Gibbs passes" map(gibbs_samplers) do gibbs_sample!
                 @elapsed gibbs_sample!(state, get_distributed_dataset())
             end
@@ -311,6 +313,7 @@ function sample_joint(
         if (filename != nothing) && ((step % nfilewrite) == 0)
             @⌛ jldopen(filename,"a+") do io
                 wsession = JLDWriteSession()
+                haskey(io, "rundat") || write(io, "rundat", cpu(rundat))
                 write(io, "chunks_$chunks_index", chain_chunks, wsession)
             end
             chunks_index += 1
@@ -318,10 +321,11 @@ function sample_joint(
         end
 
         if progress == :summary
-            print("\033[2J")
-            next!(pbar, showvalues = [("step",step), ("timing",state₁[:timing]), collect(state₁[:pbar_dict])...])
+            verbose_timing && print("\033[2J")
+            timing = "[" * join(map(x->@sprintf("%.2f",x), state₁[:timing]), ", ") * "]"
+            next!(pbar, showvalues = [("step",step), ("timing",timing), collect(state₁[:pbar_dict])...])
             merge!(state₁[:timer].inner_timers, get_defaulttimer().inner_timers)
-            print(state₁[:timer])
+            verbose_timing && print(state₁[:timer])
             flush(stdout)
         end
 
@@ -336,10 +340,14 @@ end
 
 function gibbs_initialize_θ!(state, ds::DataSet)
     @unpack θstart, θrange, Ω, nchains, Nbatch = state
-    θ = @match θstart begin
-        :prior => map(range->batch((first(range) .+ rand(Nbatch...) .* (last(range) - first(range)))...), θrange)
-        (_::NamedTuple) => θstart
-        _ => throw(ArgumentError(θstart))
+    if haskey(state, :θ)
+        @unpack θ = state
+    else
+        θ = @match θstart begin
+            :prior => map(range->batch((first(range) .+ rand(Nbatch...) .* (last(range) - first(range)))...), θrange)
+            (_::NamedTuple) => θstart
+            _ => throw(ArgumentError(θstart))
+        end
     end
     Ω = (;Ω..., θ)
     logpdfθ = map(_->missing, θrange)
@@ -348,24 +356,28 @@ end
 
 function gibbs_initialize_f!(state, ds::DataSet)
     @unpack Ω = state
-    f = missing
+    f = get(state, :f, missing)
     Ω = (;Ω..., f)
     @pack! state = f, Ω
 end
 
 function gibbs_initialize_ϕ!(state, ds::DataSet)
     @unpack ϕstart, θ, Ω, nchains, Nbatch = state
-    ϕ = @match ϕstart begin
-        :prior     => simulate(ds.Cϕ(θ); Nbatch)
-        0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
-        (_::Field) => ϕstart
-        (:quasi_sample|:best_fit) => MAP_joint(
-            adapt(storage, ds(θstart)), 
-            progress = (progress==:verbose ? :summary : false), 
-            Nϕ = adapt(storage,Nϕ),
-            quasi_sample = (ϕstart==:quasi_sample); MAP_kwargs...
-        ).ϕ
-        _ => throw(ArgumentError(ϕstart))
+    if haskey(state, :ϕ)
+        @unpack ϕ = state
+    else
+        ϕ = @match ϕstart begin
+            :prior     => simulate(ds.Cϕ(θ); Nbatch)
+            0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
+            (_::Field) => ϕstart
+            (:quasi_sample|:best_fit) => MAP_joint(
+                adapt(storage, ds(θstart)), 
+                progress = (progress==:verbose ? :summary : false), 
+                Nϕ = adapt(storage,Nϕ),
+                quasi_sample = (ϕstart==:quasi_sample); MAP_kwargs...
+            ).ϕ
+            _ => throw(ArgumentError(ϕstart))
+        end
     end
     Ω = (;Ω..., ϕ)
     @pack! state = ϕ, Ω
@@ -401,7 +413,7 @@ function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, 
             kwargs...
         )
         accept = batch(@. always_accept | (log(rand()) < $unbatch(ΔH)))
-        @. x = accept * xtest + (1 - accept) * x
+        x = @. accept * xtest + (1 - accept) * x
     end
     x, ΔH, accept
 end
@@ -443,7 +455,8 @@ end
 
 @⌛ function gibbs_postprocess!(state, ds::DataSet)
     @unpack f, ϕ, Ω, pbar_dict, ΔH = state
-    logpdf = pbar_dict["logpdf"] = CMBLensing.logpdf(ds; Ω...)
+    logpdf = CMBLensing.logpdf(ds; Ω...)
+    pbar_dict["logpdf"] = join(map(x->@sprintf("%.2f",x), [unbatch(logpdf)...]), ", ")
     pbar_dict["ΔH"] = ΔH
     f̃ = ds.L(ϕ) * f
     @pack! state = f̃, logpdf

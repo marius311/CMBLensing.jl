@@ -102,3 +102,8 @@ end
 
 
 Base.@deprecate white_noise(f::Field, rng::AbstractRNG) randn!(rng, f)
+
+
+### Cℓs
+
+Base.@deprecate InterpolatedCℓs(args...) Cℓs(args...)

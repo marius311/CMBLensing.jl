@@ -74,6 +74,7 @@ pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
 diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
+adapt_structure(storage, L::BlockDiagIEB) = BlockDiagIEB(adapt.(Ref(storage), L.ΣTE), adapt(storage, L.ΣB))
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
 logdet(L::BlockDiagIEB) = logdet(L.ΣTE[1,1]*L.ΣTE[2,2]-L.ΣTE[1,2]*L.ΣTE[2,1]) + logdet(L.ΣB)
 # arithmetic
@@ -210,11 +211,11 @@ end
 # preprocess((b,metadata), ::BandPassOp) to describe how this is actually
 # applied. 
 
-struct BandPass{W<:InterpolatedCℓs} <: ImplicitField{HarmonicBasis,Bottom}
+struct BandPass{W<:Cℓs} <: ImplicitField{HarmonicBasis,Bottom}
     Wℓ::W
 end
-BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(InterpolatedCℓs(promote(collect(ℓ),collect(Wℓ))...)))
-BandPassOp(Wℓ::InterpolatedCℓs) = Diagonal(BandPass(Wℓ))
+BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(Cℓs(promote(collect(ℓ),collect(Wℓ))...)))
+BandPassOp(Wℓ::Cℓs) = Diagonal(BandPass(Wℓ))
 cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
 cos_ramp_down(length) = 1 .- cos_ramp_up(length)
 HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])
