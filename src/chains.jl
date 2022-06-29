@@ -229,13 +229,14 @@ normalize the PDF to unit integral or unit maximum, and
 Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html), 
 which must be installed.
 """
-function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral")
+function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral", smooth_scale_1D=nothing)
     getdist = @ondemand(PyCall.pyimport)("getdist")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
     )
-    GetDistKDE{1}(kde.get1DDensity(0).normalize(normalize))
+    density_kwargs = isnothing(smooth_scale_1D) ? () : (;smooth_scale_1D)
+    GetDistKDE{1}(kde.get1DDensity(0; density_kwargs...).normalize(normalize))
 end
 
 function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothing)), normalize="integral", smooth_scale_2D=nothing)
