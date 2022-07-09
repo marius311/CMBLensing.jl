@@ -148,38 +148,22 @@ end
 # QUAzFourier <-> QUMap
 function QUAzFourier(f::EquiRectQUMap)
     nθ, nφ, T = f.Ny, f.Nx, real(f.T)
-    qiumap = complex.(f.Qx, f.Ux) 
-    Uf = m_fft(qiumap, 2) ./ T(√nφ)
-    arr = similar(Uf, 2nθ, nφ÷2+1)
-    for ℓ = 1:nφ÷2+1
-        if (ℓ==1) | ((ℓ==nφ÷2+1) & iseven(nφ))
-            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
-            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,ℓ])
-        else
-            arr[1:nθ,     ℓ] .= Uf[:,ℓ]
-            arr[nθ+1:2nθ, ℓ] .= conj.(Uf[:,Jperm(ℓ,nφ)])
-        end
-    end
-    EquiRectQUAzFourier(arr, f.proj)
+    P_map = complex.(f.Qx, f.Ux)
+    P_azfft = m_fft(P_map, 2) ./ T(√nφ)
+    P_azfft_perm = similar(P_azfft, 2nθ, nφ÷2+1)
+    P_azfft_perm[1:nθ,:] .= P_azfft[:,1:nφ÷2+1]
+    P_azfft_perm[nθ+1:end,:] .= conj.(P_azfft[:, [1; end:-1:nφ÷2+1]])
+    EquiRectQUAzFourier(P_azfft_perm, f.proj)
 end
 
 function QUMap(f::EquiRectQUAzFourier)
-    nθₓ2, nφ½₊1 = size(f.arr)
     nθ, nφ, T = f.Ny, f.Nx, real(f.T)
-    @assert nφ½₊1 == nφ÷2+1
-    @assert 2nθ   == nθₓ2
-
-    pθk = similar(f.arr, nθ, nφ)
-    for ℓ = 1:nφ½₊1
-        if (ℓ==1) | ((ℓ==nφ½₊1) & iseven(nφ))
-            pθk[:,ℓ] .= f.arr[1:nθ,ℓ]
-        else
-            pθk[:,ℓ]  .= f.arr[1:nθ,ℓ]
-            pθk[:,Jperm(ℓ,nφ)] .= conj.(f.arr[nθ+1:2nθ,ℓ])
-        end
-    end
-    qiumap = m_ifft(pθk, 2) .* T(√nφ)
-    EquiRectQUMap(cat(real(qiumap), imag(qiumap), dims=3), f.proj)
+    P_azfft_perm = f.arr
+    P_azfft = similar(P_azfft_perm, nθ, nφ)
+    P_azfft[:, 1:nφ÷2+1] .= P_azfft_perm[1:nθ,:]
+    P_azfft[:, [1; end:-1:nφ÷2+1]] .= conj(P_azfft_perm[nθ+1:end,:])
+    P_map = m_ifft(P_azfft, 2) .* T(√nφ)
+    EquiRectQUMap(cat(real(P_map), imag(P_map), dims=3), f.proj)
 end
 
 
