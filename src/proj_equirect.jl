@@ -301,14 +301,22 @@ end
 
 function LinearAlgebra.sqrt(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     if !isassigned(M.blocks_sqrt)
-        M.blocks_sqrt[] = mapslices(B->real.(sqrt(B)), M.blocks, dims=(1,2))
+        M.blocks_sqrt[] = blocks_sqrt = similar(M.blocks)
+        for i = 1:size(M.blocks,3)
+            # use SVD since it works on both CPU/GPU
+            U, S, V = svd(M.blocks[:,:,i])
+            blocks_sqrt[:,:,i] .= U * Diagonal(real.(sqrt.(S))) * V'
+        end
     end
     BlockDiagEquiRect{B}(M.blocks_sqrt[], M.proj)
 end
 
 function LinearAlgebra.pinv(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     if !isassigned(M.blocks_pinv)
-        M.blocks_pinv[] = mapslices(pinv, M.blocks, dims=(1,2))
+        M.blocks_pinv[] = blocks_pinv = similar(M.blocks)
+        for i = 1:size(M.blocks,3)
+            blocks_pinv[:,:,i] .= pinv(M.blocks[:,:,i])
+        end
     end
     BlockDiagEquiRect{B}(M.blocks_pinv[], M.proj)
 end
