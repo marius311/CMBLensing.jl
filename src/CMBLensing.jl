@@ -5,7 +5,6 @@ using Adapt
 using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
-using Base.Threads
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
 using ChainRules

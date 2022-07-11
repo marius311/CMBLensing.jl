@@ -124,7 +124,7 @@ end
 
 meta = [
     "COMMIT" => string(LibGit2.head_oid(GitRepo(joinpath(dirname(@__FILE__),".."))))[1:7],
-    "JULIA_NUM_THREADS" => Base.Threads.nthreads(),
+    "JULIA_NUM_THREADS" => Threads.nthreads(),
     "FFTW_NUM_THREADS" => CMBLensing.FFTW_NUM_THREADS[],
     (k=>args[k] for k in ["storage","N","T"])...
 ]

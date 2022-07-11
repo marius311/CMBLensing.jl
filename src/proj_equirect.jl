@@ -1,9 +1,10 @@
-# TODO: still need to check the spin(+2) or spin(-2) sta
-# TODO: summary methods for BlockDiagEquiRect{B} and Adjoint{T,BlockDiagEquiRect{B}}
 
-
-# Type defs
-# ================================================
+# when CUDA is loaded, we need to reload this file so the @tullio
+# macro calls generate a GPU version
+@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
+    using KernelAbstractions, CUDAKernels, CUDA
+    include(@__FILE__)
+end
 
 struct ProjEquiRect{T} <: CartesianProj
 
@@ -29,6 +30,16 @@ struct BlockDiagEquiRect{B<:Basis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray
     logabsdet :: Ref{Tuple{T,Complex{T}}}
     proj :: P
 
+end
+
+function BlockDiagEquiRect{B}(
+    blocks :: A, 
+    blocks_sqrt :: Ref{A}, 
+    blocks_pinv :: Ref{A}, 
+    logabsdet :: Ref{Tuple{T,Complex{T}}}, 
+    proj :: P
+) where {B<:Basis, T<:Real, P<:ProjEquiRect{T}, A<:AbstractArray}
+    BlockDiagEquiRect{B,T,P,A}(blocks, blocks_sqrt, blocks_pinv, logabsdet, proj)
 end
 
 struct AzFourier <: S0Basis end
@@ -396,7 +407,14 @@ end
 # adapt_structure
 
 function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
-    BlockDiagEquiRect{B}(adapt(storage, L.blocks), adapt(storage, L.proj))
+    blocks = adapt(storage, L.blocks)
+    BlockDiagEquiRect{B}(
+        blocks,
+        isassigned(L.blocks_sqrt) ? Ref(adapt(storage, L.blocks_sqrt[])) : Ref{typeof(blocks)}(),
+        isassigned(L.blocks_pinv) ? Ref(adapt(storage, L.blocks_pinv[])) : Ref{typeof(blocks)}(),
+        L.logabsdet,
+        adapt(storage, L.proj)
+    )
 end
 
 function Base.size(L::BlockDiagEquiRect{<:AzBasis})  
