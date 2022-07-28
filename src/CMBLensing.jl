@@ -35,6 +35,7 @@ using Memoization
 using NamedTupleTools: select, delete
 using PDMats
 using Pkg
+using Preferences
 using Printf
 using ProgressMeter
 using QuadGK

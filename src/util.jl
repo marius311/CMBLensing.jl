@@ -375,6 +375,8 @@ expnorm(x) = exp.(x .- maximum(x))
 # MacroTool's is broken https://github.com/FluxML/MacroTools.jl/issues/154
 _isdef(ex) = @capture(ex, function f_(arg__) body_ end)
 
+const _⌛_enabled = @load_preference("⌛_enabled", default=true)
+
 """
 
     @⌛ [label] code ...
@@ -398,21 +400,25 @@ macro ⌛(args...)
     else
         label, ex = esc(args[1]), args[2]
     end
-    source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
-    if _isdef(ex)
-        sdef = splitdef(ex)
-        if isnothing(label)
-            label = "$(string(sdef[:name]))(…)  ($source_str)"
+    if _⌛_enabled
+        source_str = last(splitpath(string(__source__.file)))*":"*string(__source__.line)
+        if _isdef(ex)
+            sdef = splitdef(ex)
+            if isnothing(label)
+                label = "$(string(sdef[:name]))(…)  ($source_str)"
+            end
+            sdef[:body] = quote
+                CMBLensing.@timeit $label $(sdef[:body])
+            end
+            esc(combinedef(sdef))
+        else
+            if isnothing(label)
+                label = "$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)"
+            end
+            :(@timeit $label $(esc(ex)))
         end
-        sdef[:body] = quote
-            CMBLensing.@timeit $label $(sdef[:body])
-        end
-        esc(combinedef(sdef))
     else
-        if isnothing(label)
-            label = "$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)"
-        end
-        :(@timeit $label $(esc(ex)))
+        esc(ex)
     end
 end
 
