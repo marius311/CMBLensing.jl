@@ -248,6 +248,7 @@ function sample_joint(
     # initialize chains
     states = map(copy, repeated(rundat, nchains))
     if (filename != nothing) && isfile(filename) && resume
+        clobber_chain = false
         @info "Resuming chain at $filename"
         chunks_index = jldopen(filename,"r") do io
             chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")], init=0) + 1
@@ -258,9 +259,9 @@ function sample_joint(
         @unpack step = states[1]
         chain_chunks = map(copy, repeated([], nchains))
     else
+        clobber_chain = true
         if filename != nothing
             @info "Starting new chain at $filename"
-            rm(filename, force=true)
         end
         chunks_index = step = 1
         chain_chunks = nothing
@@ -311,11 +312,12 @@ function sample_joint(
         push!.(chain_chunks, filter_for_saving.(states, step))
 
         if (filename != nothing) && ((step % nfilewrite) == 0)
-            @⌛ jldopen(filename,"a+") do io
+            @⌛ jldopen(filename, clobber_chain ? "w" : "a+") do io
                 wsession = JLDWriteSession()
                 haskey(io, "rundat") || write(io, "rundat", cpu(rundat))
                 write(io, "chunks_$chunks_index", chain_chunks, wsession)
             end
+            clobber_chain = false
             chunks_index += 1
             empty!.(chain_chunks)
         end
