@@ -56,6 +56,7 @@ function load_chains(
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
+        chains = [[]]
         @showprogress (progress ? 1 : Inf) for (isfirst,k) in flagfirst(chunk_ks)
             if isfirst
                 chains = read(io,k)
@@ -119,10 +120,12 @@ lastindex(c::Chain) = lastindex(c.chain)
 lastindex(c::Chain, d) = d==1 ? lastindex(c.chain) : error("`end` only valid in first dim of Chain")
 size(c::Chain) = size(c.chain)
 function Base.print_array(io::IO, c::Chain; indent="  ")
-    _,cols = displaysize(io)
-    for k in keys(c[end])
-        str = string("$(indent)$(k) => ", repr(c[k]; context=(:limit => true)))
-        println(io, Base._truncate_at_width_or_chars(str, cols))
+    if !isempty(c)
+        _,cols = displaysize(io)
+        for k in keys(c[end])
+            str = string("$(indent)$(k) => ", repr(c[k]; context=(:limit => true)))
+            println(io, Base._truncate_at_width_or_chars(str, cols))
+        end
     end
 end
 
@@ -146,6 +149,7 @@ wrap_chains(chain::Vector) = Chain(chain)
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
 function unbatch(chain::Chain)
+    isempty(chain) && return [chain]
     D = batch_length(chain[end][:logpdf])
     (D==1) && return [chain]
     Chains(map(1:D) do I
