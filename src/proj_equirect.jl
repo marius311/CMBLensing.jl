@@ -1,11 +1,4 @@
 
-# when CUDA is loaded, we need to reload this file so the @tullio
-# macro calls generate a GPU version
-@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
-    using KernelAbstractions, CUDAKernels, CUDA
-    include(@__FILE__)
-end
-
 struct ProjEquiRect{T} <: CartesianProj
 
     Ny          :: Int
@@ -227,19 +220,19 @@ end
 
 (*)(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
-function (*)(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
+@uses_tullio function (*)(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
 (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
-function (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
+@uses_tullio function (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
     F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
 
-function rrule(::typeof(*), M::BlockDiagEquiRect{B}, f::EquiRectField{B′}) where {B<:Basis, B′<:Basis}
+@uses_tullio function rrule(::typeof(*), M::BlockDiagEquiRect{B}, f::EquiRectField{B′}) where {B<:Basis, B′<:Basis}
     function times_pullback(Δ)
         BΔ, Bf = B(Δ), B(f)
         Zygote.ChainRules.NoTangent(), @thunk(BlockDiagEquiRect{B}(@tullio(M̄[p,q,iₘ] := Bf.arr[p,iₘ] * conj(BΔ.arr[q,iₘ])), M.proj)'), B′(M' * BΔ)
@@ -251,19 +244,19 @@ end
 # ## Linear Algebra: tullio accelerated (operator, operator)
 
 # M₁ * M₂
-function (*)(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
+@uses_tullio function (*)(M₁::BlockDiagEquiRect{B}, M₂::BlockDiagEquiRect{B}) where {B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * M₂.blocks[j,q,iₘ]), M₁.proj)
 end
 
 # M₁' * M₂
-function (*)(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+@uses_tullio function (*)(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.parent.proj, M₂.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := conj(M₁.parent.blocks[j,p,iₘ]) * M₂.blocks[j,q,iₘ]), M₁.parent.proj)
 end
 
 # M₁ * M₂'
-function (*)(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
+@uses_tullio function (*)(M₁::BlockDiagEquiRect{B}, M₂::Adjoint{T,<:BlockDiagEquiRect{B}}) where {T, B<:AzBasis}
     promote_metadata_strict(M₁.proj, M₂.parent.proj) # ensure same projection
     BlockDiagEquiRect{B}(@tullio(M₃[p,q,iₘ] := M₁.blocks[p,j,iₘ] * conj(M₂.parent.blocks[q,j,iₘ])), M₁.proj)
 end
@@ -355,7 +348,7 @@ end
 LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr)
 
 # needed by AD
-function LinearAlgebra.dot(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
+@uses_tullio function LinearAlgebra.dot(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
     (@tullio a[] := conj(M₁.parent.blocks[q,p,iₘ]) * M₂.blocks[p,q,iₘ])[]
 end
 
@@ -500,7 +493,7 @@ end
 
 end
 
-function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
+@uses_tullio function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack Ω = proj
     Ω′ = T.(Ω)
@@ -511,7 +504,7 @@ function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓm
     return Cov
 end
 
-function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
+@uses_tullio function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack θ, Ω = proj
     Ω′ = T.(Ω)

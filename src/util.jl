@@ -507,3 +507,14 @@ end
 
 real_type(T) = promote_type(real(T), Float32)
 @init @require Unitful="1986cc42-f94f-5a68-af5c-568840ba703d" real_type(::Type{<:Unitful.Quantity{T}}) where {T} = real_type(T)
+
+
+macro uses_tullio(funcdef)
+    quote
+        $(esc(funcdef))
+        @init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
+            using KernelAbstractions, CUDAKernels, CUDA
+            $(esc(funcdef))
+        end
+    end
+end
