@@ -17,7 +17,8 @@ diag(D::DiagOp) = D.diag
 (^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
 pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
 (≈)(D₁::DiagOp, D₂::DiagOp) = diag(D₁) ≈ diag(D₂)
-
+mul!(dst::Field, D::DiagOp, src::Field) = dst .= diag(D) .* src
+(/)(D₁::DiagOp, D₂::DiagOp) = Diagonal(diag(D₁) ./ diag(D₂)) # ignore singular
 
 # use getproperty here to ensure no basis conversion is done
 getindex(D::DiagOp, s::Symbol) = Diagonal(getproperty(diag(D),s))
