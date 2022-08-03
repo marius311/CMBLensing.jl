@@ -135,12 +135,14 @@ end
 # putting stuff in the correct basis, although they're working for everything
 # I've needed thus far
 
+@adjoint adjoint(x::FieldOrOpArray) = x', Δ -> (Δ',)
+
 @adjoint function *(x::FieldOrOpRowVector, y::FieldVector)
     z = x * y
     # when x is a vector of Fields
     back(Δ::Real) = ((Δ * y)', x' * Δ)
-    # when x is a vector of Diagonals. in this case, Δ * basis(Δ)(y)'
-    back(Δ::Field{B}) where {B} = (Δ * basis(Δ)(y)'), (x' * Δ)
+    # when x is a vector of Diagonals.
+    back(Δ::Field{B}) where {B} = (Δ * B(y)'), (x' * Δ)
     z, back
 end
 

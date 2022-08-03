@@ -1,4 +1,10 @@
 
+using CMBLensing
+using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
+    LinearInterpolation, Measurement, RK4Solver, ±, typealias, BatchedReal
+
+##
+
 using CUDA
 if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU") && CUDA.functional()
     CUDA.allowscalar(false)
@@ -10,12 +16,6 @@ else
     storage = Array
     @info "Running tests on CPU"
 end
-
-##
-
-using CMBLensing
-using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
-    LinearInterpolation, Measurement, RK4Solver, ±, typealias, BatchedReal
 
 ##
 
