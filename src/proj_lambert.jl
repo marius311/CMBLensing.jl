@@ -46,12 +46,13 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
 
 @memoize function ProjLambert(Ny, Nx, θpix, rotator, ::Type{T}, storage) where {T}
 
-    if @isdefined(CUDA) && CUDA.runtime_version() >= v"11.5" && (Ny*Nx > 1024^2)
+    # storage might be e.g. CuArrayAdaptor which will force T to be Float32
+    test_arr     = adapt(storage, Vector{T}())
+    T′           = eltype(test_arr)
+
+    if @isdefined(CUDA) && CUDA.functional() && CUDA.runtime_version() >= v"11.5" && (Ny*Nx > 1024^2) && (test_arr isa CUDA.CuArray)
         @warn("For maps with >1024² pixels, CUDA Toolkit >= 11.5 is known to have FFT instabilties, please downgrade.")
     end
-
-    # storage might be e.g. CuArrayAdaptor which will force T to be Float32
-    T′           = eltype(adapt(storage, Vector{T}()))
 
     Δx           = T′(deg2rad(θpix/60))
     Δℓx          = T′(2π/(Nx*Δx))
