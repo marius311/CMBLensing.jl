@@ -4,7 +4,7 @@ The number of threads used by FFTW for CPU FFTs (default is the environment
 variable `FFTW_NUM_THREADS`, or if that is not specified its
 `Sys.CPU_THREADS÷2`). This must be set before creating any `FlatField` objects.
 """
-FFTW_NUM_THREADS = nothing
+FFTW_NUM_THREADS = 1
 @init global FFTW_NUM_THREADS = parse(Int,get(ENV,"FFTW_NUM_THREADS","$(Sys.CPU_THREADS÷2)"))
 
 
