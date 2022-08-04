@@ -28,6 +28,7 @@ using Random
 using Requires
 using Serialization
 using SparseArrays
+using StableRNGs
 using Test
 using Zygote
 
@@ -51,13 +52,13 @@ end
 Nsides     = [(8,8), (4,8), (8,4)]
 Nsides_big = [(128,128), (64,128), (128,64)]
 
-Random.seed!(1)
+rng = StableRNG(4)
 
 has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 ##
 
-@testset "CMBLensing" begin
+@testset verbose=true "CMBLensing" begin
 
 ##
 
@@ -67,7 +68,7 @@ has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 @testset "Printing" begin
 
     # concrete types:
-    for f in [maybegpu(FlatMap(rand(4,4))), maybegpu(FlatQUMap(rand(4,4),rand(4,4)))]
+    for f in [maybegpu(FlatMap(rand(rng,4,4))), maybegpu(FlatQUMap(rand(rng,4,4),rand(rng,4,4)))]
         @test occursin("pixel",sprint(show, MIME("text/plain"), f))
     end
     
@@ -83,8 +84,8 @@ end
 
         @testset "batch=$D" for D in [(), (3,)]
 
-            Ix = maybegpu(rand(Ny,Nx,D...))
-            Il = maybegpu(rand(Ny÷2+1,Nx,D...))
+            Ix = maybegpu(rand(rng,Ny,Nx,D...))
+            Il = maybegpu(rand(rng,Ny÷2+1,Nx,D...))
 
             @testset "$(basis(F))" for (F,ks,args,kwargs) in [
                 (FlatMap,        (:Ix,),        (Ix,),      ()),
@@ -116,8 +117,8 @@ end
         @testset "$(typealias(Bin)) → $(typealias(Bout))" for (f,Bin,Bout) in [
             (f,Bin,Bout)
             for (f,Bs) in [
-                (FlatMap(rand(Nside...)), (Map,Fourier)),
-                (FlatQUMap(rand(Nside...),rand(Nside...)), (QUMap,QUFourier,EBMap,EBFourier))
+                (FlatMap(rand(rng,Nside...)), (Map,Fourier)),
+                (FlatQUMap(rand(rng,Nside...),rand(rng,Nside...)), (QUMap,QUFourier,EBMap,EBFourier))
             ]
             for Bin in Bs
             for Bout in Bs
@@ -138,16 +139,16 @@ end
     @testset "Nside = $Nside" for Nside in Nsides
 
         fs = ((B0,f0),(B2,f2),(Bt,ft)) = [
-            (Fourier,    maybegpu(FlatMap(rand(Nside...)))), 
-            (EBFourier,  maybegpu(FlatQUMap(rand(Nside...),rand(Nside...)))), 
-            (Fourier,    maybegpu(FieldTuple(FlatMap(rand(Nside...)),FlatMap(rand(Nside...)))))
+            (Fourier,    maybegpu(FlatMap(rand(rng,Nside...)))), 
+            (EBFourier,  maybegpu(FlatQUMap(rand(rng,Nside...),rand(rng,Nside...)))), 
+            (Fourier,    maybegpu(FieldTuple(FlatMap(rand(rng,Nside...)),FlatMap(rand(rng,Nside...)))))
             # inference currently broken for this case:
-            # (IEBFourier, maybegpu(FlatIQUMap(rand(Nside...),rand(Nside...),rand(Nside...)))), 
+            # (IEBFourier, maybegpu(FlatIQUMap(rand(rng,Nside...),rand(rng,Nside...),rand(rng,Nside...)))), 
         ]
         # MKL doesnt seem to support batched FFTs, not that theyre really useful on CPU
         has_batched_fft && append!(fs, [
-            (Fourier,    maybegpu(FlatMap(rand(Nside...,2)))),
-            (EBFourier,  maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2)))),
+            (Fourier,    maybegpu(FlatMap(rand(rng,Nside...,2)))),
+            (EBFourier,  maybegpu(FlatQUMap(rand(rng,Nside...,2),rand(rng,Nside...,2)))),
         ])
             
         @testset "f :: $(typeof(f)) " for (B,f) in fs
@@ -229,7 +230,7 @@ end
         @test (@inferred f0 .* f2) isa typeof(f2)
         
         # matrix type promotion
-        @test (@inferred FlatMap(rand(Float64,2,2)) .+ FlatMap(view(rand(Float32,2,2),:,:))) isa FlatMap{<:Any,Float64,Matrix{Float64}}
+        @test (@inferred FlatMap(rand(rng,Float64,2,2)) .+ FlatMap(view(rand(rng,Float32,2,2),:,:))) isa FlatMap{<:Any,Float64,Matrix{Float64}}
         
     end
 
@@ -248,7 +249,7 @@ end
     end
 
     @testset "logdet(Diagonal(::Fourier)) Nside=$Nside" for Nside in Nsides_big
-        x = rand(Nside...)
+        x = rand(rng,Nside...)
         @test logdet(Diagonal(Fourier(FlatMap(x))))                                                   ≈ real( logdet(Diagonal(fft(x)[:])))
         @test logdet(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ real(2logdet(Diagonal(fft(x)[:])))
         @test logdet(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ real(3logdet(Diagonal(fft(x)[:])))
@@ -265,7 +266,7 @@ end
     end
 
     @testset "tr(Diagonal(::Fourier)) Nside=$Nside" for Nside in Nsides_big
-        x = rand(Nside...)
+        x = rand(rng,Nside...)
         @test tr(Diagonal(Fourier(FlatMap(x))))                                                   ≈  tr(Diagonal(fft(x)[:]))
         @test tr(Diagonal(QUFourier(FlatQUMap(x,x))))                                             ≈ 2tr(Diagonal(fft(x)[:]))
         @test tr(Diagonal(IQUFourier(FlatIQUMap(x,x,x))))                                         ≈ 3tr(Diagonal(fft(x)[:]))
@@ -279,8 +280,8 @@ end
 
 @testset "FlatS2" begin
     @testset "Nside = $Nside" for Nside in Nsides
-        C = maybegpu(Diagonal(EBFourier(FlatEBMap(rand(Nside...), rand(Nside...)))))
-        f = maybegpu(FlatQUMap(rand(Nside...), rand(Nside...)))
+        C = maybegpu(Diagonal(EBFourier(FlatEBMap(rand(rng,Nside...), rand(rng,Nside...)))))
+        f = maybegpu(FlatQUMap(rand(rng,Nside...), rand(rng,Nside...)))
         @test C*f ≈ FlatQUFourier(C[:QQ]*f[:Q]+C[:QU]*f[:U], C[:UU]*f[:U]+C[:UQ]*f[:Q])
     end
 end
@@ -295,8 +296,8 @@ end
         rb = batch([1.,2])
         
         @testset "f :: $(typeof(f))" for (f,fb) in [
-            (maybegpu(FlatMap(rand(Nside...))),                  maybegpu(FlatMap(rand(Nside...,2)))),
-            (maybegpu(FlatQUMap(rand(Nside...),rand(Nside...))), maybegpu(FlatQUMap(rand(Nside...,2),rand(Nside...,2))))
+            (maybegpu(FlatMap(rand(rng,Nside...))),                  maybegpu(FlatMap(rand(rng,Nside...,2)))),
+            (maybegpu(FlatQUMap(rand(rng,Nside...),rand(rng,Nside...))), maybegpu(FlatQUMap(rand(rng,Nside...,2),rand(rng,Nside...,2))))
         ]
 
             @test @inferred(r * f)  == f
@@ -316,7 +317,7 @@ end
     
     @testset "Nside = $Nside" for Nside in Nsides
 
-        f = maybegpu(FlatMap(rand(Nside...)))
+        f = maybegpu(FlatMap(rand(rng,Nside...)))
         
         @test                  (MidPass(100,200) .* Diagonal(Fourier(f))) isa Diagonal
         @test_throws Exception  MidPass(100,200) .* Diagonal(        f)
@@ -329,8 +330,8 @@ end
 
 @testset "Cℓs" begin
     
-    @test Cℓs(1:100, rand(100)).Cℓ isa Vector{Float64}
-    @test Cℓs(1:100, rand(100) .± 1).Cℓ isa Vector{Measurement{Float64}}
+    @test Cℓs(1:100, rand(rng,100)).Cℓ isa Vector{Float64}
+    @test Cℓs(1:100, rand(rng,100) .± 1).Cℓ isa Vector{Measurement{Float64}}
     @test (Cℓs(1:100, 1:100) * ℓ²)[50] == 50^3
     
 end
@@ -339,7 +340,7 @@ end
 
 @testset "ParamDependentOp" begin
     
-    D = Diagonal(maybegpu(FlatMap(rand(4,4))))
+    D = Diagonal(maybegpu(FlatMap(rand(rng,4,4))))
     
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
@@ -389,7 +390,7 @@ end;
         ]
             
             Ny,Nx = Nside
-            Ixs = collect(maybegpu(rand(Nside...)) for i=1:Npol)
+            Ixs = collect(maybegpu(rand(rng,Nside...)) for i=1:Npol)
             Ils = rfft.(Ixs)
             f,g,h = @repeated(maybegpu(FMap(Ixs...)),3)
             v = @SVector[f,f]
@@ -429,7 +430,7 @@ end;
                 
             end
 
-            @testset "FieldVectors" begin
+            @testset "FieldVectors                    " begin
             
                 @test gradient(f -> Map(∇[1]*f)' *     Map(v[1]) + Map(∇[2]*f)' *     Map(v[2]), f)[1] ≈ ∇' * v
                 @test gradient(f -> Map(∇[1]*f)' * Fourier(v[1]) + Map(∇[2]*f)' * Fourier(v[2]), f)[1] ≈ ∇' * v
@@ -534,30 +535,30 @@ end
                 proj = ProjLambert(;Ny,Nx,T,storage)
 
                 Cϕ = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.ϕϕ))
-                @test (ϕ = @inferred simulate(Cϕ)) isa FlatS0
+                @test (ϕ = @inferred simulate(rng,Cϕ)) isa FlatS0
                 
                 ## S0
                 Cf = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.TT))
-                @test (f = @inferred simulate(Cf)) isa FlatS0
+                @test (f = @inferred simulate(rng,Cf)) isa FlatS0
                 @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS0
                 # adjoints
-                f,g = simulate(Cf),simulate(Cf)
+                f,g = simulate(rng,Cf),simulate(rng,Cf)
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
-                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                δf, δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
                 @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)
 
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
-                @test (f = @inferred simulate(Cf)) isa FlatS2
+                @test (f = @inferred simulate(rng,Cf)) isa FlatS2
                 @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS2
                 # adjoints
-                f,g = simulate(Cf),simulate(Cf)
+                f,g = simulate(rng,Cf),simulate(rng,Cf)
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
                 # gradients
-                δf, δϕ = simulate(Cf), simulate(Cϕ)
+                δf, δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
                 @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)
                 
             end
@@ -588,6 +589,7 @@ end
                 beamFWHM = 3,
                 pol      = pol,
                 storage  = storage,
+                rng      = rng,
                 pixel_mask_kwargs = (edge_padding_deg=1,)
             )
             @unpack Cf, Cϕ = ds₀
@@ -595,7 +597,7 @@ end
 
             @test logpdf(ds; f, ϕ) ≈ logpdf(Mixed(ds); f°, ϕ°) rtol=3e-4
 
-            δf,δϕ = simulate(Cf), simulate(Cϕ)
+            δf,δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
 
             atol = pol==:IP ? 30 : 3
             @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=atol)
@@ -679,8 +681,8 @@ end
             @test (sqrt(Cf2) * sqrt(Cf2) * f2) ≈ (Cf2 * f2) rtol=rtol
 
             # simulation
-            @test real(eltype(simulate(Cf0) :: EquiRectS0)) == T
-            @test real(eltype(simulate(Cf2) :: EquiRectS2)) == T
+            @test real(eltype(simulate(rng,Cf0) :: EquiRectS0)) == T
+            @test real(eltype(simulate(rng,Cf2) :: EquiRectS2)) == T
             
             # pinv
             @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=rtol 
@@ -701,8 +703,8 @@ end
             @test logdet(Cf2) ≈ logabsdet(Cf2)[1]
 
             # adjoint
-            g0 = simulate(Cf0)
-            g2 = simulate(Cf2)
+            g0 = simulate(rng,Cf0)
+            g2 = simulate(rng,Cf2)
             @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0 rtol=rtol
             @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2 rtol=rtol
             
