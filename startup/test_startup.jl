@@ -1,5 +1,6 @@
 
 using Pkg
+Pkg.update()
 Pkg.precompile()
 
 t_pkgload = @time @elapsed using CMBLensing, LinearAlgebra

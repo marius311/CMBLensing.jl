@@ -1,0 +1,4 @@
+[deps]
+CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
