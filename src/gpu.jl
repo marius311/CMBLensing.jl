@@ -2,7 +2,6 @@
 using CUDA
 using CUDA: curand_rng
 using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
-using CUDA.CUSOLVER: CuQR
 
 export cuda_gc, gpu
 
@@ -54,11 +53,13 @@ adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
 adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
 
-# CUDA somehow missing this one
-# see https://github.com/JuliaGPU/CuArrays.jl/issues/103
-# and https://github.com/JuliaGPU/CuArrays.jl/pull/580
-ldiv!(qr::CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
-
+# newer versions of CUDA w/ Julia 1.8 fixed this
+if @eval(CUDA.CUSOLVER, @isdefined(CuQR))
+    # CUDA somehow missing this one
+    # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
+    # and https://github.com/JuliaGPU/CuArrays.jl/pull/580
+    ldiv!(qr::CUDA.CUSOLVER.CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
+end
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     cpu(randn!(rng, CuVector{T}(undef,1)))[1]
