@@ -29,8 +29,9 @@ Zygote.accum(x::FieldOp, y::FieldOp, zs::FieldOp...) = _plus_accum(x, y, zs...)
 # gives weight of 2 to coefficient which would be there twice in the
 # full-plane FFT) in a few cases below to make the logic all work. the
 # Npix factor is handled by the Zfac function.
-Zfac(::SpatialBasis{Map},     proj::FlatProj) = 1
-Zfac(::SpatialBasis{Fourier}, proj::FlatProj) = proj.Ny * proj.Nx
+Zfac(::SpatialBasis{Map},       proj::CartesianProj) = 1
+Zfac(::SpatialBasis{Fourier},   proj::CartesianProj) = proj.Ny * proj.Nx
+Zfac(::SpatialBasis{AzFourier}, proj::CartesianProj) = 1 # no factor needed here bc of √nφ in AzFourier(::Map)
 Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
 
 
@@ -43,12 +44,18 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata))), nothing)
 end
+@adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{AzFourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
+    F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(metadata.Nx)' ./ Zfac(B(), metadata))), nothing)
+end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{Fourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Nx)' ./ Zfac(B(), f.metadata))), f.metadata),)
 end
 # preserve field type for sub-component property getters
 function _getproperty_subcomponent_pullback(f, k)
