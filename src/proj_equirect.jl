@@ -1,15 +1,16 @@
 
-struct ProjEquiRect{T} <: CartesianProj
+struct ProjEquiRect{T,V,M} <: CartesianProj
 
     Ny          :: Int
     Nx          :: Int
     θspan       :: Tuple{Float64,Float64}
     φspan       :: Tuple{Float64,Float64}
-    θ           :: Vector{Float64} 
-    φ           :: Vector{Float64} 
-    θedges      :: Vector{Float64} 
-    φedges      :: Vector{Float64} 
-    Ω           :: Vector{Float64} 
+    θ           :: V
+    φ           :: V
+    θedges      :: V
+    φedges      :: V
+    Ω           :: V
+    ℓx          :: M
     
     storage
 
@@ -70,7 +71,13 @@ getproperty(proj::ProjEquiRect, ::Val{k}) where {k} = getfield(proj, k)
 @memoize function ProjEquiRect(θ, φ, θedges, φedges, θspan, φspan, ::Type{T}, storage) where {T}
     Ny, Nx = length(θ), length(φ)
     Ω  = rem2pi(φedges[2] .- φedges[1], RoundDown) .* diff(.- cos.(θedges))
-    ProjEquiRect{T}(Ny, Nx, θspan, φspan, θ, φ, θedges, φedges, Ω, storage)
+    Δx = sin.(θ) .* abs(-(φspan...)) / Nx
+    Δℓx = @. 2π/(Nx*Δx)
+    ℓx = (ifftshift(-Nx÷2:(Nx-1)÷2)' .* Δℓx)[:,1:Nx÷2+1]
+    (θ, φ, θedges, φedges, Ω, ℓx) = adapt.(storage, (T.(θ), T.(φ), T.(θedges), T.(φedges), T.(Ω), T.(ℓx)))
+    V = typeof(φ)
+    M = typeof(ℓx)
+    ProjEquiRect{T,V,M}(Ny, Nx, θspan, φspan, θ, φ, θedges, φedges, Ω, ℓx, storage)
 end
 
 """
@@ -429,6 +436,7 @@ end
     function Cℓ_to_Cov(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
         
         @unpack θ, φ, Ω = proj
+        @cpu! θ φ Ω
         nθ, nφ  = length(θ), length(φ)
         ℓ       = 0:ℓmax
 
@@ -459,6 +467,7 @@ end
     function Cℓ_to_Cov(::Val{:P}, proj::ProjEquiRect{T}, CEE::Cℓs, CBB::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
         
         @unpack θ, φ, Ω = proj
+        @cpu! θ φ Ω
         nθ, nφ  = length(θ), length(φ)
         ℓ       = 0:ℓmax
 
@@ -496,6 +505,7 @@ end
 @uses_tullio function Cℓ_to_Beam(::Val{:I}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack Ω = proj
+    @cpu! Ω
     Ω′ = T.(Ω)
 
     Cov = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
@@ -507,6 +517,7 @@ end
 @uses_tullio function Cℓ_to_Beam(::Val{:P}, proj::ProjEquiRect{T}, CI::Cℓs; units=1, ℓmax=10_000, progress=true) where {T}
 
     @unpack θ, Ω = proj
+    @cpu! Ω
     Ω′ = T.(Ω)
 
     Cov   = Cℓ_to_Cov(:I, proj, CI; units, ℓmax, progress)
@@ -586,7 +597,7 @@ end
 ### adapting
 
 # dont adapt the fields in proj, instead re-call into the memoized
-# ProjLambert so we always get back the singleton ProjEquiRect object
+# ProjEquiRect so we always get back the singleton ProjEquiRect object
 # for the given set of parameters (helps reduce memory usage and
 # speed-up subsequent broadcasts which would otherwise not hit the
 # "===" branch of the "promote_*" methods)
