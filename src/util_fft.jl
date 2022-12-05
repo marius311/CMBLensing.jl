@@ -37,6 +37,7 @@ end
     FFTW.set_num_threads(FFTW_NUM_THREADS)
     plan_fft(A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
 end
+Zygote.@nograd m_plan_fft, m_plan_rfft
 # FFTW (but not MKL) destroys the input array for inplace inverse real
 # FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
 copy_if_fftw(x) = (x isa Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
