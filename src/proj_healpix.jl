@@ -89,27 +89,27 @@ end
 #   just a single call to Rotator(), otherwise it'd be really slow
 
 function ij_to_θϕ(proj::ProjLambert, i, j)
-    @unpack Δx, Ny, Nx, rotator = proj
-    x = Δx * (j - Nx÷2 - 0.5)
-    y = Δx * (i - Ny÷2 - 0.5)
+    @unpack Δx, Ny, Nx, rotator, T = proj
+    x = Δx * (j - Nx÷2 - T(0.5))
+    y = Δx * (i - Ny÷2 - T(0.5))
     r = sqrt(x^2 + y^2)
     θ = 2*acos(r/2)
     ϕ = atan(-x, -y)
     # note transform to CoordinateTransformations' (θ,ϕ) convention
-    z = SphericalFromCartesian()(RotZYX(deg2rad.(rotator)...) \ CartesianFromSpherical()(Spherical(1, ϕ, π/2-θ)))
-    π/2-z.ϕ, z.θ
+    z = SphericalFromCartesian()(RotZYX(T.(deg2rad.(rotator))...) \ CartesianFromSpherical()(Spherical(1, ϕ, T(π/2)-θ)))
+    T(π/2)-z.ϕ, z.θ
 end
 
 function θϕ_to_ij(proj::ProjLambert, θ, ϕ)
-    @unpack Δx, Ny, Nx, rotator = proj
+    @unpack Δx, Ny, Nx, rotator, T = proj
     # note transform to CoordinateTransformations' (θ,ϕ) convention
-    z = SphericalFromCartesian()(RotZYX(deg2rad.(rotator)...) * CartesianFromSpherical()(Spherical(1, ϕ, π/2-θ)))
-    θ, ϕ = π/2-z.ϕ, z.θ
+    z = SphericalFromCartesian()(RotZYX(T.(deg2rad.(rotator))...) * CartesianFromSpherical()(Spherical(1, ϕ, T(π/2)-θ)))
+    θ, ϕ = T(π/2)-z.ϕ, z.θ
     r = 2cos(θ/2)
     x = -r*sin(ϕ)
     y = -r*cos(ϕ)
-    i = y / Δx + Ny÷2 + 0.5
-    j = x / Δx + Nx÷2 + 0.5
+    i = y / Δx + Ny÷2 + T(0.5)
+    j = x / Δx + Nx÷2 + T(0.5)
     (i, j)
 end
 
@@ -117,7 +117,7 @@ function get_ψpol(proj::ProjLambert, θ, ϕ)
     J = ForwardDiff.jacobian(@SVector[θ, ϕ]) do (θ, ϕ)
         SVector{2}(θϕ_to_ij(proj, θ, ϕ))
     end
-    (atan.(J[1,1], J[2,1]) + atan.(-J[2,2],J[1,2]) - π)/2
+    (atan(J[1,1], J[2,1]) + atan(-J[2,2],J[1,2]) - π)/2
 end
 
 
