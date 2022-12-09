@@ -140,7 +140,8 @@ include("bilinearlens.jl")
 
 # plotting
 function animate end
-@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("plotting.jl")
+@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("pyplot.jl")
+include("plots.jl")
 
 # PPL
 include("distributions.jl")
