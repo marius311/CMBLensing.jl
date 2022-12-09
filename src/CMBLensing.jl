@@ -10,6 +10,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
 using ChainRules
 using Combinatorics
 using CompositeStructs
+using CoordinateTransformations
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
@@ -19,6 +20,8 @@ using Distributions: PDiagMat
 using EllipsisNotation
 using FileIO
 using FFTW
+using ForwardDiff
+using Healpix
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
@@ -41,6 +44,7 @@ using ProgressMeter
 using QuadGK
 using Random
 using Random: seed!, AbstractRNG
+using Rotations
 using Roots
 using Requires
 using Serialization

@@ -518,3 +518,6 @@ macro uses_tullio(funcdef)
         end
     end
 end
+
+ensure_dense(vec::AbstractVector) = vec
+ensure_dense(vec::SparseVector) = collect(vec)
