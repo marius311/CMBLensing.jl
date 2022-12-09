@@ -3,7 +3,7 @@ using RecipesBase, PlotUtils
 
 @recipe function plot(m::FlatS0)
     
-    (;θpix, Nx, Ny) = m
+    @unpack (θpix, Nx, Ny) = m
     arr = reverse(Float16.(Array(m[:Ix])), dims=1)
     clim = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
     

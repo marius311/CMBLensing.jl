@@ -619,7 +619,7 @@ end
     φspan  = deg2rad.((-60, 60))
     φspan′ = deg2rad.((-50, 50))
     Cℓ     = camb()
-    rtol   = 1e-5
+    rtol   = 1e-4
 
     @testset "T = $T" for T in (Float32, Float64)
 
