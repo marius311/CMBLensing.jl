@@ -540,7 +540,7 @@ end
                 ## S0
                 Cf = maybegpu(Cℓ_to_Cov(:I, proj, Cℓ.TT))
                 @test (f = @inferred simulate(rng,Cf)) isa FlatS0
-                @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
+                @test (Lϕ = precompute!!(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS0
                 # adjoints
                 f,g = simulate(rng,Cf),simulate(rng,Cf)
@@ -552,7 +552,7 @@ end
                 # S2 lensing
                 Cf = maybegpu(Cℓ_to_Cov(:P, proj, Cℓ.EE, Cℓ.BB))
                 @test (f = @inferred simulate(rng,Cf)) isa FlatS2
-                @test (Lϕ = cache(LenseFlow(ϕ),f)) isa CachedLenseFlow
+                @test (Lϕ = precompute!!(LenseFlow(ϕ),f)) isa CachedLenseFlow
                 @test (@inferred Lϕ*f) isa FlatS2
                 # adjoints
                 f,g = simulate(rng,Cf),simulate(rng,Cf)
@@ -574,7 +574,7 @@ end
 @testset "Posterior" begin
     
     Cℓ = camb()
-    L = LenseFlow{RK4Solver{7}}
+    L = LenseFlow(7)
     T = Float64
 
     @testset "Nside = $Nside" for Nside in Nsides_big

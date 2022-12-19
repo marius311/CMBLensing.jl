@@ -329,7 +329,7 @@ function load_sim(;
 
     if Nbatch != nothing
         d = ds.d *= batch(ones(Int,Nbatch))
-        ds.L = alloc_cache(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
+        ds.L = precompute!!(L(ϕ*batch(ones(Int,Nbatch))), ds.d)
     end
     
     return (;f, f̃, ϕ, d, ds, ds₀=ds(), Cℓ, proj)

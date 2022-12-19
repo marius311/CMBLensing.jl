@@ -1,8 +1,8 @@
 
 ### argmaxf_lnP
 
-argmaxf_lnP(ϕ::Field,    ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d), (;), ds; kwargs...)
-argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(cache(ds.L(ϕ),ds.d),   θ, ds; kwargs...)
+argmaxf_lnP(ϕ::Field,    ds::DataSet; kwargs...) = argmaxf_lnP(precompute!!(ds.L(ϕ),ds.d), (;), ds; kwargs...)
+argmaxf_lnP(ϕ::Field, θ, ds::DataSet; kwargs...) = argmaxf_lnP(precompute!!(ds.L(ϕ),ds.d),   θ, ds; kwargs...)
 
 function argmaxf_lnP(
     Lϕ, 
@@ -107,3 +107,9 @@ Base.@deprecate white_noise(f::Field, rng::AbstractRNG) randn!(rng, f)
 ### Cℓs
 
 Base.@deprecate InterpolatedCℓs(args...) Cℓs(args...)
+
+
+### cache
+
+Base.@deprecate cache(L, f) precompute!!(L, f)
+Base.@deprecate cache!(L, f) precompute!!(L, f)

@@ -2,7 +2,7 @@
 abstract type LenseFlowOp{S<:ODESolver,T} <: FlowOpWithAdjoint{T} end
 
 # `L = LenseFlow(ϕ)` just creates a wrapper holding ϕ. Then when you do `L*f` or
-# `cache(L,f)` we create a CachedLenseFlow object which holds all the
+# `precompute!!(L,f)` we create a CachedLenseFlow object which holds all the
 # precomputed quantities and preallocated memory needed to do the lense.
 
 """
