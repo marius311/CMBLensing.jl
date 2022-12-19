@@ -1,19 +1,17 @@
 
-abstract type FlowOp{I,t₀,t₁,T} <: ImplicitOp{T} end
-abstract type FlowOpWithAdjoint{I,t₀,t₁,T} <: FlowOp{I,t₀,t₁,T} end
+abstract type FlowOp{T} <: ImplicitOp{T} end
+abstract type FlowOpWithAdjoint{T} <: FlowOp{T} end
 
 # interface
 function velocity end
 function velocityᴴ end
 function negδvelocityᴴ end
 
-
-
 # define integrations for L*f, L'*f, L\f, and L'\f
-*(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = @⌛ odesolve(I,  velocity(cache(Lϕ, f),f)..., t₀, t₁)
-*(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = @⌛ odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₁, t₀)
-\(Lϕ::                FlowOp{I,t₀,t₁},  f::Field) where {I,t₀,t₁} = @⌛ odesolve(I,  velocity(cache(Lϕ, f),f)..., t₁, t₀)
-\(Lϕ::Adjoint{<:Any,<:FlowOp{I,t₀,t₁}}, f::Field) where {I,t₀,t₁} = @⌛ odesolve(I, velocityᴴ(cache(Lϕ',f),f)..., t₀, t₁)
+*(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₀ => Lϕ.t₁)
+*(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ.t₁ => Lϕ.t₀)
+\(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₁ => Lϕ.t₀)
+\(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ.t₀ => Lϕ.t₁)
 
 
 @adjoint (::Type{L})(ϕ) where {L<:FlowOp} = L(ϕ), Δ -> (Δ,)
@@ -21,11 +19,11 @@ function negδvelocityᴴ end
 
 # for FlowOps (without adjoint), use Zygote to take a gradient through the ODE solver
 
-@adjoint *(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
-    Zygote.pullback((Lϕ,f)->odesolve(I, velocity(cache(Lϕ, f),f)..., t₀, t₁), Lϕ, f)
+@adjoint *(Lϕ::FlowOp, f::Field{B}) where {B} = 
+    Zygote.pullback((Lϕ, f) -> Lϕ.odesolve(velocity(precompute!!(Lϕ, f), f)..., Lϕ.t₀ => Lϕ.t₁), Lϕ, f)
     
-@adjoint \(Lϕ::FlowOp{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B} = 
-    Zygote.pullback((Lϕ,f)->odesolve(I, velocity(cache(Lϕ, f),f)..., t₁, t₀), Lϕ, f)
+@adjoint \(Lϕ::FlowOp, f::Field{B}) where {B} = 
+    Zygote.pullback((Lϕ, f) -> Lϕ.odesolve(velocity(precompute!!(Lϕ, f), f)..., Lϕ.t₁ => Lϕ.t₀), Lϕ, f)
 
 
 # FlowOpWithAdjoint provide their own velocity for computing the gradient
@@ -39,28 +37,30 @@ function negδvelocityᴴ end
 # is constant by setting a task_local_storage. this can be made much
 # more clean once we switch to Diffractor
 
-@adjoint function *(Lϕ::FlowOpWithAdjoint{I,t₀,t₁}, f::Field{B}) where {I,t₀,t₁,B}
-    cLϕ = cache(Lϕ,f)
-    f̃ = cLϕ * f
+@adjoint function *(Lϕ::FlowOpWithAdjoint, f::Field{B}) where {B}
+    Lϕ_fwd = precompute!!(Lϕ, f)
+    f̃ = Lϕ_fwd * f
     function back(Δ)
+        Lϕ_back = precompute!!(Lϕ_fwd, Δ)
         if :ϕ in get(task_local_storage(), :AD_constants, ())
-            nothing, B(cLϕ' * Δ)
+            nothing, B(Lϕ_back' * Δ)
         else
-            (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f̃,Δ))..., t₁, t₀)
+            (_, δf, δϕ) = @⌛ Lϕ.odesolve(negδvelocityᴴ(Lϕ_back, FieldTuple(f̃, Δ))..., Lϕ.t₁ => Lϕ.t₀)
             δϕ, B(δf)
         end
     end
     f̃, back
 end
 
-@adjoint function \(Lϕ::FlowOpWithAdjoint{I,t₀,t₁}, f̃::Field{B}) where {I,t₀,t₁,B}
-    cLϕ = cache(Lϕ,f̃)
-    f = cLϕ \ f̃
+@adjoint function \(Lϕ::FlowOpWithAdjoint, f̃::Field{B}) where {B}
+    Lϕ_fwd = precompute!!(Lϕ, f)
+    f = Lϕ_fwd \ f̃
     function back(Δ)
+        Lϕ_back = precompute!!(Lϕ_fwd, Δ)
         if :ϕ in get(task_local_storage(), :AD_constants, ())
-            nothing, B(cLϕ' \ Δ)
+            nothing, B(Lϕ_back' \ Δ)
         else
-            (_,δf,δϕ) = @⌛ odesolve(I, negδvelocityᴴ(cLϕ, FieldTuple(f,Δ))..., t₀, t₁)
+            (_, δf, δϕ) = @⌛ Lϕ.odesolve(negδvelocityᴴ(Lϕ_back, FieldTuple(f, Δ))..., Lϕ.t₀ => Lϕ.t₁)
             δϕ, B(δf)
         end
     end

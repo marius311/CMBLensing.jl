@@ -308,14 +308,11 @@ end
 # depend on parameters or a field
 (L::Union{FieldOp,UniformScaling})(::Union{Field,NamedTuple}) = L
 
-# allow using `I` as a lensing operator to represent no lensing
-alloc_cache(x, ::Any) = x
-cache(x, ::Any) = x
-cache!(x, ::Any) = x
+# # allow using `I` as a lensing operator to represent no lensing
+precompute!!(L, ::Any) = L
 
-# caching for adjoints
-cache(L::Adjoint, f) = cache(L',f)'
-cache!(L::Adjoint, f) = cache!(L',f)'
+# # caching for adjoints
+precompute!!(L::Adjoint, f) = precompute!!(parent(L),f)'
 
 # todo: fix this
 *(::UniformScaling{Bool}, L::FieldOp) = L

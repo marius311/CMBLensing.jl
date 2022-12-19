@@ -1,38 +1,31 @@
 abstract type ODESolver end
 
+struct RK4Solver <: ODESolver
+    nsteps :: Int
+end
 
-abstract type RK4Solver{nsteps} <: ODESolver  end
-abstract type OutOfPlaceRK4Solver{nsteps} <: ODESolver  end
+struct OutOfPlaceRK4Solver <: ODESolver
+    nsteps :: Int
+end
 
-
-
-@doc doc"""
-    
-    RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
-        
-Solve for $y(t_1)$ with 4th order Runge-Kutta assuming $dy/dt = F(t,y)$ and $y(t_0)$ = $y_0$.
-
-Arguments:
-* `F!` — a function `F!(v,t,y)`` which sets `v=F(t,y)`
-"""
-function RK4Solver(F!::Function, y₀, t₀, t₁, nsteps)
-    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
+function (solver::RK4Solver)(F!::Function, y₀, (t₀, t₁)::Pair)
+    h, h½, h⅙ = (t₁-t₀)/solver.nsteps ./ (1,2,6)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in range(t₀,t₁,length=nsteps+1)[1:end-1]
+    for t in range(t₀,t₁,length=solver.nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
         @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
-        @. y .+= h*(k₁ + 2(k₂ + k₃) + k₄)/6
+        @. y += h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
     return y
 end
 
-function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
-    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
+function (solver::OutOfPlaceRK4Solver)(F::Function, y₀, (t₀, t₁)::Pair)
+    h, h½, h⅙ = (t₁-t₀)/solver.nsteps ./ (1,2,6)
     y = copy(y₀)
-    for i in 0:nsteps-1
+    for i in 0:solver.nsteps-1
         t = i*h
         k₁ = F(t, y)
         k₂ = F(t + h½, y + h½*k₁)
@@ -42,10 +35,6 @@ function OutOfPlaceRK4Solver(F::Function, y₀, t₀, t₁, nsteps)
     end
     return y
 end
-
-odesolve(::Type{RK4Solver{N}},F!,y₀,t₀,t₁) where {N} = RK4Solver(F!,y₀,t₀,t₁,N)
-odesolve(::Type{OutOfPlaceRK4Solver{N}},F,y₀,t₀,t₁) where {N} = OutOfPlaceRK4Solver(F,y₀,t₀,t₁,N)
-
 
 
 @doc doc"""

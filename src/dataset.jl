@@ -301,8 +301,8 @@ function load_sim(;
         B̂ = B
     end
     
-    # creating lensing operator cache
-    Lϕ = alloc_cache(L(Map(diag(Cϕ))), Map(diag(Cf)))
+    # preallocate lensing operator memory
+    Lϕ = precompute!!(L(zero(diag(Cϕ))), zero(diag(Cf)))
 
     # put everything in DataSet
     ds = BaseDataSet(;Cn, Cn̂, Cf, Cf̃, Cϕ, M, M̂, B, B̂, D, L=Lϕ)

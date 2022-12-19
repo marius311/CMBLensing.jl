@@ -1,5 +1,5 @@
 
-abstract type LenseFlowOp{I<:ODESolver,t₀,t₁,T} <: FlowOpWithAdjoint{I,t₀,t₁,T} end
+abstract type LenseFlowOp{S<:ODESolver,T} <: FlowOpWithAdjoint{T} end
 
 # `L = LenseFlow(ϕ)` just creates a wrapper holding ϕ. Then when you do `L*f` or
 # `cache(L,f)` we create a CachedLenseFlow object which holds all the
@@ -16,30 +16,42 @@ gradient of any of these w.r.t. `ϕ` can all be computed. The
 log-determinant of the operation is zero independent of `ϕ`, in the
 limit of `n` high enough.
 """
-struct LenseFlow{I<:ODESolver,t₀,t₁,T} <: LenseFlowOp{I,t₀,t₁,T}
+struct LenseFlow{S<:ODESolver,T} <: LenseFlowOp{S,T}
     ϕ :: Field
+    odesolve :: S
+    t₀ :: T
+    t₁ :: T
+    function LenseFlow(ϕ::Field, odesolve::S, t₀, t₁) where {S<:ODESolver}
+        rT = ForwardDiff.valtype(real(eltype(ϕ)))
+        new{S,rT}(ϕ, odesolve, rT(0), rT(1))
+    end
 end
-LenseFlow(ϕ,n=7) = LenseFlow{RK4Solver{n}}(ϕ)
-LenseFlow{I}(ϕ) where {I<:ODESolver} = LenseFlow{I,0,1}(ϕ)
-LenseFlow{I,t₀,t₁}(ϕ) where {I,t₀,t₁} = LenseFlow{I,float(t₀),float(t₁),real(eltype(ϕ))}(ϕ)
+LenseFlow(ϕ::Field, nsteps::Int=7) = LenseFlow(ϕ, RK4Solver(nsteps), 0, 1)
+LenseFlow(nsteps::Int) = ϕ -> LenseFlow(ϕ, nsteps)
 
 
-struct CachedLenseFlow{N,t₀,t₁,ŁΦ<:Field,ÐΦ<:Field,ŁF<:Field,ÐF<:Field,T} <: LenseFlowOp{RK4Solver{N},t₀,t₁,T}
+struct CachedLenseFlow{S<:ODESolver, T, D<:Diagonal, ŁΦ<:Field, ÐΦ<:Field, ŁF<:Field, ÐF<:Field} <: LenseFlowOp{S, T}
     
     # save ϕ to know when to trigger recaching
     ϕ :: Ref{Any}
+    needs_precompute :: Ref{Bool}
+
+    # ODE solver
+    odesolve :: S
+    t₀ :: T
+    t₁ :: T
     
     # p and M⁻¹ quantities precomputed at every time step
-    p   :: Dict{Float16,SVector{2,Diagonal{T,ŁΦ}}}
-    M⁻¹ :: Dict{Float16,SMatrix{2,2,Diagonal{T,ŁΦ},4}}
+    p   :: Dict{Float16,SVector{2,D}}
+    M⁻¹ :: Dict{Float16,SMatrix{2,2,D,4}}
     
-    # f type memory
+    # preallocated "wide" f-type memory
     memŁf  :: ŁF
     memÐf  :: ÐF
     memŁvf :: FieldVector{ŁF}
     memÐvf :: FieldVector{ÐF}
     
-    # ϕ type memory
+    # preallocated "wide" ϕ-type memory
     memŁϕ  :: ŁΦ
     memÐϕ  :: ÐΦ
     memŁvϕ :: FieldVector{ŁΦ}
@@ -50,12 +62,7 @@ end
 
 
 ### printing
-typealias_def(::Type{<:RK4Solver{N}}) where {N} = "$N-step RK4"
-typealias_def(::Type{<:CachedLenseFlow{N,t₀,t₁,ŁΦ,<:Any,ŁF}}) where {N,t₀,t₁,ŁΦ,ŁF} = 
-    "CachedLenseFlow{$t₀→$t₁, $N-step RK4}(ϕ::$(typealias(ŁΦ)), Łf::$(typealias(ŁF)))"
-typealias_def(::Type{<:LenseFlow{I,t₀,t₁}}) where {I,t₀,t₁} = 
-    "LenseFlow{$t₀→$t₁, $(typealias(I))}(ϕ)"
-size(L::CachedLenseFlow) = length(L.memŁf) .* (1,1)
+size(L::CachedLenseFlow) = length(L.memŁf) .* (1, 1)
 
 
 # convenience for getting the actual ϕ map
@@ -67,47 +74,72 @@ hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
 
 
 ### caching
+
 τ(t) = Float16(t)
-cache(cL::CachedLenseFlow, f) = cL
-(cL::CachedLenseFlow)(ϕ::Field) = cache!(cL,ϕ)
-function cache(L::LenseFlow, f)
-    f′ = Ł(L.ϕ) .* Ł(f) # in case ϕ is batched but f is not, promote f to batched
-    cache!(alloc_cache(L,f′), L, f′)
-end
-function cache!(cL::CachedLenseFlow{N,t₀,t₁}, ϕ) where {N,t₀,t₁}
-    if cL.ϕ[] === ϕ
-        cL
-    else
-        cache!(cL,LenseFlow{RK4Solver{N},t₀,t₁}(ϕ),cL.memŁf)
-    end
-end
-function cache!(cL::CachedLenseFlow{N,t₀,t₁}, L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
-    ts = range(t₀,t₁,length=2N+1)
-    ∇ϕ,∇∇ϕ = map(Ł, gradhess(L.ϕ))
-    T = eltype(L.ϕ)
-    for (t,τ) in zip(ts,τ.(ts))
-        @! cL.M⁻¹[τ] = pinv(Diagonal.(I + T(t)*∇∇ϕ))
-        @! cL.p[τ] = cL.M⁻¹[τ]' * Diagonal.(∇ϕ)
-    end
-    cL.ϕ[] = L.ϕ
-    cL
-end
-function alloc_cache(L::LenseFlow{RK4Solver{N},t₀,t₁}, f) where {N,t₀,t₁}
-    ts = range(t₀,t₁,length=2N+1)
+
+function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
+    
+    @unpack (ϕ, t₀, t₁, odesolve) = Lϕ
+    @unpack nsteps = odesolve
+    
+    # p & M precomputed matrix elements will use exactly same type as ϕ
+    Łϕ, Ðϕ = Ł(ϕ), Ð(ϕ)
     p, M⁻¹ = Dict(), Dict()
-    Łf,Ðf = Ł(f),  Ð(f)
-    Łϕ,Ðϕ = Ł(L.ϕ),Ð(L.ϕ)
-    for (t,τ) in zip(ts,τ.(ts))
-        M⁻¹[τ] = Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))
-        p[τ]   = Diagonal.(similar.(@SVector[Łϕ,Łϕ]))
-    end
-    CachedLenseFlow{N,t₀,t₁,typeof(Łϕ),typeof(Ðϕ),typeof(Łf),typeof(Ðf),eltype(Łϕ)}(
-        Ref{Any}(L.ϕ), p, M⁻¹, 
-        similar(Łf), similar(Ðf), similar.(@SVector[Łf,Łf]), similar.(@SVector[Ðf,Ðf]),
-        similar(Łϕ), similar(Ðϕ), similar.(@SVector[Łϕ,Łϕ]), similar.(@SVector[Ðϕ,Ðϕ]),
+    τs     = τ.(range(t₀, t₁, length=2nsteps+1))
+    p      = Dict(map(τ -> (τ => Diagonal.(similar.(@SVector[Łϕ, Łϕ]))),       τs))
+    M⁻¹    = Dict(map(τ -> (τ => Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))), τs))
+
+    # preallocated memory need to be "wide" enough to handle the
+    # batching and/or Dual-ness of both f and ϕ. this is a kind of
+    # hacky way to get fields that are this wide given the input f and ϕ:
+    f′ = Ł(ϕ) .* Ł(f)
+    ϕ′ = spin_adjoint(f′) * f′
+    Łϕ′, Ðϕ′ = Ł(ϕ′), Ð(ϕ′)
+    Łf′, Ðf′ = Ł(f′), Ð(f′)
+
+    cLϕ = CachedLenseFlow(
+        Ref{Any}(ϕ), Ref(false),
+        odesolve, t₀, t₁,
+        p, M⁻¹, 
+        similar(Łf′), similar(Ðf′), similar.(@SVector[Łf′,Łf′]), similar.(@SVector[Ðf′,Ðf′]),
+        similar(Łϕ′), similar(Ðϕ′), similar.(@SVector[Łϕ′,Łϕ′]), similar.(@SVector[Ðϕ′,Ðϕ′]),
     )
+
+    return precompute!(cLϕ)
 end
 
+function precompute!!(Lϕ::CachedLenseFlow, f)
+    if real(eltype(f)) == real(eltype(Lϕ.memŁf))
+        if Lϕ.needs_precompute[]
+            precompute!(Lϕ)
+            Lϕ.needs_precompute[] = false
+        end
+        return Lϕ
+    else
+        return precompute!!(LenseFlow(Lϕ.ϕ[], Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁), f)
+    end
+end
+
+function (Lϕ::CachedLenseFlow)(ϕ::Field)
+    if Lϕ.ϕ[] !== ϕ
+        Lϕ.ϕ[] = ϕ
+        Lϕ.needs_precompute[] = true
+    end
+    Lϕ
+end
+
+function precompute!(Lϕ::CachedLenseFlow{S,T}) where {S,T}
+    # @info "Precomputing $T"
+    @unpack (ϕ, t₀, t₁, odesolve) = Lϕ
+    @unpack nsteps = odesolve
+    ts = range(t₀, t₁, length=2nsteps+1)
+    ∇ϕ, ∇∇ϕ = map(Ł, gradhess(ϕ[]))
+    for (t, τ) in zip(ts,τ.(ts))
+        @! Lϕ.M⁻¹[τ] = pinv(Diagonal.(I + T(t)*∇∇ϕ))
+        @! Lϕ.p[τ] = Lϕ.M⁻¹[τ]' * Diagonal.(∇ϕ)
+    end
+    Lϕ
+end
 
 # the way these velocities work is that they unpack the preallocated fields
 # stored in L.mem* into variables with more meaningful names, which are then
@@ -115,7 +147,7 @@ end
 # the @! macro, which just rewrites @! x = f(y) to x = f!(x,y) for easier
 # reading. 
 
-function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
+function velocity(L::CachedLenseFlow, f₀::Field)
     function v!(v::Field, t::Real, f::Field)
         Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
         p = L.p[τ(t)]
@@ -128,7 +160,7 @@ function velocity(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
     return (v!, L.memŁf .= Ł(f₀))
 end
 
-function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
+function velocityᴴ(L::CachedLenseFlow, f₀::Field)
     function v!(v::Field, t::Real, f::Field)
         Łf, Łf_p, Ð_Łf_p = L.memŁf, L.memŁvf, L.memÐvf
         p = L.p[τ(t)]
@@ -141,7 +173,7 @@ function velocityᴴ(L::LenseFlowOp{<:RK4Solver}, f₀::Field)
     return (v!, L.memÐf .= Ð(f₀))
 end
 
-function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTuple)
+function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
     
     function v!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, t::Real, (f, δf, δϕ)::FieldTuple)
     
@@ -177,21 +209,21 @@ function negδvelocityᴴ(L::LenseFlowOp{<:RK4Solver}, (f₀, δf₀)::FieldTupl
     
     end
     
-    return (v!, FieldTuple(Ł(f₀), Ð(δf₀), L.memÐϕ .= Ð(zero(getϕ(L)))))
+    return (v!, FieldTuple(L.memŁf .= Ł(f₀), L.memÐf .= Ð(δf₀), L.memÐϕ .= Ð(zero(getϕ(L)))))
     
 end
 
 # adapting storage
-adapt_structure(storage, Lϕ::LenseFlow{I,t₀,t₁}) where {I<:ODESolver,t₀,t₁} = LenseFlow{I,t₀,t₁}(adapt(storage,Lϕ.ϕ))
-function adapt_structure(storage, Lϕ::CachedLenseFlow{N,t₀,t₁}) where {N,t₀,t₁}
+adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), Lϕ.solver, Lϕ.t₀, Lϕ.t₁)
+function adapt_structure(storage, Lϕ::CachedLenseFlow)
     _adapt(x) = adapt(storage, x)
-    memŁf, memÐf, memŁϕ, memÐϕ = _adapt(Lϕ.memŁf), _adapt(Lϕ.memÐf), _adapt(Lϕ.memŁϕ), _adapt(Lϕ.memÐϕ)
-    CachedLenseFlow{N,t₀,t₁,typeof(memŁϕ),typeof(memÐϕ),typeof(memŁf),typeof(memÐf),eltype(memŁϕ)}(
-        Ref(_adapt(Lϕ.ϕ[])), 
-        Dict(t => _adapt.(x) for (t,x) in Lϕ.p),
-        Dict(t => _adapt.(x) for (t,x) in Lϕ.M⁻¹),
-        memŁf, memÐf, _adapt.(Lϕ.memŁvf), _adapt.(Lϕ.memÐvf),
-        memŁϕ, memÐϕ, _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)
+    CachedLenseFlow(
+        Ref(_adapt(Lϕ.ϕ[])), Lϕ.needs_precompute,
+        Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁,
+        Dict(τ => _adapt.(x) for (τ,x) in Lϕ.p), 
+        Dict(τ => _adapt.(x) for (τ,x) in Lϕ.M⁻¹),
+        _adapt(Lϕ.memŁf), _adapt(Lϕ.memÐf), _adapt.(Lϕ.memŁvf), _adapt.(Lϕ.memÐvf),
+        _adapt(Lϕ.memŁϕ), _adapt(Lϕ.memÐϕ), _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)
     )
 end
 

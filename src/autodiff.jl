@@ -243,3 +243,67 @@ Zygote.wrap_chainrules_output(dxs::LazyBinaryOp) = dxs
 # needed to allow AD through field broadcasts
 Zygote.unbroadcast(x::BaseField{B}, x̄::BaseField) where {B} = 
     BaseField{B}(Zygote.unbroadcast(x.arr, x̄.arr), x.metadata)
+
+
+
+## ForwardDiff rules 
+# mainly FFTs which don't work, some work upstream here
+# https://github.com/JuliaDiff/ForwardDiff.jl/pull/541 but its not
+# incorporated merged
+
+using ForwardDiff: Dual, Partials, value, partials
+
+
+# FFT is a linear operator so FFT of a vector of duals is just an FFT
+# of the values and partials separately
+
+function apply_plan(op, plan, arr::AbstractArray{Dual{T,V,N}}) where {T,V,N}
+    value_arr = op(plan, value.(arr))
+    partials_arrs = ntuple(i -> op(plan, partials.(arr, i)), Val(N))
+    return (value_arr, partials_arrs)
+end
+
+function apply_plan(op, plan, arr::AbstractArray{<:Complex{Dual{T,V,N}}}) where {T,V,N}
+    value_arr = op(plan, complex.(value.(real.(arr)), value.(imag.(arr))))
+    partials_arrs = ntuple(i -> op(plan, complex.(partials.(real.(arr), i), partials.(imag.(arr), i))), Val(N))
+    return (value_arr, partials_arrs)
+end
+
+function arr_of_duals(::Type{T}, value_arr::AbstractArray{<:Real}, partials_arrs) where {T}
+    return broadcast(value_arr, partials_arrs...) do value, partials...
+        Dual{T}(real(value), Partials(map(real, partials)))
+    end
+end
+
+function arr_of_duals(::Type{T}, value_arr::AbstractArray{<:Complex}, partials_arrs) where {T}
+    return broadcast(value_arr, partials_arrs...) do value, partials...
+        complex(
+            Dual{T}(real(value), Partials(map(real, partials))),
+            Dual{T}(imag(value), Partials(map(imag, partials)))
+        )
+    end
+end
+
+for P in [AbstractFFTs.Plan, AbstractFFTs.ScaledPlan]
+    for op in [:(Base.:*), :(Base.:\)]
+        @eval function ($op)(plan::$P, arr::AbstractArray{<:Union{Dual{T},Complex{<:Dual{T}}}}) where {T}
+            arr_of_duals(T, apply_plan($op, plan, arr)...)
+        end
+    end
+end
+
+LinearAlgebra.mul!(dst::AbstractArray{<:Complex{<:Dual}}, plan::AbstractFFTs.Plan, src::AbstractArray{<:Dual}) = (dst .= plan * src)
+LinearAlgebra.mul!(dst::AbstractArray{<:Dual}, plan::AbstractFFTs.ScaledPlan, src::AbstractArray{<:Complex{<:Dual}}) = (dst .= plan * src)
+
+
+# to allow creating a plan within ForwardDiff'ed code. even for
+# arrays of Duals, the plan is still a plan for Float32/64 since we
+# apply it to values/partials separtarely above
+AbstractFFTs.complexfloat(arr::AbstractArray{<:Dual}) = complex.(arr)
+AbstractFFTs.realfloat(arr::AbstractArray{<:Dual}) = arr
+AbstractFFTs.plan_fft(arr::AbstractArray{<:Complex{<:Dual}}, region) = plan_fft(complex.(value.(real.(arr)), value.(imag.(arr))), region)
+AbstractFFTs.plan_rfft(arr::AbstractArray{<:Dual}, region; kws...) = plan_rfft(value.(arr), region; kws...)
+
+
+# to allow stuff like Float32(::Dual) to work
+(::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(S(value(x)), Partials(ntuple(i -> S(partials(x,i)), Val(N))))
