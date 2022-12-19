@@ -84,7 +84,7 @@ import Random: randn!
 export
     @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
     animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
-    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
     Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
@@ -94,7 +94,7 @@ export
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     mean_std_and_errors, MidPass, mix, Mixed, nan2zero, noiseCℓs,
-    ParamDependentOp, pixwin, PowerLens, ProjLambert, ProjEquiRect, ProjHealpix, project,
+    ParamDependentOp, pixwin, PowerLens, precompute!!, ProjLambert, ProjEquiRect, ProjHealpix, project,
     QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, Ð, Ł,  

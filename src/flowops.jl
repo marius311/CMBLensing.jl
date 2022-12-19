@@ -9,9 +9,9 @@ function negδvelocityᴴ end
 
 # define integrations for L*f, L'*f, L\f, and L'\f
 *(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₀ => Lϕ.t₁)
-*(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ.t₁ => Lϕ.t₀)
+*(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ'.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ'.t₁ => Lϕ'.t₀)
 \(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₁ => Lϕ.t₀)
-\(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ.t₀ => Lϕ.t₁)
+\(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ'.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ'.t₀ => Lϕ'.t₁)
 
 
 @adjoint (::Type{L})(ϕ) where {L<:FlowOp} = L(ϕ), Δ -> (Δ,)
@@ -53,7 +53,7 @@ function negδvelocityᴴ end
 end
 
 @adjoint function \(Lϕ::FlowOpWithAdjoint, f̃::Field{B}) where {B}
-    Lϕ_fwd = precompute!!(Lϕ, f)
+    Lϕ_fwd = precompute!!(Lϕ, f̃)
     f = Lϕ_fwd \ f̃
     function back(Δ)
         Lϕ_back = precompute!!(Lϕ_fwd, Δ)

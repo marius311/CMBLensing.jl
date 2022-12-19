@@ -1,5 +1,5 @@
-using Pkg
-Pkg.activate(@__DIR__)
+using TestEnv, Pkg
+Pkg.project().name == "CMBLensing" && TestEnv.activate()
 
 using ArgParse
 s = ArgParseSettings()
@@ -108,16 +108,16 @@ timing = []
 for (s,pol) in [(0,:I),(2,:P)]
     
     @unpack f,f̃,ϕ,ds,ds₀ = load_sim(θpix=3, Nside=N, T=T, pol=pol, storage=storage, Cℓ=Cℓ);
-    f°,ϕ° = mix(f,ϕ,ds₀)
-    Lϕ = cache(LenseFlow(ϕ),f)
+    f°,ϕ° = mix(ds₀; f, ϕ)
+    Lϕ = precompute!!(LenseFlow(ϕ), f)
     
     append!(timing,[
-        "Spin-$s Cache L" => @belapsed cache(LenseFlow($ϕ), $f);
+        "Spin-$s Cache L" => @belapsed precompute!!(LenseFlow($ϕ), $f);
         "Spin-$s L"       => @belapsed $Lϕ  * $f;
         "Spin-$s L†"      => @belapsed $Lϕ' * $f;
         "Spin-$s (∇L)†"   => @belapsed gradient(ϕ->norm($Lϕ(ϕ)*$f), $ϕ);
-        "Spin-$s lnP"     => @belapsed                 lnP(:mix, $f°, $ϕ°, $ds₀);
-        "Spin-$s ∇lnP"    => @belapsed gradient((f,ϕ)->lnP(:mix,  f,   ϕ,  $ds₀), $f°, $ϕ°);
+        "Spin-$s lnP"     => @belapsed logpdf($(Mixed(ds₀)); f°=$f°, ϕ°=$ϕ°);
+        "Spin-$s ∇lnP"    => @belapsed gradient((f°,ϕ°)->logpdf($(Mixed(ds₀)); f°, ϕ°), $f°, $ϕ°);
     ])
 
 end
@@ -151,7 +151,7 @@ pretty_table(Dict(meta), crop=:none)
 
 pretty_table(
     vcat(([k v reference_timing[k]*1e-3] for (k,v) in timing)...),
-    ["Operation","Time","Reference"],
+    header=["Operation","Time","Reference"],
     formatters = function (v,i,j)
         @match j begin
             2 => @sprintf("%.1f ms",1000v)
