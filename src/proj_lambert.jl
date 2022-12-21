@@ -355,7 +355,8 @@ end
 
 
 ### creating covariance operators
-# fixed covariances
+
+## fixed covariances
 Cℓ_to_Cov(pol::Symbol, args...; kwargs...) = Cℓ_to_Cov(Val(pol), args...; kwargs...)
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert, Cℓ::Cℓs; units=proj.Ωpix)
     Diagonal(LambertFourier(Cℓ_to_2D(Cℓ,proj), proj) / units)
@@ -367,83 +368,46 @@ function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, Cℓ
     ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     BlockDiagIEB(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
 end
-# ParamDependentOp covariances scaled by amplitudes in different ℓ-bins
-function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T}
-    # we need an @eval here since we want to dynamically select a
-    # keyword argument name, θname. the @eval happens into Main rather
-    # than CMBLensing as a workaround for
-    # https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
-    C₀ = diag(Cℓ_to_Cov(:I, proj, Cℓ; kwargs...))
-    @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
-        $ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            As = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
-            CℓI = $Zygote.ignore() do
-                copy(C₀.Il) .* one.(first(As))# gets batching right
-            end
-            $Diagonal($LambertFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓI, As...), C₀.metadata))
-        end)
-    end
+
+## ParamDependentOp covariances scaled by amplitudes in different ℓ-bins
+# note we need an @eval below since we want to dynamically select a
+# keyword argument name, θname. the @eval happens into Main rather
+# than CMBLensing as a workaround for
+# https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
+function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T,V}
+    C₀ = Cℓ_to_Cov(:I, proj, Cℓ; kwargs...)
+    ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
+    Cov(θ) = Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
+    ParamDependentOp(@eval Main let Cov=$Cov
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    end)
 end
+
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::Cℓs; kwargs...) where {T}
-    C₀ = diag(Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...))
-    @eval Main let ℓedges=$((T.(ℓedges))...,), C₀=$C₀
-        ParamDependentOp(function (;$θname=ones($T,length(ℓedges)-1),_...)
-            AEs = $preprocess.(Ref((nothing,C₀.metadata)), $T.($ensure1d($θname)))
-            CℓE, CℓB = $Zygote.ignore() do
-                copy(C₀.El) .* one.(first(AEs)), copy(C₀.Bl) .* one.(first(AEs)) # gets batching right
-            end
-            Diagonal(LambertEBFourier($bandpower_rescale!(ℓedges, C₀.ℓmag, CℓE, AEs...), CℓB, C₀.metadata))
-        end)
-    end
+    C₀ = Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...)
+    ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
+    Cov(θ) = Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
+    ParamDependentOp(@eval Main let Cov=$Cov
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    end)
 end
-# this is written weird because the stuff inside the broadcast! needs
-# to work as a GPU kernel
-function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
-    length(A)==length(ℓedges)-1 || error("Expected $(length(ℓedges)-1) bandpower parameters, got $(length(A)).")
-    eltype(A[1]) <: Real || error("Bandpower parameters must be real numbers.")
-    if length(A)>30
-        # if more than 30 bandpowers, we need to chunk the rescaling
-        # because of a maximum argument limit of CUDA kernels
-        for p in partition(1:length(A), 30)
-            bandpower_rescale!(ℓedges[p.start:(p.stop+1)], ℓ, Cℓ, A[p]...)
-        end
-    else
-        broadcast!(Cℓ, ℓ, Cℓ, A...) do ℓ, Cℓ, A...
-            for i=1:length(ℓedges)-1
-                (ℓedges[i] < ℓ < ℓedges[i+1]) && return A[i] * Cℓ
-            end
-            return Cℓ
-        end
-    end
-    Cℓ
+
+# helper function for scaling the covariances in ℓ-bins
+function findbin(ℓedges, ℓ; out_of_range=length(ℓedges))
+    (ℓ<ℓedges[1] || ℓ>=ℓedges[end]) ? out_of_range : findfirst(>(ℓ), ℓedges)::Int - 1
 end
-# cant reliably get Zygote's gradients to work through these
-# broadcasts, which on GPU use ForwardDiff, so write the adjoint by
-# hand for now. likely more performant, in any case. 
-@adjoint function bandpower_rescale!(ℓedges, ℓ, Cℓ, A...)
-    back = let Cℓ = copy(Cℓ) # need copy bc Cℓ mutated on forward pass
-        function (Δ)
-            Ā = map(1:length(A)) do i
-                sum(
-                    real,
-                    broadcast(Δ, ℓ, Cℓ) do Δ, ℓ, Cℓ
-                        (ℓedges[i] < ℓ < ℓedges[i+1]) ? Δ * Cℓ : zero(Δ)
-                    end,
-                    dims = ndims(Δ)==4 ? (1,2) : (:)
-                )
-            end
-            (nothing, nothing, nothing, Ā...)
-        end
-    end
-    bandpower_rescale!(ℓedges, ℓ, Cℓ, A...), back
+function bandpower_rescale(arr::A, ℓbin_indices, amplitudes) where {T<:Real, A<:AbstractArray{T}}
+    amplitudes_arr = adapt(basetype(A), [T.(amplitudes); 1])
+    return amplitudes_arr[ℓbin_indices] .* arr
 end
+
+
+### Covariance back to Cℓs
 function cov_to_Cℓ(C::DiagOp{<:LambertS0}; kwargs...)
     @unpack Nx, Ny, Δx = diag(C)
     α = Nx*Ny/Δx^2
     get_Cℓ(sqrt.(diag(C)); kwargs...)*sqrt(α)
 end
-
-
 
 
 ### spin adjoints

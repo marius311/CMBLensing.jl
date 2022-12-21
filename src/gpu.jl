@@ -90,3 +90,29 @@ end
 # prevents unnecessary CuArray views in some cases
 Base.view(arr::CuArray{T,2}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
 Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
+
+
+## ForwardDiff through FFTs 
+# these definitions needed bc the CUDA.jl definitions supersede the
+# AbstractArray ones in autodiff.jl
+
+for P in [AbstractFFTs.Plan, AbstractFFTs.ScaledPlan]
+    for op in [:(Base.:*), :(Base.:\)]
+        @eval function ($op)(plan::$P, arr::CuArray{<:Union{Dual{T},Complex{<:Dual{T}}}}) where {T}
+            arr_of_duals(T, apply_plan($op, plan, arr)...)
+        end
+    end
+end
+
+AbstractFFTs.plan_fft(arr::CuArray{<:Complex{<:Dual}}, region) = plan_fft(complex.(value.(real.(arr)), value.(imag.(arr))), region)
+AbstractFFTs.plan_rfft(arr::CuArray{<:Dual}, region; kws...) = plan_rfft(value.(arr), region; kws...)
+
+# until something like https://github.com/JuliaDiff/ForwardDiff.jl/pull/619
+function ForwardDiff.extract_gradient!(::Type{T}, result::CuArray, dual::Dual) where {T}
+    result[:] .= partials(T, dual)
+    return result
+end
+function ForwardDiff.extract_gradient_chunk!(::Type{T}, result::CuArray, dual, index, chunksize) where {T}
+    result[index:index+chunksize-1] .= partials.(T, dual, 1:chunksize)
+    return result
+end
