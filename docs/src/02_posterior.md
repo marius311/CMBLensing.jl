@@ -104,7 +104,7 @@ First lets load up some simulated data. The function `load_sim` handles construc
     T         = Float64,
     pol       = :P,
     μKarcminT = 1,
-    L         = LenseFlow{RK4Solver{10}},
+    L         = LenseFlow(10),
     seed      = 0,
     pixel_mask_kwargs = (edge_padding_deg=1, apodization_deg=0, num_ptsrcs=0),
     bandpass_mask     = LowPass(5000)
