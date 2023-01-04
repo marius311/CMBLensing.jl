@@ -131,17 +131,17 @@ promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert) =
 # return `Broadcasted` objects which are spliced into the final
 # broadcast, thus avoiding allocating any temporary arrays.
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert{T,V}}, r::Real) where {T,V}
+function preprocess((_,proj)::Tuple{<:BaseFieldStyle,<:ProjLambert{T,V}}, r::Real) where {T,V}
     r isa BatchedReal ? adapt(V, reshape(r.vals, 1, 1, 1, :)) : r
 end
 # need custom adjoint here bc Δ can come back batched from the
 # backward pass even though r was not batched on the forward pass
-@adjoint function preprocess(m::Tuple{<:Any,<:ProjLambert{T,V}}, r::Real) where {T,V}
+@adjoint function preprocess(m::Tuple{<:BaseFieldStyle,<:ProjLambert{T,V}}, r::Real) where {T,V}
     preprocess(m, r), Δ -> (nothing, Δ isa AbstractArray ? batch(real.(Δ[:])) : Δ)
 end
 
 
-function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ∇d::∇diag) where {S,B}
+function preprocess((_,proj)::Tuple{<:BaseFieldStyle{S,B},<:ProjLambert}, ∇d::∇diag) where {S,B}
 
     (B <: Union{Fourier,QUFourier,IQUFourier}) ||
         error("Can't broadcast ∇[$(∇d.coord)] as a $(typealias(B)), its not diagonal in this basis.")
@@ -156,7 +156,7 @@ function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ∇d::�
     end
 end
 
-function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ::∇²diag) where {S,B}
+function preprocess((_,proj)::Tuple{<:BaseFieldStyle{S,B},<:ProjLambert}, ::∇²diag) where {S,B}
     
     (B <: Union{Fourier,<:Basis2Prod{<:Any,Fourier},<:Basis3Prod{<:Any,<:Any,Fourier}}) ||
         error("Can't broadcast a BandPass as a $(typealias(B)), its not diagonal in this basis.")
@@ -164,7 +164,7 @@ function preprocess((_,proj)::Tuple{BaseFieldStyle{S,B},<:ProjLambert}, ::∇²d
     broadcasted(+, broadcasted(^, proj.ℓx', 2), broadcasted(^, proj.ℓy, 2))
 end
 
-function preprocess((_,proj)::Tuple{<:Any,<:ProjLambert}, bp::BandPass)
+function preprocess((_,proj)::Tuple{<:BaseFieldStyle,<:ProjLambert}, bp::BandPass)
     Cℓ_to_2D(bp.Wℓ, proj)
 end
 

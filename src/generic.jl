@@ -330,9 +330,16 @@ show_vector(io::IO, f::Field) = !isempty(f) && show_vector(io, f[:])
 Base.has_offset_axes(::Field) = false # needed for Diagonal(::Field) if the Field is implicitly-sized
 
 
-# addition/subtraction works between any fields and scalars, promotion is done
-# automatically if fields are in different bases
-for op in (:+,:-), (T1,T2,promote) in ((:Field,:Scalar,false),(:Scalar,:Field,false),(:Field,:Field,true))
+# addition/subtraction works between fields, scalars, and
+# abstractarrays. promotion is done automatically for fields in
+# different bases are wrapped assuming they're the same field type
+for op in (:+,:-), (T1,T2,promote) in [
+    (:Field,         :Scalar,        false),
+    (:Scalar,        :Field,         false),
+    (:Field,         :Field,         true),
+    (:Field,         :AbstractArray, true),
+    (:AbstractArray, :Field,         true)
+]
     @eval ($op)(a::$T1, b::$T2) = broadcast($op, ($promote ? promote(a,b) : (a,b))...)
 end
 

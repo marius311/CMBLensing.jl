@@ -36,7 +36,9 @@ lastindex(f::BaseField, i::Int) = lastindex(f.arr, i)
 @propagate_inbounds getindex(f::BaseField, I::Union{Int,Colon,AbstractArray}...) = getindex(f.arr, I...)
 @propagate_inbounds setindex!(f::BaseField, X, I::Union{Int,Colon,AbstractArray}...) = (setindex!(f.arr, X, I...); f)
 similar(f::BaseField{B}, ::Type{T}) where {B,T} = BaseField{B}(similar(f.arr, T), f.metadata)
+similar(f::BaseField{B}, ::Type{T}, dims::Base.DimOrInd...) where {B,T} = similar(f.arr, T, dims...)
 copy(f::BaseField{B}) where {B} = BaseField{B}(copy(f.arr), f.metadata)
+copyto!(dst::AbstractArray, src::BaseField) = copyto!(dst, src.arr)
 (==)(f₁::BaseField, f₂::BaseField) = strict_compatible_metadata(f₁,f₂) && (f₁.arr == f₂.arr)
 
 
@@ -46,7 +48,9 @@ function promote(f₁::BaseField{B₁}, f₂::BaseField{B₂}) where {B₁,B₂}
     B = typeof(promote_basis_generic(B₁(), B₂()))
     B(f₁), B(f₂)
 end
-
+# allow very basic arithmetic with BaseField & AbstractArray
+promote(f::BaseField{B}, x::AbstractArray) where {B} = (f, BaseField{B}(reshape(x, size(f.arr)), f.proj))
+promote(x::AbstractArray, f::BaseField{B}) where {B} = reverse(promote(f, x))
 
 ## broadcasting 
 
@@ -61,6 +65,7 @@ BroadcastStyle(::Type{F}) where {B,M,T,A,F<:BaseField{B,M,T,A}} =
 BroadcastStyle(::BaseFieldStyle{S₁,B₁}, ::BaseFieldStyle{S₂,B₂}) where {S₁,B₁,S₂,B₂} = 
     BaseFieldStyle{typeof(result_style(S₁(), S₂())), typeof(promote_basis_strict(B₁(),B₂()))}()
 BroadcastStyle(S::BaseFieldStyle, ::DefaultArrayStyle{0}) = S
+BaseFieldStyle{S,B}(::Val{2}) where {S,B} = DefaultArrayStyle{2}()
 
 # with the Broadcasted object created, we now compute the answer
 function materialize(bc::Broadcasted{BaseFieldStyle{S,B}}) where {S,B}
@@ -101,10 +106,13 @@ function materialize!(dst::BaseField{B}, bc::Broadcasted{BaseFieldStyle{S,B′}}
 
 end
 
-# the default preprocessing, which just unwraps the underlying array.
-# this doesn't dispatch on the first argument, but custom BaseFields
-# are free to override this and dispatch on it if they need
-preprocess(::Any, f::BaseField) = f.arr
+# if broadcasting into a BaseField, the first method here is hit with
+# dest::Tuple{BaseFieldStyle,M}, in which case just unwrap the array,
+# since it will be fed into a downstream regular broadcast
+preprocess(::Tuple{BaseFieldStyle{S,B},M}, f::BaseField) where {S,B,M} = f.arr
+# if broadcasting into an Array (ie dropping the BaseField wrapper) we
+# need to return the vector representation
+preprocess(::AbstractArray, f::BaseField) = view(f.arr, :)
 
 # we re-wrap each Broadcasted object as we go through preprocessing
 # because some array types do special things here (e.g. CUDA wraps
@@ -135,8 +143,7 @@ function strict_compatible_metadata(f₁::BaseField, f₂::BaseField)
 end
 
 ## mapping
-
-# this comes up in Zygote.broadcast_forward, and the generic falls back to a regular Array
+# map over entries in the array like a true AbstractArray
 map(func, f::BaseField{B}) where {B} = BaseField{B}(map(func, f.arr), f.metadata)
 
 

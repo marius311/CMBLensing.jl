@@ -28,6 +28,7 @@ typealias_def(::Type{<:FieldTuple{FS,T}}) where {FS<:Tuple,T} =
 ### array interface
 size(f::FieldTuple) = (mapreduce(length, +, f.fs, init=0),)
 copy(f::FieldTuple) = FieldTuple(map(copy,f.fs))
+copyto!(dst::AbstractArray, src::FieldTuple) = copyto!(dst, src[:]) # todo: memory optimization possible
 iterate(ft::FieldTuple, args...) = iterate(ft.fs, args...)
 getindex(f::FieldTuple, i::Union{Int,UnitRange}) = getindex(f.fs, i)
 fill!(ft::FieldTuple, x) = (map(f->fill!(f,x), ft.fs); ft)
@@ -35,6 +36,7 @@ get_storage(f::FieldTuple) = only(unique(map(get_storage, f.fs)))
 adapt_structure(to, f::FieldTuple) = FieldTuple(map(f->adapt(to,f),f.fs))
 similar(ft::FieldTuple) = FieldTuple(map(similar,ft.fs))
 similar(ft::FieldTuple, ::Type{T}) where {T<:Number} = FieldTuple(map(f->similar(f,T),ft.fs))
+similar(ft::FieldTuple, ::Type{T}, dims::Base.DimOrInd...) where {B,T} = similar(ft.fs[1].arr, T, dims...) # todo: make work for heterogenous arrays?
 similar(ft::FieldTuple, Nbatch::Int) = FieldTuple(map(f->similar(f,Nbatch),ft.fs))
 sum(f::FieldTuple; dims=:) = dims == (:) ? sum(sum, f.fs) : error("sum(::FieldTuple, dims=$dims not supported")
 
@@ -54,6 +56,7 @@ function BroadcastStyle(::FieldTupleStyle{S₁,Names}, ::FieldTupleStyle{S₂,Na
     FieldTupleStyle{Tuple{map_tupleargs((s₁,s₂)->typeof(result_style(s₁(),s₂())), S₁, S₂)...}, Names}()
 end
 BroadcastStyle(S::FieldTupleStyle, ::DefaultArrayStyle{0}) = S
+FieldTupleStyle{S,Names}(::Val{2}) where {S,Names} = DefaultArrayStyle{2}()
 
 
 @generated function materialize(bc::Broadcasted{FieldTupleStyle{S,Names}}) where {S,Names}
@@ -73,13 +76,29 @@ end
 struct FieldTupleComponent{i} end
 
 preprocess(::Tuple{<:Any,FieldTupleComponent{i}}, ft::FieldTuple) where {i} = ft.fs[i]
+preprocess(::AbstractArray, ft::FieldTuple) = vcat((view(f.arr, :) for f in ft.fs)...)
 
+
+### mapping
+# map over entries in the component fields like a true AbstractArray
+map(func, ft::FieldTuple) = FieldTuple(map(f -> map(func, f), ft.fs))
 
 ### promotion
 function promote(ft1::FieldTuple, ft2::FieldTuple)
     fts = map(promote, ft1.fs, ft2.fs)
     FieldTuple(map(first,fts)), FieldTuple(map(last,fts))
 end
+# allow very basic arithmetic with FieldTuple & AbstractArray
+function promote(ft::FieldTuple, x::AbstractVector)
+    lens = map(length, ft.fs)
+    offsets = typeof(lens)((cumsum([1; lens...])[1:end-1]...,))
+    x_ft = FieldTuple(map(ft.fs, offsets, lens) do f, offset, len
+        promote(f, view(x, offset:offset+len-1))[2]
+    end)
+    (ft, x_ft)
+end
+promote(x::AbstractVector, ft::FieldTuple) = reverse(promote(ft, x))
+
 
 ### conversion
 Basis(ft::FieldTuple) = ft
