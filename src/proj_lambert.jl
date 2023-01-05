@@ -379,7 +379,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
     Cov(θ) = Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
     ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($T.($θname))
     end)
 end
 
@@ -388,7 +388,7 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
     Cov(θ) = Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
     ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($T.($θname))
     end)
 end
 
