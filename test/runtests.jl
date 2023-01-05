@@ -182,7 +182,7 @@ end
             # trace
             @test all(tr(Diagonal(f)' * Diagonal(f)) ≈ f'f)
             @test all(tr(Diagonal(f) * Diagonal(f)') ≈ f'f)
-            @test_broken all(tr(f*f') ≈ f'f) # broken by (intentionally) removing OuterProdOp
+            # @test all(tr(f*f') ≈ f'f) # unspecified behavior at this point
 
             # Field dot products
             D = Diagonal(f)
