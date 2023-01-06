@@ -14,7 +14,7 @@ function negδvelocityᴴ end
 \(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ'.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ'.t₀ => Lϕ'.t₁)
 
 
-@adjoint (::Type{L})(ϕ) where {L<:FlowOp} = L(ϕ), Δ -> (Δ,)
+@adjoint (::Type{L})(ϕ, args...) where {L<:FlowOp} = L(ϕ), Δ -> (Δ, map(_->nothing, args)...)
 @adjoint (Lϕ::FlowOp)(ϕ′) = Lϕ(ϕ′), Δ -> (nothing, Δ)
 
 # for FlowOps (without adjoint), use Zygote to take a gradient through the ODE solver
