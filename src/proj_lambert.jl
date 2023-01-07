@@ -379,7 +379,7 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
     Cov(θ) = Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
     ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($T.($θname))
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
     end)
 end
 
@@ -388,7 +388,7 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
     Cov(θ) = Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
     ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($T.($θname))
+        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
     end)
 end
 
@@ -397,7 +397,7 @@ function findbin(ℓedges, ℓ; out_of_range=length(ℓedges))
     (ℓ<ℓedges[1] || ℓ>=ℓedges[end]) ? out_of_range : findfirst(>(ℓ), ℓedges)::Int - 1
 end
 function bandpower_rescale(arr::A, ℓbin_indices, amplitudes) where {T<:Real, A<:AbstractArray{T}}
-    amplitudes_arr = adapt(basetype(A), [T.(amplitudes); 1])
+    amplitudes_arr = adapt(basetype(A), [amplitudes; 1])
     return amplitudes_arr[ℓbin_indices] .* arr
 end
 

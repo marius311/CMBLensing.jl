@@ -142,18 +142,25 @@ end
 
 # some NFFT stuff needed for method=:fft projections
 cu_nfft_loaded = false
-@init begin
-    @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" begin
-        using .NFFT: plan_nfft, AbstractNFFTPlan
-        Zygote.@adjoint function *(plan::Union{Adjoint{<:Any,<:AbstractNFFTPlan}, AbstractNFFTPlan}, x::AbstractArray{T}) where {T}
-            function mul_nfft_plan_pullback(Δ)
-                (nothing, T.(adjoint(plan) * complex(Δ)))
-            end
-            plan * x, mul_nfft_plan_pullback
+@init @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" begin
+    using .NFFT: plan_nfft, AbstractNFFTPlan
+    Zygote.@adjoint function *(plan::Union{Adjoint{<:Any,<:AbstractNFFTPlan}, AbstractNFFTPlan}, x::AbstractArray{T}) where {T}
+        function mul_nfft_plan_pullback(Δ)
+            (nothing, adjoint(plan) * complex(Δ))
         end
-    end        
-    @require CuNFFT="a9291f20-7f4c-4d50-b30d-4e07b13252e1" global cu_nfft_loaded = true
+        plan * x, mul_nfft_plan_pullback
+    end
+    for P in [:(AbstractNFFTPlan{S}), :(Adjoint{Complex{S},<:AbstractNFFTPlan{S}})]
+        for op in [:(Base.:*), :(Base.:\)]
+            for D in [1, 2] # need explicit dimension to resolve method ambiguity
+                @eval function ($op)(plan::$P, arr::AbstractArray{<:Complex{<:Dual{T}}, $D}) where {T, S}
+                    arr_of_duals(T, apply_plan($op, plan, arr)...)
+                end
+            end
+        end
+    end
 end
+@init @require CuNFFT="a9291f20-7f4c-4d50-b30d-4e07b13252e1" global cu_nfft_loaded = true
 
 
 @doc doc"""

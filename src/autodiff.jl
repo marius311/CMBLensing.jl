@@ -59,8 +59,9 @@ end
 end
 # preserve field type for sub-component property getters
 function _getproperty_subcomponent_pullback(f, k)
-    g = zero(f)
     function getproperty_pullback(Δ)
+        g = similar(f, promote_type(eltype(f), eltype(Δ)))
+        g .= 0
         getproperty(g, k) .= Δ
         (g, nothing)
     end
@@ -306,4 +307,4 @@ AbstractFFTs.plan_rfft(arr::AbstractArray{<:Dual}, region; kws...) = plan_rfft(v
 
 
 # to allow stuff like Float32(::Dual) to work
-(::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(S(value(x)), Partials(ntuple(i -> S(partials(x,i)), Val(N))))
+# (::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(S(value(x)), Partials(ntuple(i -> S(partials(x,i)), Val(N))))
