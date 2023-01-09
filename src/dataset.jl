@@ -33,18 +33,21 @@ struct Mixed{DS<:DataSet} <: DataSet
     ds :: DS
 end
 
+# prior by default is attached to DataSet object for easy tweaking
+logprior(ds::DataSet; Ω...) = ds.logprior(;Ω...)
 
 ### builtin DataSet objects
 
 @kwdef mutable struct NoLensingDataSet <: DataSet
-    d = nothing      # data
-    Cf               # unlensed field covariance
-    Cn               # noise covariance
-    Cn̂ = Cn          # approximate noise covariance, diagonal in same basis as Cf
-    M  = I           # user mask
-    M̂  = M           # approximate user mask, diagonal in same basis as Cf
-    B  = I           # beam and instrumental transfer functions
-    B̂  = B           # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
+    d = nothing             # data
+    Cf                      # unlensed field covariance
+    Cn                      # noise covariance
+    Cn̂ = Cn                 # approximate noise covariance, diagonal in same basis as Cf
+    M  = I                  # user mask
+    M̂  = M                  # approximate user mask, diagonal in same basis as Cf
+    B  = I                  # beam and instrumental transfer functions
+    B̂  = B                  # approximate beam and instrumental transfer functions, diagonal in same basis as Cf
+    logprior = (;_...) -> 0 # default no prior
 end
 
 @composite @kwdef mutable struct BaseDataSet <: DataSet
@@ -64,6 +67,7 @@ end
     f̃ ← L(ϕ) * f
     μ = M(θ) * (B(θ) * f̃)
     d ~ MvNormal(μ, Cn(θ))
+    @isdefined(_logpdf) && (_logpdf[] += logprior(ds; f, ϕ, θ, d))
 end
 
 @fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d=ds.d)
@@ -71,6 +75,7 @@ end
     f ~ MvNormal(0, Cf(θ))
     μ = M(θ) * (B(θ) * f)
     d ~ MvNormal(μ, Cn(θ))
+    @isdefined(_logpdf) && (_logpdf[] += logprior(ds; f, θ, d))
 end
 
 # performance optimization (shouldn't need this once we have Diffractor)
