@@ -1,8 +1,12 @@
+module PyPlotExt
 
-using .PyPlot
-using .PyPlot.PyCall
-import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
-
+using CMBLensing
+using CMBLensing.Loess
+using CMBLensing.Measurements
+using Markdown
+using PyPlot
+using PyPlot.PyCall
+import PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
 
 ### overloaded 1D plotting
 
@@ -32,15 +36,15 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
 
 	# 1D KDE
-	@eval function ($plot)(f::Function, k::GetDistKDE{1}, args...; kwargs...)
+	@eval function ($plot)(f::Function, k::CMBLensing.GetDistKDE{1}, args...; kwargs...)
 	    ($plot)(k.kde.x, f.(k.kde.P), args...; kwargs...)
 	end
-	@eval ($plot)(k::GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
+	@eval ($plot)(k::CMBLensing.GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
 
 end
 
 # 2D KDE
-function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
+function plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
 	@unpack colors = pyimport("matplotlib")
 	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels(levels); Inf]
 	if color == nothing
@@ -333,4 +337,6 @@ which must be installed.
 function plot_kde(samples; boundary=nothing, normalize=nothing, smooth_scale_2D=nothing, kwargs...)
 	kde_kwargs = filter(!isnothing∘last, Dict(pairs((;boundary,normalize,smooth_scale_2D))))
     plot(kde(samples; kde_kwargs...); kwargs...)
+end
+
 end
