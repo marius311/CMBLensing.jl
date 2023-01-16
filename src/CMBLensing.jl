@@ -50,6 +50,7 @@ using Roots
 using Requires
 using Serialization
 using Setfield
+using SnoopPrecompile
 using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
     StaticMatrix, StaticVector, SVector, SArray, SizedArray
@@ -175,6 +176,8 @@ is_gpu_backed(x) = false
 @init if ProgressMeter.@isdefined ijulia_behavior
     ProgressMeter.ijulia_behavior(:clear)
 end
+
+@precompile_all_calls include("precompile.jl")
 
 end
 
