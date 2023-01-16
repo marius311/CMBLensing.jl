@@ -8,6 +8,7 @@ using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partit
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename
 using ChainRules
+using CodecZlib
 using Combinatorics
 using CompositeStructs
 using CoordinateTransformations
