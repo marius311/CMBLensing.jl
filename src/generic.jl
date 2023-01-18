@@ -108,7 +108,7 @@ HarmonicBasis(::Basis3Prod{𝐈, 𝐄𝐁,      <:S0Basis}) = IEBFourier
 (::Type{B})(f::Field{B}) where {B<:Basis} = f
 # This is the fallback if no conversion is explicilty defined, which
 # tries to first convert the basis, e.g. Map(f::BaseQUFourier) becomes
-# Map(QUFourier())(f) which calls QUMap(f). This is also used for
+# Map(QUFourier())(f) which becomes QUMap(f). This is also used for
 # Basislike objects like LenseBasis(...)
 (::Type{B})(f::Field{B′}) where {B′<:Basis,B<:Basis} = B(B′())(f)
 
@@ -120,12 +120,12 @@ HarmonicBasis(::Basis3Prod{𝐈, 𝐄𝐁,      <:S0Basis}) = IEBFourier
 (::Type{B})(dst::Field{B}, src::Field{B}) where {B<:Basis} = src
 
 
-# Basis conversion automatically maps over arrays
+# Basis conversion automatically maps over arrays of Fields
 (::Type{B})(a::AbstractArray{<:Field}) where {B<:Basis} = B.(a)
 (::Type{B})(dst::AbstractArray{<:Field}, src::AbstractArray{<:Field}) where {B<:Basis} = B.(dst,src)
 
-# The abstract `Basis` type means "any basis", hence this conversion rule:
-Basis(f) = f
+# Fallback if no rule is defined which does nothing
+(::Type{B})(f) where {B<:Basis} = f
 
 
 # used in make_field_aliases below
@@ -263,7 +263,7 @@ end
 If `L` depends on `θ`, evaluates `logdet(L(θ))` offset by its fiducial value at
 `L()`. Otherwise, returns 0.
 """
-logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(L()\L(θ)) : 0
+logdet(L::FieldOp, θ) = depends_on(L,θ) ? logdet(pinv(L()) * L(θ)) : 0
 logdet(L::Union{Int,UniformScaling{Bool}}, θ) = 0 # the default returns Float64 which unwantedly poisons the backprop to Float64
 logdet(L, θ) = logdet(L)
 

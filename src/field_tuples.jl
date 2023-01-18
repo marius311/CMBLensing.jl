@@ -89,16 +89,19 @@ function promote(ft1::FieldTuple, ft2::FieldTuple)
     FieldTuple(map(first,fts)), FieldTuple(map(last,fts))
 end
 # allow very basic arithmetic with FieldTuple & AbstractArray
+promote(x::AbstractVector, ft::FieldTuple) = reverse(promote(ft, x))
 function promote(ft::FieldTuple, x::AbstractVector)
     lens = map(length, ft.fs)
     offsets = typeof(lens)((cumsum([1; lens...])[1:end-1]...,))
     x_ft = FieldTuple(map(ft.fs, offsets, lens) do f, offset, len
-        promote(f, view(x, offset:offset+len-1))[2]
+        _promote(f, view(x, offset:offset+len-1))[2]
     end)
     (ft, x_ft)
 end
-promote(x::AbstractVector, ft::FieldTuple) = reverse(promote(ft, x))
-
+_promote(a::Scalar, b::AbstractVector) = promote(a, only(b))
+_promote(a::Field, b::AbstractVector) = promote(a, b)
+_promote(a::AbstractVector, b::AbstractVector) = (a, similar(a) .= b)
+@adjoint promote(ft::FieldTuple, x::AbstractVector) = promote(ft, x), Δ -> (Δ[1], Δ[2][:])
 
 ### conversion
 Basis(ft::FieldTuple) = ft

@@ -78,7 +78,10 @@ Zygote.accum(f::BaseField, nt::NamedTuple{(:arr,:metadata)}) = (@assert(isnothin
 
 # FieldTuple
 @adjoint (::Type{FT})(fs) where {FT<:FieldTuple} = FT(fs), Δ -> (Δ.fs,)
-@adjoint Zygote.literal_getproperty(f::FieldTuple, ::Val{:fs}) = getfield(f,:fs), Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(f,:fs), Δ)),)
+@adjoint Zygote.literal_getproperty(ft::FieldTuple, ::Val{:fs}) = 
+    getproperty(ft, Val(:fs)), (Δ -> (FieldTuple(map((f,f̄) -> isnothing(f̄) ? zero(f) : f̄, getfield(ft,:fs), Δ)),))
+@adjoint Zygote.literal_getproperty(ft::FieldTuple, ::Val{k}) where {k} = 
+    getproperty(ft, Val(k)), Zygote.pullback(ft -> getfield(ft.fs, k), ft)[2]
 
 # BatchedReals
 @adjoint Zygote.literal_getproperty(br::BatchedReal, ::Val{:vals}) = getfield(br,:vals), Δ -> (batch(real.(Δ)),)
