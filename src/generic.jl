@@ -125,7 +125,7 @@ HarmonicBasis(::Basis3Prod{𝐈, 𝐄𝐁,      <:S0Basis}) = IEBFourier
 (::Type{B})(dst::AbstractArray{<:Field}, src::AbstractArray{<:Field}) where {B<:Basis} = B.(dst,src)
 
 # The abstract `Basis` type means "any basis", hence this conversion rule:
-Basis(f::Field) = f
+Basis(f) = f
 
 
 # used in make_field_aliases below
@@ -226,7 +226,7 @@ unknown_rule_error(::typeof(promote_basis_strict_rule), ::B₁, ::B₂) where {B
 basis(f::F) where {F<:Field} = basis(F)
 basis(::Type{<:Field{B}}) where {B<:Basis} = B
 basis(::Type{<:Field}) = Basis
-basis(::AbstractVector) = Basis
+basis(::Union{Number,AbstractVector}) = Basis # allows them to be in FieldTuple
 
 
 ### printing
