@@ -18,7 +18,7 @@ end
 FieldTuple(pairs::Vector{<:Pair}) = FieldTuple(NamedTuple(pairs))
 
 ### printing
-getindex(f::FieldTuple,::Colon) = mapreduce(collect, vcat, values(f.fs))
+getindex(f::FieldTuple,::Colon) = mapreduce(f -> getindex(f, :), vcat, values(f.fs))
 getindex(D::DiagOp{<:FieldTuple}, i::Int, j::Int) = (i==j) ? D.diag[:][i] : diagzero(D, i, j)
 typealias_def(::Type{<:FieldTuple{NamedTuple{Names,FS},T}}) where {Names,FS<:Tuple,T} =
     "Field-($(join(map(string,Names),",")))-$FS"

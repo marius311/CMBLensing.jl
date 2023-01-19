@@ -6,11 +6,7 @@ abstract type DataSet end
 copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
 hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
 function show(io::IO, ds::DataSet)
-    println(io, typeof(ds), ": ")
-    ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
-    for line in split(sprint(show, MIME"text/plain"(), ds_dict, context = (:limit => true)), "\n")[2:end]
-        println(io, line)
-    end
+    print(io, typeof(ds), "(", join(String.(fieldnames(typeof(ds))), ", "), ")")
 end
 
 function (ds::DataSet)(θ) 

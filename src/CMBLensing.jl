@@ -6,7 +6,7 @@ using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
-    show_default, show_vector, typed_vcat, typename
+    show_default, show_vector, typed_vcat, typename, Callable
 using ChainRules
 using CodecZlib
 using Combinatorics
@@ -177,7 +177,7 @@ is_gpu_backed(x) = false
     ProgressMeter.ijulia_behavior(:clear)
 end
 
-@precompile_all_calls include("precompile.jl")
+# @precompile_all_calls include("precompile.jl")
 
 end
 

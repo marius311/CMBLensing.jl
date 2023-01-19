@@ -48,7 +48,7 @@ end
 
 
 @doc doc"""
-    grid_and_sample(lnP::Function; range::NamedTuple; progress=false, nsamples=1)
+    grid_and_sample(lnP::Callable; range::NamedTuple; progress=false, nsamples=1)
 
 Interpolate the log pdf `lnP` with support on `range`, and return  the
 integrated log pdf as well `nsamples` samples (drawn via inverse transform
@@ -77,7 +77,7 @@ Monte-Carlo samples of each of the parameters.
 (Note: only 1D sampling is currently implemented, but 2D like in the example
 above is planned)
 """
-function grid_and_sample(logpdf::Function, range::AbstractVector; progress=false, kwargs...)
+function grid_and_sample(logpdf::Callable, range::AbstractVector; progress=false, kwargs...)
     logpdfs = @showprogress (progress ? 1 : Inf) "Grid Sample: " map(logpdf, range)
     grid_and_sample(logpdfs, range; progress=progress, kwargs...)
 end
@@ -130,7 +130,7 @@ function grid_and_sample(logpdfs::Vector, xs::AbstractVector; progress=false, ns
     
 end
 
-function grid_and_sample(logpdf::Function, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
+function grid_and_sample(logpdf::Callable, range::NamedTuple{S,<:NTuple{1}}; kwargs...) where {S}
     NamedTuple{S}.(Ref.(grid_and_sample(x -> logpdf(NamedTuple{S}(x)), first(range); kwargs...)))
 end
 
@@ -405,10 +405,10 @@ end
     @pack! state = ϕ°, Ω, ΔH, accept
 end
 
-function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, progress, always_accept)
+function hmc_step(rng::AbstractRNG, U, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, progress, always_accept)
     local ΔH, accept
     for kwargs in symp_kwargs
-        p = simulate(Λ)
+        p = simulate(rng, Λ)
         (ΔH, xtest) = symplectic_integrate(
             x, p, Λ, U, δUδx;
             progress = (progress==:verbose),
@@ -419,6 +419,8 @@ function hmc_step(U::Function, x, Λ, δUδx=x->gradient(U, x)[1]; symp_kwargs, 
     end
     x, ΔH, accept
 end
+hmc_step(args...; kwargs...) = hmc_step(Random.default_rng(), args...; kwargs...)
+
 
 @⌛ function mass_matrix_ϕ(θ, ds)
     @unpack G, Cϕ, Nϕ = ds(θ)

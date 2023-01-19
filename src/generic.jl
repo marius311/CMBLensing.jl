@@ -325,8 +325,10 @@ hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in va
 hcat(values::Field...) = hcat(([x] for x in values)...)
 
 ### printing
+print_array(io::IO, D::DiagOp) = !isempty(D) && print_array(io, Diagonal(diag(D)[:]))
 print_array(io::IO, f::Field) = !isempty(f) && print_array(io, f[:])
 show_vector(io::IO, f::Field) = !isempty(f) && show_vector(io, f[:])
+Base._show_nonempty(io::IO, D::DiagOp, prefix::String) = Base._show_nonempty(io, Diagonal(diag(D)[:]), prefix)
 Base.has_offset_axes(::Field) = false # needed for Diagonal(::Field) if the Field is implicitly-sized
 
 

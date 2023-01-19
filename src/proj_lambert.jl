@@ -321,8 +321,8 @@ end
 function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
     # half the Fourier plane needs to be counted twice since the real
     # FFT only stores half of it
-    @unpack Ny, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+    @unpack Ny, arr, storage = L.diag
+    λ = adapt(storage, rfft_degeneracy_fac(Ny))
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
@@ -340,8 +340,8 @@ end
 ### traces
 
 function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    @unpack Ny, Nx, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+    @unpack Ny, Nx, arr, storage = L.diag
+    λ = adapt(storage, rfft_degeneracy_fac(Ny))
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
     batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
