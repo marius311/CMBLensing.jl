@@ -51,7 +51,7 @@ using Serialization
 using Setfield
 using SparseArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
-    StaticMatrix, StaticVector, SVector, SArray, SizedArray
+    StaticMatrix, StaticVector, SVector, SArray, SizedArray, SizedMatrix
 using Statistics
 using StatsBase
 using TimerOutputs: @timeit, get_defaulttimer, reset_timer!

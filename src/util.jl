@@ -100,19 +100,24 @@ end
 # these allow pinv and sqrt of SMatrices of Diagonals to work correctly, which
 # we use for the T-E block of the covariance. hopefully some of this can be cut
 # down on in the futue with some PRs into StaticArrays.
-permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
-@auto_adjoint function sqrt(A::SMatrix{2,2,<:Diagonal})
+# permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
+@auto_adjoint function sqrt(A::SizedMatrix{2,2,<:Diagonal})
     # A = [a b; c d]
     a,c,b,d = A 
     s = sqrt(a*d-b*c)
     t = pinv(sqrt(a+(d+2s)))
     @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
 end
-@auto_adjoint function pinv(A::SMatrix{2,2,<:Diagonal})
+@auto_adjoint function pinv(A::SizedMatrix{2,2,<:Diagonal})
     # A = [a b; c d]
     a,c,b,d = A 
     idet = pinv(a*d-b*c)
     @SMatrix[d*idet -(b*idet); -(c*idet) a*idet]
+end
+@auto_adjoint function det(A::SizedMatrix{2,2,<:Diagonal})
+    # A = [a b; c d]
+    a,c,b,d = A 
+    a*d-b*c
 end
 
 

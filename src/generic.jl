@@ -322,6 +322,7 @@ precompute!!(L::Adjoint, f) = precompute!!(parent(L),f)'
 # splatted into a giant matrix when doing [f f; f f] (which they would othewise
 # be since they're Arrays)
 hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
+hvcat(rows::Tuple{Vararg{Int}}, values::DiagOp...) = hvcat(rows, ([x] for x in values)...)
 hcat(values::Field...) = hcat(([x] for x in values)...)
 
 ### printing

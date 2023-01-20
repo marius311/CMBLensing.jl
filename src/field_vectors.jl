@@ -65,4 +65,3 @@ function pinv!(dst::FieldOrOpMatrix{<:Diagonal}, src::FieldOrOpMatrix{<:Diagonal
 end
 
 promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
-arithmetic_closure(::F) where {F<:Field} = F
