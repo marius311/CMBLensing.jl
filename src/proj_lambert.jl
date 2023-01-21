@@ -391,6 +391,21 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)
         (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
     end)
 end
+function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert{T}, (CℓTT, ℓedgesTT, θnameTT)::Tuple, (CℓEE, ℓedgesEE, θnameEE)::Tuple, CℓBB::Cℓs, (CℓTE, ℓedgesTE, θnameTE)::Tuple, ; kwargs...) where {T}
+    ΣTT₀, ΣEE₀, ΣBB₀, ΣTE₀ = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
+    ℓbin_indices = ((findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag) for ℓedges in [ℓedgesTT,ℓedgesEE,ℓedgesTE])...,)
+    function Cov(θTT,θEE,θTE)
+        ΣTT, ΣEE, ΣTE = map((θTT,θEE,θTE), ℓbin_indices, (ΣTT₀,ΣEE₀,ΣTE₀)) do θ, ℓbin_indices, C₀
+            Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
+        end
+        BlockDiagIEB([ΣTT ΣTE; ΣTE ΣEE], ΣBB₀)
+    end
+    ParamDependentOp(@eval Main let Cov=$Cov
+        function (;$θnameTT=$(ones(T,length(ℓedgesTT)-1)), $θnameEE=$(ones(T,length(ℓedgesEE)-1)), $θnameTE=$(ones(T,length(ℓedgesTE)-1)), _...)
+            Cov($θnameTT,$θnameEE,$θnameTE)
+        end
+    end)
+end
 
 # helper function for scaling the covariances in ℓ-bins
 function findbin(ℓedges, ℓ; out_of_range=length(ℓedges))

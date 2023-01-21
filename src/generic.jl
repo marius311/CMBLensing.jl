@@ -321,9 +321,12 @@ precompute!!(L::Adjoint, f) = precompute!!(parent(L),f)'
 # matrix of maps. the following definitions make it so that Fields aren't
 # splatted into a giant matrix when doing [f f; f f] (which they would othewise
 # be since they're Arrays)
-hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, ([x] for x in values)...)
-hvcat(rows::Tuple{Vararg{Int}}, values::DiagOp...) = hvcat(rows, ([x] for x in values)...)
+hvcat(rows::Tuple{Vararg{Int}}, values::Field...) = hvcat(rows, [[x] for x in values]...)
+hvcat(rows::Tuple{Vararg{Int}}, values::DiagOp...) = hvcat(rows, [[x] for x in values]...)
 hcat(values::Field...) = hcat(([x] for x in values)...)
+
+@opt_out rrule(::typeof(hvcat), rows::Tuple{Vararg{Int}}, values::DiagOp...)
+
 
 ### printing
 print_array(io::IO, f::Field) = !isempty(f) && print_array(io, f[:])

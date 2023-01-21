@@ -61,6 +61,7 @@ struct BlockDiagIEB{T,F} <: ImplicitOp{T}
     ΣB :: Diagonal{T,F}
 end
 BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB{T,F}(ΣTE, ΣB)
+@adjoint BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB(ΣTE, ΣB), Δ -> (convert(typeof(ΣTE), Δ.ΣTE), Δ.ΣB)
 # applying
 *(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
 \(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
