@@ -321,8 +321,8 @@ end
 function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
     # half the Fourier plane needs to be counted twice since the real
     # FFT only stores half of it
-    @unpack Ny, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+    @unpack Ny, arr, storage = L.diag
+    λ = adapt(storage, rfft_degeneracy_fac(Ny))
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
@@ -340,8 +340,8 @@ end
 ### traces
 
 function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    @unpack Ny, Nx, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+    @unpack Ny, Nx, arr, storage = L.diag
+    λ = adapt(storage, rfft_degeneracy_fac(Ny))
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
     batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
@@ -552,7 +552,7 @@ function ud_grade(
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
     Ny_new, Nx_new = @. round(Int, N * θ ÷ θnew)
-    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage)
+    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage, f.rotator)
     @unpack Δx,ℓx,ℓy,Nx,Ny,nyquist = proj
 
     PWF = deconv_pixwin ? Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) : I
@@ -563,26 +563,36 @@ function ud_grade(
             f = Diagonal(LambertFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
         end
         if mode == :map
-            fnew = LambertField{Map(B())}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = LambertField{Map(B())}(
+                dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), 
+                proj
+            )
         else
-            fnew = LambertField{Fourier(B())}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+            fnew = LambertField{Fourier(B())}(
+                Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], 
+                proj
+            )
         end
         if deconv_pixwin
             fnew = Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew
         end
     else
-        error("Not implemented")
-        # # upgrade
-        # @assert fieldinfo(f).Nside isa Int "Upgrading resolution only implemented for maps where `Nside isa Int`"
-        # if mode==:map
-        #     fnew = LambertMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
-        #     deconv_pixwin ? LambertFourier{Pnew}(fnew[:Il] .* PWF' .* PWF[1:Nnew÷2+1]) : fnew
-        # else
-        #     fnew = LambertFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
-        #     setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
-        #     deconv_pixwin ? fnew * fac^2 : fnew
-        # end
-
+        # upgrade
+        if mode == :map
+            arr = Map(f).arr
+            fnew = LambertField{Map(B())}(
+                reshape(permutedims(similar(arr, size(arr)..., fac, fac) .= arr, (3, 1, 4, 2, (5:5+(ndims(arr)-3))...)), (Ny_new, Nx_new, size(arr)[3:end]...)),
+                proj
+            )
+            if deconv_pixwin
+                error("Not implemented")
+            end
+        else
+            error("Not implemented")
+            # fnew = LambertFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
+            # setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
+            # deconv_pixwin ? fnew * fac^2 : fnew
+        end
     end
     return fnew
 end

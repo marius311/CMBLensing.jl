@@ -298,6 +298,8 @@ AbstractFFTs.realfloat(arr::AbstractArray{<:Dual}) = arr
 AbstractFFTs.plan_fft(arr::AbstractArray{<:Complex{<:Dual}}, region) = plan_fft(complex.(value.(real.(arr)), value.(imag.(arr))), region)
 AbstractFFTs.plan_rfft(arr::AbstractArray{<:Dual}, region; kws...) = plan_rfft(value.(arr), region; kws...)
 
+# super edge-case ambiguity in Zygote when first arg is a LazyBinaryOp...
+Zygote.z2d(dx::AbstractArray{Union{}}, ::AbstractArray) = dx
 
 # to allow stuff like Float32(::Dual) to work
 # (::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(S(value(x)), Partials(ntuple(i -> S(partials(x,i)), Val(N))))
