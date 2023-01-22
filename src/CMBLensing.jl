@@ -177,7 +177,7 @@ is_gpu_backed(x) = false
     ProgressMeter.ijulia_behavior(:clear)
 end
 
-# @precompile_all_calls include("precompile.jl")
+@precompile_all_calls include("precompile.jl")
 
 end
 
