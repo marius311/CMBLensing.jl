@@ -26,6 +26,7 @@ function new_ℓs(ic1::Cℓs, ic2::Cℓs)
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 end
 getindex(ic::Cℓs, idx) = ic.itp.(idx)
+getindex(ic::Cℓs, ::Colon) = ic.Cℓ
 (ic::Cℓs)(idx) = ic.itp.(idx)
 # custom JLD2 serialization bc the default for LinearInterpolation
 # creates a closure which isnt future-proof when deserializing

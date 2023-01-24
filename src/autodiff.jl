@@ -52,10 +52,10 @@ end
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{Fourier},M,T}
-    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(f.storage, T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
-    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(typeof(Δ), T.(rfft_degeneracy_fac(f.Nx)' ./ Zfac(B(), f.metadata))), f.metadata),)
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(f.storage, T.(rfft_degeneracy_fac(f.Nx)' ./ Zfac(B(), f.metadata))), f.metadata),)
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})
