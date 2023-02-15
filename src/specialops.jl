@@ -70,9 +70,9 @@ BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F
     return Y, BlockDiagIEB_pullback
 end
 # applying
-*(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
-\(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
-function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
+@auto_adjoint *(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
+@auto_adjoint \(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
+@auto_adjoint function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
     (i,e),b = (L.ΣTE * SizedVector{2}([f.I, f.E])), L.ΣB * f.B
     BaseIEBFourier{P}(i,e,b)
 end
@@ -111,9 +111,6 @@ function getindex(L::BlockDiagIEB, k::Symbol)
 end
 # hashing
 hash(L::BlockDiagIEB, h::UInt64) = foldr(hash, (typeof(L), L.ΣTE[1,1], L.ΣTE[1,2], L.ΣTE[2,2], L.ΣB), init=h)
-@opt_out rrule(::Any, ::BlockDiagIEB)
-@opt_out rrule(::typeof(*), ::BlockDiagIEB, ::Field)
-@opt_out rrule(::typeof(\), ::BlockDiagIEB, ::Field)
 
 
 
