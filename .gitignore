@@ -31,3 +31,6 @@ dev
 docs/src-staging/index.md
 poetry.lock
 pyproject.toml
+benchmarks
+startup
+*.code-workspace

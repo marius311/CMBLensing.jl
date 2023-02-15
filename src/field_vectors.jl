@@ -98,11 +98,14 @@ end
 
 @adjoint (::Type{SA})(x::AbstractArray) where {SA<:SizedArray} = SA(x), Δ -> (Δ.data,)
 
-# needed for autodiff to avoid calling setindex! on SArrays
-# (i thought?)
-# function ChainRules.∇getindex(x::SArray, dy, inds...)
-#     T = Union{typeof(dy), ChainRules.ZeroTangent}
-#     plain_inds = CartesianIndex(Base.to_indices(x, inds))
-#     StaticArrays.sacollect(StaticArrays.similar_type(x, T, axes(x)), (I==plain_inds ? dy : ChainRules.ZeroTangent() for I in CartesianIndices(x)))
-# end
+# needed for autodiff to avoid calling setindex! on StaticArrays with !isbitstype(eltype(x))
+function ChainRules.∇getindex(x::StaticArray, dy, inds...)
+    T = Union{typeof(dy), ChainRules.ZeroTangent}
+    plain_inds = CartesianIndex(Base.to_indices(x, inds))
+    StaticArrays.sacollect(StaticArrays.similar_type(x, T, axes(x)), (I==plain_inds ? dy : ChainRules.ZeroTangent() for I in CartesianIndices(x)))
+end
+function Zygote.∇getindex(x::StaticArray, inds)
+    getindex_pullback(dy) = (ChainRules.∇getindex(x, dy, inds...), map(_->nothing, inds)...)
+    getindex_pullback
+end
 

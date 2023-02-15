@@ -52,7 +52,8 @@ using Serialization
 using Setfield
 using SparseArrays
 import StaticArrays
-using StaticArrays: @SMatrix, @SVector, SMatrix, StaticMatrix, StaticVector, SVector, SArray, SizedArray, SizedMatrix, SizedVector
+using StaticArrays: @SMatrix, @SVector, SMatrix, StaticMatrix, StaticVector, StaticArray,
+    SVector, SArray, SizedArray, SizedMatrix, SizedVector
 using Statistics
 using StatsBase
 using TimerOutputs: @timeit, get_defaulttimer, reset_timer!

@@ -212,9 +212,9 @@ end
                 @test (@inferred mul!(similar(g[1]), Diagonal.(g)', g)) isa typeof(g[1])
                 
                 # FieldMatrix-FieldVector product
-                @test (@inferred Diagonal.(H) * g) isa FieldVector
-                @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector
-                @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector
+                @test (@inferred Diagonal.(H) * g) isa FieldOrOpVector{<:Field}
+                @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector{<:DiagOp}
+                @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector{<:DiagOp}
                 
             end
 
