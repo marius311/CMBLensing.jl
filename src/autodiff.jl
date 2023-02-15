@@ -135,10 +135,6 @@ end
 @adjoint /(f::Adjoint{<:Any,<:Field}, L::Union{DiagOp,ImplicitOp}) = Zygote.pullback((f,L)->(L'\f')', f, L)
 # special case for some ops which are constant by definition
 @adjoint *(L::Union{FuncOp,DiagOp{<:∇diag}}, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
-# todo: need to fix this to allow gradient w.r.t. entries of a BlockDiagIEB
-@adjoint *(L::BlockDiagIEB, f::Field{B}) where {B} = L*f, Δ->(nothing, B(L'*Δ))
-@adjoint \(L::BlockDiagIEB, f::Field{B}) where {B} = L\f, Δ->(nothing, B(L'\Δ))
-
 
 ## FieldVectors
 
@@ -192,10 +188,6 @@ end
 
 @adjoint (::Type{SA})(tup) where {SA<:SArray} = SA(tup), Δ->(tuple(Δ...),)
 
-# workaround for https://github.com/FluxML/Zygote.jl/issues/686
-@static if versionof(Zygote) > v"0.4.15"
-    Zygote._zero(xs::StaticArray, T) = SizedArray{Tuple{size(xs)...},Union{T,Nothing}}(map(_->nothing, xs))
-end
 
 # workaround for Zygote not working through cat when dims is a Val
 # adapted from solution by Seth Axen 

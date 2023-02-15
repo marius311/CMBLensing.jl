@@ -61,19 +61,26 @@ struct BlockDiagIEB{T,F} <: ImplicitOp{T}
     ΣB :: Diagonal{T,F}
 end
 BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB{T,F}(ΣTE, ΣB)
-@adjoint BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB(ΣTE, ΣB), Δ -> (convert(typeof(ΣTE), Δ.ΣTE), Δ.ΣB)
+@adjoint function BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F}
+    Y = BlockDiagIEB(ΣTE, ΣB)
+    function BlockDiagIEB_pullback(Δ)
+        Δ = unthunk(Δ)
+        (Δ.ΣTE, Δ.ΣB)
+    end
+    return Y, BlockDiagIEB_pullback
+end
 # applying
 *(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
 \(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
 function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
-    (i,e),b = (L.ΣTE * [f.I, f.E]), L.ΣB * f.B
+    (i,e),b = (L.ΣTE * SizedVector{2}([f.I, f.E])), L.ΣB * f.B
     BaseIEBFourier{P}(i,e,b)
 end
 # manipulating
 size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
-pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
+@auto_adjoint pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
 diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
@@ -104,7 +111,9 @@ function getindex(L::BlockDiagIEB, k::Symbol)
 end
 # hashing
 hash(L::BlockDiagIEB, h::UInt64) = foldr(hash, (typeof(L), L.ΣTE[1,1], L.ΣTE[1,2], L.ΣTE[2,2], L.ΣB), init=h)
-
+@opt_out rrule(::Any, ::BlockDiagIEB)
+@opt_out rrule(::typeof(*), ::BlockDiagIEB, ::Field)
+@opt_out rrule(::typeof(\), ::BlockDiagIEB, ::Field)
 
 
 
