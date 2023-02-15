@@ -37,12 +37,11 @@ You can also clone the repository and open the notebooks in [docs/src](https://g
 
 ### Requirements
 
-* Julia 1.6+
+* Julia 1.7+
 * _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
 * _(recommended)_ Python 3 + matplotlib (used for plotting)
 * _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s (run `pip install --user camb`)
 * _(recommended)_ [JuliaMono](https://github.com/cormullion/juliamono/releases) font to ensure characters like `f̃, ϕ, ∇, ℓ`, etc... are rendered correctly
-* _(optional)_ [healpy](https://github.com/healpy/healpy) for experimental curved sky support
 
 ### Native installation
 
