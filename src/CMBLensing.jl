@@ -6,9 +6,10 @@ using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
-    show_default, show_vector, typed_vcat, typename
+    show_default, show_vector, typed_vcat, typename, Callable
 using ChainRules
 using ChainRules: @opt_out, rrule, unthunk
+using CodecZlib
 using Combinatorics
 using CompositeStructs
 using CoordinateTransformations
@@ -50,6 +51,7 @@ using Roots
 using Requires
 using Serialization
 using Setfield
+using SnoopPrecompile
 using SparseArrays
 import StaticArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticMatrix, StaticVector, StaticArray,
@@ -176,6 +178,8 @@ is_gpu_backed(x) = false
 @init if ProgressMeter.@isdefined ijulia_behavior
     ProgressMeter.ijulia_behavior(:clear)
 end
+
+@precompile_all_calls include("precompile.jl")
 
 end
 

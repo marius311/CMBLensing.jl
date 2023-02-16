@@ -6,7 +6,6 @@ gitignore
 .ipynb_checkpoints
 .tags
 .vscode
-dat
 scratch*
 **Untitled*.ipynb
 nb/
@@ -31,6 +30,10 @@ dev
 docs/src-staging/index.md
 poetry.lock
 pyproject.toml
-benchmarks
-startup
+!dat/compute_default_camb_Cls.jl
+!dat/default_camb_Cls.jld2
+*-workspace
 *.code-workspace
+benchmarks
+dat/*
+startup

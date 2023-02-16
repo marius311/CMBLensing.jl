@@ -394,7 +394,7 @@ macro ⌛(args...)
             esc(combinedef(sdef))
         else
             if isnothing(label)
-                label = "$(Base._truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)"
+                label = "$(Base._truncate_at_width_or_chars(true, string(prewalk(rmlines,ex)),26))  ($source_str)"
             end
             :(@timeit $label $(esc(ex)))
         end

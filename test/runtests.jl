@@ -232,6 +232,14 @@ end
         # matrix type promotion
         @test (@inferred FlatMap(rand(rng,Float64,2,2)) .+ FlatMap(view(rand(rng,Float32,2,2),:,:))) isa FlatMap{<:Any,Float64,Matrix{Float64}}
         
+        # scalar/array FieldTuple components
+        f = FlatMap(rand(Nside...))
+        ft = FieldTuple(;f, θ=[1,2,3])
+        @test ft .+ ft isa typeof(ft)
+        @test Diagonal(ft) * ft isa typeof(ft)
+        @test ft'ft isa Number 
+        @test_nowarn (;f, θ) = ft
+
     end
 
 end
