@@ -394,7 +394,8 @@ macro ⌛(args...)
             esc(combinedef(sdef))
         else
             if isnothing(label)
-                label = "$(Base._truncate_at_width_or_chars(true, string(prewalk(rmlines,ex)),26))  ($source_str)"
+                ignore_ANSI = @static VERSION >= v"1.9.0-0" ? true : ()
+                label = "$(Base._truncate_at_width_or_chars(ignore_ANSI..., string(prewalk(rmlines,ex)),26))  ($source_str)"
             end
             :(@timeit $label $(esc(ex)))
         end
