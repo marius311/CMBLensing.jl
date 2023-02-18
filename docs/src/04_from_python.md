@@ -104,14 +104,14 @@ Similarly, the rest of the commands from that example will work in Python if jus
 At any point, you can do whatever you'd like with any of the results stored in Julia variables, e.g. transferring the simulated maps back as Python arrays,
 
 ```python
-f = %julia f.arr
-f
+arr = %julia f.arr
+arr
 ```
 
 You can also pass variables back to Julia, e.g.
 
 ```python
-%julia g = FlatMap($f);
+%julia f = FlatMap($arr);
 ```
 
 ### Directly
