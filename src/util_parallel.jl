@@ -91,7 +91,7 @@ function assign_GPU_workers(;print_info=true, use_master=false, remove_oversubsc
             end
             if remove_oversubscribed_workers
                 rmprocs(myid)
-                return myid() => nothing
+                return myid => nothing
             else
                 error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
             end
