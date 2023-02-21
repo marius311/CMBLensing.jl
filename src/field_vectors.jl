@@ -104,8 +104,9 @@ function ChainRules.∇getindex(x::StaticArray, dy, inds...)
     plain_inds = CartesianIndex(Base.to_indices(x, inds))
     StaticArrays.sacollect(StaticArrays.similar_type(x, T, axes(x)), (I==plain_inds ? dy : ChainRules.ZeroTangent() for I in CartesianIndices(x)))
 end
-function Zygote.∇getindex(x::StaticArray, inds)
-    getindex_pullback(dy) = (ChainRules.∇getindex(x, dy, inds...), map(_->nothing, inds)...)
-    getindex_pullback
+if isdefined(Zygote, :∇getindex) # to be deleted by https://github.com/FluxML/Zygote.jl/pull/1328
+    function Zygote.∇getindex(x::StaticArray, inds)
+        getindex_pullback(dy) = (ChainRules.∇getindex(x, dy, inds...), map(_->nothing, inds)...)
+        getindex_pullback
+    end
 end
-
