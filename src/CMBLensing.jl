@@ -7,6 +7,7 @@ using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
 using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename, Callable
+using Bijections
 using ChainRules
 using ChainRules: @opt_out, rrule, unthunk
 using CodecZlib
@@ -16,7 +17,7 @@ using CoordinateTransformations
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
-    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel, rmprocs, nprocs
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel, rmprocs, nprocs, remotecall_fetch
 using Distributions
 using Distributions: PDiagMat
 using EllipsisNotation

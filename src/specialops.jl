@@ -284,6 +284,9 @@ struct ParamDependentOp{T, L<:FieldOp{T}, F<:Function} <: ImplicitOp{T}
     recompute_function :: F
     parameters :: Vector{Symbol}
 end
+function ParamDependentOp(parameters::Vector{Symbol}, recompute_function::Function)
+    ParamDependentOp(recompute_function(), recompute_function, parameters)
+end
 function ParamDependentOp(recompute_function::Function)
     kwarg_names = filter(!=(Symbol("_...")), get_kwarg_names(recompute_function))
     if endswith(string(kwarg_names[end]), "...")
@@ -340,7 +343,7 @@ end
 # we have to include recompute_function in the hash, but its hash
 # might change if shipped to a distributed worker, despite being the
 # same function. not sure if there's any way around this...
-hash(L::ParamDependentOp, h::UInt64) = foldr(hash, (typeof(L), L.op, L.recompute_function), init=h)
+hash(L::ParamDependentOp, h::UInt64) = foldr(hash, (ParamDependentOp, L.op, L.parameters, string(code_lowered(L.recompute_function)[1])), init=h)
 
 adapt_structure(to, L::ParamDependentOp) = 
     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)

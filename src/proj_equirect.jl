@@ -611,7 +611,4 @@ end
 adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
 
 
-# @adjoint function (::Type{F})(arr::A, proj::P) where {B<:SpatialBasis{AzFourier},P<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
-#     # F(arr, proj), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(proj.Nx))'), nothing)
-#     F(arr, proj), Δ -> (Δ.arr, nothing)
-# end
+hash(proj::ProjEquiRect, h::UInt64) = foldr(hash, (ProjEquiRect, proj.Ny, proj.Nx, proj.θspan, proj.φspan, proj.storage), init=h)

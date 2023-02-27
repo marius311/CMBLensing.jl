@@ -44,7 +44,7 @@ end
 function JLD2.rconvert(::Type{<:Cℓs}, (_,s)::Tuple{Val{Cℓs},NamedTuple})
     Cℓs(s.ℓ, s.Cℓ; s.concrete)
 end
-
+hash(ic::Cℓs, h::UInt) = foldr(hash, (ic.ℓ, ic.Cℓ, ic.concrete), init=h)
 
 
 struct FuncCℓs{F<:Function} <: AbstractCℓs

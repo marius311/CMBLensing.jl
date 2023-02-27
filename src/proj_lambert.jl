@@ -234,6 +234,9 @@ function JLD2.rconvert(::Type{<:ProjLambert}, (_,s)::Tuple{Val{ProjLambert},Name
 end
 Base.convert(::Type{<:Cℓs}, Cℓ::Cℓs) = Cℓ
 
+# hash should be based on same thing serialization is
+hash(proj::ProjLambert, h::UInt64) = foldr(hash, (ProjLambert, _serialization_key(proj)), init=h)
+
 
 ### basis conversion
 ## spin-0
@@ -377,33 +380,31 @@ end
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T,V}
     C₀ = Cℓ_to_Cov(:I, proj, Cℓ; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
-    Cov(θ) = Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
-    ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    ParamDependentOp([θname], function (;kwargs...)
+        θ = get(() -> ones(T,length(ℓedges)-1), kwargs, θname)
+        Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
     end)
 end
 
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::Cℓs; kwargs...) where {T}
     C₀ = Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
-    Cov(θ) = Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
-    ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    ParamDependentOp([θname], function (;kwargs...)
+        θ = get(() -> ones(T,length(ℓedges)-1), kwargs, θname)
+        Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
     end)
 end
 function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert{T}, (CℓTT, ℓedgesTT, θnameTT)::Tuple, (CℓEE, ℓedgesEE, θnameEE)::Tuple, CℓBB::Cℓs, (CℓTE, ℓedgesTE, θnameTE)::Tuple, ; kwargs...) where {T}
     ΣTT₀, ΣEE₀, ΣBB₀, ΣTE₀ = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
     ℓbin_indices = ((findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag) for ℓedges in [ℓedgesTT,ℓedgesEE,ℓedgesTE])...,)
-    function Cov(θTT,θEE,θTE)
+    ParamDependentOp([θnameTT, θnameEE, θnameTE], function (;kwargs...)
+        θTT = get(() -> ones(T,length(ℓedgesTT)-1), kwargs, θnameTT)
+        θEE = get(() -> ones(T,length(ℓedgesEE)-1), kwargs, θnameEE)
+        θTE = get(() -> ones(T,length(ℓedgesTE)-1), kwargs, θnameTE)
         ΣTT, ΣEE, ΣTE = map((θTT,θEE,θTE), ℓbin_indices, (ΣTT₀,ΣEE₀,ΣTE₀)) do θ, ℓbin_indices, C₀
             Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
         end
         BlockDiagIEB([ΣTT ΣTE; ΣTE ΣEE], ΣBB₀)
-    end
-    ParamDependentOp(@eval Main let Cov=$Cov
-        function (;$θnameTT=$(ones(T,length(ℓedgesTT)-1)), $θnameEE=$(ones(T,length(ℓedgesEE)-1)), $θnameTE=$(ones(T,length(ℓedgesTE)-1)), _...)
-            Cov($θnameTT,$θnameEE,$θnameTE)
-        end
     end)
 end
 

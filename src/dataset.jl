@@ -394,3 +394,37 @@ getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_datas
 function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
     Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
 end
+
+
+###
+
+# (name::Symbol) => hash(Main.$name)
+const global_datasets = Bijection{Symbol,UInt}()
+macro distributed(datasets...)
+    distributed1(name, ds) = quote
+        hash_ds = hash($ds::DataSet)
+        for id in workers()
+            if hash_ds != remotecall_fetch(()->hash(Base.eval(Main,$name)), id)
+                error("Main.$($name) on master and worker $(id) do not match.")
+            end
+        end
+        ($name in domain(global_datasets)) && delete!(global_datasets, $name)
+        global_datasets[$name] = hash_ds
+    end
+    Expr(:block, [distributed1(name, ds) for (name, ds) in zip(QuoteNode.(datasets), esc.(datasets))]..., nothing)
+end
+function Serialization.serialize(s::AbstractSerializer, ds::DataSet)
+    name = get(inv(global_datasets), hash(ds), nothing)
+    if name == nothing
+        Base.@invoke(Serialization.serialize(s::AbstractSerializer, ds::Any))
+    else
+        @assert hash(Base.eval(Main,name)) == hash(ds)
+        Serialization.writetag(s.io, Serialization.OBJECT_TAG)
+        Serialization.serialize(s, Val{:DataSet})
+        Serialization.serialize(s, name)
+    end
+end
+function Serialization.deserialize(s::AbstractSerializer, ::Type{Val{:DataSet}})
+    name = Serialization.deserialize(s)
+    Base.eval(Main, name)
+end
