@@ -53,13 +53,6 @@ adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
 adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
 
-# newer versions of CUDA w/ Julia 1.8 fixed this
-if @eval(CUDA.CUSOLVER, @isdefined(CuQR))
-    # CUDA somehow missing this one
-    # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
-    # and https://github.com/JuliaGPU/CuArrays.jl/pull/580
-    ldiv!(qr::CUDA.CUSOLVER.CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
-end
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     cpu(randn!(rng, CuVector{T}(undef,1)))[1]
@@ -90,6 +83,15 @@ end
 # prevents unnecessary CuArray views in some cases
 Base.view(arr::CuArray{T,2}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
 Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
+
+# CUFFT destroys the input array for irfft so a copy is needed, but
+# override CUDA.jl's copy to do it into some memoized memory and avoid
+# allocations
+function ldiv_safe!(dst, plan::CUDA.CUFFT.rCuFFTPlan, src)
+    inv_plan = inv(plan)
+    CUDA.CUFFT.cufftExecC2R(inv_plan.p, copy_irfft_mem(src), dst)
+    LinearAlgebra.lmul!(inv_plan.scale, dst)
+end
 
 
 ## ForwardDiff through FFTs 
