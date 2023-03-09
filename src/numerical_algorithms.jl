@@ -83,11 +83,12 @@ Info from the iterations of the solver can be returned if
 )
     get_history() = isnothing(history_keys) ? nothing : select((;i,x,p,r,res,t),history_keys)
     t₀ = time()
+    T = real(eltype(x)) # allow `dot` to return a higher precision but keep vector its original eltype
     i = 1
     r = b - A*x
     z = M \ r
     p = z
-    bestres = res = res₀ = dot(r,z)
+    bestres = res = res₀ = T(dot(r,z))
     @assert !isnan(res)
     bestx = x
     t    = time() - t₀
@@ -97,10 +98,10 @@ Info from the iterations of the solver can be returned if
     for outer i = 2:nsteps
         Ap   = @⌛ A * p
         α    = res / dot(p,Ap)
-        x    = x + α * p
-        r    = r - α * Ap
+        x    = x + T(α) * p
+        r    = r - T(α) * Ap
         z    = M \ r
-        res′ = dot(r,z)
+        res′ = T(dot(r,z))
         p    = z + (res′ / res) * p
         res  = res′
         t    = time() - t₀

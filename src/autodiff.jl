@@ -97,14 +97,19 @@ end
 # than might be ideal, although its not too bad. see also: 
 # https://discourse.julialang.org/t/how-to-deal-with-zygote-sometimes-pirating-its-own-adjoints-with-worse-ones
 
+# have to be careful for reductions to ℝ¹ since if
+# set_sum_accuracy_mode(Float64) the return value might be higher
+# percision than input fields. (also it might be a Dual for
+# higher-order diff)
+
 # ℝᴺ -> ℝ¹ 
-@adjoint sum(f::Field{B}) where {B} = sum(f), Δ -> (Δ*one(f),)
+@adjoint sum(f::Field{B,T}) where {B,T} = sum(f), Δ -> (real(T)(Δ) * one(f),)
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
-@adjoint dot(f::Field{B1}, g::Field{B2}) where {B1,B2} = dot(f,g), Δ -> (Δ*B1(g), Δ*B2(f))
+@adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*B1(g), real(T2)(Δ)*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote.pullback((L,θ)->logdet(L(θ)), L, θ)
-@adjoint logdet(L::DiagOp) = logdet(L), Δ -> (Δ * Zfac(L) * pinv(L)',)
+@adjoint logdet(L::DiagOp{F,T}) where {F<:Field, T} = logdet(L), Δ -> (real(T)(Δ) * Zfac(L) * pinv(L)',)
 
 # basis conversion
 @adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)

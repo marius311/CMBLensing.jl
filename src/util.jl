@@ -320,28 +320,35 @@ end
 firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
-USE_SUM_KBN = false
-use_sum_kbn!(flag) = (global USE_SUM_KBN = flag)
+get_sum_accuracy_mode() = nothing
+function set_sum_accuracy_mode!(mode)
+    mode ∈ (nothing, :kahan, Float64) || error("mode must be `nothing`, `:kahan`, `Float64`")
+    @eval get_sum_accuracy_mode() = $(QuoteNode(mode)) # triggers recompilation of sum_dropdims so it remains type-stable
+end
 
 # type-stable combination of summing and dropping dims, which uses
 # either sum or sum_kbn (to reduce roundoff error), depending on
 # CMBLensing.USE_SUM_KBN constant
 function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
+    SUM_ACCURACY_MODE = get_sum_accuracy_mode()
     if (dims == (:)) || (N == length(dims))
-        if USE_SUM_KBN
+        if SUM_ACCURACY_MODE == :kahan
             sum_kbn(cpu(A))
+        elseif SUM_ACCURACY_MODE == Float64
+            T64 = promote_type(T, Float64)
+            sum(T64.(A))
         else
             sum(A)
-        end :: T
+        end 
     else
-        if USE_SUM_KBN
+        if SUM_ACCURACY_MODE == :kahan
             dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
         else
             dropdims(sum(A, dims=dims), dims=dims)
         end
     end
 end
-@adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
+@adjoint sum_dropdims(A::AbstractArray{T,N}) where {T,N} = sum_dropdims(A), Δ -> (fill!(similar(A),T(Δ)),)
 
 
 # for mixed eltype, which Loess stupidly does not support

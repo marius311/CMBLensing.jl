@@ -313,11 +313,19 @@ end
 
 
 ### dot products
-# do in Map space (the LenseBasis, Ł) for simplicity
-function dot(a::LambertField, b::LambertField)
-    z = Ł(a) .* Ł(b)
+function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Map}}
+    z = a .* b
     batch(sum_dropdims(z.arr, dims=nonbatch_dims(z)))
 end
+function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Fourier}}
+    z = real.(conj.(a) .* b)
+    @unpack Ny, Nx, arr, storage = z
+    λ = adapt(storage, rfft_degeneracy_fac(Ny))
+    batch(sum_dropdims(z.arr .* λ, dims=nonbatch_dims(z)) ./ (Ny * Nx))
+end
+# most of the operators we deal with are Fourier-diagonal so default
+# is to do dot product in Fourier domain
+dot(a::LambertField, b::LambertField) = dot(Ð(a), Ð(b)) 
 
 ### logdets
 

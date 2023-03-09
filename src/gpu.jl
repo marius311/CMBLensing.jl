@@ -44,7 +44,7 @@ end
 pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
-sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
+sum(f::CuBaseField; dims=:) = (dims == :) ? sum_dropdims(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 # adapting of SparseMatrixCSC ↔ CuSparseMatrixCSR (otherwise dense arrays created)
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC)   = CuSparseMatrixCSR(L)

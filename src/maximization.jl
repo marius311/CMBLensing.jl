@@ -181,7 +181,7 @@ function MAP_joint(
         αmax = haskey(Ω°,:ϕ°) ? min(2α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 2α
         T = real(eltype(f))
         soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
-            Ω°′ = Ω°+α*s
+            Ω°′ = Ω°+T(α)*s
             total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ)))))
             isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
         end
