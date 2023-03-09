@@ -315,7 +315,7 @@ function load_sim(;
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
     ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
     if (G == nothing)
-        G₀ = sqrt(I + Nϕ * pinv(Cϕ()))
+        G₀ = sqrt(I + 2 * Nϕ * pinv(Cϕ()))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end
     if (D == nothing)

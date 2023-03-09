@@ -186,7 +186,7 @@ end
 @adjoint function *(Lϕ::BilinearLens, f::Field{B}) where {B}
     f̃ = Lϕ * f
     function back(Δ)
-        (∇' * (Ref(spin_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ*Δ)
+        (∇' * (Ref(spin_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ' * Δ)
     end
     f̃, back
 end
