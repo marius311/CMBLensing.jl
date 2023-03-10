@@ -75,6 +75,8 @@ function cuda_gc()
     CUDA.reclaim()
 end
 
+unsafe_free!(x::CuArray) = CUDA.unsafe_free!(x)
+
 @static if versionof(Zygote)>v"0.6.11"
     # https://github.com/JuliaGPU/CUDA.jl/issues/982
     dot(x::CuArray, y::CuArray) = sum(conj.(x) .* y)

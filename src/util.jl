@@ -510,3 +510,5 @@ end
 
 ensure_dense(vec::AbstractVector) = vec
 ensure_dense(vec::SparseVector) = collect(vec)
+
+unsafe_free!(x::AbstractArray) = nothing

@@ -19,6 +19,7 @@ function (solver::RK4Solver)(F!::Function, y₀, (t₀, t₁)::Pair)
         @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
         @. y += h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
+    map(unsafe_free!, (k₁, k₂, k₃, k₄, y′))
     return y
 end
 
