@@ -44,11 +44,11 @@ Zygote.@nograd m_plan_fft, m_plan_rfft
 # real FFTs, so we need a copy. see
 # https://github.com/JuliaMath/FFTW.jl/issues/158. do the copy into
 # some memoized memory to avoid allocation.
-copy_irfft_mem(arr) = copy!(irfft_mem(typeof(arr), size(arr)), arr)
-@memoize irfft_mem(Arr, sz) = Arr(undef, sz...)
+copy_into_irfft_cache(arr) = copy!(irfft_cache(typeof(arr), size(arr)), arr)
+@memoize irfft_cache(Arr, sz) = Arr(undef, sz...)
 function ldiv_safe!(dst, plan::FFTW.rFFTWPlan, src)
     if FFTW.fftw_provider == "fftw"
-        ldiv!(dst, plan, copy_irfft_mem(src))
+        ldiv!(dst, plan, copy_into_irfft_cache(src))
     else
         ldiv!(dst, plan, src)
     end

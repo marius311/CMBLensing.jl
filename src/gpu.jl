@@ -89,7 +89,7 @@ Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, 
 # allocations
 function ldiv_safe!(dst, plan::CUDA.CUFFT.rCuFFTPlan, src)
     inv_plan = inv(plan)
-    CUDA.CUFFT.cufftExecC2R(inv_plan.p, copy_irfft_mem(src), dst)
+    CUDA.CUFFT.cufftExecC2R(inv_plan.p, copy_into_irfft_cache(src), dst)
     LinearAlgebra.lmul!(inv_plan.scale, dst)
 end
 
