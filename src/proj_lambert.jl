@@ -36,6 +36,7 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     Δℓy       :: T
     ℓy        :: V
     ℓx        :: V
+    λ_rfft    :: V
     ℓmag      :: M
     sin2ϕ     :: M
     cos2ϕ     :: M
@@ -64,11 +65,12 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
     ℓmag         = adapt(storage, @. sqrt(ℓx'^2 + ℓy^2))
     ϕ            = adapt(storage, @. angle(ℓx' + im*ℓy))
     sin2ϕ, cos2ϕ = adapt(storage, @. sin(2ϕ), cos(2ϕ))
+    λ_rfft       = adapt(storage, T′.(rfft_degeneracy_fac(Ny)))
     if iseven(Ny)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
 
-    ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ)
+    ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,λ_rfft,ℓmag,sin2ϕ,cos2ϕ)
     
 end
 
@@ -319,28 +321,20 @@ function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Map}
 end
 function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Fourier}}
     z = real.(conj.(a) .* b)
-    @unpack Ny, Nx, arr, storage = z
-    λ = adapt(storage, rfft_degeneracy_fac(Ny))
-    batch(sum_dropdims(z.arr .* λ, dims=nonbatch_dims(z)) ./ (Ny * Nx))
+    batch(sum_dropdims(z.arr .* z.λ_rfft, dims=nonbatch_dims(z)) ./ (z.Ny * z.Nx))
 end
 # most of the operators we deal with are Fourier-diagonal so default
 # is to do dot product in Fourier domain
 dot(a::LambertField, b::LambertField) = dot(Ð(a), Ð(b)) 
 
 ### logdets
-
-function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    # half the Fourier plane needs to be counted twice since the real
-    # FFT only stores half of it
-    @unpack Ny, arr, storage = L.diag
-    λ = adapt(storage, rfft_degeneracy_fac(Ny))
+function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:SpatialBasis{Fourier}}
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
-    batch(real.(sum_dropdims(nan2zero.(log.(abs.(arr)) .* λ), dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(nan2zero.(log.(abs.(L.diag.arr)) .* L.diag.λ_rfft), dims=nonbatch_dims(L.diag))))
 end
-
-function logdet(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+function logdet(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:SpatialBasis{Map}}
     batch(
         sum_dropdims(log.(abs.(L.diag.arr)), dims=nonbatch_dims(L.diag)) 
         .+ dropdims(log.(prod(sign.(L.diag.arr), dims=nonbatch_dims(L.diag))), dims=nonbatch_dims(L.diag))
@@ -349,16 +343,12 @@ end
 
 
 ### traces
-
-function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    @unpack Ny, Nx, arr, storage = L.diag
-    λ = adapt(storage, rfft_degeneracy_fac(Ny))
+function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:SpatialBasis{Fourier}}
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
-    batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(L.diag.arr .* L.diag.λ_rfft, dims=nonbatch_dims(L.diag))))
 end
-
-function tr(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+function tr(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:SpatialBasis{Map}}
     batch(sum_dropdims(L.diag.arr, dims=nonbatch_dims(L.diag)))
 end
 
@@ -381,10 +371,6 @@ function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, Cℓ
 end
 
 ## ParamDependentOp covariances scaled by amplitudes in different ℓ-bins
-# note we need an @eval below since we want to dynamically select a
-# keyword argument name, θname. the @eval happens into Main rather
-# than CMBLensing as a workaround for
-# https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T,V}
     C₀ = Cℓ_to_Cov(:I, proj, Cℓ; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
@@ -393,7 +379,6 @@ function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)
         Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
     end)
 end
-
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::Cℓs; kwargs...) where {T}
     C₀ = Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)

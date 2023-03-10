@@ -25,7 +25,7 @@ Zygote.accum(x::FieldOp, y::FieldOp, zs::FieldOp...) = _plus_accum(x, y, zs...)
 # AD for Fourier Fields can be really subtle because such objects are
 # still supposed to represent a pixel-space field, despite that
 # they're stored as the half-plane real FFT coefficients. this leads
-# to needing factors of Npix(=Ny*Nx) and rfft_degeneracy_fac (which
+# to needing factors of Npix(=Ny*Nx) and λ_rfft (which
 # gives weight of 2 to coefficient which would be there twice in the
 # full-plane FFT) in a few cases below to make the logic all work. the
 # Npix factor is handled by the Zfac function.
@@ -42,20 +42,20 @@ Zfac(L::DiagOp{<:Field{B}}) where {B} = Zfac(B(), L.diag.metadata)
     F(arr, metadata), Δ -> (Δ.arr, nothing)
 end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{Fourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
-    F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(metadata.Ny) ./ Zfac(B(), metadata))), nothing)
+    F(arr, metadata), Δ -> (Δ.arr .* Δ.λ_rfft, nothing)
 end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{AzFourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
-    F(arr, metadata), Δ -> (Δ.arr .* adapt(Δ.storage, T.(rfft_degeneracy_fac(metadata.Nx)' ./ Zfac(B(), metadata))), nothing)
+    F(arr, metadata), Δ -> (Δ.arr .* Δ.λ_rfft, nothing)
 end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{Fourier},M,T}
-    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(f.storage, T.(rfft_degeneracy_fac(f.Ny) ./ Zfac(B(), f.metadata))), f.metadata),)
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft, f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
-    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ adapt(f.storage, T.(rfft_degeneracy_fac(f.Nx)' ./ Zfac(B(), f.metadata))), f.metadata),)
+    getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft, f.metadata),)
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})
@@ -309,4 +309,5 @@ AbstractFFTs.plan_rfft(arr::AbstractArray{<:Dual}, region; kws...) = plan_rfft(v
 Zygote.z2d(dx::AbstractArray{Union{}}, ::AbstractArray) = dx
 
 # to allow stuff like Float32(::Dual) to work
-# (::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(S(value(x)), Partials(ntuple(i -> S(partials(x,i)), Val(N))))
+# might be coming upstream https://github.com/JuliaDiff/ForwardDiff.jl/pull/538
+(::Type{S})(x::Dual{T,V,N}) where {T,V,N,S<:Union{Float32,Float64}} = Dual{T,S,N}(x)
