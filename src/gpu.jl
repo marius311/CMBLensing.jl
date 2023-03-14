@@ -86,12 +86,17 @@ end
 Base.view(arr::CuArray{T,2}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
 Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, K)
 
-# CUFFT destroys the input array for irfft so a copy is needed, but
-# override CUDA.jl's copy to do it into some memoized memory and avoid
-# allocations
-function ldiv_safe!(dst, plan::CUDA.CUFFT.rCuFFTPlan, src)
+# CUFFT destroys the input array for irfft so a copy is needed but
+# CUDA.jl's allocates a new array for this. here do it instead into
+# some memoized memory and avoid allocations
+function ldiv_safe!(dst, plan::CUDA.CUFFT.rCuFFTPlan{CUDA.CUFFT.cufftReal}, src)
     inv_plan = inv(plan)
     CUDA.CUFFT.cufftExecC2R(inv_plan.p, copy_into_irfft_cache(src), dst)
+    LinearAlgebra.lmul!(inv_plan.scale, dst)
+end
+function ldiv_safe!(dst, plan::CUDA.CUFFT.rCuFFTPlan{CUDA.CUFFT.cufftDoubleReal}, src)
+    inv_plan = inv(plan)
+    CUDA.CUFFT.cufftExecZ2D(inv_plan.p, copy_into_irfft_cache(src), dst)
     LinearAlgebra.lmul!(inv_plan.scale, dst)
 end
 
