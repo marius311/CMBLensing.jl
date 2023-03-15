@@ -87,8 +87,12 @@ function simulate(rng::AbstractRNG, model, args...; kwargs...)
     model(Simulate(), _vars, rng, args...; kwargs...)
     (;_vars...)
 end
-function Distributions.logpdf(model, args...; kwargs...)
+function Distributions.loglikelihood(model, args...; kwargs...)
     _logpdf = Ref{Real}(0)
     model(Logpdf(), _logpdf, args...; kwargs...)
     _logpdf[]
 end
+function Distributions.logpdf(model, args...; kwargs...)
+    Distributions.loglikelihood(model, args...; kwargs...) + logprior(model, args...; kwargs...)
+end
+logprior(model, args...; kwargs...) = 0
