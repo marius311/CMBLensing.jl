@@ -24,7 +24,7 @@ function m_irfft(arr::AbstractArray{T,N}, d, dims) where {T,N}
     m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, output_size...) \ arr
 end
 m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T<:Real,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
-m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv_safe!(dst, m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, size(dst)...), arr)
+m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, size(dst)...), copy_if_fftw(arr))
 m_fft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) * arr
 m_ifft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) \ arr
 m_fft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...), complex(arr))
@@ -38,24 +38,9 @@ end
     plan_fft(A(undef, sz...), dims; (A <: Array ? (timelimit=FFTW_TIMELIMIT,) : ())...)
 end
 Zygote.@nograd m_plan_fft, m_plan_rfft
-
-
-# FFTW and CUFFT (but not MKL) destroy the input array for inverse
-# real FFTs, so we need a copy. see
-# https://github.com/JuliaMath/FFTW.jl/issues/158. do the copy into
-# some memoized memory to avoid allocation.
-copy_into_irfft_cache(arr) = copy!(irfft_cache(typeof(arr), size(arr)), arr)
-@memoize irfft_cache(Arr, sz) = Arr(undef, sz...)
-function ldiv_safe!(dst, plan::FFTW.rFFTWPlan, src)
-    if FFTW.fftw_provider == "fftw"
-        ldiv!(dst, plan, copy_into_irfft_cache(src))
-    else
-        ldiv!(dst, plan, src)
-    end
-end
-
-
-
+# FFTW (but not MKL) destroys the input array for inplace inverse real
+# FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
+copy_if_fftw(x) = (x isa Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
 
 
 """
