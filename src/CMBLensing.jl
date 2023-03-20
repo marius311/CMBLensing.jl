@@ -79,7 +79,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
 import Base.Broadcast: materialize, preprocess, broadcasted
 import Zygote.ChainRules: rrule
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
-    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
+    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr, det
 import Measurements: ±
 import Statistics: std
 import ChainRules: ProjectTo
