@@ -316,11 +316,8 @@ function (L::ParamDependentOp)(θ::NamedTuple)
     end
 end
 (L::ParamDependentOp)(;θ...) = L((;θ...))
-@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using .ComponentArrays
-    (L::ParamDependentOp)(θ::ComponentArray) = L(convert(NamedTuple, θ))
-    (L::Union{FieldOp,UniformScaling})(::ComponentArray) = L
-end
+(L::ParamDependentOp)(θ::ComponentArray) = L(convert(NamedTuple, θ))
+(L::Union{FieldOp,UniformScaling})(::ComponentArray) = L
 
 @auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
 @auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f

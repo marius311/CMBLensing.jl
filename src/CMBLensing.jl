@@ -12,6 +12,7 @@ using ChainRules
 using ChainRules: @opt_out, rrule, unthunk
 using CodecZlib
 using Combinatorics
+using ComponentArrays
 using CompositeStructs
 using CoordinateTransformations
 using DataStructures
@@ -24,6 +25,7 @@ using EllipsisNotation
 using FileIO
 using FFTW
 using ForwardDiff
+using ForwardDiff: Dual, Partials, value, partials
 using Healpix
 using InteractiveUtils
 using IterTools: flagfirst
@@ -90,11 +92,11 @@ export
     @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
     animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
     batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
-    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
+    Cℓ_to_Cov, cuda_gc, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
     firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
-    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
+    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gpu, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, Cℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
     lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
@@ -110,7 +112,6 @@ export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!,
     gibbs_sample_f!, gibbs_sample_ϕ!, gibbs_sample_slice_θ!, 
     gibbs_mix!, gibbs_unmix!, gibbs_postprocess!, 
     once_every, start_after_burnin, mass_matrix_ϕ, hmc_step
-
 
 # util
 include("util.jl")
@@ -165,12 +166,6 @@ include("quadratic_estimate.jl")
 # AD
 include("autodiff.jl")
 
-# gpu
-is_gpu_backed(x) = false
-@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
-
-# muse
-@init @require MuseInference="43b88160-90c7-4f71-933b-9d65205cd921" include("muse.jl")
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

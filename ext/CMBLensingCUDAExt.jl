@@ -1,9 +1,17 @@
 
-using CUDA
-using CUDA: curand_rng
-using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+module CMBLensingCUDAExt
 
-export cuda_gc, gpu
+using AbstractFFTs
+using CMBLensing
+using CUDA
+using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+using EllipsisNotation
+using ForwardDiff
+using ForwardDiff: Dual, Partials, value, partials
+using Markdown
+using Random
+using SparseArrays
+using Zygote
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
@@ -19,7 +27,7 @@ function cuda(f, args...; threads=256)
     @cuda threads=threads f(args...)
 end
 
-is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
+CMBLensing.is_gpu_backed(::BaseField{B,M,T,A}) where {B,M,T,A<:CuArray} = true
 
 # handy conversion functions and macros
 @doc doc"""
@@ -77,7 +85,7 @@ end
 
 unsafe_free!(x::CuArray) = CUDA.unsafe_free!(x)
 
-@static if versionof(Zygote)>v"0.6.11"
+@static if CMBLensing.versionof(Zygote)>v"0.6.11"
     # https://github.com/JuliaGPU/CUDA.jl/issues/982
     dot(x::CuArray, y::CuArray) = sum(conj.(x) .* y)
 end
@@ -110,4 +118,6 @@ end
 function ForwardDiff.extract_gradient_chunk!(::Type{T}, result::CuArray, dual, index, chunksize) where {T}
     result[index:index+chunksize-1] .= partials.(T, dual, 1:chunksize)
     return result
+end
+
 end

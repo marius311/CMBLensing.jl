@@ -1,16 +1,16 @@
-module PyPlotExt
+module CMBLensingPyPlotExt
 
 using CMBLensing
-using CMBLensing.Loess
-using CMBLensing.Measurements
+using Loess
 using Markdown
+using Measurements
 using PyPlot
 using PyPlot.PyCall
-import PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
+using StatsBase
 
 ### overloaded 1D plotting
 
-for plot in (:plot, :loglog, :semilogx, :semilogy)
+for plot in (:(PyPlot.plot), :(PyPlot.loglog), :(PyPlot.semilogx), :(PyPlot.semilogy))
 
 	# Cℓs
     @eval function ($plot)(ic::Cℓs, args...; kwargs...)
@@ -44,7 +44,7 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 end
 
 # 2D KDE
-function plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
+function PyPlot.plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
 	@unpack colors = pyimport("matplotlib")
 	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels(levels); Inf]
 	if color == nothing
@@ -55,7 +55,7 @@ function plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing
 end
 
 # Cℓ band
-function fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
+function PyPlot.fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
 		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,
@@ -187,8 +187,8 @@ end
     
 Plotting fields. 
 """
-plot(f::Field; kwargs...) = plot([f]; kwargs...)
-function plot(D::DiagOp; kwargs...)
+PyPlot.plot(f::Field; kwargs...) = plot([f]; kwargs...)
+function PyPlot.plot(D::DiagOp; kwargs...)
 	props = _sub_components[findfirst(((k,v),)->diag(D) isa @eval($k), _sub_components)][2]
 	plot(
 		[diag(D)]; 
@@ -197,7 +197,7 @@ function plot(D::DiagOp; kwargs...)
 	)
 end
 
-function plot(
+function PyPlot.plot(
 	fs :: AbstractVecOrMat{F}; 
 	plotsize = 4,
 	which = default_which(fs), 
@@ -281,7 +281,7 @@ end
 
 ### plotting HealpixFields
 
-function plot(f::HealpixMap; kwargs...)
+function PyPlot.plot(f::HealpixMap; kwargs...)
 	hp.projview(
 		collect(f.arr);
 		cmap                  = "RdBu_r", 
@@ -305,7 +305,7 @@ end
 ### convenience
 # for plotting in environments that only show a plot if its the last thing returned
 
-function figure(plotfn::Function, args...; kwargs...)
+function PyPlot.figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()

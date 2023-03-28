@@ -264,7 +264,10 @@ Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
 this does not change the `eltype` of any underlying arrays. See also
 [`cpu`](@ref).
 """
-function gpu end # defined in gpu.jl only when CUDA.jl is loaded
+function gpu end
+
+function cuda_gc end
+is_gpu_backed(x) = false
 
 
 
@@ -441,21 +444,6 @@ string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout
 
 import NamedTupleTools
 NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
-
-@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using .ComponentArrays
-    # a Zygote-compatible conversion of ComponentVector to a NamedTuple
-    Base.convert(::Type{NamedTuple}, x::ComponentVector) = NamedTuple{keys(x)}([x[k] for k in keys(x)])
-    @adjoint function Base.convert(::Type{NamedTuple}, x::ComponentVector)
-        nt = convert(NamedTuple, x)
-        function back(Δ)
-            (nothing, ComponentArray(;(k => isnothing(Δₖ) ? zero(ntₖ) : Δₖ for (k,ntₖ,Δₖ) in zip(keys(nt), nt, Δ))...))
-        end
-        nt, back
-    end
-end
-
-
 
 # https://github.com/JuliaLang/julia/issues/41030
 @init ccall(:jl_generating_output,Cint,())!=1 && @eval Base function start_worker_task!(worker_tasks, exec_func, chnl, batch_size=nothing)
