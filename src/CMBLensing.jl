@@ -6,15 +6,18 @@ using Base.Broadcast: AbstractArrayStyle, ArrayStyle, Broadcasted,
     DefaultArrayStyle, preprocess_args, Style, result_style, Unknown
 using Base.Iterators: flatten, product, repeated, cycle, countfrom, peel, partition
 using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
-    show_default, show_vector, typed_vcat, typename
+    show_default, show_vector, typed_vcat, typename, Callable
+using Bijections
 using ChainRules
+using ChainRules: @opt_out, rrule, unthunk
+using CodecZlib
 using Combinatorics
 using CompositeStructs
 using CoordinateTransformations
 using DataStructures
 using DelimitedFiles
 using Distributed: pmap, nworkers, myid, workers, addprocs, @everywhere, remotecall_wait, 
-    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel
+    @spawnat, pgenerate, procs, @fetchfrom, default_worker_pool, RemoteChannel, rmprocs, nprocs, remotecall_fetch
 using Distributions
 using Distributions: PDiagMat
 using EllipsisNotation
@@ -49,9 +52,11 @@ using Roots
 using Requires
 using Serialization
 using Setfield
+using SnoopPrecompile
 using SparseArrays
-using StaticArrays: @SMatrix, @SVector, SMatrix, StaticArray, StaticArrayStyle,
-    StaticMatrix, StaticVector, SVector, SArray, SizedArray
+import StaticArrays
+using StaticArrays: @SMatrix, @SVector, SMatrix, StaticMatrix, StaticVector, StaticArray,
+    SVector, SArray, SizedArray, SizedMatrix, SizedVector
 using Statistics
 using StatsBase
 using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
@@ -74,7 +79,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
 import Base.Broadcast: materialize, preprocess, broadcasted
 import Zygote.ChainRules: rrule
 import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
-    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr
+    pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr, det
 import Measurements: ±
 import Statistics: std
 import ChainRules: ProjectTo
@@ -172,6 +177,8 @@ is_gpu_backed(x) = false
 @init if ProgressMeter.@isdefined ijulia_behavior
     ProgressMeter.ijulia_behavior(:clear)
 end
+
+@precompile_all_calls include("precompile.jl")
 
 end
 

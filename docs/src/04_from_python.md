@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.8
+      jupytext_version: 1.14.4
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -20,7 +20,7 @@ jupyter:
     name: python
     nbconvert_exporter: python
     pygments_lexer: ipython3
-    version: 3.7.3
+    version: 3.9.13
 ---
 
 # Calling from Python
@@ -104,14 +104,14 @@ Similarly, the rest of the commands from that example will work in Python if jus
 At any point, you can do whatever you'd like with any of the results stored in Julia variables, e.g. transferring the simulated maps back as Python arrays,
 
 ```python
-f = %julia f[:Ix]
-f
+arr = %julia f.arr
+arr
 ```
 
 You can also pass variables back to Julia, e.g.
 
 ```python
-%julia g = FlatMap($f);
+%julia f = FlatMap($arr);
 ```
 
 ### Directly

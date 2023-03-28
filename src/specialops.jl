@@ -57,33 +57,42 @@ end
 # call sqrt/inv on it, and the ΣBB block separately as ΣB. This type
 # is generic with regards to the field type, F.
 struct BlockDiagIEB{T,F} <: ImplicitOp{T}
-    ΣTE :: SMatrix{2,2,Diagonal{T,F},4}
+    ΣTE :: SizedMatrix{2,2,Diagonal{T,F},2,Matrix{Diagonal{T,F}}}
     ΣB :: Diagonal{T,F}
 end
+BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB{T,F}(ΣTE, ΣB)
+@adjoint function BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F}
+    Y = BlockDiagIEB(ΣTE, ΣB)
+    function BlockDiagIEB_pullback(Δ)
+        Δ = unthunk(Δ)
+        (Δ.ΣTE, Δ.ΣB)
+    end
+    return Y, BlockDiagIEB_pullback
+end
 # applying
-*(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
-\(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
-function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
-    (i,e),b = (L.ΣTE * [f.I, f.E]), L.ΣB * f.B
+@auto_adjoint *(L::BlockDiagIEB, f::BaseS02) =       L * IEBFourier(f)
+@auto_adjoint \(L::BlockDiagIEB, f::BaseS02) = pinv(L) * IEBFourier(f)
+@auto_adjoint function *(L::BlockDiagIEB, f::BaseIEBFourier{P}) where {P<:Proj}
+    (i,e),b = (L.ΣTE * SizedVector{2}([f.I, f.E])), L.ΣB * f.B
     BaseIEBFourier{P}(i,e,b)
 end
 # manipulating
 size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
-pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
+@auto_adjoint pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
 diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
 adapt_structure(storage, L::BlockDiagIEB) = BlockDiagIEB(adapt.(Ref(storage), L.ΣTE), adapt(storage, L.ΣB))
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
-logdet(L::BlockDiagIEB) = logdet(L.ΣTE[1,1]*L.ΣTE[2,2]-L.ΣTE[1,2]*L.ΣTE[2,1]) + logdet(L.ΣB)
+logdet(L::BlockDiagIEB) = logdet(det(L.ΣTE)) + logdet(L.ΣB)
 # arithmetic
-*(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(SMatrix{2,2}(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]]), L.ΣB * D[:B])
-+(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(@SMatrix[L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
+*(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]], L.ΣB * D[:B])
++(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB([L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
 *(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
 +(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
-+(L::BlockDiagIEB, U::UniformScaling{<:Scalar}) = BlockDiagIEB(@SMatrix[(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
++(L::BlockDiagIEB, U::UniformScaling{<:Scalar}) = BlockDiagIEB([(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
 *(L::BlockDiagIEB, λ::Scalar) = BlockDiagIEB(L.ΣTE * λ, L.ΣB * λ)
 *(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = L * D
 +(U::UniformScaling{<:Scalar}, L::BlockDiagIEB) = L + U
@@ -102,7 +111,6 @@ function getindex(L::BlockDiagIEB, k::Symbol)
 end
 # hashing
 hash(L::BlockDiagIEB, h::UInt64) = foldr(hash, (typeof(L), L.ΣTE[1,1], L.ΣTE[1,2], L.ΣTE[2,2], L.ΣB), init=h)
-
 
 
 
@@ -276,6 +284,9 @@ struct ParamDependentOp{T, L<:FieldOp{T}, F<:Function} <: ImplicitOp{T}
     recompute_function :: F
     parameters :: Vector{Symbol}
 end
+function ParamDependentOp(parameters::Vector{Symbol}, recompute_function::Function)
+    ParamDependentOp(recompute_function(), recompute_function, parameters)
+end
 function ParamDependentOp(recompute_function::Function)
     kwarg_names = filter(!=(Symbol("_...")), get_kwarg_names(recompute_function))
     if endswith(string(kwarg_names[end]), "...")
@@ -332,7 +343,7 @@ end
 # we have to include recompute_function in the hash, but its hash
 # might change if shipped to a distributed worker, despite being the
 # same function. not sure if there's any way around this...
-hash(L::ParamDependentOp, h::UInt64) = foldr(hash, (typeof(L), L.op, L.recompute_function), init=h)
+hash(L::ParamDependentOp, h::UInt64) = foldr(hash, (ParamDependentOp, L.op, L.parameters, string(code_lowered(L.recompute_function)[1])), init=h)
 
 adapt_structure(to, L::ParamDependentOp) = 
     ParamDependentOp(adapt(to, L.op), adapt(to, L.recompute_function), L.parameters)

@@ -20,8 +20,16 @@ macro fwdmodel(def)
         elseif @capture(x, var_ ~ dist_)
             push!(rand_vars, var)
             return :(ismissing($var) ? (_vars[$(QuoteNode(var))] = $var = $simulate(rng, $model_name, $dist)) : (_vars[$(QuoteNode(var))] = $var))
-        elseif @capture(x, var_ ← rhs_)
-            return :(_vars[$(QuoteNode(var))] = $var = (Base.@isdefined($var) && !ismissing($var) ? $var : $rhs))
+        elseif @capture(x, (vars__,) ← rhs_)
+            tmpvars = (gensym.(vars)...,)
+            return quote
+                ($(tmpvars...),) = $rhs
+                $(map(vars, tmpvars) do v, t
+                    :(_vars[$(QuoteNode(v))] = (Base.@isdefined($v) && !ismissing($v)) ? $v : ($v = $t))
+                end...)
+            end
+        elseif @capture(x, (var_ ← rhs_))
+            return :(_vars[$(QuoteNode(var))] = (Base.@isdefined($var) && !ismissing($var) ? $var : ($var = $rhs))) 
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
             if (f isa Symbol) && !(f in maybe_local_var) && isdefined(__module__, f)
@@ -79,8 +87,12 @@ function simulate(rng::AbstractRNG, model, args...; kwargs...)
     model(Simulate(), _vars, rng, args...; kwargs...)
     (;_vars...)
 end
-function Distributions.logpdf(model, args...; kwargs...)
+function Distributions.loglikelihood(model, args...; kwargs...)
     _logpdf = Ref{Real}(0)
     model(Logpdf(), _logpdf, args...; kwargs...)
     _logpdf[]
 end
+function Distributions.logpdf(model, args...; kwargs...)
+    Distributions.loglikelihood(model, args...; kwargs...) + logprior(model, args...; kwargs...)
+end
+logprior(model, args...; kwargs...) = 0

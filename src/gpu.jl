@@ -44,7 +44,7 @@ end
 pinv(D::Diagonal{T,<:CuBaseField}) where {T} = Diagonal(@. ifelse(isfinite(inv(D.diag)), inv(D.diag), $zero(T)))
 inv(D::Diagonal{T,<:CuBaseField}) where {T} = any(Array((D.diag.==0)[:])) ? throw(SingularException(-1)) : Diagonal(inv.(D.diag))
 fill!(f::CuBaseField, x) = (fill!(f.arr,x); f)
-sum(f::CuBaseField; dims=:) = (dims == :) ? sum(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
+sum(f::CuBaseField; dims=:) = (dims == :) ? sum_dropdims(f.arr) : (1 in dims) ? error("Sum over invalid dims of CuFlatS0.") : f
 
 # adapting of SparseMatrixCSC ↔ CuSparseMatrixCSR (otherwise dense arrays created)
 adapt_structure(::Type{<:CuArray}, L::SparseMatrixCSC)   = CuSparseMatrixCSR(L)
@@ -53,13 +53,6 @@ adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
 adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
 
-# newer versions of CUDA w/ Julia 1.8 fixed this
-if @eval(CUDA.CUSOLVER, @isdefined(CuQR))
-    # CUDA somehow missing this one
-    # see https://github.com/JuliaGPU/CuArrays.jl/issues/103
-    # and https://github.com/JuliaGPU/CuArrays.jl/pull/580
-    ldiv!(qr::CUDA.CUSOLVER.CuQR, x::CuVector) = qr.R \ (CuMatrix(qr.Q)' * x)
-end
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
     cpu(randn!(rng, CuVector{T}(undef,1)))[1]
@@ -81,6 +74,8 @@ function cuda_gc()
     GC.gc(true)
     CUDA.reclaim()
 end
+
+unsafe_free!(x::CuArray) = CUDA.unsafe_free!(x)
 
 @static if versionof(Zygote)>v"0.6.11"
     # https://github.com/JuliaGPU/CUDA.jl/issues/982

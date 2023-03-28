@@ -176,4 +176,6 @@ getproperty(f::BaseField{B}, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B)))...}) where
     BaseField{B₀}(_reshape_batch(view(getfield(f,:arr), pol_slice(f, pol_index(B(), k))...)), getfield(f,:metadata))
 getproperty(f::BaseS02{Basis3Prod{𝐈,B₂,B₀}}, ::Val{:P}) where {B₂,B₀} = 
     BaseField{Basis2Prod{B₂,B₀}}(view(getfield(f,:arr), pol_slice(f, 2:3)...), getfield(f,:metadata))
+getproperty(f::BaseS0, ::Val{:I}) = f
 getproperty(f::BaseS2, ::Val{:P}) = f
+getproperty(f::BaseS02, ::Val{:IP}) = f

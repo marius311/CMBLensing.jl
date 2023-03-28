@@ -97,25 +97,6 @@ end
 
 
 
-# these allow pinv and sqrt of SMatrices of Diagonals to work correctly, which
-# we use for the T-E block of the covariance. hopefully some of this can be cut
-# down on in the futue with some PRs into StaticArrays.
-permutedims(A::SMatrix{2,2}) = @SMatrix[A[1] A[3]; A[2] A[4]]
-@auto_adjoint function sqrt(A::SMatrix{2,2,<:Diagonal})
-    # A = [a b; c d]
-    a,c,b,d = A 
-    s = sqrt(a*d-b*c)
-    t = pinv(sqrt(a+(d+2s)))
-    @SMatrix[t*(a+s) t*b; t*c t*(d+s)]
-end
-@auto_adjoint function pinv(A::SMatrix{2,2,<:Diagonal})
-    # A = [a b; c d]
-    a,c,b,d = A 
-    idet = pinv(a*d-b*c)
-    @SMatrix[d*idet -(b*idet); -(c*idet) a*idet]
-end
-
-
 # some usefule tuple manipulation functions:
 
 # see: https://discourse.julialang.org/t/efficient-tuple-concatenation/5398/10
@@ -339,28 +320,35 @@ end
 firsthalf(x) = x[1:end÷2]
 lasthalf(x) = x[end÷2:end]
 
-USE_SUM_KBN = false
-use_sum_kbn!(flag) = (global USE_SUM_KBN = flag)
+get_sum_accuracy_mode() = nothing
+function set_sum_accuracy_mode!(mode)
+    mode ∈ (nothing, :kahan, Float64) || error("mode must be `nothing`, `:kahan`, `Float64`")
+    @eval get_sum_accuracy_mode() = $(QuoteNode(mode)) # triggers recompilation of sum_dropdims so it remains type-stable
+end
 
 # type-stable combination of summing and dropping dims, which uses
 # either sum or sum_kbn (to reduce roundoff error), depending on
 # CMBLensing.USE_SUM_KBN constant
 function sum_dropdims(A::AbstractArray{T,N}; dims=:) where {T,N}
+    SUM_ACCURACY_MODE = get_sum_accuracy_mode()
     if (dims == (:)) || (N == length(dims))
-        if USE_SUM_KBN
+        if SUM_ACCURACY_MODE == :kahan
             sum_kbn(cpu(A))
+        elseif SUM_ACCURACY_MODE == Float64
+            T64 = promote_type(T, Float64)
+            sum(T64.(A))
         else
             sum(A)
-        end :: T
+        end 
     else
-        if USE_SUM_KBN
+        if SUM_ACCURACY_MODE == :kahan
             dropdims(mapslices(sum_kbn, cpu(A), dims=dims), dims=dims) :: Array{T,N-length(dims)}
         else
             dropdims(sum(A, dims=dims), dims=dims)
         end
     end
 end
-@adjoint sum_dropdims(A) = sum_dropdims(A), Δ -> (fill!(similar(A),Δ),)
+@adjoint sum_dropdims(A::AbstractArray{T,N}) where {T,N} = sum_dropdims(A), Δ -> (fill!(similar(A),T(Δ)),)
 
 
 # for mixed eltype, which Loess stupidly does not support
@@ -413,7 +401,8 @@ macro ⌛(args...)
             esc(combinedef(sdef))
         else
             if isnothing(label)
-                label = "$(Base._truncate_at_width_or_chars(true, string(prewalk(rmlines,ex)),26))  ($source_str)"
+                ignore_ANSI = @static VERSION >= v"1.9.0-0" ? true : ()
+                label = "$(Base._truncate_at_width_or_chars(ignore_ANSI..., string(prewalk(rmlines,ex)),26))  ($source_str)"
             end
             :(@timeit $label $(esc(ex)))
         end
@@ -521,3 +510,5 @@ end
 
 ensure_dense(vec::AbstractVector) = vec
 ensure_dense(vec::SparseVector) = collect(vec)
+
+unsafe_free!(x::AbstractArray) = nothing

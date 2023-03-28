@@ -103,7 +103,7 @@ end
 function getindex(f::CartesianS02{Basis3Prod{B₁,B₂,B₃}}, k::Symbol; full_plane=false) where {B₁,B₂,B₃}
     maybe_unfold = (full_plane && k in [:Il,:El,:Bl,:Ql,:Ul]) ? x->unfold(x,fieldinfo(f).Ny) : identity
     B = @match k begin
-        (:I  || :P)  => identity
+        (:I  || :P || :IP)  => identity
         (:E  || :B)  => Basis3Prod{𝐈,𝐄𝐁,B₃}
         (:Q  || :U)  => Basis3Prod{𝐈,𝐐𝐔,B₃}
         (:Ix)        => Basis3Prod{𝐈,B₂,Map}

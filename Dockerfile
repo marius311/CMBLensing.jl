@@ -29,7 +29,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.5-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -47,8 +47,8 @@ USER $NB_USER
 # that PyJulia works
 ENV PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"
 RUN curl https://pyenv.run | bash \
-    && CFLAGS="-O2" PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.7.3 \
-    && pyenv global 3.7.3
+    && CFLAGS="-O2" PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.9.13 \
+    && pyenv global 3.9.13
 
 ## install Python packages
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
@@ -68,7 +68,7 @@ RUN pip install --no-cache-dir \
 
 ## install CAMB
 RUN mkdir -p $HOME/src/camb \
-    && curl -L https://github.com/cmbant/camb/tarball/21a56ef | tar zxf - -C $HOME/src/camb --strip=1 \
+    && curl -L https://github.com/cmbant/camb/tarball/e8184bb | tar zxf - -C $HOME/src/camb --strip=1 \
     && cd $HOME/src/camb \
     && NONNATIVE=1 python setup.py make install 
 

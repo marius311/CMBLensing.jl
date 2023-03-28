@@ -121,6 +121,8 @@ function MAP_joint(
     fstart = nothing,
     ϕtol = nothing,
     αtol = 1e-4,
+    αmax = nothing,
+    prior_deprojection_factor = 0,
     nburnin_update_hessian = Inf,
     progress::Bool = true,
     conjgrad_kwargs = (tol=1e-1, nsteps=500),
@@ -151,42 +153,51 @@ function MAP_joint(
     Ω = Ωstart
     f = prevf = fstart
     α = 1
+    t_f_total = t_ϕ_total = 0
 
     for step = 1:nsteps
 
         ## f step
-        (f, argmaxf_logpdf_history) = @⌛ sample_or_argmax_f(
-            dsθ, 
-            (;Ω..., θ);
-            fstart = prevf, 
-            conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...)
-        )
-        aggressive_gc && cuda_gc()
+        t_f = @elapsed begin
+            (f, argmaxf_logpdf_history) = @⌛ sample_or_argmax_f(
+                dsθ, 
+                (;Ω..., θ);
+                fstart = prevf, 
+                conjgrad_kwargs = (history_keys=(:i,:res), progress=false, conjgrad_kwargs...)
+            )
+            aggressive_gc && cuda_gc()
+        end
 
-        ## ϕ step
         # gradient
-        @unpack f° = (Ω° = mix(dsθ; f, Ω..., θ))
-        Ω° = FieldTuple(delete(Ω°, (:f°, :θ)))
-        ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ), Ω°)
-        # Hessian
-        if step > nburnin_update_hessian
-            HΩ°⁻¹_unsmooth = Diagonal(abs.(Fourier(Ω°.ϕ° - prevΩ°.ϕ°) ./ Fourier(∇Ω°_logpdf.ϕ° - prev_∇Ω°_logpdf.ϕ°)))
-            HΩ°⁻¹_smooth = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(HΩ°⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
-            HΩ° = Diagonal(FieldTuple(ϕ°=diag(pinv(HΩ°⁻¹_smooth))))
-        elseif HΩ° == nothing
-            HΩ° = Hessian_logpdf_preconditioner(keys((;Ω°...,)), dsθ)
+        t_ϕ = @elapsed begin
+            ## ϕ step
+            @unpack f° = (Ω° = mix(dsθ; f, Ω..., θ))
+            Ω° = FieldTuple(delete(Ω°, (:f°, :θ)))
+            ∇Ω°_logpdf, = @⌛ gradient(Ω°->logpdf(Mixed(dsθ); f°, Ω°..., θ), Ω°)
+            # Hessian
+            if step > nburnin_update_hessian
+                HΩ°⁻¹_unsmooth = Diagonal(abs.(Fourier(Ω°.ϕ° - prevΩ°.ϕ°) ./ Fourier(∇Ω°_logpdf.ϕ° - prev_∇Ω°_logpdf.ϕ°)))
+                HΩ°⁻¹_smooth = Cℓ_to_Cov(:I, f.proj, smooth(ℓ⁴*cov_to_Cℓ(HΩ°⁻¹_unsmooth), xscale=:log, yscale=:log, smoothing=0.05)/ℓ⁴)
+                HΩ° = Diagonal(FieldTuple(ϕ°=diag(pinv(HΩ°⁻¹_smooth))))
+            elseif HΩ° == nothing
+                HΩ° = Hessian_logpdf_preconditioner(keys((;Ω°...,)), dsθ)
+            end
+            # line search
+            ΔΩ° = pinv(HΩ°) * ∇Ω°_logpdf
+            T = real(eltype(f))
+            if prior_deprojection_factor != 0
+                ΔΩ°_perp = pinv(HΩ°) * gradient(ΔΩ° -> logprior(dsθ; unmix(dsθ; f°, ΔΩ°...)...), ΔΩ°)[1]
+                ΔΩ° .-= T(prior_deprojection_factor * dot(ΔΩ°,ΔΩ°_perp) * pinv(dot(ΔΩ°_perp,ΔΩ°_perp))) .* ΔΩ°_perp
+            end
+            αmax = @something(αmax, 2α)
+            soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
+                Ω°′ = Ω° + T(α) * ΔΩ°
+                total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ)))))
+                isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
+            end
+            α = T(soln.minimizer)
+            Ω° += α * ΔΩ°
         end
-        # line search
-        s = pinv(HΩ°) * ∇Ω°_logpdf
-        αmax = haskey(Ω°,:ϕ°) ? min(2α, get_max_lensing_step(Ω°.ϕ°,s.ϕ°)/2) : 2α
-        T = real(eltype(f))
-        soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
-            Ω°′ = Ω°+α*s
-            total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ)))))
-            isnan(total_logpdf) ? T(α/αmax) * prevfloat(T(Inf)) : total_logpdf # workaround for https://github.com/JuliaNLSolvers/Optim.jl/issues/828
-        end
-        α = T(soln.minimizer)
-        Ω° += α * s
         
         ## finalize
         _logpdf = @⌛ logpdf(Mixed(dsθ); f°, Ω°..., θ)
@@ -196,8 +207,8 @@ function MAP_joint(
             ("step",       step), 
             ("logpdf",     join(map(x->@sprintf("%.2f",x), [unbatch(_logpdf)...]), ", ")),
             ("α",          α), 
-            ("CG",         "$(length(argmaxf_logpdf_history)) iterations"), 
-            ("Linesearch", "$(soln.iterations) bisections")
+            ("CG",         "$(length(argmaxf_logpdf_history)) iterations ($(@sprintf("%.2f",t_f)) sec)"), 
+            ("Linesearch", "$(soln.iterations) bisections ($(@sprintf("%.2f",t_ϕ)) sec)")
         ])
         push!(history, select((;f°,f,Ω°...,Ω...,∇Ω°_logpdf,total_logpdf,α,αmax,logpdf=_logpdf,HΩ°,argmaxf_logpdf_history), history_keys))
         

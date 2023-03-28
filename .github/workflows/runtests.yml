@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.6', '1.7', '1.8']
+        julia-version: ['1.7', '1.8', '^1.9.0-0']
         os: [ubuntu-latest]
         provider: ['mkl', 'fftw']
       fail-fast: false
@@ -26,4 +26,3 @@ jobs:
           && julia --project .github/set_fftw_provider.jl "${{ matrix.provider }}"
       - uses: julia-actions/julia-runtest@master
         timeout-minutes: 30
-        # continue-on-error: ${{ matrix.julia-version == '1.7-nightly' }}

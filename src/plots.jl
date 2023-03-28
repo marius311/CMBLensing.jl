@@ -34,5 +34,5 @@ using RecipesBase, PlotUtils
 end
 
 @recipe function plot(Cℓ::Cℓs)
-    Cℓ.ℓ, Cℓ.Cℓ
+    (Cℓ.ℓ, Cℓ.Cℓ)
 end

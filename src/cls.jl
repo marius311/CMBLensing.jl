@@ -9,28 +9,34 @@
 abstract type AbstractCℓs end
 
 struct Cℓs{TCℓ,Tℓ} <: AbstractCℓs
-    ℓ :: Vector{Tℓ}
-    Cℓ :: Vector{TCℓ}
+    ℓ :: Tℓ
+    Cℓ :: TCℓ
     concrete :: Bool
-    itp # intentionally type-unstable as workaround to https://github.com/JuliaIO/JLD2.jl/issues/401
+    itp
 end
 Cℓs(Cℓ; ℓstart=1, kwargs...) = Cℓs(ℓstart:(ℓstart+length(Cℓ)-1),Cℓ; kwargs...)
 function Cℓs(ℓ, Cℓ; concrete=true)
-    idx = (!isnan).(Cℓ)
-    ℓ = identity.(ℓ[idx])
-    Cℓ = identity.(Cℓ[idx])
-    itp = LinearInterpolation(ℓ, Cℓ, extrapolation_bc=NaN)
+    mask = (!isnan).(Cℓ)
+    if !all(mask)
+        ℓ = ℓ[mask]
+        Cℓ = Cℓ[mask]
+    end
+    if ℓ == ℓ[1]:ℓ[end]
+        ℓ = ℓ[1]:ℓ[end]
+    end
+    itp = LinearInterpolation(ℓ, identity.(Cℓ), extrapolation_bc=NaN)
     Cℓs(ℓ, Cℓ, concrete, itp)
 end
 function new_ℓs(ic1::Cℓs, ic2::Cℓs)
     sort!((!ic1.concrete && !ic2.concrete) ? union(ic1.ℓ,ic2.ℓ) : union((ic.ℓ for ic in (ic1,ic2) if ic.concrete)...))
 end
 getindex(ic::Cℓs, idx) = ic.itp.(idx)
+getindex(ic::Cℓs, ::Colon) = ic.Cℓ
 (ic::Cℓs)(idx) = ic.itp.(idx)
 # custom JLD2 serialization bc the default for LinearInterpolation
 # creates a closure which isnt future-proof when deserializing
 function JLD2.writeas(::Type{<:Cℓs{TCℓ,Tℓ}}) where {TCℓ,Tℓ}
-    Tuple{Val{Cℓs},NamedTuple{(:ℓ,:Cℓ,:concrete),Tuple{Vector{Tℓ},Vector{TCℓ},Bool}}}
+    Tuple{Val{Cℓs},NamedTuple{(:ℓ,:Cℓ,:concrete),Tuple{Tℓ,TCℓ,Bool}}}
 end
 function JLD2.wconvert(::Type{<:Tuple{Val{Cℓs},NamedTuple}}, ic::Cℓs)
     (Val(Cℓs), (;ic.ℓ, ic.Cℓ, ic.concrete))
@@ -38,7 +44,7 @@ end
 function JLD2.rconvert(::Type{<:Cℓs}, (_,s)::Tuple{Val{Cℓs},NamedTuple})
     Cℓs(s.ℓ, s.Cℓ; s.concrete)
 end
-
+hash(ic::Cℓs, h::UInt) = foldr(hash, (ic.ℓ, ic.Cℓ, ic.concrete), init=h)
 
 
 struct FuncCℓs{F<:Function} <: AbstractCℓs
@@ -93,13 +99,13 @@ end
 
 # used to powerlaw extrapolate Cℓs at very high-ℓ (usually ℓ>6000) just so we
 # don't have deal with zeros / infinities there
-function extrapolate_Cℓs(ℓ_out, ℓ_in, Cℓ_in)
+function extrapolate_Cℓs(ℓ_out, ℓ_in, Cℓ_in::AbstractVector{T}) where {T}
     if all(Cℓ_in .> 0)
         itp = LinearInterpolation(log.(ℓ_in), log.(Cℓ_in), extrapolation_bc = :line)
-        Cℓ_out = @. exp(itp(log(ℓ_out)))
+        Cℓ_out = @. T.(exp(itp(log(ℓ_out))))
     else
         # probably a cross-spectra, don't do anything fancy here
-        Cℓ_out = LinearInterpolation(ℓ_in, Cℓ_in, extrapolation_bc = 0).(ℓ_out)
+        Cℓ_out = T.(LinearInterpolation(ℓ_in, Cℓ_in, extrapolation_bc = 0).(ℓ_out))
     end
     Cℓs(ℓ_out, Cℓ_out, concrete=false)
 end
@@ -122,6 +128,10 @@ end
 
 ### camb interface (via Python/pycamb)
 
+_default_Cℓs_path = joinpath(@__DIR__, "../dat/default_camb_Cls.jld2")
+_default_Cℓs_params = isfile(_default_Cℓs_path) ? Dict(pairs(load(_default_Cℓs_path, "params"))) : Dict()
+@memoize _default_Cℓs() = load(_default_Cℓs_path, "Cℓ")
+
 @memoize function camb(;
     ℓmax = 6000, 
     r = 0.2, ωb = 0.0224567, ωc = 0.118489, τ = 0.055, Σmν = 0.06,
@@ -131,7 +141,15 @@ end
 )
     
     params = Base.@locals
-    
+    pop!.((params,), (:cache, :value), nothing) # why is :value ending up in here???
+    if (
+        params[:ℓmax] <= get(_default_Cℓs_params, :ℓmax, 0) &&
+        keys(params) == keys(_default_Cℓs_params) &&
+        all(params[k] == _default_Cℓs_params[k] for k in keys(params) if k != :ℓmax)
+    )
+        return _default_Cℓs()
+    end
+
     camb = @ondemand(PyCall.pyimport)(:camb)
     
     Base.invokelatest() do

@@ -6,16 +6,16 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.8
+      jupytext_version: 1.14.4
   kernelspec:
-    display_name: Julia 1.7.2
+    display_name: Julia 1.8.5
     language: julia
-    name: julia-1.7
+    name: julia-1.8
   language_info:
     file_extension: .jl
     mimetype: application/julia
     name: julia
-    version: 1.7.2
+    version: 1.8.5
 ---
 
 # Field Basics
@@ -139,25 +139,25 @@ f
 ```
 
 ```julia
-f′ = Fourier(f)
+g = Fourier(f)
 ```
 
 Basis conversion is usually done automatically for you. E.g. here `f′` is automatically converted to a `FlatMap` before addition:
 
 ```julia
-f + f′
+f + g
 ```
 
 A key feature of `Diagonal` operators is they convert the field they are acting on to the right basis before multiplication:
 
 ```julia
-Diagonal(f) * f′
+Diagonal(f) * g
 ```
 
 A `FlatMap` times a `FlatFourier` doesn't have a natural linear algebra meaning so its an error:
 
 ```julia tags=["raises-exception"]
-f * f′
+f * g
 ```
 
 ## Properties and indices

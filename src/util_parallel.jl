@@ -57,13 +57,20 @@ end
 
 
 """
-    assign_GPU_workers()
+    assign_GPU_workers(;print_info=true, use_master=false, remove_oversubscribed_workers=false)
 
 Assign each Julia worker process a unique GPU using `CUDA.device!`.
-Workers may be distributed across different hosts, and each host can have
-multiple GPUs.
+Works with workers which may be distributed across different hosts,
+and each host can have multiple GPUs.
+
+If a unique GPU cannot be assigned, that worker is removed if
+`remove_oversubscribed_workers` is true, otherwise an error is thrown.
+
+`use_master` controls whether the master process counts as having been
+assigned a GPU (if false, one of the workers may be assigned the same
+GPU as the master)
 """
-function assign_GPU_workers(;print_info=true)
+function assign_GPU_workers(;print_info=true, use_master=false, remove_oversubscribed_workers=false)
     if nworkers() > 1
         @everywhere @eval Main using Distributed, CMBLensing
         master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
@@ -74,7 +81,7 @@ function assign_GPU_workers(;print_info=true)
                 $id => sort((CUDA.deviceid.(ds) .=> CUDA.uuid.(ds)), by=(((k,v),)->v==$master_uuid ? Inf : k))
             end
         end)
-        claimed = Set()
+        claimed = use_master ? Set([master_uuid]) : Set()
         assignments = Dict(map(workers()) do myid
             for (gpu_id, gpu_uuid) in accessible_gpus[myid]
                 if !(gpu_uuid in claimed)
@@ -82,7 +89,12 @@ function assign_GPU_workers(;print_info=true)
                     return myid => gpu_id
                 end
             end
-            error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
+            if remove_oversubscribed_workers
+                rmprocs(myid)
+                return myid => nothing
+            else
+                error("Can't assign a unique GPU to every worker, process $myid has no free GPUs left.")
+            end
         end)
         @everywhere workers() device!($assignments[myid()])
     end
@@ -106,7 +118,7 @@ function proc_info()
             " ("*join(info, ", ")*")"
         end
     end
-    @info join(["Processes:"; lines], "\n")
+    @info join(["Processes ($(nprocs())):"; lines], "\n")
 end
 
 

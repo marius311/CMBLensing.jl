@@ -36,6 +36,7 @@ struct ProjLambert{T, V<:AbstractVector{T}, M<:AbstractMatrix{T}} <: FlatProj
     Δℓy       :: T
     ℓy        :: V
     ℓx        :: V
+    λ_rfft    :: V
     ℓmag      :: M
     sin2ϕ     :: M
     cos2ϕ     :: M
@@ -64,11 +65,12 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
     ℓmag         = adapt(storage, @. sqrt(ℓx'^2 + ℓy^2))
     ϕ            = adapt(storage, @. angle(ℓx' + im*ℓy))
     sin2ϕ, cos2ϕ = adapt(storage, @. sin(2ϕ), cos(2ϕ))
+    λ_rfft       = adapt(storage, T′.(rfft_degeneracy_fac(Ny)))
     if iseven(Ny)
         sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
     end
 
-    ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,ℓmag,sin2ϕ,cos2ϕ)
+    ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,λ_rfft,ℓmag,sin2ϕ,cos2ϕ)
     
 end
 
@@ -234,6 +236,9 @@ function JLD2.rconvert(::Type{<:ProjLambert}, (_,s)::Tuple{Val{ProjLambert},Name
 end
 Base.convert(::Type{<:Cℓs}, Cℓ::Cℓs) = Cℓ
 
+# hash should be based on same thing serialization is
+hash(proj::ProjLambert, h::UInt64) = foldr(hash, (ProjLambert, _serialization_key(proj)), init=h)
+
 
 ### basis conversion
 ## spin-0
@@ -310,26 +315,26 @@ end
 
 
 ### dot products
-# do in Map space (the LenseBasis, Ł) for simplicity
-function dot(a::LambertField, b::LambertField)
-    z = Ł(a) .* Ł(b)
+function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Map}}
+    z = a .* b
     batch(sum_dropdims(z.arr, dims=nonbatch_dims(z)))
 end
+function dot(a::LambertField{B}, b::LambertField{B}) where {B<:SpatialBasis{Fourier}}
+    z = real.(conj.(a) .* b)
+    batch(sum_dropdims(z.arr .* z.λ_rfft, dims=nonbatch_dims(z)) ./ (z.Ny * z.Nx))
+end
+# most of the operators we deal with are Fourier-diagonal so default
+# is to do dot product in Fourier domain
+dot(a::LambertField, b::LambertField) = dot(Ð(a), Ð(b)) 
 
 ### logdets
-
-function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    # half the Fourier plane needs to be counted twice since the real
-    # FFT only stores half of it
-    @unpack Ny, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+function logdet(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:SpatialBasis{Fourier}}
     # note: since our maps are required to be real, the logdet of any
     # operator which preserves this property is also guaranteed to be
     # real, hence the `real` and `abs` below are valid
-    batch(real.(sum_dropdims(nan2zero.(log.(abs.(arr)) .* λ), dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(nan2zero.(log.(abs.(L.diag.arr)) .* L.diag.λ_rfft), dims=nonbatch_dims(L.diag))))
 end
-
-function logdet(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+function logdet(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:SpatialBasis{Map}}
     batch(
         sum_dropdims(log.(abs.(L.diag.arr)), dims=nonbatch_dims(L.diag)) 
         .+ dropdims(log.(prod(sign.(L.diag.arr), dims=nonbatch_dims(L.diag))), dims=nonbatch_dims(L.diag))
@@ -338,16 +343,12 @@ end
 
 
 ### traces
-
-function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:Union{Fourier,Basis2Prod{<:Any,Fourier},Basis3Prod{<:Any,<:Any,Fourier}}}
-    @unpack Ny, Nx, arr = L.diag
-    λ = adapt(typeof(arr), rfft_degeneracy_fac(Ny))
+function tr(L::Diagonal{<:Union{Real,Complex},<:LambertField{B}}) where {B<:SpatialBasis{Fourier}}
     # the `real` is ok bc the imaginary parts of the half-plane which
     # is stored would cancel with those from the other half-plane
-    batch(real.(sum_dropdims(arr .* λ, dims=nonbatch_dims(L.diag))))
+    batch(real.(sum_dropdims(L.diag.arr .* L.diag.λ_rfft, dims=nonbatch_dims(L.diag))))
 end
-
-function tr(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}
+function tr(L::Diagonal{<:Real,<:LambertField{B}}) where {B<:SpatialBasis{Map}}
     batch(sum_dropdims(L.diag.arr, dims=nonbatch_dims(L.diag)))
 end
 
@@ -366,29 +367,37 @@ function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert, CℓEE::Cℓs, CℓBB::Cℓs;
 end
 function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert, CℓTT, CℓEE, CℓBB, CℓTE; kwargs...)
     ΣTT, ΣEE, ΣBB, ΣTE = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
-    BlockDiagIEB(@SMatrix([ΣTT ΣTE; ΣTE ΣEE]), ΣBB)
+    BlockDiagIEB([ΣTT ΣTE; ΣTE ΣEE], ΣBB)
 end
 
 ## ParamDependentOp covariances scaled by amplitudes in different ℓ-bins
-# note we need an @eval below since we want to dynamically select a
-# keyword argument name, θname. the @eval happens into Main rather
-# than CMBLensing as a workaround for
-# https://discourse.julialang.org/t/closure-not-shipping-to-remote-workers-except-from-main/38831
 function Cℓ_to_Cov(::Val{:I}, proj::ProjLambert{T,V}, (Cℓ, ℓedges, θname)::Tuple; kwargs...) where {T,V}
     C₀ = Cℓ_to_Cov(:I, proj, Cℓ; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
-    Cov(θ) = Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
-    ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    ParamDependentOp([θname], function (;kwargs...)
+        θ = get(() -> ones(T,length(ℓedges)-1), kwargs, θname)
+        Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
     end)
 end
-
 function Cℓ_to_Cov(::Val{:P}, proj::ProjLambert{T}, (CℓEE, ℓedges, θname)::Tuple, CℓBB::Cℓs; kwargs...) where {T}
     C₀ = Cℓ_to_Cov(:P, proj, CℓEE, CℓBB; kwargs...)
     ℓbin_indices = findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag)
-    Cov(θ) = Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
-    ParamDependentOp(@eval Main let Cov=$Cov
-        (;$θname=$(ones(T,length(ℓedges)-1)), _...) -> Cov($θname)
+    ParamDependentOp([θname], function (;kwargs...)
+        θ = get(() -> ones(T,length(ℓedges)-1), kwargs, θname)
+        Diagonal(LambertEBFourier(bandpower_rescale(C₀.diag.El, ℓbin_indices, θ), one(eltype(θ)) .* C₀.diag.Bl, proj))
+    end)
+end
+function Cℓ_to_Cov(::Val{:IP}, proj::ProjLambert{T}, (CℓTT, ℓedgesTT, θnameTT)::Tuple, (CℓEE, ℓedgesEE, θnameEE)::Tuple, CℓBB::Cℓs, (CℓTE, ℓedgesTE, θnameTE)::Tuple, ; kwargs...) where {T}
+    ΣTT₀, ΣEE₀, ΣBB₀, ΣTE₀ = [Cℓ_to_Cov(:I,proj,Cℓ; kwargs...) for Cℓ in (CℓTT,CℓEE,CℓBB,CℓTE)]
+    ℓbin_indices = ((findbin.(Ref(adapt(proj.storage, ℓedges)), proj.ℓmag) for ℓedges in [ℓedgesTT,ℓedgesEE,ℓedgesTE])...,)
+    ParamDependentOp([θnameTT, θnameEE, θnameTE], function (;kwargs...)
+        θTT = get(() -> ones(T,length(ℓedgesTT)-1), kwargs, θnameTT)
+        θEE = get(() -> ones(T,length(ℓedgesEE)-1), kwargs, θnameEE)
+        θTE = get(() -> ones(T,length(ℓedgesTE)-1), kwargs, θnameTE)
+        ΣTT, ΣEE, ΣTE = map((θTT,θEE,θTE), ℓbin_indices, (ΣTT₀,ΣEE₀,ΣTE₀)) do θ, ℓbin_indices, C₀
+            Diagonal(LambertFourier(bandpower_rescale(C₀.diag.arr, ℓbin_indices, θ), proj))
+        end
+        BlockDiagIEB([ΣTT ΣTE; ΣTE ΣEE], ΣBB₀)
     end)
 end
 
@@ -537,7 +546,7 @@ function ud_grade(
     (round(Int, fac) ≈ fac) || throw(ArgumentError("Can only ud_grade in integer steps"))
     fac = round(Int, fac)
     Ny_new, Nx_new = @. round(Int, N * θ ÷ θnew)
-    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage)
+    proj = ProjLambert(;Ny=Ny_new, Nx=Nx_new, θpix=θnew, T=real(T), f.storage, f.rotator)
     @unpack Δx,ℓx,ℓy,Nx,Ny,nyquist = proj
 
     PWF = deconv_pixwin ? Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) : I
@@ -548,26 +557,36 @@ function ud_grade(
             f = Diagonal(LambertFourier(ifelse.((abs.(f.ℓy) .>= nyquist) .| (abs.(f.ℓx') .>= nyquist), 0, 1), f.metadata)) * f
         end
         if mode == :map
-            fnew = LambertField{Map(B())}(dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), proj)
+            fnew = LambertField{Map(B())}(
+                dropdims(mean(reshape(Map(f).arr, fac, Ny, fac, Nx, size.(Ref(f.arr),nonbatch_dims(f)[3:end])...), dims=(1,3)), dims=(1,3)), 
+                proj
+            )
         else
-            fnew = LambertField{Fourier(B())}(Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], proj)
+            fnew = LambertField{Fourier(B())}(
+                Fourier(f).arr[1:(Ny_new÷2+1), [1:(isodd(Nx_new) ? Nx_new÷2+1 : Nx_new÷2); (end-Nx_new÷2+1):end], repeated(:, length(nonbatch_dims(f))-2)...], 
+                proj
+            )
         end
         if deconv_pixwin
             fnew = Diagonal(LambertFourier((@. T((pixwin(θnew,ℓy)*pixwin(θnew,ℓx)')/(pixwin(θ,ℓy)*pixwin(θ,ℓx)'))), proj)) \ fnew
         end
     else
-        error("Not implemented")
-        # # upgrade
-        # @assert fieldinfo(f).Nside isa Int "Upgrading resolution only implemented for maps where `Nside isa Int`"
-        # if mode==:map
-        #     fnew = LambertMap{Pnew}(permutedims(hvcat(N,(x->fill(x,(fac,fac))).(f[:Ix])...)))
-        #     deconv_pixwin ? LambertFourier{Pnew}(fnew[:Il] .* PWF' .* PWF[1:Nnew÷2+1]) : fnew
-        # else
-        #     fnew = LambertFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
-        #     setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
-        #     deconv_pixwin ? fnew * fac^2 : fnew
-        # end
-
+        # upgrade
+        if mode == :map
+            arr = Map(f).arr
+            fnew = LambertField{Map(B())}(
+                reshape(permutedims(similar(arr, size(arr)..., fac, fac) .= arr, (3, 1, 4, 2, (5:5+(ndims(arr)-3))...)), (Ny_new, Nx_new, size(arr)[3:end]...)),
+                proj
+            )
+            if deconv_pixwin
+                error("Not implemented")
+            end
+        else
+            error("Not implemented")
+            # fnew = LambertFourier{Pnew}(zeros(Nnew÷2+1,Nnew))
+            # setindex!.(Ref(fnew.Il), f[:Il], 1:(N÷2+1), [findfirst(fieldinfo(fnew).k .≈ fieldinfo(f).k[i]) for i=1:N]')
+            # deconv_pixwin ? fnew * fac^2 : fnew
+        end
     end
     return fnew
 end

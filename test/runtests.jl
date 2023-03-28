@@ -212,9 +212,9 @@ end
                 @test (@inferred mul!(similar(g[1]), Diagonal.(g)', g)) isa typeof(g[1])
                 
                 # FieldMatrix-FieldVector product
-                @test (@inferred Diagonal.(H) * g) isa FieldVector
-                @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector
-                @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector
+                @test (@inferred Diagonal.(H) * g) isa FieldOrOpVector{<:Field}
+                @test (@inferred Diagonal.(H) * Diagonal.(g)) isa FieldOrOpVector{<:DiagOp}
+                @test (@inferred mul!(Diagonal.(similar.(g)), Diagonal.(H), Diagonal.(g))) isa FieldOrOpVector{<:DiagOp}
                 
             end
 
@@ -232,6 +232,14 @@ end
         # matrix type promotion
         @test (@inferred FlatMap(rand(rng,Float64,2,2)) .+ FlatMap(view(rand(rng,Float32,2,2),:,:))) isa FlatMap{<:Any,Float64,Matrix{Float64}}
         
+        # scalar/array FieldTuple components
+        f = FlatMap(rand(Nside...))
+        ft = FieldTuple(;f, θ=[1,2,3])
+        @test ft .+ ft isa typeof(ft)
+        @test Diagonal(ft) * ft isa typeof(ft)
+        @test ft'ft isa Number 
+        @test_nowarn (;f, θ) = ft
+
     end
 
 end

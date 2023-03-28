@@ -6,11 +6,7 @@ abstract type DataSet end
 copy(ds::DS) where {DS<:DataSet} = DS(fields(ds)...)
 hash(ds::DataSet, h::UInt64) = foldr(hash, (typeof(ds), fieldvalues(ds)...), init=h)
 function show(io::IO, ds::DataSet)
-    println(io, typeof(ds), ": ")
-    ds_dict = OrderedDict(k => getproperty(ds,k) for k in propertynames(ds) if k!=Symbol("_super"))
-    for line in split(sprint(show, MIME"text/plain"(), ds_dict, context = (:limit => true)), "\n")[2:end]
-        println(io, line)
-    end
+    print(io, typeof(ds), "(", join(String.(fieldnames(typeof(ds))), ", "), ")")
 end
 
 function (ds::DataSet)(θ) 
@@ -319,7 +315,7 @@ function load_sim(;
     # with the DataSet created, we now more conveniently create the mixing matrices D and G
     ds.Nϕ = Nϕ = quadratic_estimate(ds).Nϕ / Nϕ_fac
     if (G == nothing)
-        G₀ = sqrt(I + Nϕ * pinv(Cϕ()))
+        G₀ = sqrt(I + 2 * Nϕ * pinv(Cϕ()))
         ds.G = ParamDependentOp((;Aϕ=Aϕ₀, _...)->(pinv(G₀) * sqrt(I + 2 * Nϕ * pinv(Cϕ(Aϕ=Aϕ)))))
     end
     if (D == nothing)
@@ -356,45 +352,70 @@ function load_nolensing_sim(;
 end
 
 
-### distributed DataSet
+### distributed DataSets
 
-"""
-    set_distributed_dataset(ds, [storage])
-    get_distributed_dataset()
+# bijection between (name::Symbol) => hash(Main.$name)
+const distributed_datasets = (name_hash=Bijection{Symbol,UInt}(), objid_hash=Bijection{UInt,UInt}())
 
-Sometimes it's more performant to distribute a DataSet object to
-parallel workers just once, and have them refer to it from the global
-state, rather than having it get automatically but repeatedly sent as
-part of closures. This provides that functionality. Use
-`set_distributed_dataset(ds)` from the master process to set the
-global DataSet and `get_distributed_dataset()` from any process to
-retrieve it. Repeated calls will not resend `ds` if it hasn't changed
-(based on `hash(ds)`) and if no new workers have been added since the
-last send. The optional argument `storage` will also adapt the dataset
-to a particular storage on the workers, and can be a symbol, e.g.
-`:CuArray`, in the case that CUDA is not loaded on the master process.
-"""
-function set_distributed_dataset(ds, storage=nothing; distribute=true)
-    h = hash((procs(), ds, storage))
-    if h != _distributed_dataset_hash
-        if distribute
-            @everywhere @eval CMBLensing _distributed_dataset = adapt(eval($storage), $ds)
-        else
-            global _distributed_dataset = adapt(eval(storage), ds)
-        end
-        global _distributed_dataset_hash = h
+@doc doc"""
+    CMBLensing.@distributed ds1 ds2 ...
+
+Assuming `ds1`, `ds2`, etc... are DataSet objects which are defined in
+the Main module on all workers, this makes it so that whenever these
+objects are shipped to a worker as part of a remote call, the data is
+not actually sent, but rather the worker just refers to their existing
+local copy. Typical usage:
+
+    @everywhere ds = load_sim(seed=1, ...)
+    CMBLensing.@distributed ds
+    pmap(1:n) do i
+        # do something with ds
     end
-    nothing
+
+Note that `hash(ds)` must yield the same value on all processors, ie
+the macro checks that it really is the same object on all processors.
+Sometimes setting the same random seed is not enough to ensure this as
+there may be tiny numerical differences in the simulated data. In this
+case you can try:
+
+    @everywhere ds.d = $(ds.d)
+
+after loading the dataset to explicitly set the data based on the
+simulation on the master process.
+
+Additionally, if the dataset object has fields which are custom types,
+these must have an appropriate `Base.hash` defined. 
+"""
+macro distributed(datasets...)
+    distributed1(name, ds) = quote
+        hash_ds = hash($ds::DataSet)
+        for id in workers()
+            if hash_ds != remotecall_fetch(()->hash(Base.eval(Main,$name)), id)
+                error("Main.$($name) on master and worker $(id) do not match.")
+            end
+        end
+        ($name in domain(distributed_datasets.name_hash)) && delete!(distributed_datasets.name_hash, $name)
+        (objectid($ds) in domain(distributed_datasets.objid_hash)) && delete!(distributed_datasets.objid_hash, objectid($ds))
+        distributed_datasets.name_hash[$name] = distributed_datasets.objid_hash[objectid($ds)] = hash_ds
+    end
+    Expr(:block, [distributed1(name, ds) for (name, ds) in zip(QuoteNode.(datasets), esc.(datasets))]..., nothing)
 end
-get_distributed_dataset() = _distributed_dataset
-_distributed_dataset = nothing
-_distributed_dataset_hash = nothing
-
-
-struct DistributedDataSet <: DataSet end
-set_distributed_dataset(ds::DistributedDataSet, storage=nothing; distribute=true) = nothing
-getproperty(::DistributedDataSet, k::Symbol) = getproperty(get_distributed_dataset(), k)
-(::DistributedDataSet)(args...; kwargs...) = get_distributed_dataset()(args...; kwargs...)
-function Setfield.ConstructionBase.setproperties(::DistributedDataSet, patch::NamedTuple)
-    Setfield.ConstructionBase.setproperties(get_distributed_dataset(), patch)
+function Serialization.serialize(s::AbstractSerializer, ds::DataSet)
+    hash_ds = hash(ds)
+    original_hash = get(distributed_datasets.objid_hash, objectid(ds), nothing)
+    name = get(inv(distributed_datasets.name_hash), hash_ds, nothing)
+    if name == original_hash == nothing
+        Base.@invoke(Serialization.serialize(s::AbstractSerializer, ds::Any))
+    elseif original_hash != hash_ds
+        error("DataSet object has been modified since it was marked as distributed.")
+    else
+        hash(Base.eval(Main,name)) == hash_ds || error("Main.$name has been modified since it was marked as distributed.")
+        Serialization.writetag(s.io, Serialization.OBJECT_TAG)
+        Serialization.serialize(s, Val{:DataSet})
+        Serialization.serialize(s, name)
+    end
+end
+function Serialization.deserialize(s::AbstractSerializer, ::Type{Val{:DataSet}})
+    name = Serialization.deserialize(s)
+    Base.eval(Main, name)
 end
