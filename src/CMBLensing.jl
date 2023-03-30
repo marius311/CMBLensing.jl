@@ -166,6 +166,13 @@ include("quadratic_estimate.jl")
 # AD
 include("autodiff.jl")
 
+# make package extensions work on Julia <1.9
+@init @static if !isdefined(Base, :get_extension)
+    @require CUDA          = "052768ef-5323-5732-b1bb-66c8b64840ba" include("../ext/CMBLensingCUDAExt.jl")
+    @require MuseInference = "43b88160-90c7-4f71-933b-9d65205cd921" include("../ext/CMBLensingMuseInferenceExt.jl")
+    @require PyPlot        = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("../ext/CMBLensingPyPlotExt.jl")
+end
+
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

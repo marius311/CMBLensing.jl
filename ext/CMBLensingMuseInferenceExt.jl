@@ -2,13 +2,28 @@
 module CMBLensingMuseInferenceExt
 
 using CMBLensing
-using MuseInference
-using MuseInference.AbstractDifferentiation
-using MuseInference: AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+if isdefined(Base, :get_extension)
+    using MuseInference
+    using MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+
+else
+    using ..MuseInference
+    using ..MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+end
+
+using Base: @kwdef
 using Random
+using Requires
 using Setfield
 
-export CMBLensingMuseProblem
+@init @eval CMBLensing begin
+    if isdefined(Base, :get_extension)
+        CMBLensingMuseProblem = Base.get_extension(CMBLensing, :CMBLensingMuseInferenceExt).CMBLensingMuseProblem
+    else
+        CMBLensingMuseProblem = CMBLensingMuseInferenceExt.CMBLensingMuseProblem
+    end
+    export CMBLensingMuseProblem
+end
 
 @kwdef struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS

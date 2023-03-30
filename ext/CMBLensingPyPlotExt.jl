@@ -1,11 +1,17 @@
 module CMBLensingPyPlotExt
 
 using CMBLensing
+if isdefined(Base, :get_extension)
+	using PyPlot
+	using PyPlot.PyCall
+else
+	using ..PyPlot
+	using ..PyPlot.PyCall
+end
+
 using Loess
 using Markdown
 using Measurements
-using PyPlot
-using PyPlot.PyCall
 using StatsBase
 
 ### overloaded 1D plotting

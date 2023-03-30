@@ -1,11 +1,17 @@
 
 module CMBLensingCUDAExt
 
+using CMBLensing
+if isdefined(Base, :get_extension)
+    using CUDA
+    using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+else
+    using ..CUDA
+    using ..CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+end
+
 using Adapt
 using AbstractFFTs
-using CMBLensing
-using CUDA
-using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 using EllipsisNotation
 using ForwardDiff
 using ForwardDiff: Dual, Partials, value, partials
