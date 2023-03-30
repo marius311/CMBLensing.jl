@@ -255,7 +255,7 @@ macro cpu!(vars...)
     :(begin; $((:($(esc(var)) = cpu($(esc(var)))) for var in vars)...); nothing; end)
 end
 
-
+# stubs filled in by extension module:
 @doc doc"""
 
     gpu(x)
@@ -265,8 +265,8 @@ this does not change the `eltype` of any underlying arrays. See also
 [`cpu`](@ref).
 """
 function gpu end
-
 function cuda_gc end
+function cuda end
 is_gpu_backed(x) = false
 
 
@@ -500,3 +500,19 @@ ensure_dense(vec::AbstractVector) = vec
 ensure_dense(vec::SparseVector) = collect(vec)
 
 unsafe_free!(x::AbstractArray) = nothing
+
+
+# fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
+function Base.reshape(a::Array{T,M}, dims::Tuple{}) where {T,M}
+    throw_dmrsa(dims, len) =
+        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+
+    if prod(dims) != length(a)
+        throw_dmrsa(dims, length(a))
+    end
+    Base.isbitsunion(T) && return ReshapedArray(a, dims, ())
+    if 0 == M && dims == size(a)
+        return a
+    end
+    ccall(:jl_reshape_array, Array{T,0}, (Any, Any, Any), Array{T,0}, a, dims)
+end
