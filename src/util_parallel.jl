@@ -71,7 +71,7 @@ assigned a GPU (if false, one of the workers may be assigned the same
 GPU as the master)
 """
 function assign_GPU_workers(;print_info=true, use_master=false, remove_oversubscribed_workers=false)
-    if nworkers() > 1
+    if nprocs() > 1
         @everywhere @eval Main using Distributed, CMBLensing
         master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
         accessible_gpus = Dict(asyncmap(workers()) do id

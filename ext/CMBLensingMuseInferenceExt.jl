@@ -5,7 +5,6 @@ using CMBLensing
 if isdefined(Base, :get_extension)
     using MuseInference
     using MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
-
 else
     using ..MuseInference
     using ..MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
