@@ -9,6 +9,7 @@ else
 	using ..PyPlot.PyCall
 end
 
+using FFTW
 using Loess
 using Markdown
 using Measurements
@@ -113,7 +114,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		arr = Array(f[k])
 	else
-		arr = abs.(ifftshift(unfold(Array(f[k]), Ny)))
+		arr = abs.(ifftshift(CMBLensing.unfold(Array(f[k]), Ny)))
 	end
 	if vscale == :log
 		arr[arr .== 0] .= NaN
@@ -252,9 +253,9 @@ end
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
-animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+CMBLensing.animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
+CMBLensing.animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
+function CMBLensing.animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     

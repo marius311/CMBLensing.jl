@@ -95,6 +95,7 @@ ENV JULIA_PROJECT=$HOME/CMBLensing/docs
 RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"status; dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
+COPY --chown=1000 ext $HOME/CMBLensing/ext
 RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
 
 

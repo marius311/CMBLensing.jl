@@ -89,20 +89,20 @@ import Random: randn!
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
-    animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
-    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
+    @⌛, @show⌛, @ismain, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
+    animate, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, CachedLenseFlow, camb, cov_to_Cℓ, cpu,  
     Cℓ_to_Cov, cuda_gc, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
     Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
     firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
-    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gpu, gradhess, gradient, HighPass,
+    get_Cℓ, get_Cℓ, get_Dℓ, get_ρℓ, get_ℓ⁴Cℓ, gpu, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, Cℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
-    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
+    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, logpdf, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     mean_std_and_errors, MidPass, mix, Mixed, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, precompute!!, ProjLambert, ProjEquiRect, ProjHealpix, project,
-    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
+    QUAzFourier, QUFourier, QUMap, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
@@ -172,6 +172,8 @@ include("autodiff.jl")
     @require MuseInference = "43b88160-90c7-4f71-933b-9d65205cd921" include("../ext/CMBLensingMuseInferenceExt.jl")
     @require PyPlot        = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("../ext/CMBLensingPyPlotExt.jl")
 end
+# some stubs filled in by extensions
+function animate end
 
 
 # misc init

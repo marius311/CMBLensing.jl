@@ -55,16 +55,6 @@ macro dict(exs...)
 end
 
 
-macro namedtuple(exs...)
-    Base.depwarn("@namedtuple(x,y) is deprecated and will be removed soon, just use the built-in Julia (;x,y) now.", nothing)
-    if length(exs)==1 && isexpr(exs[1],:tuple)
-        exs = exs[1].args
-    end
-    kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
-    kv(ex) = isexpr(ex,:(=)) ? :($(esc(ex.args[1]))=$(esc(ex.args[2]))) : error()
-    Expr(:tuple, (kv(ex) for ex=exs)...)
-end
-
 
 """
     @auto_adjoint foo(args...; kwargs...) = body
