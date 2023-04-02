@@ -231,7 +231,7 @@ basis(::Union{Number,AbstractVector}) = Basis # allows them to be in FieldTuple
 
 ### printing
 typealias(::Type{B}) where {B<:Basis} = string(B)
-Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
+# Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
 Base.isempty(::ImplicitOp) = true
 Base.isempty(::ImplicitField) = true
 Base.isempty(::Diagonal{<:Any,<:ImplicitField}) = true
