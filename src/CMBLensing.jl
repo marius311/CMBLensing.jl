@@ -174,7 +174,8 @@ include("autodiff.jl")
 end
 # some stubs filled in by extensions
 function animate end
-
+function pyimport end
+function PyArray end
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

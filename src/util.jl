@@ -272,34 +272,6 @@ function corrify(H)
 end
 
 
-
-struct LazyPyImport
-    pkg
-end
-function getproperty(p::LazyPyImport, s::Symbol)
-    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
-    Base.invokelatest() do
-        prop = getproperty(pkg, s)
-        if PyCall.pybuiltin(:callable)(prop)
-            (args...; kwargs...) -> Base.invokelatest(prop, args...; kwargs...)
-        else
-            prop
-        end
-    end
-end
-
-@doc doc"""
-
-    lazy_pyimport(s)
-
-Like `pyimport(s)`, but doesn't actually load anything (not even
-PyCall) until a property of the returned module is accessed, allowing
-this to go in `__init__` and still delay loading PyCall, as well as
-preventing a Julia module load error if a Python module failed to load.
-"""
-lazy_pyimport(s) = LazyPyImport(s)
-
-
 @doc doc"""
     @ismain()
     

@@ -2,6 +2,7 @@
 module CMBLensingCUDAExt
 
 using CMBLensing
+
 if isdefined(Base, :get_extension)
     using CUDA
     using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO

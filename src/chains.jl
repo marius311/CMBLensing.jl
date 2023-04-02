@@ -187,7 +187,7 @@ bootstrap resampling using the calculated "effective sample size" of the chain.
 """
 function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2, tol=50)
     
-    Neff = round(Int, length(samples) / @ondemand(PyCall.pyimport)(:emcee).autocorr.integrated_time(samples; tol)[1])
+    Neff = round(Int, length(samples) / PyArray(pyimport("emcee").autocorr.integrated_time(samples; tol))[1])
     
     μ = mean(samples)
     σ = std(samples)
@@ -234,7 +234,7 @@ Based on Python [GetDist](https://getdist.readthedocs.io/en/latest/intro.html),
 which must be installed.
 """
 function kde(samples::AbstractVector; boundary=(nothing,nothing), normalize="integral", smooth_scale_1D=nothing)
-    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist = pyimport("getdist")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x"], ranges=Dict("x"=>boundary)
@@ -249,7 +249,7 @@ function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothi
     elseif size(samples,2) != 2
         error("KDE only supports 1 or 2 dimensional samples.")
     end
-    getdist = @ondemand(PyCall.pyimport)("getdist")
+    getdist = pyimport("getdist")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
         samples, weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])

@@ -1,12 +1,13 @@
-module CMBLensingPyPlotExt
+module CMBLensingPythonPlotExt
 
 using CMBLensing
+
 if isdefined(Base, :get_extension)
-	using PyPlot
-	using PyPlot.PyCall
+	using PythonPlot
+	using PythonPlot.PythonCall
 else
-	using ..PyPlot
-	using ..PyPlot.PyCall
+	using ..PythonPlot
+	using ..PythonPlot.PythonCall
 end
 
 using FFTW
@@ -17,7 +18,7 @@ using StatsBase
 
 ### overloaded 1D plotting
 
-for plot in (:(PyPlot.plot), :(PyPlot.loglog), :(PyPlot.semilogx), :(PyPlot.semilogy))
+for plot in (:(PythonPlot.plot), :(PythonPlot.loglog), :(PythonPlot.semilogx), :(PythonPlot.semilogy))
 
 	# Cℓs
     @eval function ($plot)(ic::Cℓs, args...; kwargs...)
@@ -51,7 +52,7 @@ for plot in (:(PyPlot.plot), :(PyPlot.loglog), :(PyPlot.semilogx), :(PyPlot.semi
 end
 
 # 2D KDE
-function PyPlot.plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
+function PythonPlot.plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
 	@unpack colors = pyimport("matplotlib")
 	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels(levels); Inf]
 	if color == nothing
@@ -62,7 +63,7 @@ function PyPlot.plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=
 end
 
 # Cℓ band
-function PyPlot.fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
+function PythonPlot.fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
 		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,
@@ -161,11 +162,9 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
     ax.set_title(title, y=1)
     if ticklabels
 		if ismap
-			@pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
-				__call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
-			end
-			ax.xaxis.set_major_formatter(MyFmt())
-			ax.yaxis.set_major_formatter(MyFmt())
+			u = Dict(:deg=>"°", :arcmin=>"′")[units]
+			ax.xaxis.set_major_formatter("{x}"*u)
+			ax.yaxis.set_major_formatter("{x}"*u)
 			if axeslabels
 				if f isa LambertField
 					ax.set_xlabel("x")
@@ -194,8 +193,8 @@ end
     
 Plotting fields. 
 """
-PyPlot.plot(f::Field; kwargs...) = plot([f]; kwargs...)
-function PyPlot.plot(D::DiagOp; kwargs...)
+PythonPlot.plot(f::Field; kwargs...) = plot([f]; kwargs...)
+function PythonPlot.plot(D::DiagOp; kwargs...)
 	props = _sub_components[findfirst(((k,v),)->diag(D) isa @eval($k), _sub_components)][2]
 	plot(
 		[diag(D)]; 
@@ -204,7 +203,7 @@ function PyPlot.plot(D::DiagOp; kwargs...)
 	)
 end
 
-function PyPlot.plot(
+function PythonPlot.plot(
 	fs :: AbstractVecOrMat{F}; 
 	plotsize = 4,
 	which = default_which(fs), 
@@ -222,8 +221,8 @@ function PyPlot.plot(
 		aspect = all('x' in string(w) for w in [""] .* string.(which)) ? fs[1].Nx / fs[1].Ny : 1
 	end
     figsize = plotsize .* [1.4 * n * aspect, m]
-	fig,axs = subplots(m, n; figsize, squeeze=false)
-    axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
+	fig, axs = subplots(m, n; figsize, squeeze=false)
+    axs = getindex.(Ref(PyArray(axs)), 1:m, (1:n)') # see https://github.com/JuliaPy/PythonCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
 	
 	if return_all
@@ -288,8 +287,8 @@ end
 
 ### plotting HealpixFields
 
-function PyPlot.plot(f::HealpixMap; kwargs...)
-	hp.projview(
+function PythonPlot.plot(f::HealpixMap; kwargs...)
+	pyimport("healpy").projview(
 		collect(f.arr);
 		cmap                  = "RdBu_r", 
 		graticule             = true,
@@ -312,7 +311,7 @@ end
 ### convenience
 # for plotting in environments that only show a plot if its the last thing returned
 
-function PyPlot.figure(plotfn::Function, args...; kwargs...)
+function PythonPlot.figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()

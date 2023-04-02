@@ -128,8 +128,8 @@ end
 
 ### camb interface (via Python/pycamb)
 
-_default_Cℓs_path = joinpath(@__DIR__, "../dat/default_camb_Cls.jld2")
-_default_Cℓs_params = isfile(_default_Cℓs_path) ? Dict(pairs(load(_default_Cℓs_path, "params"))) : Dict()
+const _default_Cℓs_path = joinpath(@__DIR__, "../dat/default_camb_Cls.jld2")
+const _default_Cℓs_params = isfile(_default_Cℓs_path) ? Dict(pairs(load(_default_Cℓs_path, "params"))) : Dict()
 @memoize _default_Cℓs() = load(_default_Cℓs_path, "Cℓ")
 
 @memoize function camb(;
@@ -150,59 +150,55 @@ _default_Cℓs_params = isfile(_default_Cℓs_path) ? Dict(pairs(load(_default_C
         return _default_Cℓs()
     end
 
-    camb = @ondemand(PyCall.pyimport)(:camb)
+    camb = pyimport("camb")
     
-    Base.invokelatest() do
+    ℓmax′ = min(5000, ℓmax)
+    cp = camb.set_params(
+        ombh2 = ωb,
+        omch2 = ωc,
+        tau = τ,
+        mnu = Σmν,
+        cosmomc_theta = θs,
+        H0 = H0,
+        ns = nₛ,
+        nt = nₜ,
+        As = exp(logA) * 1e-10,
+        pivot_scalar = k_pivot,
+        pivot_tensor = k_pivot,
+        lmax = ℓmax′,
+        r = r,
+        Alens = AL,
+    )
+    cp.max_l_tensor = ℓmax′
+    cp.max_eta_k_tensor = 2ℓmax′
+    cp.WantScalars = true
+    cp.WantTensors = true
+    cp.DoLensing = true
+    cp.set_nonlinear_lensing(true)
     
-        ℓmax′ = min(5000,ℓmax)
-        cp = camb.set_params(
-            ombh2 = ωb,
-            omch2 = ωc,
-            tau = τ,
-            mnu = Σmν,
-            cosmomc_theta = θs,
-            H0 = H0,
-            ns = nₛ,
-            nt = nₜ,
-            As = exp(logA)*1e-10,
-            pivot_scalar = k_pivot,
-            pivot_tensor = k_pivot,
-            lmax = ℓmax′,
-            r = r,
-            Alens = AL,
-        )
-        cp.max_l_tensor = ℓmax′
-        cp.max_eta_k_tensor = 2ℓmax′
-        cp.WantScalars = true
-        cp.WantTensors = true
-        cp.DoLensing = true
-        cp.set_nonlinear_lensing(true)
+    res = camb.get_results(cp)
+    
+    ℓ  = collect(2:ℓmax -1)
+    ℓ′ = collect(2:ℓmax′-1)
+    α = (10^6 * cp.TCMB)^2
+    toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
 
-        res = camb.get_results(cp)
-        
-        
-        ℓ  = collect(2:ℓmax -1)
-        ℓ′ = collect(2:ℓmax′-1)
-        α = (10^6*cp.TCMB)^2
-        toCℓ′ = @. 1/(ℓ′*(ℓ′+1)/(2π))
-    
-        Cℓϕϕ = extrapolate_Cℓs(ℓ,ℓ′,2π*res.get_lens_potential_cls(ℓmax′)[3:ℓmax′,1]./ℓ′.^4)
-    
-        return (;
-            map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
-                Symbol(k) => (;
-                    map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
-                        Symbol(x) => extrapolate_Cℓs(ℓ,ℓ′,res.get_cmb_power_spectra()[k][3:ℓmax′,i].*toCℓ′.*α)
-                    end..., 
-                    ϕϕ = Cℓϕϕ
-                )
-            end...,
-            params = (;params...)
-        )
-    
-    end
+    Cℓϕϕ = extrapolate_Cℓs(ℓ, ℓ′, 2π * PyArray(res.get_lens_potential_cls(ℓmax′))[3:ℓmax′,1] ./ ℓ′.^4)
+
+    return (;
+        map(["unlensed_scalar","lensed_scalar","tensor","unlensed_total","total"]) do k
+            Symbol(k) => (;
+                map(enumerate([:TT,:EE,:BB,:TE])) do (i,x)
+                    Symbol(x) => extrapolate_Cℓs(ℓ, ℓ′, PyArray(α * res.get_cmb_power_spectra()[k])[3:ℓmax′,i] .* toCℓ′)
+                end..., 
+                ϕϕ = Cℓϕϕ
+            )
+        end...,
+        params = (;params...)
+    )
 
 end
+
 
 @doc """
     load_camb_Cℓs(;path_prefix, custom_tensor_params=nothing, 

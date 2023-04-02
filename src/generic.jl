@@ -369,8 +369,3 @@ getindex(x::Union{Real,Field,FieldOp}, ::typeof(!), I) = batch_index(x, I)
 one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f))
 # sum_kbn(f::Field) = sum_kbn(f[:])
-
-@init @require PyCall="438e738f-606a-5dbb-bf0a-cddfbfd45ab0" begin
-    # never try to auto-convert Fields or FieldOps to Python arrays
-    PyCall.PyObject(x::Union{FieldOp,Field}) = PyCall.pyjlwrap_new(x)
-end

@@ -3,8 +3,6 @@
 # The main functionality of broadcasting, indexing, and projection for
 # a few field types is implemented, but not much beyond that. 
 
-@init global hp = lazy_pyimport("healpy")
-
 struct ProjHealpix <: Proj
     Nside :: Int
 end
@@ -224,7 +222,7 @@ function project(projector::Projector{:bilinear}, (hpx_map, cart_proj)::Pair{<:H
     @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (θs, ϕs) = projector
-    BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
+    BaseMap(T.(reshape(PyArray(pyimport("healpy").get_interp_val(collect(hpx_map), θs, ϕs)), Ny, Nx)), cart_proj)
 end
 
 function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
