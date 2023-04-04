@@ -118,9 +118,10 @@ function MAP_joint(
     ds :: DataSet,
     Ωstart = FieldTuple(ϕ=Map(zero(diag(ds.Cϕ))));
     nsteps = 20,
+    minsteps = 0,
     fstart = nothing,
-    ϕtol = nothing,
     αtol = 1e-4,
+    gradtol = 0,
     αmax = nothing,
     prior_deprojection_factor = 0,
     nburnin_update_hessian = Inf,
@@ -149,7 +150,7 @@ function MAP_joint(
     pbar = Progress(nsteps, (progress ? 0 : Inf), "MAP_joint: ")
     ProgressMeter.update!(pbar)
     
-    prevΩ = prevΩ° = prev_∇Ω°_logpdf = HΩ° = nothing
+    prevΩ = prevΩ° = prev_∇Ω°_logpdf = HΩ° = showvalues = nothing
     Ω = Ωstart
     f = prevf = fstart
     α = 1
@@ -202,21 +203,21 @@ function MAP_joint(
         ## finalize
         _logpdf = @⌛ logpdf(Mixed(dsθ); f°, Ω°..., θ)
         Ω = delete(unmix(dsθ; f°, Ω°..., θ), (:f, :θ))
+        ΔΩ°_norm = norm(ΔΩ°)
         total_logpdf = sum(unbatch(_logpdf))
-        next!(pbar, showvalues = [
+        showvalues = [
             ("step",       step), 
             ("logpdf",     join(map(x->@sprintf("%.2f",x), [unbatch(_logpdf)...]), ", ")),
-            ("α",          α), 
+            ("α",          α),
+            ("ΔΩ°_norm",   @sprintf("%.2g", ΔΩ°_norm)),
             ("CG",         "$(length(argmaxf_logpdf_history)) iterations ($(@sprintf("%.2f",t_f)) sec)"), 
             ("Linesearch", "$(soln.iterations) bisections ($(@sprintf("%.2f",t_ϕ)) sec)")
-        ])
-        push!(history, select((;f°,f,Ω°...,Ω...,∇Ω°_logpdf,total_logpdf,α,αmax,logpdf=_logpdf,HΩ°,argmaxf_logpdf_history), history_keys))
+        ]
+        next!(pbar; showvalues)
+        push!(history, select((;f°,f,Ω°...,Ω...,∇Ω°_logpdf,total_logpdf,α,αmax,ΔΩ°_norm,logpdf=_logpdf,HΩ°,argmaxf_logpdf_history), history_keys))
         
         # early stop based on tolerance
-        if (
-            !isnothing(ϕtol) && !isnothing(prevΩ) && haskey(prevΩ,:ϕ) &&
-            sum(unbatch(norm(LowPass(1000) * (sqrt(ds.Cϕ) \ (Ω.ϕ - prevΩ.ϕ))) / sqrt(2length(Ω.ϕ)))) < ϕtol
-        )
+        if (step > minsteps) && (norm(ΔΩ°) < gradtol)
             break
         end
         prevf, prevΩ, prevΩ°, prev_∇Ω°_logpdf = f, Ω, Ω°, ∇Ω°_logpdf
@@ -224,6 +225,7 @@ function MAP_joint(
     end
 
     ProgressMeter.finish!(pbar)
+    ProgressMeter.updateProgress!(pbar; showvalues)
 
     (;f, Ω..., history)
 
