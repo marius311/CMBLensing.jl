@@ -101,7 +101,7 @@ Base.view(arr::CuArray{T,3}, I, J, K, ::typeof(..)) where {T} = view(arr, I, J, 
 for P in [AbstractFFTs.Plan, AbstractFFTs.ScaledPlan]
     for op in [:(Base.:*), :(Base.:\)]
         @eval function ($op)(plan::$P, arr::CuArray{<:Union{Dual{T},Complex{<:Dual{T}}}}) where {T}
-            arr_of_duals(T, apply_plan($op, plan, arr)...)
+            CMBLensing.arr_of_duals(T, CMBLensing.apply_plan($op, plan, arr)...)
         end
     end
 end

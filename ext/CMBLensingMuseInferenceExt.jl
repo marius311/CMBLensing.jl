@@ -12,6 +12,8 @@ else
 end
 
 using Base: @kwdef
+using ComponentArrays
+using NamedTupleTools
 using Random
 using Requires
 using Setfield
