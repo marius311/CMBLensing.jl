@@ -1,16 +1,20 @@
 
 using RecipesBase, PlotUtils
 
-@recipe function plot(m::FlatS0)
+@recipe function plot(m::FlatS0; which=:Ix)
     
     @unpack (θpix, Nx, Ny) = m
-    arr = reverse(Float16.(Array(m[:Ix])), dims=1)
+    if which == :Ix
+        arr = reverse(Float16.(Array(m[:Ix])), dims=1)
+    else
+        arr = reverse(Float16.(log.(abs.(Array(ifftshift(m[:Il, full_plane=true]))))), dims=1)
+    end
     clim = quantile(abs.(arr[@. !isnan(arr)][:]),0.999)
     
     seriestype   :=  :heatmap
     aspect_ratio :=  :equal
     seriescolor  --> cgrad(:RdBu, rev=true)
-    size         --> (1200, 500)
+    # size         --> (1200, 500)
     xlims        --> (1, Nx) # this is because the default settings add padding in the x direction
     ylims        --> (1, Ny) # there is probably a better way of turning that off
     # xticks := tick_locations(Nx, θpix)
