@@ -72,8 +72,8 @@ GPU as the master)
 """
 function assign_GPU_workers(;print_info=true, use_master=false, remove_oversubscribed_workers=false)
     if nprocs() > 1
-        @everywhere @eval Main using Distributed, CMBLensing
-        master_uuid = @isdefined(CUDA) ? CUDA.uuid(device()) : nothing
+        @everywhere @eval Main using Distributed, CUDA, CMBLensing
+        master_uuid = @eval Main CUDA.uuid(device())
         accessible_gpus = Dict(asyncmap(workers()) do id
             @eval Main @fetchfrom $id begin
                 ds = CUDA.devices()
