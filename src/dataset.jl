@@ -296,7 +296,7 @@ function load_sim(;
     
     # beam
     if (B == nothing)
-        B = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(beamFWHM=beamFWHM)) for k=ks)..., units=1)
+        B = Cℓ_to_Cov(pol, proj, ((k==:TE ? 0 : 1) * sqrt(beamCℓs(;beamFWHM, ℓmax)) for k=ks)..., units=1)
     end
     if (B̂ == nothing)
         B̂ = B
