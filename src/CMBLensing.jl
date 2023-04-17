@@ -92,8 +92,8 @@ export
     @⌛, @show⌛, @ismain, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
     animate, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
     batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, CachedLenseFlow, camb, cov_to_Cℓ, cpu,  
-    Cℓ_to_Cov, cuda_gc, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
-    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
+    Cℓ_to_Cov, CMBLensingMuseProblem, cuda_gc, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, 
+    EBMap, expnorm, Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
     firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
     get_Cℓ, get_Cℓ, get_Dℓ, get_ρℓ, get_ℓ⁴Cℓ, gpu, gradhess, gradient, HighPass,
@@ -176,6 +176,7 @@ end
 function animate end
 function pyimport end
 function PyArray end
+function CMBLensingMuseProblem end
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein

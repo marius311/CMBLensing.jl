@@ -18,15 +18,6 @@ using Random
 using Requires
 using Setfield
 
-@init @eval CMBLensing begin
-    if isdefined(Base, :get_extension)
-        CMBLensingMuseProblem = Base.get_extension(CMBLensing, :CMBLensingMuseInferenceExt).CMBLensingMuseProblem
-    else
-        CMBLensingMuseProblem = CMBLensingMuseInferenceExt.CMBLensingMuseProblem
-    end
-    export CMBLensingMuseProblem
-end
-
 @kwdef struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS
     ds_for_sims :: DS_SIM = ds
@@ -39,8 +30,7 @@ end
     transform_θ = identity
     inv_transform_θ = identity
 end
-CMBLensingMuseProblem(ds, ds_for_sims=ds; kwargs...) = CMBLensingMuseProblem(;ds, ds_for_sims, kwargs...)
-
+CMBLensing.CMBLensingMuseProblem(ds, ds_for_sims=ds; kwargs...) = CMBLensingMuseProblem(;ds, ds_for_sims, kwargs...)
 
 mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
 
