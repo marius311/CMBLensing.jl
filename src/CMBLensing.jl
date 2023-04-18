@@ -170,7 +170,8 @@ include("autodiff.jl")
 @init @static if !isdefined(Base, :get_extension)
     @require CUDA          = "052768ef-5323-5732-b1bb-66c8b64840ba" include("../ext/CMBLensingCUDAExt.jl")
     @require MuseInference = "43b88160-90c7-4f71-933b-9d65205cd921" include("../ext/CMBLensingMuseInferenceExt.jl")
-    @require PyPlot        = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("../ext/CMBLensingPyPlotExt.jl")
+    @require PythonPlot    = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9" include("../ext/CMBLensingPythonPlotExt.jl")
+    @require PythonCall    = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d" include("../ext/CMBLensingPythonCallExt.jl")
 end
 # some stubs filled in by extensions
 function animate end
