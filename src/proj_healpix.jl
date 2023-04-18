@@ -12,15 +12,15 @@ typealias_def(::Type{<:ProjHealpix}) = "ProjHealpix"
 
 ## constructing from arrays
 # spin-0
-function HealpixMap(I::A) where {T, A<:AbstractArray{T}}
+function HealpixMap(I::AbstractArray{T}) where {T}
     HealpixMap(I, ProjHealpix(npix2nside(length(I))))
 end
 # spin-2
-function HealpixField{B}(X::A, Y::A) where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},Map}}
+function HealpixField{B}(X::AbstractArray{T}, Y::AbstractArray{T}) where {T, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},Map}}
     HealpixField{B}(cat(X, Y, dims=Val(2)), ProjHealpix(npix2nside(length(X))))
 end
 # spin-(0,2)
-function HealpixField{B}(I::A, X::A, Y::A) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},Map}}
+function HealpixField{B}(I::AbstractArray{T}, X::AbstractArray{T}, Y::AbstractArray{T}) where {T, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},Map}}
     HealpixField{B}(cat(I, X, Y, dims=Val(2)), ProjHealpix(npix2nside(length(I))))
 end
 
