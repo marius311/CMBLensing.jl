@@ -107,7 +107,7 @@ function quadratic_estimate(::Val{:TT}, (d₁,d₂)::NTuple{2,FlatS0}, Cf, Cf̃,
                 QE_leg($(TF^2 * CT^2 / ΣTtot), [i], [j]) * QE_leg($(TF^2      / ΣTtot)     )
               + QE_leg($(TF^2 * CT   / ΣTtot), [i]     ) * QE_leg($(TF^2 * CT / ΣTtot), [j])
             )
-            pinv(Diagonal(sum(real.(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j))) for (i,j) in inds(2))))
+            pinv(Diagonal(sum(abs.(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j))) for (i,j) in inds(2))))
         end
     end
     Nϕ = AL # true only for unlensed weights
@@ -147,7 +147,7 @@ function quadratic_estimate(::Val{:EE}, (d₁,d₂)::NTuple{2,FlatS2}, Cf, Cf̃,
                   QE_leg($(TF² * CE^2 / ΣEtot), [i], [j]) .* QE_leg($(TF²      / ΣEtot)     )
                 + QE_leg($(TF² * CE   / ΣEtot), [i]     ) .* QE_leg($(TF² * CE / ΣEtot), [j])
             )
-            pinv(Diagonal(sum(real.(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j))) for (i,j) in inds(2))))
+            pinv(Diagonal(sum(abs.(∇[i].diag .* ∇[j].diag .* Fourier(A1(i,j) + A2(i,j))) for (i,j) in inds(2))))
         end
     end
     Nϕ = AL # true only for unlensed weights
@@ -187,7 +187,7 @@ function quadratic_estimate(::Val{:EB}, (d₁,d₂)::NTuple{2,FlatS2}, Cf, Cf̃,
                 + (zeroB ? 0 :   QE_leg($(TF²E        / ΣEtot),           k, l, m, n) * QE_leg($(TF²B * CB^2 / ΣBtot), [i], [j], k, l, p, q)))
                 for (k,l,m,n,p,q) in inds(6)
             )
-            pinv(Diagonal(sum(real.(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j))) for (i,j) in inds(2))))
+            pinv(Diagonal(sum(abs.(∇[i].diag .* ∇[j].diag .* Fourier(A(i,j))) for (i,j) in inds(2))))
         end
     end
     Nϕ = AL # true only for unlensed weights
