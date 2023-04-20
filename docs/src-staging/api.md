@@ -48,8 +48,7 @@ Modules = [CMBLensing]
 Order   = [:function, :type, :macro, :constant]
 Filter  = x -> !(x in [
     load_sim,
-    resimulate,
-    resimulate!,
+    simulate,
     MAP_joint,
     MAP_marg,
     sample_joint,

@@ -55,16 +55,6 @@ macro dict(exs...)
 end
 
 
-macro namedtuple(exs...)
-    Base.depwarn("@namedtuple(x,y) is deprecated and will be removed soon, just use the built-in Julia (;x,y) now.", nothing)
-    if length(exs)==1 && isexpr(exs[1],:tuple)
-        exs = exs[1].args
-    end
-    kv(ex::Symbol) = :($(esc(ex))=$(esc(ex)))
-    kv(ex) = isexpr(ex,:(=)) ? :($(esc(ex.args[1]))=$(esc(ex.args[2]))) : error()
-    Expr(:tuple, (kv(ex) for ex=exs)...)
-end
-
 
 """
     @auto_adjoint foo(args...; kwargs...) = body
@@ -255,7 +245,7 @@ macro cpu!(vars...)
     :(begin; $((:($(esc(var)) = cpu($(esc(var)))) for var in vars)...); nothing; end)
 end
 
-
+# stubs filled in by extension module:
 @doc doc"""
 
     gpu(x)
@@ -264,7 +254,10 @@ Recursively move an object to GPU memory. Note that, unlike `cu(x)`,
 this does not change the `eltype` of any underlying arrays. See also
 [`cpu`](@ref).
 """
-function gpu end # defined in gpu.jl only when CUDA.jl is loaded
+function gpu end
+function cuda_gc end
+function cuda end
+is_gpu_backed(x) = false
 
 
 
@@ -277,34 +270,6 @@ function corrify(H)
     end
     H
 end
-
-
-
-struct LazyPyImport
-    pkg
-end
-function getproperty(p::LazyPyImport, s::Symbol)
-    pkg = @ondemand(PyCall.pyimport)(getfield(p,:pkg))
-    Base.invokelatest() do
-        prop = getproperty(pkg, s)
-        if PyCall.pybuiltin(:callable)(prop)
-            (args...; kwargs...) -> Base.invokelatest(prop, args...; kwargs...)
-        else
-            prop
-        end
-    end
-end
-
-@doc doc"""
-
-    lazy_pyimport(s)
-
-Like `pyimport(s)`, but doesn't actually load anything (not even
-PyCall) until a property of the returned module is accessed, allowing
-this to go in `__init__` and still delay loading PyCall, as well as
-preventing a Julia module load error if a Python module failed to load.
-"""
-lazy_pyimport(s) = LazyPyImport(s)
 
 
 @doc doc"""
@@ -442,21 +407,6 @@ string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout
 import NamedTupleTools
 NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
 
-@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using .ComponentArrays
-    # a Zygote-compatible conversion of ComponentVector to a NamedTuple
-    Base.convert(::Type{NamedTuple}, x::ComponentVector) = NamedTuple{keys(x)}([x[k] for k in keys(x)])
-    @adjoint function Base.convert(::Type{NamedTuple}, x::ComponentVector)
-        nt = convert(NamedTuple, x)
-        function back(Δ)
-            (nothing, ComponentArray(;(k => isnothing(Δₖ) ? zero(ntₖ) : Δₖ for (k,ntₖ,Δₖ) in zip(keys(nt), nt, Δ))...))
-        end
-        nt, back
-    end
-end
-
-
-
 # https://github.com/JuliaLang/julia/issues/41030
 @init ccall(:jl_generating_output,Cint,())!=1 && @eval Base function start_worker_task!(worker_tasks, exec_func, chnl, batch_size=nothing)
     t = @async begin
@@ -512,3 +462,19 @@ ensure_dense(vec::AbstractVector) = vec
 ensure_dense(vec::SparseVector) = collect(vec)
 
 unsafe_free!(x::AbstractArray) = nothing
+
+
+# fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
+function Base.reshape(a::Array{T,M}, dims::Tuple{}) where {T,M}
+    throw_dmrsa(dims, len) =
+        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+
+    if prod(dims) != length(a)
+        throw_dmrsa(dims, length(a))
+    end
+    Base.isbitsunion(T) && return ReshapedArray(a, dims, ())
+    if 0 == M && dims == size(a)
+        return a
+    end
+    ccall(:jl_reshape_array, Array{T,0}, (Any, Any, Any), Array{T,0}, a, dims)
+end

@@ -252,9 +252,6 @@ Zygote.unbroadcast(x::BaseField{B}, x̄::BaseField) where {B} =
 # https://github.com/JuliaDiff/ForwardDiff.jl/pull/541 but its not
 # incorporated merged
 
-using ForwardDiff: Dual, Partials, value, partials
-
-
 # FFT is a linear operator so FFT of a vector of duals is just an FFT
 # of the values and partials separately
 

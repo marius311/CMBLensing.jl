@@ -1,12 +1,24 @@
+module CMBLensingPythonPlotExt
 
-using .PyPlot
-using .PyPlot.PyCall
-import .PyPlot: loglog, plot, semilogx, semilogy, figure, fill_between
+using CMBLensing
 
+if isdefined(Base, :get_extension)
+	using PythonPlot
+	using PythonPlot.PythonCall
+else
+	using ..PythonPlot
+	using ..PythonPlot.PythonCall
+end
+
+using FFTW
+using Loess
+using Markdown
+using Measurements
+using StatsBase
 
 ### overloaded 1D plotting
 
-for plot in (:plot, :loglog, :semilogx, :semilogy)
+for plot in (:(PythonPlot.plot), :(PythonPlot.loglog), :(PythonPlot.semilogx), :(PythonPlot.semilogy))
 
 	# Cℓs
     @eval function ($plot)(ic::Cℓs, args...; kwargs...)
@@ -32,15 +44,15 @@ for plot in (:plot, :loglog, :semilogx, :semilogy)
 	@eval ($plot)(m::Loess.LoessModel, args...; kwargs...) = ($plot)(identity, m, args...; kwargs...)
 
 	# 1D KDE
-	@eval function ($plot)(f::Function, k::GetDistKDE{1}, args...; kwargs...)
+	@eval function ($plot)(f::Function, k::CMBLensing.GetDistKDE{1}, args...; kwargs...)
 	    ($plot)(k.kde.x, f.(k.kde.P), args...; kwargs...)
 	end
-	@eval ($plot)(k::GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
+	@eval ($plot)(k::CMBLensing.GetDistKDE{1}, args...; kwargs...) = ($plot)(identity, k, args...; kwargs...)
 
 end
 
 # 2D KDE
-function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
+function PythonPlot.plot(k::CMBLensing.GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0.95,0.68], filled=true, kwargs...)
 	@unpack colors = pyimport("matplotlib")
 	args = k.kde.x, k.kde.y, k.kde.P, [k.kde.getContourLevels(levels); Inf]
 	if color == nothing
@@ -51,7 +63,7 @@ function plot(k::GetDistKDE{2}, args...; color=nothing, label=nothing, levels=[0
 end
 
 # Cℓ band
-function fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
+function PythonPlot.fill_between(ic::Cℓs{<:Measurement}, args...; kwargs...)
 	fill_between(
 		ic.ℓ, 
 		((@. Measurements.value(ic.Cℓ) - x * Measurements.uncertainty(ic.Cℓ)) for x in (-1,1))...,
@@ -103,7 +115,7 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
 	if ismap
 		arr = Array(f[k])
 	else
-		arr = abs.(ifftshift(unfold(Array(f[k]), Ny)))
+		arr = abs.(ifftshift(CMBLensing.unfold(Array(f[k]), Ny)))
 	end
 	if vscale == :log
 		arr[arr .== 0] .= NaN
@@ -150,11 +162,9 @@ function _plot(f, ax, k, title, vlim, vscale, cmap; cbar=true, units=:deg, tickl
     ax.set_title(title, y=1)
     if ticklabels
 		if ismap
-			@pydef mutable struct MyFmt <: pyimport(:matplotlib).ticker.ScalarFormatter
-				__call__(self,v,p=nothing) = py"super"(MyFmt,self).__call__(v,p)*Dict(:deg=>"°",:arcmin=>"′")[units]
-			end
-			ax.xaxis.set_major_formatter(MyFmt())
-			ax.yaxis.set_major_formatter(MyFmt())
+			u = Dict(:deg=>"°", :arcmin=>"′")[units]
+			ax.xaxis.set_major_formatter("{x}"*u)
+			ax.yaxis.set_major_formatter("{x}"*u)
 			if axeslabels
 				if f isa LambertField
 					ax.set_xlabel("x")
@@ -183,8 +193,8 @@ end
     
 Plotting fields. 
 """
-plot(f::Field; kwargs...) = plot([f]; kwargs...)
-function plot(D::DiagOp; kwargs...)
+PythonPlot.plot(f::Field; kwargs...) = plot([f]; kwargs...)
+function PythonPlot.plot(D::DiagOp; kwargs...)
 	props = _sub_components[findfirst(((k,v),)->diag(D) isa @eval($k), _sub_components)][2]
 	plot(
 		[diag(D)]; 
@@ -193,7 +203,7 @@ function plot(D::DiagOp; kwargs...)
 	)
 end
 
-function plot(
+function PythonPlot.plot(
 	fs :: AbstractVecOrMat{F}; 
 	plotsize = 4,
 	which = default_which(fs), 
@@ -211,8 +221,8 @@ function plot(
 		aspect = all('x' in string(w) for w in [""] .* string.(which)) ? fs[1].Nx / fs[1].Ny : 1
 	end
     figsize = plotsize .* [1.4 * n * aspect, m]
-	fig,axs = subplots(m, n; figsize, squeeze=false)
-    axs = getindex.(Ref(axs), 1:m, (1:n)') # see https://github.com/JuliaPy/PyCall.jl/pull/487#issuecomment-456998345
+	fig, axs = subplots(m, n; figsize, squeeze=false)
+    axs = getindex.(Ref(PyArray(axs)), 1:m, (1:n)') # see https://github.com/JuliaPy/PythonCall.jl/pull/487#issuecomment-456998345
     _plot.(fs,axs,which,title,vlim,vscale,cmap; kwargs...)
 	
 	if return_all
@@ -229,7 +239,7 @@ default_which(::AbstractVecOrMat{<:EquiRectS2})   = [:Qx :Ux]
 default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try
-        ensuresame((default_which([f]) for f in fs)...)
+        CMBLensing.ensuresame((default_which([f]) for f in fs)...)
     catch x
         x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for plotting this combination of fields.")) : rethrow()
     end
@@ -242,19 +252,20 @@ end
     animate(fields::Vector{\<:Vector{\<:Field}}; interval=50, motionblur=false, kwargs...)
 
 """
-animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
-animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
-function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
+CMBLensing.animate(f::AbstractVecOrMat{<:CartesianField}; kwargs...) = animate([f]; kwargs...)
+CMBLensing.animate(annonate::Function, args...; kwargs...) = animate(args...; annonate=annonate, kwargs...)
+function CMBLensing.animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}}; fps=25, motionblur=false, annonate=nothing, filename=nothing, kwargs...)
     fig, axs, which = plot(first.(fields); return_all=true, kwargs...)
     motionblur = (motionblur == true) ? [0.1, 0.5, 1, 0.5, 0.1] : (motionblur == false) ? [1] : motionblur
     
     if (annonate!=nothing); annonate(fig,axs,which); end
     
-    ani = pyimport("matplotlib.animation").FuncAnimation(fig, 
-        i->begin
+    ani = pyimport("matplotlib.animation").FuncAnimation(
+		fig, 
+        function (i)
             for (f,ax,k) in tuple.(fields,axs,which)
                 if length(f)>1
-                    img = ax.images[1]
+                    img = ax.images[0]
                     img.set_data(sum(x*getindex(f[mod1(i-j+1,length(f))],k) for (j,x) in enumerate(motionblur)) / sum(motionblur))
                 end
             end
@@ -262,8 +273,8 @@ function animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:CartesianField}};
         end, 
         1:maximum(length.(fields)[:]),
         interval=1000/fps, blit=true
-        )
-    close()
+	)
+    PythonPlot.close()
     if filename!=nothing
         ani.save(filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig.get_facecolor()))
         if endswith(filename,".gif")
@@ -277,8 +288,8 @@ end
 
 ### plotting HealpixFields
 
-function plot(f::HealpixMap; kwargs...)
-	hp.projview(
+function PythonPlot.plot(f::HealpixMap; kwargs...)
+	pyimport("healpy").projview(
 		collect(f.arr);
 		cmap                  = "RdBu_r", 
 		graticule             = true,
@@ -301,7 +312,7 @@ end
 ### convenience
 # for plotting in environments that only show a plot if its the last thing returned
 
-function figure(plotfn::Function, args...; kwargs...)
+function PythonPlot.figure(plotfn::Function, args...; kwargs...)
 	figure(args...; kwargs...)
 	plotfn()
 	gcf()
@@ -333,4 +344,6 @@ which must be installed.
 function plot_kde(samples; boundary=nothing, normalize=nothing, smooth_scale_2D=nothing, kwargs...)
 	kde_kwargs = filter(!isnothing∘last, Dict(pairs((;boundary,normalize,smooth_scale_2D))))
     plot(kde(samples; kde_kwargs...); kwargs...)
+end
+
 end

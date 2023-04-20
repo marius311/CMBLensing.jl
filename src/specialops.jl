@@ -56,12 +56,15 @@ end
 # We store the 2x2 block as a 2x2 SMatrix, ΣTE, so that we can easily
 # call sqrt/inv on it, and the ΣBB block separately as ΣB. This type
 # is generic with regards to the field type, F.
-struct BlockDiagIEB{T,F} <: ImplicitOp{T}
-    ΣTE :: SizedMatrix{2,2,Diagonal{T,F},2,Matrix{Diagonal{T,F}}}
-    ΣB :: Diagonal{T,F}
+struct BlockDiagIEB{P,T,D1,D2} <: ImplicitOp{T}
+    ΣTE :: SizedMatrix{2,2,D1,2,Matrix{D1}}
+    ΣB :: D2
+    function BlockDiagIEB(ΣTE::AbstractMatrix{D1}, ΣB::D2) where {T1,T2,P,F1<:BaseFourier{P},F2<:BaseFourier{P},D1<:Diagonal{T1,F1},D2<:Diagonal{T2,F2}}
+        T = promote_type(T1, T2)
+        new{P,T,D1,D2}(ΣTE, ΣB)
+    end
 end
-BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F} = BlockDiagIEB{T,F}(ΣTE, ΣB)
-@adjoint function BlockDiagIEB(ΣTE::AbstractMatrix{Diagonal{T,F}}, ΣB::Diagonal{T,F}) where {T,F}
+@adjoint function BlockDiagIEB(ΣTE, ΣB)
     Y = BlockDiagIEB(ΣTE, ΣB)
     function BlockDiagIEB_pullback(Δ)
         Δ = unthunk(Δ)
@@ -81,7 +84,7 @@ size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
 adjoint(L::BlockDiagIEB) = L
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
 @auto_adjoint pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
-diag(L::BlockDiagIEB{T,<:BaseField{B,P}}) where {T,B,P} = BaseIEBFourier{P}(L.ΣTE[1,1].diag, L.ΣTE[2,2].diag, L.ΣB.diag)
+diag(L::BlockDiagIEB{P}) where {P} = BaseIEBFourier{P}(diag(L.ΣTE[1,1]), diag(L.ΣTE[2,2]), diag(L.ΣB))
 similar(L::BlockDiagIEB) = BlockDiagIEB(similar.(L.ΣTE), similar(L.ΣB))
 get_storage(L::BlockDiagIEB) = get_storage(L.ΣB)
 adapt_structure(storage, L::BlockDiagIEB) = BlockDiagIEB(adapt.(Ref(storage), L.ΣTE), adapt(storage, L.ΣB))
@@ -90,21 +93,21 @@ logdet(L::BlockDiagIEB) = logdet(det(L.ΣTE)) + logdet(L.ΣB)
 # arithmetic
 *(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]], L.ΣB * D[:B])
 +(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB([L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
-*(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
-+(La::F, Lb::F) where {F<:BlockDiagIEB} = F(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
+*(La::BlockDiagIEB, Lb::BlockDiagIEB) = BlockDiagIEB(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
++(La::BlockDiagIEB, Lb::BlockDiagIEB) = BlockDiagIEB(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
 +(L::BlockDiagIEB, U::UniformScaling{<:Scalar}) = BlockDiagIEB([(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
 *(L::BlockDiagIEB, λ::Scalar) = BlockDiagIEB(L.ΣTE * λ, L.ΣB * λ)
 *(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = L * D
 +(U::UniformScaling{<:Scalar}, L::BlockDiagIEB) = L + U
 *(λ::Scalar, L::BlockDiagIEB) = L * λ
 # indexing
-function getindex(L::BlockDiagIEB, k::Symbol)
+function getindex(L::BlockDiagIEB{P}, k::Symbol) where {P}
     @match k begin
         :IP => L
         :I => L.ΣTE[1,1]
         :E => L.ΣTE[2,2]
         :B => L.ΣB
-        :P => Diagonal(CartesianEBFourier(L[:E].diag, L[:B].diag))
+        :P => Diagonal(BaseEBFourier{P}(diag(L[:E]), diag(L[:B])))
         (:QQ || :UU || :QU || :UQ) => getindex(L[:P], k)
         _ => throw(ArgumentError("Invalid BlockDiagIEB index: $k"))
     end
@@ -225,7 +228,7 @@ struct BandPass{W<:Cℓs} <: ImplicitField{HarmonicBasis,Bottom}
 end
 BandPassOp(ℓ,Wℓ) = Diagonal(BandPass(Cℓs(promote(collect(ℓ),collect(Wℓ))...)))
 BandPassOp(Wℓ::Cℓs) = Diagonal(BandPass(Wℓ))
-cos_ramp_up(length) = @. (cos($range(π,0,length=length))+1)/2
+cos_ramp_up(length) = @. (cos($range(π, stop=0, length=length))+1)/2
 cos_ramp_down(length) = 1 .- cos_ramp_up(length)
 HighPass(ℓ; Δℓ=50) = BandPassOp(ℓ:20000, [cos_ramp_up(Δℓ); ones(20000-ℓ-Δℓ+1)])
 LowPass(ℓ; Δℓ=50) = BandPassOp(0:ℓ, [ones(ℓ-Δℓ+1); cos_ramp_down(Δℓ)])
@@ -316,11 +319,8 @@ function (L::ParamDependentOp)(θ::NamedTuple)
     end
 end
 (L::ParamDependentOp)(;θ...) = L((;θ...))
-@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using .ComponentArrays
-    (L::ParamDependentOp)(θ::ComponentArray) = L(convert(NamedTuple, θ))
-    (L::Union{FieldOp,UniformScaling})(::ComponentArray) = L
-end
+(L::ParamDependentOp)(θ::ComponentArray) = L(convert(NamedTuple, θ))
+(L::Union{FieldOp,UniformScaling})(::ComponentArray) = L
 
 @auto_adjoint *(L::ParamDependentOp, f::Field) = L.op * f
 @auto_adjoint \(L::ParamDependentOp, f::Field) = L.op \ f

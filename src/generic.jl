@@ -231,7 +231,10 @@ basis(::Union{Number,AbstractVector}) = Basis # allows them to be in FieldTuple
 
 ### printing
 typealias(::Type{B}) where {B<:Basis} = string(B)
-Base.show_datatype(io::IO, t::Type{<:Union{Field,FieldOp}}) = print(io, typealias(t))
+function Base.showarg(io::IO, x::F, toplevel) where {F<:Union{Field,FieldOp}}
+    toplevel || print(io, "::")
+    print(io, typealias(F))
+end
 Base.isempty(::ImplicitOp) = true
 Base.isempty(::ImplicitField) = true
 Base.isempty(::Diagonal{<:Any,<:ImplicitField}) = true
@@ -369,8 +372,3 @@ getindex(x::Union{Real,Field,FieldOp}, ::typeof(!), I) = batch_index(x, I)
 one(f::Field) = fill!(similar(f), one(eltype(f)))
 norm(f::Field) = sqrt(dot(f,f))
 # sum_kbn(f::Field) = sum_kbn(f[:])
-
-@init @require PyCall="438e738f-606a-5dbb-bf0a-cddfbfd45ab0" begin
-    # never try to auto-convert Fields or FieldOps to Python arrays
-    PyCall.PyObject(x::Union{FieldOp,Field}) = PyCall.pyjlwrap_new(x)
-end

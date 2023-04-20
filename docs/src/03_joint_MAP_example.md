@@ -8,9 +8,9 @@ jupyter:
       format_version: '1.3'
       jupytext_version: 1.14.4
   kernelspec:
-    display_name: Julia 1.8.5
+    display_name: Julia 1.9.0-rc2
     language: julia
-    name: julia-1.8
+    name: julia-1.9
   language_info:
     file_extension: .jl
     mimetype: application/julia
@@ -24,7 +24,7 @@ jupyter:
 Here, we give an example of how to compute the joint maximum a posteriori (MAP) estimate of the CMB temperature and polarization fields, $f$, and the lensing potential, $\phi$.
 
 ```julia
-using CMBLensing, PyPlot
+using CMBLensing, PythonPlot
 ```
 
 ## Compute spectra
@@ -71,7 +71,7 @@ T     = Float32  # data type (Float32 is ~2 as fast as Float64);
 With these defined, the following generates the simulated data and returns the true unlensed and lensed CMB fields, `f` and `f̃` ,and the true lensing potential, `ϕ`, as well as a number of other quantities stored in the "DataSet" object `ds`. 
 
 ```julia
-@unpack f, f̃, ϕ, ds = load_sim(
+(;f, f̃, ϕ, ds) = load_sim(
     seed = 3,
     Cℓ = Cℓ,
     Cℓn = Cℓn,
@@ -81,7 +81,7 @@ With these defined, the following generates the simulated data and returns the t
     pol = pol,
 )
 
-@unpack Cf, Cϕ = ds;
+(;Cf, Cϕ) = ds;
 ```
 
 ## Examine simulated data

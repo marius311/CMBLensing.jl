@@ -3,8 +3,6 @@
 # The main functionality of broadcasting, indexing, and projection for
 # a few field types is implemented, but not much beyond that. 
 
-@init global hp = lazy_pyimport("healpy")
-
 struct ProjHealpix <: Proj
     Nside :: Int
 end
@@ -14,15 +12,15 @@ typealias_def(::Type{<:ProjHealpix}) = "ProjHealpix"
 
 ## constructing from arrays
 # spin-0
-function HealpixMap(I::A) where {T, A<:AbstractArray{T}}
+function HealpixMap(I::AbstractArray{T}) where {T}
     HealpixMap(I, ProjHealpix(npix2nside(length(I))))
 end
 # spin-2
-function HealpixField{B}(X::A, Y::A) where {T, A<:AbstractArray{T}, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},Map}}
+function HealpixField{B}(X::AbstractArray{T}, Y::AbstractArray{T}) where {T, B<:Basis2Prod{<:Union{𝐐𝐔,𝐄𝐁},Map}}
     HealpixField{B}(cat(X, Y, dims=Val(2)), ProjHealpix(npix2nside(length(X))))
 end
 # spin-(0,2)
-function HealpixField{B}(I::A, X::A, Y::A) where {T, A<:AbstractArray{T}, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},Map}}
+function HealpixField{B}(I::AbstractArray{T}, X::AbstractArray{T}, Y::AbstractArray{T}) where {T, B<:Basis3Prod{𝐈,<:Union{𝐐𝐔,𝐄𝐁},Map}}
     HealpixField{B}(cat(I, X, Y, dims=Val(2)), ProjHealpix(npix2nside(length(I))))
 end
 
@@ -224,7 +222,7 @@ function project(projector::Projector{:bilinear}, (hpx_map, cart_proj)::Pair{<:H
     @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (θs, ϕs) = projector
-    BaseMap(T.(reshape(hp.get_interp_val(collect(hpx_map), θs, ϕs), Ny, Nx)), cart_proj)
+    BaseMap(T.(reshape(PyArray(pyimport("healpy").get_interp_val(collect(hpx_map), θs, ϕs)), Ny, Nx)), cart_proj)
 end
 
 function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})

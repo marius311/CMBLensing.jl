@@ -134,7 +134,7 @@ promote_metadata_generic(metadata₁::ProjLambert, metadata₂::ProjLambert) =
 # broadcast, thus avoiding allocating any temporary arrays.
 
 function preprocess((_,proj)::Tuple{<:BaseFieldStyle,<:ProjLambert{T,V}}, r::Real) where {T,V}
-    r isa BatchedReal ? adapt(V, reshape(r.vals, 1, 1, 1, :)) : r
+    r isa BatchedReal ? adapt(basetype(V), reshape(r.vals, 1, 1, 1, :)) : r
 end
 # need custom adjoint here bc Δ can come back batched from the
 # backward pass even though r was not batched on the forward pass

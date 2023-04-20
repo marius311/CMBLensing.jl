@@ -1,10 +1,22 @@
 
-# interface with MuseInference.jl
+module CMBLensingMuseInferenceExt
 
-using .MuseInference: AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
-using .MuseInference.AbstractDifferentiation
+using CMBLensing
 
-export CMBLensingMuseProblem
+if isdefined(Base, :get_extension)
+    using MuseInference
+    using MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+else
+    using ..MuseInference
+    using ..MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+end
+
+using Base: @kwdef
+using ComponentArrays
+using NamedTupleTools
+using Random
+using Requires
+using Setfield
 
 @kwdef struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS
@@ -18,8 +30,7 @@ export CMBLensingMuseProblem
     transform_θ = identity
     inv_transform_θ = identity
 end
-CMBLensingMuseProblem(ds, ds_for_sims=ds; kwargs...) = CMBLensingMuseProblem(;ds, ds_for_sims, kwargs...)
-
+CMBLensing.CMBLensingMuseProblem(ds, ds_for_sims=ds; kwargs...) = CMBLensingMuseProblem(;ds, ds_for_sims, kwargs...)
 
 mergeθ(prob::CMBLensingMuseProblem, θ) = isempty(prob.θ_fixed) ? θ : (;prob.θ_fixed..., θ...)
 
@@ -61,11 +72,13 @@ function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem, d, zguess, θ; ∇
     LenseBasis(FieldTuple(;delete(MAP, :history)...)), MAP.history
 end
 
-function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:NoLensingDataSet}, d, (f₀,), θ; ∇z_logLike_atol=nothing)
+function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:CMBLensing.NoLensingDataSet}, d, (f₀,), θ; ∇z_logLike_atol=nothing)
     @unpack ds = prob
     LenseBasis(FieldTuple(f=argmaxf_logpdf(I, mergeθ(prob, θ), @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...))), nothing
 end
 
 function MuseInference.muse!(result::MuseResult, ds::DataSet, θ₀=nothing; parameterization=0, MAP_joint_kwargs=(;), kwargs...)
     muse!(result, CMBLensingMuseProblem(ds; parameterization, MAP_joint_kwargs), θ₀; kwargs...)
+end
+
 end

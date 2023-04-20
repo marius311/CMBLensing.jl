@@ -100,7 +100,7 @@ function promote(ft::FieldTuple, x::AbstractVector)
 end
 _promote(a::Scalar, b::AbstractVector) = promote(a, only(b))
 _promote(a::Field, b::AbstractVector) = promote(a, b)
-_promote(a::AbstractVector, b::AbstractVector) = (a, similar(a) .= b)
+_promote(a::AbstractVector, b::AbstractVector) = (a, copyto!(similar(a), b))
 @adjoint promote(ft::FieldTuple, x::AbstractVector) = promote(ft, x), Δ -> (Δ[1], Δ[2][:])
 
 ### conversion

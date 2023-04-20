@@ -70,24 +70,21 @@ function batch_length(t::Union{Tuple,NamedTuple})
 end
 
 # batched ComponentArrays
-@init @require ComponentArrays="b0b7db55-cfe3-40fc-9ded-d10e2dbeff66" begin
-    using .ComponentArrays
-    function batch(cs::AbstractVector{<:ComponentArray})
-        data = map(map(getdata, cs)...) do args...
-            batch(collect(args))
-        end
-        axes = only(unique(map(getaxes, cs)))
-        ComponentArray(data, axes)
+function batch(cs::AbstractVector{<:ComponentArray})
+    data = map(map(getdata, cs)...) do args...
+        batch(collect(args))
     end
-    function unbatch(c::ComponentArray)
-        map(map(unbatch, getdata(c))...) do args...
-            ComponentArray([args...], getaxes(c))
-        end
+    axes = only(unique(map(getaxes, cs)))
+    ComponentArray(data, axes)
+end
+function unbatch(c::ComponentArray)
+    map(map(unbatch, getdata(c))...) do args...
+        ComponentArray([args...], getaxes(c))
     end
-    function batch_length(c::ComponentArray)
-        only(unique(filter(!=(1), map(batch_length, c))))
-    end
-    function batch_index(c::ComponentArray, I)
-        map(x -> batch_index(x, I), c)
-    end
+end
+function batch_length(c::ComponentArray)
+    only(unique(filter(!=(1), map(batch_length, c))))
+end
+function batch_index(c::ComponentArray, I)
+    map(x -> batch_index(x, I), c)
 end

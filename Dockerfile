@@ -20,7 +20,9 @@ RUN apt-get update \
         libsqlite3-dev \
         nodejs \
         npm \
-        python-openssl \
+        python3 \
+        python3-pip \
+        python3-openssl \
         tk-dev \
         wget \
         xz-utils \
@@ -29,7 +31,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.5-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.9/julia-1.9.0-rc2-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -39,39 +41,20 @@ ARG NB_UID=1000
 ENV USER $NB_USER
 ENV NB_UID $NB_UID
 ENV HOME /home/$NB_USER
+ENV PATH=$HOME/.local/bin:$PATH
 RUN adduser --disabled-password --gecos "Default user" --uid $NB_UID $NB_USER
 USER $NB_USER
 
-## pyenv
-# install python with pyenv since we need a dynamically-linked executable so
-# that PyJulia works
-ENV PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"
-RUN curl https://pyenv.run | bash \
-    && CFLAGS="-O2" PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.9.13 \
-    && pyenv global 3.9.13
-
 ## install Python packages
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
-RUN pip install --no-cache-dir \
-        cython \
+RUN pip3 install --no-cache-dir \
         "jinja2<3.1.0" \
-        julia \
+        juliacall \
         "jupyterlab>=3" \
-        jupyter-client==6.1.12 \
         jupytext \
         matplotlib \
         "nbconvert<6" \
-        numpy \
-        scipy \
-        setuptools \
     && rm -rf $HOME/.cache
-
-## install CAMB
-RUN mkdir -p $HOME/src/camb \
-    && curl -L https://github.com/cmbant/camb/tarball/e8184bb | tar zxf - -C $HOME/src/camb --strip=1 \
-    && cd $HOME/src/camb \
-    && NONNATIVE=1 python setup.py make install 
-
 
 ## build args
 # build with PRECOMPILE=0 and/or PACKAGECOMPILE=0 to skip precompilation steps,
@@ -88,13 +71,15 @@ ARG JULIA_FFTW_PROVIDER=FFTW
 # to improve Docker caching, we first precompile dependencies by copying in
 # Project.toml (and making a dummy src/CMBLensing.jl which we have to), so that
 # other changes to files in src/ won't have to redo these steps
-COPY --chown=1000 Project.toml $HOME/CMBLensing/
+COPY --chown=1000 Project.toml CondaPkg.toml $HOME/CMBLensing/
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && mkdir $HOME/CMBLensing/docs/build && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
 RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"status; dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
+COPY --chown=1000 ext $HOME/CMBLensing/ext
+COPY --chown=1000 dat $HOME/CMBLensing/dat
 RUN (test $PRECOMPILE = 0 || julia -e 'using Pkg; pkg"precompile"')
 
 
@@ -111,6 +96,7 @@ COPY --chown=1000 docs/src $HOME/CMBLensing/docs/src
 COPY --chown=1000 docs/ipython_config.py $HOME/.ipython/profile_default/ipython_config.py
 WORKDIR $HOME/CMBLensing/docs/src
 ARG RUNDOCS=1
+
 RUN jupytext --to notebook *.md \
     && rm *.md \
     && find . -not -name "*gpu*" -name "*.ipynb" \

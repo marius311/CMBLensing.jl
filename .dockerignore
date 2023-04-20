@@ -1,6 +1,9 @@
 *
 !src
+!ext
+!dat
 !Project.toml
+!CondaPkg.toml
 !README.md
 !docs
 **/.ipynb_checkpoints

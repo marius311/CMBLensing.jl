@@ -84,7 +84,7 @@ end
 end
 
 function pinv!(dst::StaticMatrix{2,2,<:DiagOp}, src::StaticMatrix{2,2,<:DiagOp})
-    a,c,b,d = src
+    a, c, b, d = src[1,1], src[2,1], src[2,1], src[2,2]
     det⁻¹ = pinv(@. a*d-b*c)
     @. dst[1,1] =  det⁻¹ * d
     @. dst[1,2] = -det⁻¹ * b

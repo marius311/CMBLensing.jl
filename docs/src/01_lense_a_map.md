@@ -7,32 +7,32 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.14.4
+      jupytext_version: 1.14.5
   kernelspec:
-    display_name: Julia 1.8.5
+    display_name: Julia 1.9.0-rc2
     language: julia
-    name: julia-1.8
+    name: julia-1.9
   language_info:
     file_extension: .jl
     mimetype: application/julia
     name: julia
-    version: 1.7.2
+    version: 1.9.0
 ---
 
 # Lensing a flat-sky map
 
 ```julia
-using CMBLensing, PyPlot
+using CMBLensing, PythonPlot
 ```
 
 First we load a simulated unlensed field, $f$, and lensing potential, $\phi$,
 
 ```julia
-@unpack f,ϕ = load_sim(
+(;ds, f, ϕ) = load_sim(
     θpix  = 2,       # size of the pixels in arcmin
     Nside = 256,     # number of pixels per side in the map
     T     = Float32, # Float32 or Float64 (former is ~twice as fast)
-    pol   = :I       # :I for Intensity, :P for polarization, or :IP for both
+    pol   = :I,       # :I for Intensity, :P for polarization, or :IP for both=
 );
 ```
 
@@ -116,13 +116,13 @@ using BenchmarkTools
 ```
 
 ```julia
-@benchmark cache(LenseFlow(ϕ),f)
+@benchmark precompute!!(LenseFlow(ϕ),f)
 ```
 
 Once cached, it's faster and less memory intensive to repeatedly apply the operator:
 
 ```julia
-@benchmark Lϕ * f setup=(Lϕ=cache(LenseFlow(ϕ),f))
+@benchmark Lϕ * f setup=(Lϕ=precompute!!(LenseFlow(ϕ),f))
 ```
 
 Note that this documentation is generated on limited-performance cloud servers. Actual benchmarks are likely much faster locally or on a cluster, and yet (much) faster on [GPU](../06_gpu/).

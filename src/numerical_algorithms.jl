@@ -12,7 +12,7 @@ function (solver::RK4Solver)(F!::Function, y₀, (t₀, t₁)::Pair)
     h, h½, h⅙ = (t₁-t₀)/solver.nsteps ./ (1,2,6)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in range(t₀,t₁,length=solver.nsteps+1)[1:end-1]
+    for t in range(t₀, stop=t₁, length=solver.nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))

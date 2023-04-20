@@ -34,6 +34,7 @@ services:
       - DOCS=${DOCS:-8000}
     volumes:
       - "./src:/home/cosmo/CMBLensing/src"
+      - "./ext:/home/cosmo/CMBLensing/ext"
       - "./docs:/home/cosmo/CMBLensing/docs"
       - "/home/cosmo/.julia"
     command: ["sh", "-c", "python3 -m http.server $$DOCS -d /home/cosmo/CMBLensing/docs/build & jupyter lab --ip=0.0.0.0 --no-browser --port $$PORT"]

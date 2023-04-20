@@ -85,7 +85,7 @@ function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
     # p & M precomputed matrix elements will use exactly same type as ϕ
     Łϕ, Ðϕ = Ł(ϕ), Ð(ϕ)
     p, M⁻¹ = Dict(), Dict()
-    τs     = τ.(range(t₀, t₁, length=2nsteps+1))
+    τs     = τ.(range(t₀, stop=t₁, length=2nsteps+1))
     p      = Dict(map(τ -> (τ => Diagonal.(similar.(@SVector[Łϕ, Łϕ]))),       τs))
     M⁻¹    = Dict(map(τ -> (τ => Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))), τs))
 
@@ -132,7 +132,7 @@ function precompute!(Lϕ::CachedLenseFlow{S,T}) where {S,T}
     # @info "Precomputing $T"
     @unpack (ϕ, t₀, t₁, odesolve) = Lϕ
     @unpack nsteps = odesolve
-    ts = range(t₀, t₁, length=2nsteps+1)
+    ts = range(t₀, stop=t₁, length=2nsteps+1)
     ∇ϕ, ∇∇ϕ = map(Ł, gradhess(ϕ[]))
     for (t, τ) in zip(ts,τ.(ts))
         @! Lϕ.M⁻¹[τ] = pinv(Diagonal.(I + T(t)*∇∇ϕ))

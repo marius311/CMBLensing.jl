@@ -12,6 +12,7 @@ using ChainRules
 using ChainRules: @opt_out, rrule, unthunk
 using CodecZlib
 using Combinatorics
+using ComponentArrays
 using CompositeStructs
 using CoordinateTransformations
 using DataStructures
@@ -24,6 +25,7 @@ using EllipsisNotation
 using FileIO
 using FFTW
 using ForwardDiff
+using ForwardDiff: Dual, Partials, value, partials
 using Healpix
 using InteractiveUtils
 using IterTools: flagfirst
@@ -36,6 +38,7 @@ using LinearAlgebra: diagzero, matprod, promote_op
 using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, prewalk, rmlines, splitdef
 using Match
 using Markdown
+using MCMCDiagnosticTools
 using Measurements
 using Memoization
 using NamedTupleTools: select, delete
@@ -87,20 +90,20 @@ import Random: randn!
 
 
 export
-    @⌛, @show⌛, @ismain, @namedtuple, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
-    animate, argmaxf_lnP, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
-    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, cache, CachedLenseFlow, camb, cov_to_Cℓ, cpu, Cℓ_2D, 
-    Cℓ_to_Cov, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, EBMap, expnorm, 
-    Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
+    @⌛, @show⌛, @ismain, @repeated, @unpack, @cpu!, @gpu!, @cu!, @fwdmodel, 
+    animate, argmaxf_logpdf, AzFourier, BandPassOp, BaseDataSet, batch, batch_index, batch_length, 
+    batch_map, batch_pmap, BlockDiagEquiRect, beamCℓs, CachedLenseFlow, camb, cov_to_Cℓ, cpu,  
+    Cℓ_to_Cov, CMBLensingMuseProblem, cuda_gc, DataSet, DerivBasis, diag, Diagonal, DiagOp, dot, EBFourier, 
+    EBMap, expnorm, Field, FieldArray, fieldinfo, FieldMatrix, FieldOrOpArray, FieldOrOpMatrix, FieldOrOpRowVector,
     FieldOrOpVector, FieldRowVector, FieldTuple, FieldVector, FieldVector,
     firsthalf, BlockDiagIEB, Fourier, FuncOp, get_max_lensing_step,
-    get_Cℓ, get_Cℓ, get_Dℓ, get_αℓⁿCℓ, get_ρℓ, get_ℓ⁴Cℓ, gradhess, gradient, HighPass,
+    get_Cℓ, get_Cℓ, get_Dℓ, get_ρℓ, get_ℓ⁴Cℓ, gpu, gradhess, gradient, HighPass,
     IEBFourier, IEBMap, Cℓs, IQUAzFourier, IQUFourier, IQUMap, kde,
-    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, lnP, logpdf, load_camb_Cℓs,
+    lasthalf, LazyBinaryOp, LenseBasis, LenseFlow, FieldOp, logpdf, load_camb_Cℓs,
     load_chains, load_nolensing_sim, load_sim, LowPass, make_mask, Map, MAP_joint, MAP_marg,
     mean_std_and_errors, MidPass, mix, Mixed, nan2zero, noiseCℓs,
     ParamDependentOp, pixwin, PowerLens, precompute!!, ProjLambert, ProjEquiRect, ProjHealpix, project,
-    QUAzFourier, QUFourier, QUMap, resimulate!, resimulate, RK4Solver, sample_f, sample_joint, shiftℓ, 
+    QUAzFourier, QUFourier, QUMap, RK4Solver, sample_f, sample_joint, shiftℓ, 
     simulate, SymmetricFuncOp, symplectic_integrate, Taylens, toCℓ, toDℓ,
     ud_grade, unbatch, unmix, Ð, Ł,  
     ℓ², ℓ⁴, ∇, ∇², ∇ᵢ, ∇ⁱ
@@ -110,7 +113,6 @@ export gibbs_initialize_f!, gibbs_initialize_ϕ!, gibbs_initialize_θ!,
     gibbs_sample_f!, gibbs_sample_ϕ!, gibbs_sample_slice_θ!, 
     gibbs_mix!, gibbs_unmix!, gibbs_postprocess!, 
     once_every, start_after_burnin, mass_matrix_ϕ, hmc_step
-
 
 # util
 include("util.jl")
@@ -144,8 +146,6 @@ include("taylens.jl")
 include("bilinearlens.jl")
 
 # plotting
-function animate end
-@init @require PyPlot="d330b81b-6aea-500a-939a-2ce795aea3ee" include("pyplot.jl")
 include("plots.jl")
 
 # PPL
@@ -167,12 +167,18 @@ include("quadratic_estimate.jl")
 # AD
 include("autodiff.jl")
 
-# gpu
-is_gpu_backed(x) = false
-@init @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" include("gpu.jl")
-
-# muse
-@init @require MuseInference="43b88160-90c7-4f71-933b-9d65205cd921" include("muse.jl")
+# make package extensions work on Julia <1.9
+@init @static if !isdefined(Base, :get_extension)
+    @require CUDA          = "052768ef-5323-5732-b1bb-66c8b64840ba" include("../ext/CMBLensingCUDAExt.jl")
+    @require MuseInference = "43b88160-90c7-4f71-933b-9d65205cd921" include("../ext/CMBLensingMuseInferenceExt.jl")
+    @require PythonPlot    = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9" include("../ext/CMBLensingPythonPlotExt.jl")
+    @require PythonCall    = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d" include("../ext/CMBLensingPythonCallExt.jl")
+end
+# some stubs filled in by extensions
+function animate end
+function pyimport end
+function PyArray end
+function CMBLensingMuseProblem end
 
 # misc init
 # see https://github.com/timholy/ProgressMeter.jl/issues/71 and links therein
