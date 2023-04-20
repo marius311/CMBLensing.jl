@@ -38,6 +38,7 @@ using LinearAlgebra: diagzero, matprod, promote_op
 using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, prewalk, rmlines, splitdef
 using Match
 using Markdown
+using MCMCDiagnosticTools
 using Measurements
 using Memoization
 using NamedTupleTools: select, delete

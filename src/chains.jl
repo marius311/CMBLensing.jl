@@ -187,7 +187,7 @@ bootstrap resampling using the calculated "effective sample size" of the chain.
 """
 function mean_std_and_errors(samples; N_bootstrap=10000, N_in_paren=2, tol=50)
     
-    Neff = round(Int, length(samples) / PyArray(pyimport("emcee").autocorr.integrated_time(samples; tol))[1])
+    Neff = round(Int, MCMCDiagnosticTools.ess(reshape(samples, :, 1, 1))[1])
     
     μ = mean(samples)
     σ = std(samples)

@@ -7,16 +7,16 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.14.4
+      jupytext_version: 1.14.5
   kernelspec:
-    display_name: Julia 1.8.5
+    display_name: Julia 1.9.0-rc2
     language: julia
-    name: julia-1.8
+    name: julia-1.9
   language_info:
     file_extension: .jl
     mimetype: application/julia
     name: julia
-    version: 1.7.2
+    version: 1.9.0
 ---
 
 # The Lensing Posterior
@@ -87,7 +87,7 @@ and we have used the slighly sloppy notation $x^2/\mathbb{C}$ to mean $x^\dagger
 ## Posterior basics
 
 ```julia
-using CMBLensing, PyPlot
+using CMBLensing, PythonPlot
 ```
 
 CMBLensing uses the function `logpdf` to compute the log of the joint posterior probability. 
@@ -98,7 +98,7 @@ To evaluate this posterior, we need the arguments of the probability distributio
 First lets load up some simulated data. The function `load_sim` handles constructing a `DataSet` and is the recommended way to create the various fields and covariances needed. In this case, let's use 1$\mu$K-arcmin noise and a border mask:
 
 ```julia
-@unpack f, f̃, ϕ, ds = load_sim(
+(;f, f̃, ϕ, ds) = load_sim(
     θpix      = 2,
     Nside     = 256,
     T         = Float64,

@@ -239,7 +239,7 @@ default_which(::AbstractVecOrMat{<:EquiRectS2})   = [:Qx :Ux]
 default_which(::AbstractVecOrMat{<:CartesianS02}) = [:Ix :Ex :Bx]
 function default_which(fs::AbstractVecOrMat{<:CartesianField})
     try
-        ensuresame((default_which([f]) for f in fs)...)
+        CMBLensing.ensuresame((default_which([f]) for f in fs)...)
     catch x
         x isa AssertionError ? throw(ArgumentError("Must specify `which` argument by hand for plotting this combination of fields.")) : rethrow()
     end
@@ -260,11 +260,12 @@ function CMBLensing.animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Cartes
     
     if (annonate!=nothing); annonate(fig,axs,which); end
     
-    ani = pyimport("matplotlib.animation").FuncAnimation(fig, 
-        i->begin
+    ani = pyimport("matplotlib.animation").FuncAnimation(
+		fig, 
+        function (i)
             for (f,ax,k) in tuple.(fields,axs,which)
                 if length(f)>1
-                    img = ax.images[1]
+                    img = ax.images[0]
                     img.set_data(sum(x*getindex(f[mod1(i-j+1,length(f))],k) for (j,x) in enumerate(motionblur)) / sum(motionblur))
                 end
             end
@@ -272,8 +273,8 @@ function CMBLensing.animate(fields::AbstractVecOrMat{<:AbstractVecOrMat{<:Cartes
         end, 
         1:maximum(length.(fields)[:]),
         interval=1000/fps, blit=true
-        )
-    close()
+	)
+    PythonPlot.close()
     if filename!=nothing
         ani.save(filename,writer="imagemagick",savefig_kwargs=Dict(:facecolor=>fig.get_facecolor()))
         if endswith(filename,".gif")
