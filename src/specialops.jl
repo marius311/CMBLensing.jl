@@ -81,7 +81,7 @@ end
 end
 # manipulating
 size(L::BlockDiagIEB) = 3 .* size(L.ΣB)
-adjoint(L::BlockDiagIEB) = L
+adjoint(L::BlockDiagIEB) = BlockDiagIEB(adjoint(L.ΣTE), adjoint(L.ΣB))
 sqrt(L::BlockDiagIEB) = BlockDiagIEB(sqrt(L.ΣTE), sqrt(L.ΣB))
 @auto_adjoint pinv(L::BlockDiagIEB) = BlockDiagIEB(pinv(L.ΣTE), pinv(L.ΣB))
 diag(L::BlockDiagIEB{P}) where {P} = BaseIEBFourier{P}(diag(L.ΣTE[1,1]), diag(L.ΣTE[2,2]), diag(L.ΣB))
@@ -91,13 +91,13 @@ adapt_structure(storage, L::BlockDiagIEB) = BlockDiagIEB(adapt.(Ref(storage), L.
 simulate(rng::AbstractRNG, L::BlockDiagIEB; Nbatch=()) = sqrt(L) * randn!(rng, similar(diag(L), Nbatch...))
 logdet(L::BlockDiagIEB) = logdet(det(L.ΣTE)) + logdet(L.ΣB)
 # arithmetic
-*(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB(L.ΣTE * [[D[:I]] [0]; [0] [D[:E]]], L.ΣB * D[:B])
-+(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB([L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB + D[:B])
+*(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB([L.ΣTE[1,1]*D[:I] L.ΣTE[1,2]*D[:E]; L.ΣTE[2,1]*D[:I] L.ΣTE[2,2]*D[:E]], L.ΣB*D[:B])
+*(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = BlockDiagIEB([L.ΣTE[1,1]*D[:I] L.ΣTE[1,2]*D[:I]; L.ΣTE[2,1]*D[:E] L.ΣTE[2,2]*D[:E]], L.ΣB*D[:B])
++(L::BlockDiagIEB, D::DiagOp{<:BaseIEBFourier}) = BlockDiagIEB([L.ΣTE[1,1]+D[:I] L.ΣTE[1,2]; L.ΣTE[2,1] L.ΣTE[2,2]+D[:E]], L.ΣB+D[:B])
 *(La::BlockDiagIEB, Lb::BlockDiagIEB) = BlockDiagIEB(La.ΣTE * Lb.ΣTE, La.ΣB * Lb.ΣB)
 +(La::BlockDiagIEB, Lb::BlockDiagIEB) = BlockDiagIEB(La.ΣTE + Lb.ΣTE, La.ΣB + Lb.ΣB)
 +(L::BlockDiagIEB, U::UniformScaling{<:Scalar}) = BlockDiagIEB([(L.ΣTE[1,1]+U) L.ΣTE[1,2]; L.ΣTE[2,1] (L.ΣTE[2,2]+U)], L.ΣB+U)
 *(L::BlockDiagIEB, λ::Scalar) = BlockDiagIEB(L.ΣTE * λ, L.ΣB * λ)
-*(D::DiagOp{<:BaseIEBFourier}, L::BlockDiagIEB) = L * D
 +(U::UniformScaling{<:Scalar}, L::BlockDiagIEB) = L + U
 *(λ::Scalar, L::BlockDiagIEB) = L * λ
 # indexing
