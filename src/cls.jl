@@ -169,8 +169,8 @@ const _default_Cℓs_params = isfile(_default_Cℓs_path) ? Dict(pairs(load(_def
         r = r,
         Alens = AL,
     )
-    cp.max_l_tensor = ℓmax′
-    cp.max_eta_k_tensor = 2ℓmax′
+    cp.max_l_tensor = 2ℓmax′
+    cp.max_eta_k_tensor = 4ℓmax′
     cp.WantScalars = true
     cp.WantTensors = true
     cp.DoLensing = true
