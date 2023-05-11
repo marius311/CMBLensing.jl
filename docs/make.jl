@@ -156,6 +156,7 @@ makedocs(
         "04_from_python.md",
         "05_field_basics.md",
         "06_gpu.md",
+        "precompilation.md",
         "api.md"
     ],
 )
