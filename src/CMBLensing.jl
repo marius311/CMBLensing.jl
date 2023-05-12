@@ -55,7 +55,7 @@ using Roots
 using Requires
 using Serialization
 using Setfield
-using SnoopPrecompile
+using PrecompileTools
 using SparseArrays
 import StaticArrays
 using StaticArrays: @SMatrix, @SVector, SMatrix, StaticMatrix, StaticVector, StaticArray,
@@ -186,7 +186,7 @@ function CMBLensingMuseProblem end
     ProgressMeter.ijulia_behavior(:clear)
 end
 
-@precompile_all_calls include("precompile.jl")
+@compile_workload include("precompile.jl")
 
 end
 
