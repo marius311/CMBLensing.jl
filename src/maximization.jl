@@ -154,6 +154,7 @@ function MAP_joint(
     Ω = Ωstart
     f = prevf = fstart
     α = 1
+    αmax_initial = αmax
     t_f_total = t_ϕ_total = 0
 
     for step = 1:nsteps
@@ -190,7 +191,7 @@ function MAP_joint(
                 ΔΩ°_perp = pinv(HΩ°) * gradient(ΔΩ° -> logprior(dsθ; unmix(dsθ; f°, ΔΩ°...)...), ΔΩ°)[1]
                 ΔΩ° .-= T(prior_deprojection_factor * dot(ΔΩ°,ΔΩ°_perp) * pinv(dot(ΔΩ°_perp,ΔΩ°_perp))) .* ΔΩ°_perp
             end
-            αmax = @something(αmax, 2α)
+            αmax = @something(αmax_initial, 2α)
             soln = @ondemand(Optim.optimize)(T(0), T(αmax), @ondemand(Optim.Brent)(); abs_tol=T(αtol)) do α
                 Ω°′ = Ω° + T(α) * ΔΩ°
                 total_logpdf = @⌛(sum(unbatch(-(logpdf(Mixed(dsθ); f°, Ω°′..., θ)))))
