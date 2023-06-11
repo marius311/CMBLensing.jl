@@ -63,7 +63,6 @@ end
     f̃ ← L(ϕ) * f
     μ = M(θ) * (B(θ) * f̃)
     d ~ MvNormal(μ, Cn(θ))
-    @isdefined(_logpdf) && (_logpdf[] += logprior(ds; f, ϕ, θ, d))
 end
 
 @fwdmodel function (ds::NoLensingDataSet)(; f, θ=(;), d=ds.d)
@@ -71,7 +70,6 @@ end
     f ~ MvNormal(0, Cf(θ))
     μ = M(θ) * (B(θ) * f)
     d ~ MvNormal(μ, Cn(θ))
-    @isdefined(_logpdf) && (_logpdf[] += logprior(ds; f, θ, d))
 end
 
 # performance optimization (shouldn't need this once we have Diffractor)
