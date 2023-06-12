@@ -48,12 +48,12 @@ USER $NB_USER
 ## install Python packages
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
 RUN pip3 install --no-cache-dir \
-        "jinja2<3.1.0" \
+        jinja2 \
         juliacall \
-        "jupyterlab>=3" \
+        jupyterlab \
         jupytext \
         matplotlib \
-        "nbconvert<6" \
+        nbconvert \
     && rm -rf $HOME/.cache
 
 ## build args
