@@ -72,9 +72,19 @@ function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem, d, zguess, θ; ∇
     LenseBasis(FieldTuple(;delete(MAP, :history)...)), MAP.history
 end
 
+function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:CMBLensing.Mixed}, d, zguess, θ; ∇z_logLike_atol=nothing)
+    ds = prob.ds.ds
+    zguess = CMBLensing.unmix(ds; θ, zguess...)
+    Ωstart = delete(NamedTuple(zguess), :f)
+    MAP = MAP_joint(Base.get_extension(CMBLensing,:CMBLensingMuseInferenceExt).mergeθ(prob, θ), @set(ds.d=d), Ωstart; fstart=zguess.f, prob.MAP_joint_kwargs...)
+    MAP = CMBLensing.mix(ds; θ, MAP...)
+    LenseBasis(FieldTuple(;delete(MAP, (:history, :θ))...)), MAP.history
+end
+
 function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:CMBLensing.NoLensingDataSet}, d, (f₀,), θ; ∇z_logLike_atol=nothing)
     @unpack ds = prob
-    LenseBasis(FieldTuple(f=argmaxf_logpdf(I, mergeθ(prob, θ), @set(ds.d=d); fstart=f₀, prob.MAP_joint_kwargs...))), nothing
+    f, hist = argmaxf_logpdf(@set(ds.d=d), (θ=mergeθ(prob, θ),); fstart=f₀, prob.MAP_joint_kwargs...)
+    LenseBasis(FieldTuple(;f)), hist
 end
 
 function MuseInference.muse!(result::MuseResult, ds::DataSet, θ₀=nothing; parameterization=0, MAP_joint_kwargs=(;), kwargs...)
