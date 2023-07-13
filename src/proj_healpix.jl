@@ -222,7 +222,8 @@ function project(projector::Projector{:bilinear}, (hpx_map, cart_proj)::Pair{<:H
     @assert projector.hpx_proj == hpx_map.proj && projector.cart_proj == cart_proj
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (θs, ϕs) = projector
-    BaseMap(T.(reshape(PyArray(pyimport("healpy").get_interp_val(collect(hpx_map), θs, ϕs)), Ny, Nx)), cart_proj)
+    np = pyimport("numpy")
+    BaseMap(T.(reshape(PyArray(pyimport("healpy").get_interp_val(np.array(collect(hpx_map)), np.array(θs), np.array(ϕs))), Ny, Nx)), cart_proj)
 end
 
 function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:HealpixMap,<:CartesianProj})
