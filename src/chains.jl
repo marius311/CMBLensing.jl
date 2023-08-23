@@ -250,9 +250,10 @@ function kde(samples::AbstractMatrix; boundary=((nothing,nothing),(nothing,nothi
         error("KDE only supports 1 or 2 dimensional samples.")
     end
     getdist = pyimport("getdist")
+    np = pyimport("numpy")
     getdist.chains.print_load_details = false
     kde = getdist.MCSamples(;
-        samples, weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])
+        samples=np.asarray(samples), weights=nothing, names=["x","y"], ranges=Dict("x"=>boundary[1], "y"=>boundary[2])
     )
     density_kwargs = isnothing(smooth_scale_2D) ? () : (;smooth_scale_2D)
     GetDistKDE{2}(kde.get2DDensity(0, 1; density_kwargs...).normalize(normalize))
