@@ -32,12 +32,14 @@ macro fwdmodel(def)
             return :(_vars[$(QuoteNode(var))] = (Base.@isdefined($var) && !ismissing($var) ? $var : ($var = $rhs))) 
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
-            if (f isa Symbol) && !(f in maybe_local_var) && isdefined(__module__, f)
-                if is_simpleppl_model(getfield(__module__, f))
-                    return :($f($(Simulate()), _vars, rng, $(args...); $(kwargs...)))
+            if (f isa Symbol) && !startswith(string(f),".")
+                if !(f in maybe_local_var) && isdefined(__module__, f)
+                    if is_simpleppl_model(getfield(__module__, f))
+                        return :($f($(Simulate()), _vars, rng, $(args...); $(kwargs...)))
+                    end
+                else
+                    return :($is_simpleppl_model($f) ? $f($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $x)
                 end
-            else
-                return :($is_simpleppl_model($f) ? $f($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $x)
             end
         end
         return x
@@ -58,12 +60,14 @@ macro fwdmodel(def)
             return :($var = $rhs)
         elseif !isexpr(x, :block) && @capture(x, (f_(args__; kwargs__) | f_(args__)))
             kwargs = kwargs == nothing ? () : kwargs
-            if (f isa Symbol) && !(f in maybe_local_var) && isdefined(__module__, f)
-                if is_simpleppl_model(getfield(__module__, f))
-                    return :($f($(Logpdf()), _logpdf, $(args...); $(kwargs...)))
+            if (f isa Symbol) && !startswith(string(f),".")
+                if !(f in maybe_local_var) && isdefined(__module__, f)
+                    if is_simpleppl_model(getfield(__module__, f))
+                        return :($f($(Logpdf()), _logpdf, $(args...); $(kwargs...)))
+                    end
+                else
+                    return :($is_simpleppl_model($f) ? $f($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $x)
                 end
-            else
-                return :($is_simpleppl_model($f) ? $f($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $x)
             end
         end
         return x
