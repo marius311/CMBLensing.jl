@@ -40,3 +40,23 @@ end
 @recipe function plot(Cℓ::Cℓs)
     (Cℓ.ℓ, Cℓ.Cℓ)
 end
+
+@recipe function plot(k::GetDistKDE{2}; clevels=[0.95,0.68], filled=false)
+
+    if filled
+        seriestype := :contourf
+        levels := [PyArray(k.kde.getContourLevels(clevels)); prevfloat(Inf)]
+        alpha := 0.5
+    else
+        seriestype := :contour
+        levels := PyArray(k.kde.getContourLevels(clevels))
+    end
+    cbar := false
+    
+    return PyArray(k.kde.x), PyArray(k.kde.y), PyArray(k.kde.P)
+
+end
+
+@recipe function plot(k::GetDistKDE{1}; transform=identity)
+    (PyArray(k.kde.x), transform.(PyArray(k.kde.P)))
+end

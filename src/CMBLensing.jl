@@ -145,9 +145,6 @@ include("masking.jl")
 include("taylens.jl")
 include("bilinearlens.jl")
 
-# plotting
-include("plots.jl")
-
 # PPL
 include("distributions.jl")
 include("simpleppl.jl")
@@ -157,6 +154,9 @@ include("dataset.jl")
 include("maximization.jl")
 include("sampling.jl")
 include("chains.jl")
+
+# plotting
+include("plots.jl")
 
 # deprecated stuff
 include("deprecated.jl")
