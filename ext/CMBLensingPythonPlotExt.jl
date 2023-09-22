@@ -290,7 +290,7 @@ end
 
 function PythonPlot.plot(f::HealpixMap; kwargs...)
 	pyimport("healpy").projview(
-		collect(f.arr);
+		pyimport("numpy").array(Array(f.arr));
 		cmap                  = "RdBu_r", 
 		graticule             = true,
 		graticule_labels      = true,
