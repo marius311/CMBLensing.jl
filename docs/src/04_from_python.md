@@ -69,7 +69,7 @@ jl.seval("1:10")
 ## Calling CMBLensing.jl
 
 
-You can use `seval` to essentially just paste Julia code into Python session, for example, following the [Lensing a flat-sky map](../01_lense_a_map/) example:
+You can use `seval` to essentially just paste Julia code into Python session, for example, following the [Lensing a flat-sky map](01_lense_a_map.md) example:
 
 ```python
 jl.seval("""

@@ -123,7 +123,7 @@ fJ, ϕJ, history = MAP_joint(ds, nsteps=30, progress=true);
 # Examine results
 
 
-The `history` variable gives some info about the run, and more info can be saved by passing `history_keys` argument to [`MAP_joint`](api/#CMBLensing.MAP_joint). By default, we get just the value of the posterior, which we can use to check the maximizer has asymptoted to a maximum value:
+The `history` variable gives some info about the run, and more info can be saved by passing `history_keys` argument to `MAP_joint`. By default, we get just the value of the posterior, which we can use to check the maximizer has asymptoted to a maximum value:
 
 ```julia
 plot(getindex.(history, :logpdf))

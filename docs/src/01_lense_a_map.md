@@ -32,7 +32,7 @@ First we load a simulated unlensed field, $f$, and lensing potential, $\phi$,
     θpix  = 2,       # size of the pixels in arcmin
     Nside = 256,     # number of pixels per side in the map
     T     = Float32, # Float32 or Float64 (former is ~twice as fast)
-    pol   = :I,       # :I for Intensity, :P for polarization, or :IP for both=
+    pol   = :I,      # :I for Intensity, :P for polarization, or :IP for both
 );
 ```
 
@@ -69,7 +69,7 @@ If you have your own map data in an array you'd like to load into a CMBLensing `
 FlatMap(mapdata, θpix=3)
 ```
 
-For more info on `Field` objects, see [Field Basics](../05_field_basics/).
+For more info on `Field` objects, see [Field Basics](05_field_basics.md).
 
 
 ## Inverse lensing
@@ -125,4 +125,4 @@ Once cached, it's faster and less memory intensive to repeatedly apply the opera
 @benchmark Lϕ * f setup=(Lϕ=precompute!!(LenseFlow(ϕ),f))
 ```
 
-Note that this documentation is generated on limited-performance cloud servers. Actual benchmarks are likely much faster locally or on a cluster, and yet (much) faster on [GPU](../06_gpu/).
+Note that this documentation is generated on limited-performance cloud servers. Actual benchmarks are likely much faster locally or on a cluster, and yet (much) faster on [GPU](06_gpu.md).

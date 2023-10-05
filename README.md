@@ -30,14 +30,14 @@ The best place to get started is to read the [documentation](https://cosmicmar.c
 
 Most of the pages in the documentation are Jupyter notebooks, and you can click the "launch binder" link at the top of each page to launch a Jupyterlab server running the notebook in your browser (courtesy of [binder](https://mybinder.org/)). 
 
-You can also clone the repository and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommended to install [Jupytext](jupytext) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
+You can also clone the repository and open the notebooks in [docs/src](https://github.com/marius311/CMBLensing.jl/tree/master/docs/src) if you want to run them locally (which will usually lead to higher performance). The notebooks are stored as `.md` files rather than `.ipynb` format. Its recommended to install [Jupytext](https://jupytext.readthedocs.io/en/latest/) (`pip install jupytext`) and then you can run these `.md` directly from Jupyterlab by right-clicking on them and selecting `Open With -> Notebook`. Otherwise, run the script `docs/make_notebooks.sh` to convert the `.md` files to `.ipynb` which you can then open as desired. 
 
 
 ## Installation
 
 ### Requirements
 
-* Julia 1.7+
+* Julia 1.8+
 * _(recommended)_ An Nvidia GPU and [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) for GPU support
 * _(recommended)_ Python 3 + matplotlib (used for plotting)
 * _(recommended)_ [pycamb](https://github.com/cmbant/CAMB) to generate $C_\ell$'s (run `pip install --user camb`)
