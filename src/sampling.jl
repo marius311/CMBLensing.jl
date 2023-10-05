@@ -242,9 +242,6 @@ function sample_joint(
     # seed
     @everywhere @eval CMBLensing seed!()
 
-    # distribute the dataset object to workers once
-    set_distributed_dataset(ds, storage)
-
     # initialize chains
     states = map(copy, repeated(rundat, nchains))
     if resume && (filename != nothing) && isfile(filename) && jldopen(io->haskey(io,"rundat"),filename,"r")
@@ -269,7 +266,7 @@ function sample_joint(
     states = pmap(states) do state
         state = _adapt(storage, state)
         for gibbs_initialize! in gibbs_initializers
-            gibbs_initialize!(state, get_distributed_dataset())
+            gibbs_initialize!(state, ds)
         end
         _adapt(Array, state)
     end
@@ -297,7 +294,7 @@ function sample_joint(
             state = @⌛ _adapt(storage, state)
 
             timing = @⌛ "Gibbs passes" map(gibbs_samplers) do gibbs_sample!
-                @elapsed gibbs_sample!(state, get_distributed_dataset())
+                @elapsed gibbs_sample!(state, ds)
             end
             
             state = @⌛ _adapt(Array, state)
