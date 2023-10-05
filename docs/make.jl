@@ -37,12 +37,15 @@ rm("src-staging/index.md",force=true)
 symlink("../../README.md","src-staging/index.md")
 
 
-# highlight output cells (i.e. anything withouout a language specified) white
-# note: "output" language is added by us in documenter.tpl
-@eval Documenter.Writers.HTMLWriter function mdconvert(c::Markdown.Code, parent::MDBlockContext; settings::Union{HTML,Nothing}=nothing, kwargs...)
+# # highlight output cells (i.e. anything withouout a language specified) white
+# # note: "output" language is added by us in documenter.tpl
+@eval Documenter.Writers.HTMLWriter function domify(dctx::DCtx, node::Node, c::MarkdownAST.CodeBlock)
+    ctx, navnode, settings = dctx.ctx, dctx.navnode, dctx.settings
+    language = c.info
+    # function mdconvert(c::Markdown.Code, parent::MDBlockContext; settings::Union{HTML,Nothing}=nothing, kwargs...)
     @tags pre code
-    language = Utilities.codelang(c.language)
-    if language == "documenter-ansi" || language == "output" # From @repl blocks (through MultiCodeBlock)
+    language = Documenter.codelang(language)
+    if language == "documenter-ansi" || language == "output"
         return pre(domify_ansicoloredtext(c.code, "language-output hljs"))
     elseif settings !== nothing && settings.prerender &&
            !(isempty(language) || language == "nohighlight")
@@ -53,90 +56,92 @@ symlink("../../README.md","src-staging/index.md")
     return pre(code[".$(class) .hljs"](c.code))
 end
 
+
 # adds the MyBinder button on each page that is a notebook
 @eval Documenter.Writers.HTMLWriter function render_navbar(ctx, navnode, edit_page_link::Bool)
     @tags div header nav ul li a span img
 
+    # Hamburger on mobile
+    navbar_left = a[
+        "#documenter-sidebar-button.docs-sidebar-button.docs-navbar-link.fa-solid.fa-bars.is-hidden-desktop",
+        :href => "#",
+    ]
+
     # The breadcrumb (navigation links on top)
-    navpath = Documents.navpath(navnode)
+    navpath = Documenter.navpath(navnode)
     header_links = map(navpath) do nn
-        title = mdconvert(pagetitle(ctx, nn); droplinks=true)
+        dctx = DCtx(ctx, nn, true)
+        title = domify(dctx, pagetitle(dctx))
         nn.page === nothing ? li(a[".is-disabled"](title)) : li(a[:href => navhref(ctx, nn, navnode)](title))
     end
     header_links[end] = header_links[end][".is-active"]
-    breadcrumb = nav[".breadcrumb"]() ### modified to not show breadcrumbs
+    breadcrumb = nav[".breadcrumb"](
+        ul[".is-hidden-mobile"](header_links),
+        ul[".is-hidden-tablet"](header_links[end]) # when on mobile, we only show the page title, basically
+    )
 
     # The "Edit on GitHub" links and the hamburger to open the sidebar (on mobile) float right
     navbar_right = div[".docs-right"]
-    
-    ### custom code to add MyBinder link
-    if edit_page_link
-        pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
-        nbpath = foldl(replace,["src-staging"=>"src",".md"=>".ipynb"], init=pageurl)
-        if isfile(nbpath)
-            url = "https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/$(basename(nbpath))"
-            push!(navbar_right.nodes, a[".docs-right", :href => url](img[:src => "https://mybinder.org/badge_logo.svg"]()))
-        end
-    end
-    ###
-    
-    # Set the logo and name for the "Edit on.." button.
-    if edit_page_link && (ctx.settings.edit_link !== nothing) && !ctx.settings.disable_git
-        host_type = Utilities.repo_host_from_url(ctx.doc.user.repo)
-        if host_type == Utilities.RepoGitlab
-            host = "GitLab"
-            logo = "\uf296"
-        elseif host_type == Utilities.RepoGithub
-            host = "GitHub"
-            logo = "\uf09b"
-        elseif host_type == Utilities.RepoBitbucket
-            host = "BitBucket"
-            logo = "\uf171"
-        else
-            host = ""
-            logo = "\uf15c"
-        end
-        hoststring = isempty(host) ? " source" : " on $(host)"
 
-        pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
-        
-        
-        edit_branch = isa(ctx.settings.edit_link, String) ? ctx.settings.edit_link : nothing
-        url = if Utilities.isabsurl(pageurl)
-            pageurl
-        else
-            if !(pageurl == getpage(ctx, navnode).source)
-                # need to set users path relative the page itself
-                pageurl = joinpath(first(splitdir(getpage(ctx, navnode).source)), pageurl)
+        ### custom code to add MyBinder link
+        if edit_page_link
+            pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
+            nbpath = foldl(replace,["src-staging"=>"src",".md"=>".ipynb"], init=pageurl)
+            if isfile(nbpath)
+                url = "https://mybinder.org/v2/gh/marius311/CMBLensing.jl/gh-pages?urlpath=lab/tree/$(basename(nbpath))"
+                push!(navbar_right.nodes, a[".docs-right", :href => url](img[:src => "https://mybinder.org/badge_logo.svg"]()))
             end
-            Utilities.url(ctx.doc.user.repo, pageurl, commit=edit_branch)
         end
-        if url !== nothing
-            edit_verb = (edit_branch === nothing) ? "View" : "Edit"
-            title = "$(edit_verb)$hoststring"
+        ###
+    
+
+    # Set up the link to the root of the remote Git repository
+    #
+    # By default, we try to determine it from the configured remote. If that fails, the link
+    # is not displayed. The user can also pass `repolink` to HTML to either disable it
+    # (repolink = nothing) or override the link URL (if set to a string). In the latter case,
+    # we try to figure out what icon and string we should use based on the URL.
+    if !isnothing(ctx.settings.repolink) && (ctx.settings.repolink isa String || ctx.doc.user.remote isa Remotes.Remote)
+        url, (host, logo) = if ctx.settings.repolink isa String
+            ctx.settings.repolink, host_logo(ctx.settings.repolink)
+        else # ctx.doc.user.remote isa Remotes.Remote
+            Remotes.repourl(ctx.doc.user.remote), host_logo(ctx.doc.user.remote)
+        end
+        # repourl() can sometimes return a nothing (Remotes.URL)
+        if !isnothing(url)
+            repo_title = "View the repository" * (isempty(host) ? "" : " on $host")
             push!(navbar_right.nodes,
-                a[".docs-edit-link", :href => url, :title => title](
-                    span[".docs-icon.fab"](logo),
-                    span[".docs-label.is-hidden-touch"](title)
+                a[".docs-navbar-link", :href => url, :title => repo_title](
+                    span[".docs-icon.fa-brands"](logo),
+                    span[".docs-label.is-hidden-touch"](isempty(host) ? "Repository" : host)
                 )
             )
         end
     end
+    # Add an edit link, with just an icon, but only on pages where edit_page_link is true.
+    # Some pages, like search, are special and do not have a source file to link to.
+    edit_page_link && edit_link(ctx, navnode) do logo, title, url
+        push!(navbar_right.nodes,
+            a[".docs-navbar-link", :href => url, :title => title](
+                span[".docs-icon.fa-solid"](logo)
+            )
+        )
+    end
 
     # Settings cog
     push!(navbar_right.nodes, a[
-        "#documenter-settings-button.docs-settings-button.fas.fa-cog",
+        "#documenter-settings-button.docs-settings-button.docs-navbar-link.fa-solid.fa-gear",
         :href => "#", :title => "Settings",
     ])
 
-    # Hamburger on mobile
+    # Collapse/Expand All articles toggle
     push!(navbar_right.nodes, a[
-        "#documenter-sidebar-button.docs-sidebar-button.fa.fa-bars.is-hidden-desktop",
-        :href => "#"
+        "#documenter-article-toggle-button.docs-article-toggle-button.fa-solid.fa-chevron-up",
+        :href=>"javascript:;", :title=>"Collapse all docstrings",
     ])
 
     # Construct the main <header> node that should be the first element in div.docs-main
-    header[".docs-navbar"](breadcrumb, navbar_right)
+    header[".docs-navbar"](navbar_left, breadcrumb, navbar_right)
 end
 
 
@@ -159,6 +164,7 @@ makedocs(
         "precompilation.md",
         "api.md"
     ],
+    remotes = nothing
 )
 
 if haskey(ENV, "IMAGE_NAME")

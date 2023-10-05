@@ -31,7 +31,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.9/julia-1.9.0-rc2-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.9/julia-1.9.3-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 

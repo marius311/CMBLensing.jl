@@ -17,7 +17,7 @@ Keyword arguments:
   `thin == :hasmaps`, return only samples which have maps saved. If
   thin is a `Function`, filter the chain by this function (e.g.
   `thin=haskey(:g)` on Julia 1.5+)
-* `unbatch` — If true, [unbatch](@ref) the chains if they are batched.
+* `unbatch` — If true, run `unbatch` on the chains if they are batched.
 * `join` — If true, concatenate all the chains together.
 * `skip_missing_chunks` — Skip missing chunks in the chain instead of
   terminating the chain there. 
