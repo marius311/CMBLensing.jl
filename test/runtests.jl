@@ -610,7 +610,9 @@ end
             atol = pol==:IP ? 30 : 3
             @test_real_gradient(α -> logpdf(      ds;  f  = f  + α * δf, ϕ  = ϕ  + α * δϕ), 0, atol=atol)
             @test_real_gradient(α -> logpdf(Mixed(ds); f° = f° + α * δf, ϕ° = ϕ° + α * δϕ), 0, atol=atol)
-            
+            @test_real_gradient(r -> logpdf(      ds;  f,  ϕ,  θ=(;r)), T(0.1), atol=atol)
+            @test_real_gradient(r -> logpdf(Mixed(ds); f°, ϕ°, θ=(;r)), T(0.1), atol=atol)
+
         end
         
     end
