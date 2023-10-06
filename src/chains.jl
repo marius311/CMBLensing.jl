@@ -124,7 +124,7 @@ function Base.print_array(io::IO, c::Chain; indent="  ")
         _,cols = displaysize(io)
         for k in keys(c[end])
             str = string("$(indent)$(k) => ", repr(c[k]; context=(:limit => true)))
-            println(io, Base._truncate_at_width_or_chars(str, cols))
+            println(io, _truncate_at_width_or_chars(str, cols))
         end
     end
 end

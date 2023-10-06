@@ -431,7 +431,7 @@ function gibbs_sample_slice_θ!(k::Symbol)
         @set! θ[k] = θₖ
         @set! logpdfθ[k] = logpdfθₖ
         @set! Ω.θ = θ
-        pbar_dict[string(k)] = string_trunc(θₖ)
+        pbar_dict[string(k)] = _truncate_at_width_or_chars(θₖ)
         @pack! state = θ, logpdfθ, Ω
     end
 end

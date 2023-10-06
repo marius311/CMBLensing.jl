@@ -366,8 +366,7 @@ macro ⌛(args...)
             esc(combinedef(sdef))
         else
             if isnothing(label)
-                ignore_ANSI = @static VERSION >= v"1.9.0-0" ? true : ()
-                label = "$(Base._truncate_at_width_or_chars(ignore_ANSI..., string(prewalk(rmlines,ex)),26))  ($source_str)"
+                label = "$(_truncate_at_width_or_chars(string(prewalk(rmlines,ex)),26))  ($source_str)"
             end
             :(@timeit $label $(esc(ex)))
         end
@@ -402,7 +401,10 @@ select_known_rule(rule, x, y, R₁::Unknown,   R₂::Unknown) = unknown_rule_err
 
 
 
-string_trunc(x) = Base._truncate_at_width_or_chars(string(x), displaysize(stdout)[2]-14)
+function _truncate_at_width_or_chars(x, width=displaysize(stdout)[2]-14)
+    ignore_ANSI = @static VERSION >= v"1.9.0-0" ? true : ()
+    Base._truncate_at_width_or_chars(ignore_ANSI..., string(x), width)
+end
 
 import NamedTupleTools
 NamedTupleTools.select(d::Dict, keys) = (;(k=>d[k] for k in keys)...)
