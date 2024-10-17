@@ -253,7 +253,6 @@ function MAP_marg(
     nsteps_with_meanfield_update = 4,
     conjgrad_kwargs = (tol=1e-1,nsteps=500),
     α = 0.2,
-    weights = :unlensed, 
     Nsims = 50,
     Nbatch = 1,
     progress::Bool = true,
@@ -266,7 +265,6 @@ function MAP_marg(
 
     dsθ = ds(θ)
     dsθ.G = I # MAP_marg is invariant to G so avoid wasted computation
-    set_distributed_dataset(dsθ)
     @unpack Cϕ, Nϕ, d, Cf, Cn, L = dsθ
     Hϕ⁻¹ = pinv(pinv(Cϕ) + pinv(Nϕ))
     T = real(eltype(d))
@@ -274,9 +272,9 @@ function MAP_marg(
     ϕ = (ϕstart != nothing) ? ϕstart : ϕ = zero(diag(Cϕ))
     f_wf_sims_prev = fill(nothing, Nsims÷Nbatch)
     f_wf_prev = nothing
-    ḡ = nothing
+    ḡ = 0
 
-    tr = []
+    history = []
 
     if progress
         pbar = DistributedProgress(nsteps_with_meanfield_update*Nsims + nsteps, 0.1, "MAP_marg: ")
@@ -297,7 +295,7 @@ function MAP_marg(
         # gradient of data and mean-field sims
 
         function gMAP(Lϕ, dsθ, f_wf_prev, i)
-            f_wf, history = argmaxf_logpdf(
+            f_wf, h = argmaxf_logpdf(
                 dsθ, 
                 (;ϕ, θ);
                 fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
@@ -310,15 +308,16 @@ function MAP_marg(
                 ("α",    α),
                 ("CG ($(i==0 ? "data" : "sim $i"))", "$(length(history)) iterations"),
             ])
-            (;g, f_wf, history)
+            (;g, f_wf, h)
         end
 
         if step > nsteps_with_meanfield_update
             gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev, 0)
+            gMAP_data = (;g=gMAP_data.g + Cϕ\ϕ, gMAP_data.f_wf, gMAP_data.h) # is no MF add in prior so it cancels when sutracted below
             f_wf_prev = gMAP_data.f_wf
         else
             gMAP_data, gMAP_sims = peel(pmap(0:Nsims, [dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do i, d, f_wf_prev
-                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev, i)
+                gMAP(Lϕ, @set(ds.d=d), f_wf_prev, i)
             end)
             ḡ = mean(map(gMAP_sims) do gMAP
                 mean(unbatch(gMAP.g))
@@ -332,12 +331,10 @@ function MAP_marg(
         # take step
         ϕ += T(α) * Hϕ⁻¹ * g
 
-        push!(tr, (;step, g, ϕ))
+        push!(history, (;step, g, ϕ))
         
     end
 
-    set_distributed_dataset(nothing) # free memory
-    
-    return ϕ, tr
+    return (;ϕ, history)
 
 end

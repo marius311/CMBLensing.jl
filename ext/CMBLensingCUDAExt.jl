@@ -133,4 +133,21 @@ function Base.reshape(a::CuArray{T,M}, dims::Tuple{}) where {T,M}
 end
 
 
+# GPU
+function CMBLensing._bilinear_sparse_repr(compute_row!, Ny, Nx, j̃s, ĩs, K, T)
+    K = CuVector{Cint}(K)
+    M = similar(K)
+    V = similar(K,T)
+    CMBLensing.cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
+        index = threadIdx().x
+        stride = blockDim().x
+        for I in index:stride:length(ĩs)
+            compute_row!(I, ĩs[I], j̃s[I], M, V)
+        end
+    end
+    CuSparseMatrixCSR(CuSparseMatrixCOO{T}(K,M,V,(Nx*Ny,Nx*Ny)))
+end
+
+
+
 end
