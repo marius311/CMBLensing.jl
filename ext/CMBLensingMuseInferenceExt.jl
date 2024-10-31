@@ -27,6 +27,8 @@ using ForwardDiff
 
 # we're going to make our own backend
 struct ForwardDiffNoTagBackend{CS} <: AD.AbstractForwardMode end
+const CMBLensing.ForwardDiffNoTagBackend = ForwardDiffNoTagBackend
+
 chunk(::ForwardDiffNoTagBackend{Nothing}, x) = ForwardDiff.Chunk(x)
 chunk(::ForwardDiffNoTagBackend{N}, _) where {N} = ForwardDiff.Chunk{N}()
 
