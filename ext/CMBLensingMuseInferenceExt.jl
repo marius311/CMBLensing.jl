@@ -18,6 +18,13 @@ using Random
 using Requires
 using Setfield
 
+
+_ADgetchunksize(::Nothing) = Nothing  # can't access extension unexported methods
+_ADgetchunksize(::Val{N}) where {N} = N
+function _AD_ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing, tag=true)
+    return AD.ForwardDiffBackend{_ADgetchunksize(chunksize), tag}()
+end
+
 @kwdef struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS
     ds_for_sims :: DS_SIM = ds
@@ -26,7 +33,7 @@ using Setfield
     θ_fixed = (;)
     x = ds.d
     latent_vars = nothing
-    autodiff = AD.HigherOrderBackend((AD.ForwardDiffBackend(), AD.ZygoteBackend()))
+    autodiff = AD.HigherOrderBackend((_AD_ForwardDiffBackend(tag=false), AD.ZygoteBackend()))
     transform_θ = identity
     inv_transform_θ = identity
 end
