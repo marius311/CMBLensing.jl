@@ -69,6 +69,7 @@ UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [weakdeps]
+AbstractDifferentiation = "c29ec348-61ec-40c8-8164-b8c60e9d9f3d"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CUDAKernels = "72cfdca4-0801-4ab0-bf6a-d52aa10adc57"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
@@ -78,7 +79,7 @@ PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
 
 [extensions]
 CMBLensingCUDAExt = "CUDA"
-CMBLensingMuseInferenceExt = "MuseInference"
+CMBLensingMuseInferenceExt = ["MuseInference", "AbstractDifferentiation"]
 CMBLensingPythonCallExt = "PythonCall"
 CMBLensingPythonPlotExt = "PythonPlot"
 

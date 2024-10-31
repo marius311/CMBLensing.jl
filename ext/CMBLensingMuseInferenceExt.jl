@@ -5,13 +5,17 @@ using CMBLensing
 
 if isdefined(Base, :get_extension)
     using MuseInference
-    using MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
-    import AD: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
+    using MuseInference: AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+    import AbstractDifferentiation
+    import AbstractDifferentiation: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
 else
     using ..MuseInference
-    using ..MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
-    import AD: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
+    using ..MuseInference: AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+    import ..AbstractDifferentiation
+    import ..AbstractDifferentiation: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
 end
+
+const AD = AbstractDifferentiation
 
 using Base: @kwdef
 using ComponentArrays
@@ -26,7 +30,7 @@ struct ForwardDiffNoTagBackend{CS} <: AD.AbstractForwardMode end
 chunk(::ForwardDiffNoTagBackend{Nothing}, x) = ForwardDiff.Chunk(x)
 chunk(::ForwardDiffNoTagBackend{N}, _) where {N} = ForwardDiff.Chunk{N}()
 
-function pushforward_function(ba::ForwardDiffNoTagBackend{CS}, f, xs...)
+function pushforward_function(ba::ForwardDiffNoTagBackend{CS}, f, xs...) where CS
     pushforward_function(AD.ForwardDiffBackend{CS}(), f, xs...)
 end
 
