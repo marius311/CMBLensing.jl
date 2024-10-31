@@ -6,9 +6,11 @@ using CMBLensing
 if isdefined(Base, :get_extension)
     using MuseInference
     using MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+    import AD: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
 else
     using ..MuseInference
     using ..MuseInference: AD, AbstractMuseProblem, MuseResult, Transformedθ, UnTransformedθ
+    import AD: pushforward_function, gradient, jacobian, hessian, value_and_gradient, value_and_gradient
 end
 
 using Base: @kwdef
@@ -17,13 +19,51 @@ using NamedTupleTools
 using Random
 using Requires
 using Setfield
+using ForwardDiff
 
+# we're going to make our own backend
+struct ForwardDiffNoTagBackend{CS} <: AD.AbstractForwardMode end
+chunk(::ForwardDiffNoTagBackend{Nothing}, x) = ForwardDiff.Chunk(x)
+chunk(::ForwardDiffNoTagBackend{N}, _) where {N} = ForwardDiff.Chunk{N}()
 
-_ADgetchunksize(::Nothing) = Nothing  # can't access extension unexported methods
-_ADgetchunksize(::Val{N}) where {N} = N
-function _AD_ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing, tag=true)
-    return AD.ForwardDiffBackend{_ADgetchunksize(chunksize), tag}()
+function pushforward_function(ba::ForwardDiffNoTagBackend{CS}, f, xs...)
+    pushforward_function(AD.ForwardDiffBackend{CS}(), f, xs...)
 end
+
+function AD.gradient(ba::ForwardDiffNoTagBackend, f, x::AbstractArray)
+    cfg = ForwardDiff.GradientConfig(nothing, x, chunk(ba, x))
+    return (ForwardDiff.gradient(f, x, cfg),)
+end
+
+function AD.jacobian(ba::ForwardDiffNoTagBackend, f, x::AbstractArray)
+    cfg = ForwardDiff.JacobianConfig(nothing, x, chunk(ba, x))
+    return (ForwardDiff.jacobian(AD.asarray ∘ f, x, cfg),)
+end
+
+function AD.jacobian(ba::ForwardDiffNoTagBackend, f, x::R) where {R <: Number}
+    T = typeof(ForwardDiff.Tag(nothing, R))
+    return (ForwardDiff.extract_derivative(T, f(ForwardDiff.Dual{T}(x, one(x)))),)
+end
+
+function AD.hessian(ba::ForwardDiffNoTagBackend, f, x::AbstractArray)
+    cfg = ForwardDiff.HessianConfig(nothing, x, chunk(ba, x))
+    return (ForwardDiff.hessian(f, x, cfg),)
+end
+
+function AD.value_and_gradient(ba::ForwardDiffNoTagBackend, f, x::AbstractArray)
+    result = DiffResults.GradientResult(x)
+    cfg = ForwardDiff.GradientConfig(nothing, x, chunk(ba, x))
+    ForwardDiff.gradient!(result, f, x, cfg)
+    return DiffResults.value(result), (DiffResults.derivative(result),)
+end
+
+function AD.value_and_hessian(ba::ForwardDiffNoTagBackend, f, x)
+    result = DiffResults.HessianResult(x)
+    cfg = ForwardDiff.HessianConfig(nothing, result, x, chunk(ba, x))
+    ForwardDiff.hessian!(result, f, x, cfg)
+    return DiffResults.value(result), (DiffResults.hessian(result),)
+end
+
 
 @kwdef struct CMBLensingMuseProblem{DS<:DataSet,DS_SIM<:DataSet} <: AbstractMuseProblem
     ds :: DS
@@ -33,7 +73,7 @@ end
     θ_fixed = (;)
     x = ds.d
     latent_vars = nothing
-    autodiff = AD.HigherOrderBackend((_AD_ForwardDiffBackend(tag=false), AD.ZygoteBackend()))
+    autodiff = AD.HigherOrderBackend((ForwardDiffNoTagBackend(), AD.ZygoteBackend()))
     transform_θ = identity
     inv_transform_θ = identity
 end
