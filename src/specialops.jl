@@ -9,13 +9,15 @@ simulate(rng::AbstractRNG, D::DiagOp; Nbatch=()) = sqrt(D) * randn!(rng, similar
 (*)(D::DiagOp{<:Field{B}}, f::Field) where {B} = diag(D) .* B(f)
 (\)(D::DiagOp{<:Field{B}}, f::Field) where {B} = nan2zero.(diag(D) .\ B(f))
 
-# the generic versions of these kind of suck so we need these specializized
+# the generic versions of these kind of suck so we need these specializied
 # versions:
 (*)(x::Adjoint{<:Any,<:Field}, D::DiagOp) = (D*parent(x))'
 (*)(x::Adjoint{<:Any,<:Field}, D::DiagOp, y::Field) = x*(D*y)
 diag(D::DiagOp) = D.diag
 (^)(D::DiagOp, p::Integer) = Diagonal(diag(D).^p)
 pinv(D::DiagOp) = Diagonal(pinv.(diag(D)))
+# Custom adjoint for DiagOp to preserve Field structure
+adjoint(D::Diagonal{T, F}) where {T<:Number, F<:Field{B,T} where B<:CMBLensing.Basis} = Diagonal(conj.(diag(D)))
 (≈)(D₁::DiagOp, D₂::DiagOp) = diag(D₁) ≈ diag(D₂)
 mul!(dst::Field, D::DiagOp, src::Field) = dst .= diag(D) .* src
 (/)(D₁::DiagOp, D₂::DiagOp) = Diagonal(diag(D₁) ./ diag(D₂)) # ignore singular
@@ -154,9 +156,13 @@ get_g_metadata(::∇diag) = nothing
 
 
 # adjoint(D::Diagonal{<:∇diag}) calls conj(D.diag) and here we keep
-# track of that a conjugate was taken
+# track of that a conjugate was taken. For gradient operators, we need
+# to conjugate the full complex expression (prefactor * im)
 conj(d::∇diag) = ∇diag(d.coord, d.covariance, -d.prefactor)
 -(d::DiagOp{∇diag}) = Diagonal(conj(d))
+
+# Custom adjoint for Diagonal containing ∇diag to ensure conj is called
+adjoint(D::Diagonal{Complex{Union{}}, <:∇diag}) = Diagonal(conj(D.diag))
 
 # Gradient vector which can be used with FieldVector algebra. 
 # struct ∇Op <: StaticVector{2,Diagonal{Float32,∇diag}} end

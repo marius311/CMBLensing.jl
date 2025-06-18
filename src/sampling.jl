@@ -103,8 +103,8 @@ function grid_and_sample(logpdfs::Vector, xs::AbstractVector; progress=false, ns
     # interpolate PDF
     xmin, xmax = first(xs), last(xs)
     logpdfs = logpdfs .- maximum(logpdfs)
-    interp_logpdfs = loess(xs, logpdfs, span=span)
-    
+    interp_logpdfs = cmblensing_loess(xs, logpdfs; span=span)
+    #
     # normalize the PDF. note the smoothing is done of the log PDF.
     cdf(x) = quadgk(nan2zero∘exp∘interp_logpdfs,xmin,x,rtol=1e-4)[1]
     logA = nan2zero(log(cdf(xmax)))
