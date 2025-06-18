@@ -26,7 +26,7 @@ using Setfield
     θ_fixed = (;)
     x = ds.d
     latent_vars = nothing
-    autodiff = AD.HigherOrderBackend((AD.ForwardDiffBackend(tag=false), AD.ZygoteBackend()))
+    autodiff = AD.HigherOrderBackend((AD.ForwardDiffBackend(), AD.ZygoteBackend()))
     transform_θ = identity
     inv_transform_θ = identity
 end
