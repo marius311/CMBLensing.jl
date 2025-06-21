@@ -566,7 +566,7 @@ end
                 # adjoints
                 f,g = simulate(rng,Cf),simulate(rng,Cf)
                 # for MKL, 20sqrt(eps(Float64)) ≈ 3e-7
-                rtol = FFTW.fftw_provider == "mkl" ? 20eps(T) : eps(T)
+                rtol = FFTW.fftw_provider == "mkl" ? 20sqrt(eps(T)) : sqrt(eps(T))
                 @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g rtol=rtol
                 # gradients
                 δf, δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
