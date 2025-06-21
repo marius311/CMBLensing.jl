@@ -133,7 +133,7 @@ function Base.reshape(a::CuArray{T,M}, dims::Tuple{}) where {T,M}
         return a
     end
   
-    GPUArrays.derive(T, 0, a, dims, 0)
+    GPUArrays.derive(T, a, dims, 0)
 end
 
 
