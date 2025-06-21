@@ -565,7 +565,9 @@ end
                 @test (@inferred Lϕ*f) isa FlatS2
                 # adjoints
                 f,g = simulate(rng,Cf),simulate(rng,Cf)
-                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # for MKL, 20sqrt(eps(Float64)) ≈ 3e-7
+                rtol = FFTW.fftw_provider == "mkl" ? 20eps(T) : eps(T)
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g rtol=rtol
                 # gradients
                 δf, δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
                 @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)
