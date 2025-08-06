@@ -27,7 +27,8 @@ mutable struct BilinearLens{T,Φ<:Field{<:Any,T},S} <: ImplicitOp{T}
     anti_lensing_sparse_repr :: Union{S, Nothing}
 end
 
-function BilinearLens(ϕ::FlatField)
+
+function BilinearLens(ϕ::FlatField{B1,M1,CT,AA}) where {B1,M1,CT,AA<:AbstractArray}
     
     # if ϕ == 0 then just return identity operator
     if norm(ϕ) == 0
@@ -70,41 +71,19 @@ function BilinearLens(ϕ::FlatField)
             1 Δx⁺ Δy⁺ Δx⁺*Δy⁺
         ]
         V[4I-3:4I] .= inv(A)[1,:]
-
     end
     
     # a surprisingly large fraction of the computation for large Nside, so memoize it:
     @memoize getK(Nx,Ny) = Int32.((4:4*Nx*Ny+3) .÷ 4)
 
-    # CPU
-    function compute_sparse_repr(is_gpu_backed::Val{false})
-        K = Vector{Int32}(getK(Nx,Ny))
-        M = similar(K)
-        V = similar(K,T)
-        for I in 1:length(ĩs)
-            compute_row!(I, ĩs[I], j̃s[I], M, V)
-        end
-        sparse(K,M,V,Nx*Ny,Nx*Ny)
+    K = Vector{Int32}(getK(Nx,Ny))
+    M = similar(K)
+    V = similar(K,T)
+    for I in 1:length(ĩs)
+        compute_row!(I, ĩs[I], j̃s[I], M, V)
     end
-
-    # GPU
-    function compute_sparse_repr(is_gpu_backed::Val{true})
-        K = CuVector{Cint}(getK(Nx,Ny))
-        M = similar(K)
-        V = similar(K,T)
-        cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
-            index = threadIdx().x
-            stride = blockDim().x
-            for I in index:stride:length(ĩs)
-                compute_row!(I, ĩs[I], j̃s[I], M, V)
-            end
-        end
-        CuSparseMatrixCSR(CuSparseMatrixCOO{T}(K,M,V,(Nx*Ny,Nx*Ny)))
-    end
-    
-    
-    BilinearLens(ϕ, compute_sparse_repr(Val(is_gpu_backed(ϕ))), nothing)
-
+    spr = sparse(K,M,V,Nx*Ny,Nx*Ny)
+    return BilinearLens(ϕ, spr, nothing)
 end
 
 

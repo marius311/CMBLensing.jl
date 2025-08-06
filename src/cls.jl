@@ -122,7 +122,7 @@ function smooth(Cℓ::Cℓs; newℓs=minimum(Cℓ.ℓ):maximum(Cℓ.ℓ), xscale
         _ => throw(ArgumentError("'xscale' should be :log or :linear"))
     end
     
-    Cℓs(newℓs, fy⁻¹.(Loess.predict(loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ),span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
+    Cℓs(newℓs, fy⁻¹.(Loess.predict(cmblensing_loess(fx.(Cℓ.ℓ),fy.(Cℓ.Cℓ); span=smoothing),fx.(newℓs))), concrete=Cℓ.concrete)
 end
 
 

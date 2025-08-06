@@ -1,4 +1,3 @@
-
 # accum is basically supposed to do addition, but Zygotes default for
 # Arrays does a broadcast which doesnt do a potentially needed basis
 # conversion.
@@ -15,11 +14,11 @@ Zygote.accum(x::FieldOp, y::FieldOp, zs::FieldOp...) = _plus_accum(x, y, zs...)
 
 
 # constant functions, as far as AD is concerned
-@nograd ProjLambert
-@nograd fieldinfo
-@nograd hasfield
-@nograd basetype
-@nograd get_storage
+ChainRulesCore.@non_differentiable ProjLambert(::Any...)
+ChainRulesCore.@non_differentiable fieldinfo(::Any...)
+ChainRulesCore.@non_differentiable hasfield(::Any...)
+ChainRulesCore.@non_differentiable basetype(::Any...)
+ChainRulesCore.@non_differentiable get_storage(::Any...)
 
 
 # AD for Fourier Fields can be really subtle because such objects are
@@ -240,6 +239,28 @@ ProjectTo(::L) where {L<:FieldOp} = ProjectTo{L}()
 (project::ProjectTo{L})(dx::FieldOp) where {L<:FieldOp} = dx
 
 Zygote.wrap_chainrules_output(dxs::LazyBinaryOp) = dxs
+
+# ProjectTo and _eltype_projectto support for ChainRules compatibility
+# This is needed for StaticArrays and other packages that rely on ProjectTo
+ChainRulesCore._eltype_projectto(::Type{F}) where {F<:BaseField} = ProjectTo{F}()
+ChainRulesCore._eltype_projectto(::Type{SA}) where {SA<:SArray} = ProjectTo{SA}()
+
+# Allow multiplication of SVector{2} (like from gradients) with Fields
+*(v::SVector{2, <:Real}, f::Field) = @SVector[v[1]*f, v[2]*f]
+
+# Custom adjoint for SVector * Field to ensure proper gradient flow
+@adjoint function *(v::SVector{2, <:Real}, f::Field)
+    result = v * f
+    function svector_field_pullback(Δ)
+        # Δ should be SVector{2, <:Field} 
+        # Gradient w.r.t. v should be SVector{2, Real}
+        # Gradient w.r.t. f should be Field
+        v_grad = @SVector [sum(Δ[1]), sum(Δ[2])]
+        f_grad = v[1] * Δ[1] + v[2] * Δ[2]
+        return (v_grad, f_grad)
+    end
+    return result, svector_field_pullback
+end
 
 # needed to allow AD through field broadcasts
 Zygote.unbroadcast(x::BaseField{B}, x̄::BaseField) where {B} = 

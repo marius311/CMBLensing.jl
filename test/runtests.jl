@@ -455,7 +455,8 @@ end;
                 # seem like a fairly unusual, but keeping them here as broken for now... 
                 @test_broken gradient(f -> sum(Diagonal.(Map.(∇*f))' * Fourier.(v)), f)[1] ≈ ∇' * v
                 @test_broken gradient(f -> sum(Diagonal.(Map.(∇*f))' * Map.(v)), f)[1] ≈ ∇' * v
-                @test_broken gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
+                
+                @test gradient(f -> sum(sum(Diagonal.(@SMatrix[f f; f f]) * @SVector[f,f])), f)[1] ≈ 8*f
 
             end
             
@@ -564,7 +565,9 @@ end
                 @test (@inferred Lϕ*f) isa FlatS2
                 # adjoints
                 f,g = simulate(rng,Cf),simulate(rng,Cf)
-                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g
+                # for MKL, 20sqrt(eps(Float64)) ≈ 3e-7
+                rtol = FFTW.fftw_provider == "mkl" ? 20sqrt(eps(T)) : sqrt(eps(T))
+                @test f' * (Lϕ * g) ≈ (f' * Lϕ) * g rtol=rtol
                 # gradients
                 δf, δϕ = simulate(rng,Cf), simulate(rng,Cϕ)
                 @test_real_gradient(α -> norm(L(ϕ+α*δϕ)*(f+α*δf)), T(0), atol=atol)

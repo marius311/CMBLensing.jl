@@ -317,7 +317,8 @@ end
 
 
 # for mixed eltype, which Loess stupidly does not support
-Loess.loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
+cmblensing_loess(x,y; kwargs...) = Loess.loess(x,y, kwargs...)
+cmblensing_loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
     loess(collect.(zip(promote.(x,y)...))...; kwargs...)
 
 
@@ -465,18 +466,3 @@ ensure_dense(vec::SparseVector) = collect(vec)
 
 unsafe_free!(x::AbstractArray) = nothing
 
-
-# fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
-function Base.reshape(a::Array{T,M}, dims::Tuple{}) where {T,M}
-    throw_dmrsa(dims, len) =
-        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
-
-    if prod(dims) != length(a)
-        throw_dmrsa(dims, length(a))
-    end
-    Base.isbitsunion(T) && return ReshapedArray(a, dims, ())
-    if 0 == M && dims == size(a)
-        return a
-    end
-    ccall(:jl_reshape_array, Array{T,0}, (Any, Any, Any), Array{T,0}, a, dims)
-end

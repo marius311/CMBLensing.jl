@@ -16,10 +16,13 @@ using AbstractFFTs
 using EllipsisNotation
 using ForwardDiff
 using ForwardDiff: Dual, Partials, value, partials
+using GPUArrays
 using LinearAlgebra
 using Markdown
+using Memoization
 using Random
 using SparseArrays
+using StaticArrays
 using Zygote
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
@@ -62,7 +65,7 @@ Adapt.adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
 # some Random API which CUDA doesn't implement yet
 Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
-    cpu(randn!(rng, CuVector{T}(undef,1)))[1]
+    cpu(randn!(rng, CUDA.CuVector{T}(undef,1)))[1]
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator
@@ -120,6 +123,7 @@ function ForwardDiff.extract_gradient_chunk!(::Type{T}, result::CuArray, dual, i
 end
 
 # fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
+# A method ambiguity between Base.reshape and ComponentArrays.reshape for 0-dim arrays
 function Base.reshape(a::CuArray{T,M}, dims::Tuple{}) where {T,M}
     if prod(dims) != length(a)
         throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $(size(a))"))
@@ -129,8 +133,73 @@ function Base.reshape(a::CuArray{T,M}, dims::Tuple{}) where {T,M}
         return a
     end
   
-    CUDA._derived_array(T, 0, a, dims)
+    GPUArrays.derive(T, a, dims, 0)
 end
+
+
+function CMBLensing.BilinearLens(ϕ::FlatField{B1,M1,CT,AA}) where {B1,M1,CT,AA<:CuArray}
+    
+    # if ϕ == 0 then just return identity operator
+    if norm(ϕ) == 0
+        return BilinearLens(ϕ,I,I)
+    end
+    
+    @unpack Nbatch,Nx,Ny,Δx = ϕ
+    T = real(ϕ.T)
+    Nbatch > 1 && error("BilinearLens with batched ϕ not implemented yet.")
+    
+    # the (i,j)-th pixel is deflected to (ĩs[i],j̃s[j])
+    j̃s,ĩs = getindex.((∇*ϕ)./Δx, :Ix)
+    ĩs .=  ĩs  .+ (1:Ny)
+    j̃s .= (j̃s' .+ (1:Nx))'
+    
+    # sub2ind converts a 2D index to 1D index, including wrapping at edges
+    indexwrap(i,N) = mod(i - 1, N) + 1
+    sub2ind(i,j) = Base._sub2ind((Ny,Nx),indexwrap(i,Ny),indexwrap(j,Nx))
+
+    # compute the 4 non-zero entries in L[I,:] (ie the Ith row of the sparse
+    # lensing representation, L) and add these to the sparse constructor
+    # matrices, M, and V, accordingly. this function is split off so it can be
+    # called directly or used as a CUDA kernel
+    function compute_row!(I, ĩ, j̃, M, V)
+
+        # (i,j) indices of the 4 nearest neighbors
+        left,right = floor(Int,ĩ) .+ (0, 1)
+        top,bottom = floor(Int,j̃) .+ (0, 1)
+        
+        # 1-D indices of the 4 nearest neighbors
+        M[4I-3:4I] .= @SVector[sub2ind(left,top), sub2ind(right,top), sub2ind(left,bottom), sub2ind(right,bottom)]
+        
+        # weights of these neighbors in the bilinear interpolation
+        Δx⁻, Δx⁺ = ((left,right) .- ĩ)
+        Δy⁻, Δy⁺ = ((top,bottom) .- j̃)
+        A = @SMatrix[
+            1 Δx⁻ Δy⁻ Δx⁻*Δy⁻;
+            1 Δx⁺ Δy⁻ Δx⁺*Δy⁻;
+            1 Δx⁻ Δy⁺ Δx⁻*Δy⁺;
+            1 Δx⁺ Δy⁺ Δx⁺*Δy⁺
+        ]
+        V[4I-3:4I] .= inv(A)[1,:]
+
+    end
+    
+    # a surprisingly large fraction of the computation for large Nside, so memoize it:
+    @memoize getK(Nx,Ny) = Int32.((4:4*Nx*Ny+3) .÷ 4)
+
+    K = CUDA.CuVector{Cint}(getK(Nx,Ny))
+    M = similar(K)
+    V = similar(K,T)
+    CMBLensing.cuda(ĩs, j̃s, M, V; threads=256) do ĩs, j̃s, M, V
+        index = CUDA.threadIdx().x
+        stride = CUDA.blockDim().x
+        for I in index:stride:length(ĩs)
+            compute_row!(I, ĩs[I], j̃s[I], M, V)
+        end
+    end
+    spr = CuSparseMatrixCSR(CuSparseMatrixCOO{T}(K,M,V,(Nx*Ny,Nx*Ny)))
+    return CMBLensing.BilinearLens(ϕ, spr, nothing)
+end
+
 
 
 end

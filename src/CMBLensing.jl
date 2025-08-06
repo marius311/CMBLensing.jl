@@ -9,6 +9,7 @@ using Base: @kwdef, @propagate_inbounds, Bottom, OneTo, showarg, show_datatype,
     show_default, show_vector, typed_vcat, typename, Callable
 using Bijections
 using ChainRules
+using ChainRulesCore
 using ChainRules: @opt_out, rrule, unthunk
 using CodecZlib
 using Combinatorics
@@ -26,13 +27,14 @@ using FileIO
 using FFTW
 using ForwardDiff
 using ForwardDiff: Dual, Partials, value, partials
+import GPUArrays
 using Healpix
 using InteractiveUtils
 using IterTools: flagfirst
 using JLD2
 using JLD2: jldopen, JLDWriteSession
 using KahanSummation
-using Loess
+import Loess
 using LinearAlgebra
 using LinearAlgebra: diagzero, matprod, promote_op
 using MacroTools: @capture, combinedef, isdef, isexpr, postwalk, prewalk, rmlines, splitdef
@@ -66,7 +68,7 @@ using TimerOutputs: @timeit, get_defaulttimer, reset_timer!
 using Tullio
 using UnPack
 using Zygote
-using Zygote: unbroadcast, Numeric, @adjoint, @nograd
+using Zygote: unbroadcast, Numeric, @adjoint
 using Zygote.ChainRules: @thunk, NoTangent
 
 
