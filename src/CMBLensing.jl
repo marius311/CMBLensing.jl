@@ -82,7 +82,7 @@ import Base: +, -, *, \, /, ^, ~, ≈, <, <=, |, &, ==, !,
     transpose, zero
 import Base.Broadcast: materialize, preprocess, broadcasted
 import Zygote.ChainRules: rrule
-import LinearAlgebra: checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
+import LinearAlgebra: Diagonal, checksquare, diag, dot, isnan, ldiv!, logdet, mul!, norm,
     pinv, StructuredMatrixStyle, structured_broadcast_alloc, tr, det
 import Measurements: ±
 import Statistics: std

@@ -478,6 +478,7 @@ end
     
     D = Diagonal(maybegpu(FlatMap(rand(rng,4,4))))
     
+    @test Diagonal(ParamDependentOp((;x=1)->x*D)) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(x=2) ≈ 2D
