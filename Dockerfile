@@ -49,7 +49,7 @@ USER $NB_USER
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
 RUN pip3 install --no-cache-dir \
         jinja2 \
-        juliacall \
+        juliacall==0.9.26 \
         jupyterlab \
         jupytext \
         matplotlib \
@@ -72,7 +72,7 @@ ARG JULIA_FFTW_PROVIDER=FFTW
 # Project.toml (and making a dummy src/CMBLensing.jl which we have to), so that
 # other changes to files in src/ won't have to redo these steps
 COPY --chown=1000 Project.toml CondaPkg.toml $HOME/CMBLensing/
-COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
+COPY --chown=1000 docs/Project.toml docs/CondaPkg.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && mkdir $HOME/CMBLensing/docs/build && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
 # Avoid a separate conda uv dependency while retaining CondaPkg's

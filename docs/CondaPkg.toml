@@ -1,0 +1,5 @@
+[deps]
+# Keep Python below 3.13 for the pinned PythonCall version.
+python = ">=3.8,<3.13"
+# Preserve Julia's C++ runtime compatibility when resolving Conda packages.
+libstdcxx = "<=julia"
