@@ -31,7 +31,7 @@ RUN apt-get update \
     
 ## install julia
 RUN mkdir /opt/julia \
-    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.9/julia-1.9.3-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
+    && curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-1.10.12-linux-x86_64.tar.gz | tar zxf - -C /opt/julia --strip=1 \
     && chown -R 1000 /opt/julia \
     && ln -s /opt/julia/bin/julia /usr/local/bin
 
@@ -49,7 +49,7 @@ USER $NB_USER
 # see https://github.com/jupyter/jupyter_client/issues/637 re: jupyter-client==6.1.12
 RUN pip3 install --no-cache-dir \
         jinja2 \
-        juliacall \
+        juliacall==0.9.26 \
         jupyterlab \
         jupytext \
         matplotlib \
@@ -72,9 +72,12 @@ ARG JULIA_FFTW_PROVIDER=FFTW
 # Project.toml (and making a dummy src/CMBLensing.jl which we have to), so that
 # other changes to files in src/ won't have to redo these steps
 COPY --chown=1000 Project.toml CondaPkg.toml $HOME/CMBLensing/
-COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
+COPY --chown=1000 docs/Project.toml docs/CondaPkg.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && mkdir $HOME/CMBLensing/docs/build && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
+# Avoid a separate conda uv dependency while retaining CondaPkg's
+# C++ library compatibility bounds.
+ENV JULIA_CONDAPKG_PIP_BACKEND=pip
 RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"status; dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src

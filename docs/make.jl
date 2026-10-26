@@ -40,7 +40,9 @@ symlink("../../README.md","src-staging/index.md")
 # # highlight output cells (i.e. anything withouout a language specified) white
 # # note: "output" language is added by us in documenter.tpl
 @eval Documenter.Writers.HTMLWriter function domify(dctx::DCtx, node::Node, c::MarkdownAST.CodeBlock)
-    ctx, navnode, settings = dctx.ctx, dctx.navnode, dctx.settings
+    # Documenter 1.1 stores the rendering settings on DCtx; newer releases
+    # keep them on its HTMLContext instead.
+    settings = hasproperty(dctx, :settings) ? dctx.settings : dctx.ctx.settings
     language = c.info
     # function mdconvert(c::Markdown.Code, parent::MDBlockContext; settings::Union{HTML,Nothing}=nothing, kwargs...)
     @tags pre code
