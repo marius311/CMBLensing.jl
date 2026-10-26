@@ -764,6 +764,7 @@ end
 ##
 
 include("lenseflow_adjoint.jl")
+include("map_joint.jl")
 
 ##
 
