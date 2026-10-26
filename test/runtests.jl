@@ -179,6 +179,41 @@ end
 
 ##
 
+@testset "SizedArray constructor gradients" begin
+    values = [1.0, -2.0]
+    @test gradient(x -> sum(CMBLensing.SizedVector{2}(x)), values)[1] == [1.0, 1.0]
+    @test gradient(x -> sum(abs2, CMBLensing.SizedVector{2}(x)), values)[1] ≈ 2 .* values
+
+    _, back = Zygote.pullback(x -> CMBLensing.SizedVector{2}(x), values)
+    for seed in ([3.0, -4.0], CMBLensing.SizedVector{2}([3.0, -4.0]), @SVector[3.0, -4.0])
+        @test back(seed)[1] ≈ [3.0, -4.0]
+    end
+    @test back((data=[3.0, -4.0],))[1] ≈ [3.0, -4.0]
+    unused_back = back(nothing)
+    @test isnothing(unused_back) || (length(unused_back) == 1 && isnothing(only(unused_back)))
+    @test back(zeros(2))[1] == zeros(2)
+    zero_back = back(CMBLensing.ChainRulesCore.ZeroTangent())
+    @test isnothing(zero_back) || (length(zero_back) == 1 &&
+        (isnothing(only(zero_back)) || only(zero_back) isa CMBLensing.ChainRulesCore.AbstractZero))
+
+    # Sized arrays can change dimensionality while preserving element order.
+    vector = [1.0, 2.0, 3.0, 4.0]
+    matrix = reshape(copy(vector), 2, 2)
+    @test gradient(x -> sum(CMBLensing.SizedMatrix{2,2}(x)), vector)[1] == ones(4)
+    @test gradient(x -> sum(CMBLensing.SizedVector{4}(x)), matrix)[1] == ones(2, 2)
+
+    _, back_to_vector = Zygote.pullback(x -> CMBLensing.SizedMatrix{2,2}(x), vector)
+    matrix_seed = [1.0 3.0; 2.0 4.0]
+    @test back_to_vector(matrix_seed)[1] == vector
+    @test back_to_vector(CMBLensing.SizedMatrix{2,2}(matrix_seed))[1] == vector
+
+    _, back_to_matrix = Zygote.pullback(x -> CMBLensing.SizedVector{4}(x), matrix)
+    @test back_to_matrix(vector)[1] == matrix
+    @test back_to_matrix(CMBLensing.SizedVector{4}(vector))[1] == matrix
+end
+
+##
+
 @testset "Image and mask operations" begin
     points = falses(7, 7)
     points[4, 4] = true
