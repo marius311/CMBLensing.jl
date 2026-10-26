@@ -214,11 +214,19 @@ function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
 end
 
 # adapting storage
-adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), Lϕ.solver, Lϕ.t₀, Lϕ.t₁)
+adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁)
 function adapt_structure(storage, Lϕ::CachedLenseFlow)
-    _adapt(x) = adapt(storage, x)
+    # Adapt may reuse storage (e.g. Array -> Array), but distinct caches must
+    # not share mutable fields: recomputing one would corrupt the other.
+    function _adapt(f::BaseField)
+        f′ = adapt(storage, f)
+        Base.mightalias(f.arr, f′.arr) ? copy(f′) : f′
+    end
+    _adapt(f::FieldTuple) = FieldTuple(map(_adapt, f.fs))
+    _adapt(f::Field) = copy(adapt(storage, f))
+    _adapt(d::Diagonal) = Diagonal(_adapt(d.diag))
     CachedLenseFlow(
-        Ref(_adapt(Lϕ.ϕ[])), Lϕ.needs_precompute,
+        Ref{Any}(_adapt(Lϕ.ϕ[])), Ref(Lϕ.needs_precompute[]),
         Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁,
         Dict(τ => _adapt.(x) for (τ,x) in Lϕ.p), 
         Dict(τ => _adapt.(x) for (τ,x) in Lϕ.M⁻¹),
