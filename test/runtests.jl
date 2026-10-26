@@ -39,6 +39,11 @@ using Zygote
 struct TestFloat32Adaptor end
 Adapt.adapt_storage(::TestFloat32Adaptor, x::Array{T}) where {T<:AbstractFloat} = Float32.(x)
 
+CMBLensing.@fwdmodel function test_ordered_model()
+    first_draw ← 1
+    second_draw ← first_draw + 1
+end
+
 ##
 
 try
@@ -162,6 +167,14 @@ end
     adapted = adapt(adaptor, captured)
     @test eltype(getfield(adapted, 1)) == Float32
     @test adapted(Float32[2, 3]) == 8
+end
+
+##
+
+@testset "Ordered simulation variables" begin
+    vars = simulate(StableRNG(5), test_ordered_model)
+    @test vars == (first_draw=1, second_draw=2)
+    @test keys(vars) == (:first_draw, :second_draw)
 end
 
 ##
