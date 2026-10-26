@@ -165,4 +165,100 @@ Adapt.adapt_storage(::IdentityCPUStorage, x::Array) = x
         @test precompute!!(converted, fcopy) === converted
         @test all(isfinite, (converted * fcopy).arr)
     end
+
+    @testset "standard interval results" begin
+        cached = precompute!!(L, f)
+        ops = (((L, x) -> L * x), ((L, x) -> L \ x), ((L, x) -> L' * x), ((L, x) -> L' \ x))
+        expected = (
+            [1.001233700237184, 0.7077233623262509, -0.2922766376737492, 0.0006171192539564704],
+            [0.9987663007016729, 0.7064891231142287, -0.29351087688577127, -0.0006160437296268212],
+            [0.998764778059493, 0.7071054359009138, -0.2937669204643614, -0.0006155038158639702],
+            [1.00123370039366, 0.7071059740151333, -0.29202166795991186, 0.0006176574464821422],
+        )
+        for (op, reference) in zip(ops, expected)
+            y = Map(op(cached, f)).arr
+            @test [y[1,1], y[2,3], y[4,5], y[8,8]] ≈ reference rtol=1e-10 atol=1e-10
+        end
+    end
+
+    @testset "RK4 stage-time keys" begin
+        function custom_cache(ϕ, f, t₀)
+            template = precompute!!(LenseFlow(ϕ, 3), f)
+            p, M⁻¹ = CMBLensing._lenseflow_cache_dicts(ϕ, t₀, 1.0, 3)
+            cache = CachedLenseFlow(
+                Ref{Any}(ϕ), Ref(true), template.odesolve, t₀, 1.0, p, M⁻¹,
+                template.memŁf, template.memÐf, template.memŁvf, template.memÐvf,
+                template.memŁϕ, template.memÐϕ, template.memŁvϕ, template.memÐvϕ,
+            )
+            precompute!!(cache, f)
+        end
+
+        ops = (
+            "forward" => ((L, x) -> L * x),
+            "reverse" => ((L, x) -> L \ x),
+            "adjoint" => ((L, x) -> L' * x),
+            "inverse-adjoint" => ((L, x) -> L' \ x),
+        )
+        @testset "t₀ = $t₀32" for (t₀32, reverse_stage) in ((0.118017554f0, false), (0.709082f0, true))
+            source = custom_cache(ϕ, f, Float64(t₀32))
+            expected = [Float32.(Map(op(source, f)).arr) for (_, op) in ops]
+            converted = adapt(storage, source)
+
+            nominal = Float16.(range(t₀32, 1f0; length=7))
+            if reverse_stage
+                h = (t₀32 - 1f0) / 3
+                t = range(1f0, t₀32; length=4)[3]
+                stage_key = Float16(t + h / 2)
+            else
+                h = (1f0 - t₀32) / 3
+                stage_key = Float16(t₀32 + h / 2)
+            end
+            nominal_key = nominal[2]
+            @test stage_key ∉ nominal
+            for ((name, op), reference) in zip(ops, expected)
+                @testset "$name" begin
+                    @test Map(op(converted, fcopy)).arr ≈ reference rtol=1e-5 atol=2e-6
+                end
+            end
+
+            @test haskey(converted.p, stage_key)
+            @test haskey(converted.M⁻¹, stage_key)
+            if haskey(converted.p, stage_key) && haskey(converted.M⁻¹, stage_key)
+                @test converted.p[stage_key][1].diag.arr === converted.p[nominal_key][1].diag.arr
+                @test converted.M⁻¹[stage_key][1,1].diag.arr === converted.M⁻¹[nominal_key][1,1].diag.arr
+            end
+
+            copied = adapt(IdentityCPUStorage(), converted)
+            @test !copied.needs_precompute[]
+            @test haskey(copied.p, stage_key)
+            @test haskey(copied.M⁻¹, stage_key)
+            if haskey(copied.p, stage_key) && haskey(copied.M⁻¹, stage_key)
+                @test copied.p[stage_key][1].diag.arr === copied.p[nominal_key][1].diag.arr
+                @test copied.M⁻¹[stage_key][1,1].diag.arr === copied.M⁻¹[nominal_key][1,1].diag.arr
+                @test copied.p[stage_key][1].diag.arr !== converted.p[stage_key][1].diag.arr
+            end
+
+            copied(2 * converted.ϕ[])
+            source(2 * ϕ)
+            @test copied.needs_precompute[]
+            for (name, op) in ops
+                @testset "refreshed $name" begin
+                    @test Map(op(copied, fcopy)).arr ≈ Float32.(Map(op(source, f)).arr) rtol=1e-5 atol=2e-6
+                end
+            end
+            if haskey(copied.p, stage_key) && haskey(copied.M⁻¹, stage_key)
+                @test copied.p[stage_key][1].diag.arr === copied.p[nominal_key][1].diag.arr
+                @test copied.M⁻¹[stage_key][1,1].diag.arr === copied.M⁻¹[nominal_key][1,1].diag.arr
+            end
+            @test Map(converted * fcopy).arr ≈ expected[1] rtol=1e-5 atol=2e-6
+
+            converted(2 * converted.ϕ[])
+            dirty_copy = adapt(IdentityCPUStorage(), converted)
+            @test dirty_copy.needs_precompute[]
+            @test Map(dirty_copy * fcopy).arr ≈ Float32.(Map(source * f).arr) rtol=1e-5 atol=2e-6
+            @test converted.needs_precompute[]
+            @test dirty_copy.p[stage_key][1].diag.arr === dirty_copy.p[nominal_key][1].diag.arr
+            @test dirty_copy.M⁻¹[stage_key][1,1].diag.arr === dirty_copy.M⁻¹[nominal_key][1,1].diag.arr
+        end
+    end
 end

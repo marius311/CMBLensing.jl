@@ -77,6 +77,30 @@ hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
 
 τ(t) = Float16(t)
 
+# Float16 keys for an RK4 stage can differ from the corresponding nominal
+# half-step when time arithmetic rounds. Preserve the nominal entries and
+# bind only missing stage keys to them, in both integration directions.
+_lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, ::ODESolver) = nothing
+function _lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, solver::RK4Solver)
+    nsteps = solver.nsteps
+    τs = τ.(range(t₀, stop=t₁, length=2nsteps+1))
+    nominal = Set(τs)
+    for (start, stop, direction) in ((t₀,t₁,1), (t₁,t₀,-1))
+        h, h½, _ = (stop-start)/nsteps ./ (1,2,6)
+        for (i, t) in enumerate(range(start, stop=stop, length=nsteps+1)[1:end-1])
+            j = direction == 1 ? 2i-1 : 2(nsteps-i)+3
+            for (stage, k) in ((t,j), (t+h½,j+direction), (t+h,j+2direction))
+                key = τ(stage)
+                if !(key in nominal)
+                    p[key] = p[τs[k]]
+                    M⁻¹[key] = M⁻¹[τs[k]]
+                end
+            end
+        end
+    end
+    nothing
+end
+
 function _lenseflow_cache_dicts(Łϕ, t₀, t₁, nsteps)
     τs = τ.(range(t₀, stop=t₁, length=2nsteps+1))
     p = Dict(map(τ -> (τ => Diagonal.(similar.(@SVector[Łϕ, Łϕ]))), τs))
@@ -142,6 +166,7 @@ function precompute!(Lϕ::CachedLenseFlow{S,T}) where {S,T}
         @! Lϕ.M⁻¹[τ] = pinv(Diagonal.(I + T(t)*∇∇ϕ))
         @! Lϕ.p[τ] = Lϕ.M⁻¹[τ]' * Diagonal.(∇ϕ)
     end
+    _lenseflow_bind_stage_aliases!(Lϕ.p, Lϕ.M⁻¹, t₀, t₁, odesolve)
     Lϕ
 end
 
@@ -255,6 +280,10 @@ function adapt_structure(storage, Lϕ::CachedLenseFlow)
         # The adapted potential or time grid may differ. Rebuild the Float16
         # keys without transferring stale coefficients, then recompute lazily.
         p, M⁻¹ = _lenseflow_cache_dicts(Ł(ϕ), t₀, t₁, Lϕ.odesolve.nsteps)
+    else
+        # Independently copied stage aliases must point at the copied nominal
+        # entries, including after later potential updates.
+        _lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, Lϕ.odesolve)
     end
     CachedLenseFlow(
         Ref{Any}(ϕ), Ref(!reuse),
