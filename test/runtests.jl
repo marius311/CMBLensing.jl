@@ -5,7 +5,9 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
-using CUDA
+if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
+    using CUDA
+end
 if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU") && CUDA.functional()
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
@@ -31,6 +33,11 @@ using SparseArrays
 using StableRNGs
 using Test
 using Zygote
+
+# Exercise storage adaptation without requiring a GPU. This also tests that
+# fields' projection metadata is adapted together with their data.
+struct TestFloat32Adaptor end
+Adapt.adapt_storage(::TestFloat32Adaptor, x::Array{T}) where {T<:AbstractFloat} = Float32.(x)
 
 ##
 
@@ -130,6 +137,72 @@ end
         end
     end
 
+end
+
+##
+
+@testset "Adaptation" begin
+    f = FlatMap(reshape(collect(1.0:16.0), 4, 4))
+    adaptor = TestFloat32Adaptor()
+    f32 = adapt(adaptor, f)
+    @test eltype(f32.Ix) == Float32
+    @test f32.Ix == Float32.(f.Ix)
+    @test f32.proj.T == Float32
+    @test Map(Fourier(f32)) ≈ f32
+
+    tuple = FieldTuple(; f, values=[1.0, 2.0])
+    tuple32 = adapt(adaptor, tuple)
+    @test tuple32.f ≈ f32
+    @test tuple32.values == Float32[1, 2]
+    @test eltype(tuple32.values) == Float32
+
+    captured = let values = [1.0, 2.0]
+        x -> sum(values .* x)
+    end
+    adapted = adapt(adaptor, captured)
+    @test eltype(getfield(adapted, 1)) == Float32
+    @test adapted(Float32[2, 3]) == 8
+end
+
+##
+
+@testset "Image and mask operations" begin
+    points = falses(7, 7)
+    points[4, 4] = true
+    grown = CMBLensing.bleed(points, 2)
+    @test grown[4, 4] && grown[4, 5]
+    @test !grown[4, 6]
+
+    mask = make_mask(StableRNG(1), (16, 16), 60;
+        edge_padding_deg=2, edge_rounding_deg=0, apodization_deg=1,
+        num_ptsrcs=0)
+    @test all(isfinite, mask.Ix)
+    @test minimum(mask.Ix) ≈ 0
+    @test maximum(mask.Ix) ≈ 1
+
+    # Exact points, fractional points, and zero padding must retain the old
+    # Cartesian-to-Healpix interpolation behavior.
+    @testset "Bilinear interpolation: $T" for T in (Float32, Float64)
+        img = T[1 2; 3 4]
+        @test CMBLensing._bilinear_sample(img, 1.0, 1.0) === T(1)
+        @test CMBLensing._bilinear_sample(img, 1.5, 1.5) ≈ T(2.5)
+        @test CMBLensing._bilinear_sample(img, 0.5, 1.0) ≈ T(0.5)
+        @test CMBLensing._bilinear_sample(img, 2.5, 2.0) ≈ T(2)
+        @test CMBLensing._bilinear_sample(img, -1.0, -1.0) === T(0)
+        @test CMBLensing._bilinear_sample(T[1 NaN; NaN NaN], 1.0, 1.0) === T(1)
+        dimg = gradient(a -> CMBLensing._bilinear_sample(a, 1.25, 1.75), img)[1]
+        @test dimg ≈ T[0.1875 0.5625; 0.0625 0.1875]
+
+        # A constant Cartesian map stays constant at Healpix pixels inside it.
+        proj = ProjEquiRect(; Ny=16, Nx=32, θspan=(0, π), φspan=(0, 2π), T)
+        map = CMBLensing.EquiRectMap(ones(T, 16, 32), proj)
+        hpx_proj = ProjHealpix(2)
+        projector = CMBLensing.Projector(proj => hpx_proj)
+        healpix = project(projector, map => hpx_proj)
+        @test eltype(healpix[:]) == T
+        @test !isempty(projector.hpx_idxs_in_patch)
+        @test all(x -> x ≈ 1, healpix[:][projector.hpx_idxs_in_patch])
+    end
 end
 
 ##
@@ -341,6 +414,26 @@ end
     @test Cℓs(1:100, rand(rng,100)).Cℓ isa Vector{Float64}
     @test Cℓs(1:100, rand(rng,100) .± 1).Cℓ isa Vector{Measurement{Float64}}
     @test (Cℓs(1:100, 1:100) * ℓ²)[50] == 50^3
+
+    # The on-disk representation deliberately reconstructs the interpolation.
+    mktempdir() do dir
+        path = joinpath(dir, "spectra.jld2")
+        spectrum = Cℓs([0.0, 1.0, 2.0], [3.0, 7.0, 11.0])
+        save(path, "spectrum", spectrum)
+        restored = load(path, "spectrum")
+        @test restored[1.5] ≈ 9.0
+        @test isnan(restored[-1.0])
+        @test restored.concrete == spectrum.concrete
+    end
+
+    # The flat-sky estimator bins weighted Fourier modes using StatsBase.
+    f = FlatMap(rand(rng, 8, 8); θpix=60)
+    auto = get_Cℓ(f; ℓedges=0:50:250)
+    cross = get_Cℓ(f, 2f; ℓedges=0:50:250)
+    @test !isempty(auto[:])
+    @test all(isfinite, auto[:])
+    @test cross.ℓ ≈ auto.ℓ
+    @test cross[:] ≈ 2 .* auto[:]
     
 end
 
