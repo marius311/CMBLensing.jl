@@ -532,6 +532,8 @@ end
 
 ##
 
+include("lenseflow_adaptation.jl")
+
 @testset "Lensing" begin
     
     local f, ϕ, Lϕ
