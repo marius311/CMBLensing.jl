@@ -385,6 +385,8 @@ end
 
 end;
 
+include("chains.jl")
+
 
 ##
 
