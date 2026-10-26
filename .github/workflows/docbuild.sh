@@ -10,9 +10,11 @@ docker run \
     -e GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
     -e GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME \
     -e GITHUB_REF=$GITHUB_REF \
+    -e GITHUB_SHA=$GITHUB_SHA \
+    -e GITHUB_RUN_NUMBER=$GITHUB_RUN_NUMBER \
     -e GITHUB_ACTOR=$GITHUB_ACTOR \
     -e IMAGE_NAME=$IMAGE_NAME \
     -v $(pwd)/.git:/home/cosmo/CMBLensing/.git \
     -w /home/cosmo/CMBLensing/docs \
     $IMAGE_NAME \
-    julia make.jl
+    sh -c 'env -u GITHUB_TOKEN julia --startup-file=no test_deploy_retry.jl && exec julia make.jl'

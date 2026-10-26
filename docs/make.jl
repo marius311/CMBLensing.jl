@@ -175,8 +175,12 @@ if haskey(ENV, "IMAGE_NAME")
     end
 end
 
-deploydocs(
-    repo = "github.com/marius311/CMBLensing.jl.git",
-    push_preview = true,
-    forcepush = true
-)
+include("deploy_with_retry.jl")
+deploy_with_retry() do
+    deploydocs(
+        repo = "github.com/marius311/CMBLensing.jl.git",
+        push_preview = true,
+        forcepush = true,
+        versions = GuardedVersions(["stable" => "v^", "v#.#", "dev" => "dev"], abspath(".."))
+    )
+end
