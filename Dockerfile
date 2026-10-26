@@ -75,6 +75,9 @@ COPY --chown=1000 Project.toml CondaPkg.toml $HOME/CMBLensing/
 COPY --chown=1000 docs/Project.toml $HOME/CMBLensing/docs/
 RUN mkdir $HOME/CMBLensing/src && mkdir $HOME/CMBLensing/docs/build && touch $HOME/CMBLensing/src/CMBLensing.jl
 ENV JULIA_PROJECT=$HOME/CMBLensing/docs
+# Keep CondaPkg's libstdc++ compatibility bounds: the uv conda package
+# requires a newer runtime than the one bundled with this Julia release.
+ENV JULIA_CONDAPKG_PIP_BACKEND=pip
 RUN JULIA_PKG_PRECOMPILE_AUTO=0 julia -e 'using Pkg; pkg"status; dev ~/CMBLensing; instantiate"' \
     && rm -rf $HOME/.julia/conda/3/pkgs
 COPY --chown=1000 src $HOME/CMBLensing/src
