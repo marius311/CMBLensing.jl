@@ -310,8 +310,8 @@ function _bilinear_sample(img::AbstractMatrix{T}, row::Real, col::Real) where {T
     i, j = _bilinear_indices(row, col)
     dy, dx = row - i, col - j
     pixel(y, x) = checkbounds(Bool, img, y, x) ? img[y, x] : zero(T)
-    sample_row(y) = iszero(dx) ? pixel(y, j) : (1-dx)*pixel(y, j) + dx*pixel(y, j+1)
-    T(iszero(dy) ? sample_row(i) : (1-dy)*sample_row(i) + dy*sample_row(i+1))
+    sample_row(y) = _primal_iszero(dx) ? pixel(y, j) : (1-dx)*pixel(y, j) + dx*pixel(y, j+1)
+    T(_primal_iszero(dy) ? sample_row(i) : (1-dy)*sample_row(i) + dy*sample_row(i+1))
 end
 
 function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; method::Symbol=:bilinear)
