@@ -77,6 +77,13 @@ hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
 
 τ(t) = Float16(t)
 
+function _lenseflow_cache_dicts(Łϕ, t₀, t₁, nsteps)
+    τs = τ.(range(t₀, stop=t₁, length=2nsteps+1))
+    p = Dict(map(τ -> (τ => Diagonal.(similar.(@SVector[Łϕ, Łϕ]))), τs))
+    M⁻¹ = Dict(map(τ -> (τ => Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))), τs))
+    p, M⁻¹
+end
+
 function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
     
     @unpack (ϕ, t₀, t₁, odesolve) = Lϕ
@@ -84,10 +91,7 @@ function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
     
     # p & M precomputed matrix elements will use exactly same type as ϕ
     Łϕ, Ðϕ = Ł(ϕ), Ð(ϕ)
-    p, M⁻¹ = Dict(), Dict()
-    τs     = τ.(range(t₀, stop=t₁, length=2nsteps+1))
-    p      = Dict(map(τ -> (τ => Diagonal.(similar.(@SVector[Łϕ, Łϕ]))),       τs))
-    M⁻¹    = Dict(map(τ -> (τ => Diagonal.(similar.(@SMatrix[Łϕ Łϕ; Łϕ Łϕ]))), τs))
+    p, M⁻¹ = _lenseflow_cache_dicts(Łϕ, t₀, t₁, nsteps)
 
     # preallocated memory need to be "wide" enough to handle the
     # batching and/or Dual-ness of both f and ϕ. this is a kind of
@@ -218,18 +222,44 @@ adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), Lϕ
 function adapt_structure(storage, Lϕ::CachedLenseFlow)
     # Adapt may reuse storage (e.g. Array -> Array), but distinct caches must
     # not share mutable fields: recomputing one would corrupt the other.
-    function _adapt(f::BaseField)
-        f′ = adapt(storage, f)
+    function _independent(f::BaseField, f′::BaseField)
         Base.mightalias(f.arr, f′.arr) ? copy(f′) : f′
     end
-    _adapt(f::FieldTuple) = FieldTuple(map(_adapt, f.fs))
-    _adapt(f::Field) = copy(adapt(storage, f))
-    _adapt(d::Diagonal) = Diagonal(_adapt(d.diag))
+    _independent(f::FieldTuple, f′::FieldTuple) = FieldTuple(map(_independent, f.fs, f′.fs))
+    _independent(f::Field, f′::Field) = copy(f′)
+    _adapt(f::Field) = _independent(f, adapt(storage, f))
+    _same(f::BaseField, f′::BaseField) = f.arr === f′.arr && f.metadata === f′.metadata
+    _same(f::FieldTuple, f′::FieldTuple) = keys(f.fs) == keys(f′.fs) && all(map(_same, values(f.fs), values(f′.fs)))
+    _same(::Any, ::Any) = false
+
+    ϕ₀ = Lϕ.ϕ[]
+    ϕ′ = adapt(storage, ϕ₀)
+    T = ForwardDiff.valtype(real(eltype(ϕ′)))
+    t₀, t₁ = T(Lϕ.t₀), T(Lϕ.t₁)
+    reuse = !Lϕ.needs_precompute[] && typeof(Lϕ.t₀) === T && _same(ϕ₀, ϕ′)
+    ϕ = _independent(ϕ₀, ϕ′)
+
+    if reuse
+        # Arbitrary adaptors can change coefficients even when ϕ is unchanged.
+        unchanged = Ref(true)
+        function _adapt_coefficient(d::Diagonal)
+            f′ = adapt(storage, d.diag)
+            unchanged[] &= _same(d.diag, f′)
+            Diagonal(_independent(d.diag, f′))
+        end
+        p = Dict(τ => _adapt_coefficient.(x) for (τ,x) in Lϕ.p)
+        M⁻¹ = Dict(τ => _adapt_coefficient.(x) for (τ,x) in Lϕ.M⁻¹)
+        reuse = unchanged[]
+    end
+    if !reuse
+        # The adapted potential or time grid may differ. Rebuild the Float16
+        # keys without transferring stale coefficients, then recompute lazily.
+        p, M⁻¹ = _lenseflow_cache_dicts(Ł(ϕ), t₀, t₁, Lϕ.odesolve.nsteps)
+    end
     CachedLenseFlow(
-        Ref{Any}(_adapt(Lϕ.ϕ[])), Ref(Lϕ.needs_precompute[]),
-        Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁,
-        Dict(τ => _adapt.(x) for (τ,x) in Lϕ.p), 
-        Dict(τ => _adapt.(x) for (τ,x) in Lϕ.M⁻¹),
+        Ref{Any}(ϕ), Ref(!reuse),
+        Lϕ.odesolve, t₀, t₁,
+        p, M⁻¹,
         _adapt(Lϕ.memŁf), _adapt(Lϕ.memÐf), _adapt.(Lϕ.memŁvf), _adapt.(Lϕ.memÐvf),
         _adapt(Lϕ.memŁϕ), _adapt(Lϕ.memÐϕ), _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)
     )
