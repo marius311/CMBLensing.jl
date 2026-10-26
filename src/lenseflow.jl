@@ -174,7 +174,9 @@ function velocityᴴ(L::CachedLenseFlow, f₀::Field)
 end
 
 function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
-    
+    # The matrix mul! writes its rows sequentially, so its output must not
+    # alias the input vector. Allocate once and reuse it for this integration.
+    separate_Minv_output = map(similar, L.memŁvϕ)
     function v!((df_dt, dδf_dt, dδϕ_dt)::FieldTuple, t::Real, (f, δf, δϕ)::FieldTuple)
     
         p   = L.p[τ(t)]
@@ -195,7 +197,7 @@ function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
         @! df_dt  = p' * Ł∇f
 
         # dδϕ/dt
-        δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, L.memŁvϕ, L.memÐvϕ
+        δfᵀ_∇f, M⁻¹_δfᵀ_∇f, Ð_M⁻¹_δfᵀ_∇f = L.memŁvϕ, separate_Minv_output, L.memÐvϕ
         @! δfᵀ_∇f       = spin_adjoint(Łδf) * Ł∇f
         @! M⁻¹_δfᵀ_∇f   = M⁻¹ * δfᵀ_∇f
         @! Ð_M⁻¹_δfᵀ_∇f = Ð(M⁻¹_δfᵀ_∇f)
