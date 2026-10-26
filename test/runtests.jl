@@ -173,6 +173,11 @@ end
     @test grown[4, 4] && grown[4, 5]
     @test !grown[4, 6]
 
+    square = falses(7, 7)
+    square[3:5, 3:5] .= true
+    rounded = CMBLensing.round_edges(square, 1)
+    @test rounded[4, 4] && !rounded[1, 1]
+
     mask = make_mask(StableRNG(1), (16, 16), 60;
         edge_padding_deg=2, edge_rounding_deg=0, apodization_deg=1,
         num_ptsrcs=0)
@@ -192,6 +197,36 @@ end
         @test CMBLensing._bilinear_sample(T[1 NaN; NaN NaN], 1.0, 1.0) === T(1)
         dimg = gradient(a -> CMBLensing._bilinear_sample(a, 1.25, 1.75), img)[1]
         @test dimg ≈ T[0.1875 0.5625; 0.0625 0.1875]
+
+        # Check image and coordinate derivatives independently away from grid
+        # lines, including a cell that crosses the zero-padded image boundary.
+        h = T === Float32 ? T(1e-3) : T(1e-6)
+        finite_pixels = similar(img)
+        for k in eachindex(img)
+            plus, minus = copy(img), copy(img)
+            plus[k] += h
+            minus[k] -= h
+            finite_pixels[k] = (CMBLensing._bilinear_sample(plus, 1.25, 1.75) -
+                                CMBLensing._bilinear_sample(minus, 1.25, 1.75)) / (2h)
+        end
+        @test isapprox(dimg, finite_pixels; atol=3e-3, rtol=3e-3)
+        for (row, col) in ((T(1.25), T(1.75)), (T(0.5), T(1.25)))
+            drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), row, col)
+            finite_row = (CMBLensing._bilinear_sample(img, row+h, col) -
+                          CMBLensing._bilinear_sample(img, row-h, col)) / (2h)
+            finite_col = (CMBLensing._bilinear_sample(img, row, col+h) -
+                          CMBLensing._bilinear_sample(img, row, col-h)) / (2h)
+            @test isapprox(drow, finite_row; atol=3e-3, rtol=3e-3)
+            @test isapprox(dcol, finite_col; atol=3e-3, rtol=3e-3)
+        end
+
+        # At grid lines, the exact-grid branch gives zero in that coordinate.
+        drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), T(1), T(1.5))
+        @test isnothing(drow) || iszero(drow)
+        @test dcol ≈ T(1)
+        drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), T(1.5), T(1))
+        @test drow ≈ T(2)
+        @test isnothing(dcol) || iszero(dcol)
 
         # A constant Cartesian map stays constant at Healpix pixels inside it.
         proj = ProjEquiRect(; Ny=16, Nx=32, θspan=(0, π), φspan=(0, 2π), T)

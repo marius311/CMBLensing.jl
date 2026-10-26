@@ -300,8 +300,14 @@ end
 # Bilinear sampling with zero outside the image, matching the interpolation
 # previously provided by Images.jl. Avoid touching neighboring pixels with
 # zero weight, so an exact grid point is unaffected by neighboring NaNs.
+# Only the discrete index selection is non-differentiable; the interpolation
+# weights retain their coordinate derivatives within each cell. At an exact
+# integer coordinate the selected branch gives a zero tangent in that direction.
+_bilinear_indices(row::Real, col::Real) = (floor(Int, row), floor(Int, col))
+ChainRulesCore.@non_differentiable _bilinear_indices(::Real, ::Real)
+
 function _bilinear_sample(img::AbstractMatrix{T}, row::Real, col::Real) where {T}
-    i, j = floor(Int, row), floor(Int, col)
+    i, j = _bilinear_indices(row, col)
     dy, dx = row - i, col - j
     pixel(y, x) = checkbounds(Bool, img, y, x) ? img[y, x] : zero(T)
     sample_row(y) = iszero(dx) ? pixel(y, j) : (1-dx)*pixel(y, j) + dx*pixel(y, j+1)

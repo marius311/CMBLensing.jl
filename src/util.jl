@@ -195,7 +195,9 @@ macro ondemand(ex)
     get_root_package(x) = @capture(x, a_.b_) ? get_root_package(a) : x
     quote
         @eval import $(get_root_package(ex))
-        InvokeLatestFunction($(esc(ex)))
+        # The import may have created new bindings after the caller's world.
+        # Resolve the function in the latest world as well as calling it there.
+        InvokeLatestFunction(Base.invokelatest(() -> $(esc(ex))))
     end
 end
 struct InvokeLatestFunction
