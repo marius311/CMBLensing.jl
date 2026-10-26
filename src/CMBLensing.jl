@@ -30,7 +30,6 @@ using ForwardDiff: Dual, Partials, value, partials
 import GPUArrays
 using Healpix
 using InteractiveUtils
-using IterTools: flagfirst
 using JLD2
 using JLD2: jldopen, JLDWriteSession
 using KahanSummation

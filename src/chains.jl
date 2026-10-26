@@ -57,8 +57,8 @@ function load_chains(
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
         chains = [[]]
-        @showprogress (progress ? 1 : Inf) for (isfirst,k) in flagfirst(chunk_ks)
-            if isfirst
+        @showprogress (progress ? 1 : Inf) for (i,k) in enumerate(chunk_ks)
+            if i == 1
                 chains = read(io,k)
             else
                 append!.(chains, read(io,k))
