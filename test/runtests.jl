@@ -809,6 +809,8 @@ end
 
 @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
+include("equirect_adjoint.jl")
+
 @testset "EquiRect" begin
 
     θspan  = (π/2 .- deg2rad.((-40,-70)))
@@ -901,8 +903,9 @@ end
             # adjoint
             g0 = simulate(rng,Cf0)
             g2 = simulate(rng,Cf2)
-            @test f0' * (Cf0 * g0) ≈ (f0' * Cf0) * g0 rtol=rtol
-            @test f2' * (Cf2 * g2) ≈ (f2' * Cf2) * g2 rtol=rtol
+            test_equirect_adjoint(f0, Cf0, g0, T, Map)
+            test_equirect_adjoint(f2, Cf2, g2, T, QUMap)
+            test_equirect_nonsymmetric_adjoint(proj, T)
             
             # Test for correct Fourier symmetry in monopole and nyquist f2 
             let f2kk = f2[:Pl], f2xx = f2[:Px]
