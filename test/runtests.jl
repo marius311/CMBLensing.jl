@@ -582,6 +582,10 @@ end
 
 ##
 
+include("lenseflow_adjoint.jl")
+
+##
+
 @testset "Posterior" begin
     
     Cℓ = camb()
