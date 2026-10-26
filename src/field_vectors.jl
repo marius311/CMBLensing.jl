@@ -96,7 +96,18 @@ end
 
 
 
-@adjoint (::Type{SA})(x::AbstractArray) where {SA<:SizedArray} = SA(x), Δ -> (Δ.data,)
+# The incoming tangent may be a regular array (for example, a lazy Fill)
+# rather than a SizedArray or a structural tangent with a `data` field.
+@adjoint function (::Type{SA})(x::AbstractArray) where {SA<:SizedArray}
+    y = SA(x)
+    function back(Δ)
+        dx = Δ isa AbstractArray && !(Δ isa SizedArray) ? Δ : Δ.data
+        # A SizedArray can wrap an input with different dimensions.
+        dx isa AbstractArray && size(dx) != size(x) && (dx = reshape(dx, size(x)))
+        (dx,)
+    end
+    y, back
+end
 
 # needed for autodiff to avoid calling setindex! on StaticArrays with !isbitstype(eltype(x))
 function ChainRules.∇getindex(x::StaticArray, dy, inds...)

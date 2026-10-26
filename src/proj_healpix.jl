@@ -297,6 +297,23 @@ end
 
 ## Cartesian => Healpix
 
+# Bilinear sampling with zero outside the image, matching the interpolation
+# previously provided by Images.jl. Avoid touching neighboring pixels with
+# zero weight, so an exact grid point is unaffected by neighboring NaNs.
+# Only the discrete index selection is non-differentiable; the interpolation
+# weights retain their coordinate derivatives within each cell. At an exact
+# integer coordinate the selected branch gives a zero tangent in that direction.
+_bilinear_indices(row::Real, col::Real) = (floor(Int, row), floor(Int, col))
+ChainRulesCore.@non_differentiable _bilinear_indices(::Real, ::Real)
+
+function _bilinear_sample(img::AbstractMatrix{T}, row::Real, col::Real) where {T}
+    i, j = _bilinear_indices(row, col)
+    dy, dx = row - i, col - j
+    pixel(y, x) = checkbounds(Bool, img, y, x) ? img[y, x] : zero(T)
+    sample_row(y) = iszero(dx) ? pixel(y, j) : (1-dx)*pixel(y, j) + dx*pixel(y, j+1)
+    T(iszero(dy) ? sample_row(i) : (1-dy)*sample_row(i) + dy*sample_row(i+1))
+end
+
 function project((cart_map, hpx_proj)::Pair{<:CartesianField, <:ProjHealpix}; method::Symbol=:bilinear)
     project(Projector(cart_map.proj => hpx_proj; method), cart_map => hpx_proj)
 end
@@ -308,7 +325,7 @@ end
 function project(projector::Projector{:bilinear}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})
     @assert projector.cart_proj == cart_field.proj && projector.hpx_proj == hpx_proj
     @unpack (is, js) = projector
-    HealpixMap(broadcast(@ondemand(Images.bilinear_interpolation), Ref(cpu(Map(cart_field).Ix)), is, js), hpx_proj)
+    HealpixMap(broadcast(_bilinear_sample, Ref(cpu(Map(cart_field).Ix)), is, js), hpx_proj)
 end
 
 function project(projector::Projector{:fft}, (cart_field, hpx_proj)::Pair{<:CartesianS0, <:ProjHealpix})

@@ -5,7 +5,9 @@ using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
 
 ##
 
-using CUDA
+if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
+    using CUDA
+end
 if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU") && CUDA.functional()
     CUDA.allowscalar(false)
     maybegpu(x) = adapt(CuArray,x)
@@ -31,6 +33,16 @@ using SparseArrays
 using StableRNGs
 using Test
 using Zygote
+
+# Exercise storage adaptation without requiring a GPU. This also tests that
+# fields' projection metadata is adapted together with their data.
+struct TestFloat32Adaptor end
+Adapt.adapt_storage(::TestFloat32Adaptor, x::Array{T}) where {T<:AbstractFloat} = Float32.(x)
+
+CMBLensing.@fwdmodel function test_ordered_model()
+    first_draw ← 1
+    second_draw ← first_draw + 1
+end
 
 ##
 
@@ -130,6 +142,150 @@ end
         end
     end
 
+end
+
+##
+
+@testset "Adaptation" begin
+    f = FlatMap(reshape(collect(1.0:16.0), 4, 4))
+    adaptor = TestFloat32Adaptor()
+    f32 = adapt(adaptor, f)
+    @test eltype(f32.Ix) == Float32
+    @test f32.Ix == Float32.(f.Ix)
+    @test f32.proj.T == Float32
+    @test Map(Fourier(f32)) ≈ f32
+
+    tuple = FieldTuple(; f, values=[1.0, 2.0])
+    tuple32 = adapt(adaptor, tuple)
+    @test tuple32.f ≈ f32
+    @test tuple32.values == Float32[1, 2]
+    @test eltype(tuple32.values) == Float32
+
+    captured = let values = [1.0, 2.0]
+        x -> sum(values .* x)
+    end
+    adapted = adapt(adaptor, captured)
+    @test eltype(getfield(adapted, 1)) == Float32
+    @test adapted(Float32[2, 3]) == 8
+end
+
+##
+
+@testset "Ordered simulation variables" begin
+    vars = simulate(StableRNG(5), test_ordered_model)
+    @test vars == (first_draw=1, second_draw=2)
+    @test keys(vars) == (:first_draw, :second_draw)
+end
+
+##
+
+@testset "SizedArray constructor gradients" begin
+    values = [1.0, -2.0]
+    @test gradient(x -> sum(CMBLensing.SizedVector{2}(x)), values)[1] == [1.0, 1.0]
+    @test gradient(x -> sum(abs2, CMBLensing.SizedVector{2}(x)), values)[1] ≈ 2 .* values
+
+    _, back = Zygote.pullback(x -> CMBLensing.SizedVector{2}(x), values)
+    for seed in ([3.0, -4.0], CMBLensing.SizedVector{2}([3.0, -4.0]), @SVector[3.0, -4.0])
+        @test back(seed)[1] ≈ [3.0, -4.0]
+    end
+    @test back((data=[3.0, -4.0],))[1] ≈ [3.0, -4.0]
+    unused_back = back(nothing)
+    @test isnothing(unused_back) || (length(unused_back) == 1 && isnothing(only(unused_back)))
+    @test back(zeros(2))[1] == zeros(2)
+    zero_back = back(CMBLensing.ChainRulesCore.ZeroTangent())
+    @test isnothing(zero_back) || (length(zero_back) == 1 &&
+        (isnothing(only(zero_back)) || only(zero_back) isa CMBLensing.ChainRulesCore.AbstractZero))
+
+    # Sized arrays can change dimensionality while preserving element order.
+    vector = [1.0, 2.0, 3.0, 4.0]
+    matrix = reshape(copy(vector), 2, 2)
+    @test gradient(x -> sum(CMBLensing.SizedMatrix{2,2}(x)), vector)[1] == ones(4)
+    @test gradient(x -> sum(CMBLensing.SizedVector{4}(x)), matrix)[1] == ones(2, 2)
+
+    _, back_to_vector = Zygote.pullback(x -> CMBLensing.SizedMatrix{2,2}(x), vector)
+    matrix_seed = [1.0 3.0; 2.0 4.0]
+    @test back_to_vector(matrix_seed)[1] == vector
+    @test back_to_vector(CMBLensing.SizedMatrix{2,2}(matrix_seed))[1] == vector
+
+    _, back_to_matrix = Zygote.pullback(x -> CMBLensing.SizedVector{4}(x), matrix)
+    @test back_to_matrix(vector)[1] == matrix
+    @test back_to_matrix(CMBLensing.SizedVector{4}(vector))[1] == matrix
+end
+
+##
+
+@testset "Image and mask operations" begin
+    points = falses(7, 7)
+    points[4, 4] = true
+    grown = CMBLensing.bleed(points, 2)
+    @test grown[4, 4] && grown[4, 5]
+    @test !grown[4, 6]
+
+    square = falses(7, 7)
+    square[3:5, 3:5] .= true
+    rounded = CMBLensing.round_edges(square, 1)
+    @test rounded[4, 4] && !rounded[1, 1]
+
+    mask = make_mask(StableRNG(1), (16, 16), 60;
+        edge_padding_deg=2, edge_rounding_deg=0, apodization_deg=1,
+        num_ptsrcs=0)
+    @test all(isfinite, mask.Ix)
+    @test minimum(mask.Ix) ≈ 0
+    @test maximum(mask.Ix) ≈ 1
+
+    # Exact points, fractional points, and zero padding must retain the old
+    # Cartesian-to-Healpix interpolation behavior.
+    @testset "Bilinear interpolation: $T" for T in (Float32, Float64)
+        img = T[1 2; 3 4]
+        @test CMBLensing._bilinear_sample(img, 1.0, 1.0) === T(1)
+        @test CMBLensing._bilinear_sample(img, 1.5, 1.5) ≈ T(2.5)
+        @test CMBLensing._bilinear_sample(img, 0.5, 1.0) ≈ T(0.5)
+        @test CMBLensing._bilinear_sample(img, 2.5, 2.0) ≈ T(2)
+        @test CMBLensing._bilinear_sample(img, -1.0, -1.0) === T(0)
+        @test CMBLensing._bilinear_sample(T[1 NaN; NaN NaN], 1.0, 1.0) === T(1)
+        dimg = gradient(a -> CMBLensing._bilinear_sample(a, 1.25, 1.75), img)[1]
+        @test dimg ≈ T[0.1875 0.5625; 0.0625 0.1875]
+
+        # Check image and coordinate derivatives independently away from grid
+        # lines, including a cell that crosses the zero-padded image boundary.
+        h = T === Float32 ? T(1e-3) : T(1e-6)
+        finite_pixels = similar(img)
+        for k in eachindex(img)
+            plus, minus = copy(img), copy(img)
+            plus[k] += h
+            minus[k] -= h
+            finite_pixels[k] = (CMBLensing._bilinear_sample(plus, 1.25, 1.75) -
+                                CMBLensing._bilinear_sample(minus, 1.25, 1.75)) / (2h)
+        end
+        @test isapprox(dimg, finite_pixels; atol=3e-3, rtol=3e-3)
+        for (row, col) in ((T(1.25), T(1.75)), (T(0.5), T(1.25)))
+            drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), row, col)
+            finite_row = (CMBLensing._bilinear_sample(img, row+h, col) -
+                          CMBLensing._bilinear_sample(img, row-h, col)) / (2h)
+            finite_col = (CMBLensing._bilinear_sample(img, row, col+h) -
+                          CMBLensing._bilinear_sample(img, row, col-h)) / (2h)
+            @test isapprox(drow, finite_row; atol=3e-3, rtol=3e-3)
+            @test isapprox(dcol, finite_col; atol=3e-3, rtol=3e-3)
+        end
+
+        # At grid lines, the exact-grid branch gives zero in that coordinate.
+        drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), T(1), T(1.5))
+        @test isnothing(drow) || iszero(drow)
+        @test dcol ≈ T(1)
+        drow, dcol = gradient((r, c) -> CMBLensing._bilinear_sample(img, r, c), T(1.5), T(1))
+        @test drow ≈ T(2)
+        @test isnothing(dcol) || iszero(dcol)
+
+        # A constant Cartesian map stays constant at Healpix pixels inside it.
+        proj = ProjEquiRect(; Ny=16, Nx=32, θspan=(0, π), φspan=(0, 2π), T)
+        map = CMBLensing.EquiRectMap(ones(T, 16, 32), proj)
+        hpx_proj = ProjHealpix(2)
+        projector = CMBLensing.Projector(proj => hpx_proj)
+        healpix = project(projector, map => hpx_proj)
+        @test eltype(healpix[:]) == T
+        @test !isempty(projector.hpx_idxs_in_patch)
+        @test all(x -> x ≈ 1, healpix[:][projector.hpx_idxs_in_patch])
+    end
 end
 
 ##
@@ -341,6 +497,26 @@ end
     @test Cℓs(1:100, rand(rng,100)).Cℓ isa Vector{Float64}
     @test Cℓs(1:100, rand(rng,100) .± 1).Cℓ isa Vector{Measurement{Float64}}
     @test (Cℓs(1:100, 1:100) * ℓ²)[50] == 50^3
+
+    # The on-disk representation deliberately reconstructs the interpolation.
+    mktempdir() do dir
+        path = joinpath(dir, "spectra.jld2")
+        spectrum = Cℓs([0.0, 1.0, 2.0], [3.0, 7.0, 11.0])
+        save(path, "spectrum", spectrum)
+        restored = load(path, "spectrum")
+        @test restored[1.5] ≈ 9.0
+        @test isnan(restored[-1.0])
+        @test restored.concrete == spectrum.concrete
+    end
+
+    # The flat-sky estimator bins weighted Fourier modes using StatsBase.
+    f = FlatMap(rand(rng, 8, 8); θpix=60)
+    auto = get_Cℓ(f; ℓedges=0:50:250)
+    cross = get_Cℓ(f, 2f; ℓedges=0:50:250)
+    @test !isempty(auto[:])
+    @test all(isfinite, auto[:])
+    @test cross.ℓ ≈ auto.ℓ
+    @test cross[:] ≈ 2 .* auto[:]
     
 end
 
@@ -350,6 +526,7 @@ end
     
     D = Diagonal(maybegpu(FlatMap(rand(rng,4,4))))
     
+    @test Diagonal(ParamDependentOp((;x=1)->x*D)) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)() ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(z=2) ≈ D
     @test ParamDependentOp((;x=1, y=1)->x*y*D)(x=2) ≈ 2D
