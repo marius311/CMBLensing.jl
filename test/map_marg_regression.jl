@@ -35,6 +35,20 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
         calls[] += 1
         (test_amp + 0.01 * (myid()-1)) * base_cf
     end)
+    for (updates, nsims, parameter) in ((0, 1, "nsteps_with_meanfield_update"), (1, 0, "Nsims"))
+        err = try
+            MAP_marg((; test_amp=1.0), map_marg_test_dataset; nsteps=1,
+                nsteps_with_meanfield_update=updates, Nsims=nsims, progress=false)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError && occursin(parameter, err.msg)
+    end
+    zero_start = 0.3sim.ϕ
+    zero_ϕ, zero_trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset;
+        ϕstart=zero_start, nsteps=0, nsteps_with_meanfield_update=0, Nsims=0, progress=false)
+    @test zero_ϕ === zero_start && isempty(zero_trace)
     calls[] = 0
     original_lens = map_marg_test_dataset.L
     original_potential = original_lens.ϕ[]

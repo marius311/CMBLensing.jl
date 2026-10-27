@@ -325,6 +325,9 @@ end
 Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior,
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
+A solve with positive `nsteps` requires positive `Nsims` and
+`nsteps_with_meanfield_update`, because no initial mean field is supplied.
+
 """
 MAP_marg(ds::DataSet; kwargs...) = MAP_marg((;), ds; kwargs...)
 function MAP_marg(
@@ -343,6 +346,10 @@ function MAP_marg(
     pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
     aggressive_gc = false
 )
+    if nsteps > 0
+        nsteps_with_meanfield_update > 0 || throw(ArgumentError("nsteps_with_meanfield_update must be positive when nsteps is positive"))
+        Nsims > 0 || throw(ArgumentError("Nsims must be positive when nsteps is positive"))
+    end
     
     (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
     (ds.d.Nbatch == Nbatch == 1) || error("MAP_marg for batched fields not implemented")
