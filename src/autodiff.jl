@@ -55,7 +55,13 @@ function _equirect_az_rfft_weights(f::BaseField{AzFourier,<:ProjEquiRect})
     adapt(f.metadata.storage, weights)
 end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {M<:ProjEquiRect,T,A<:AbstractArray{T},F<:BaseField{AzFourier}}
-    F(arr, metadata), Δ -> (Δ.arr .* _equirect_az_rfft_weights(Δ), nothing)
+    field = F(arr, metadata)
+    function equirect_az_constructor_pullback(Δ)
+        arr_gradient = similar(arr)
+        arr_gradient .= Δ.arr .* _equirect_az_rfft_weights(field)
+        (arr_gradient, nothing)
+    end
+    field, equirect_az_constructor_pullback
 end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
@@ -68,7 +74,12 @@ end
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft .* Zfac(B(), f.metadata), f.metadata),)
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{AzFourier,<:ProjEquiRect}, ::Val{:arr})
-    getfield(f,:arr), Δ -> (BaseField{AzFourier}(Δ ./ _equirect_az_rfft_weights(f), f.metadata),)
+    function equirect_az_array_pullback(Δ)
+        arr_gradient = similar(f.arr)
+        arr_gradient .= Δ ./ _equirect_az_rfft_weights(f)
+        (BaseField{AzFourier}(arr_gradient, f.metadata),)
+    end
+    getfield(f,:arr), equirect_az_array_pullback
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})

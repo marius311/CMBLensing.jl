@@ -42,4 +42,21 @@
         finite = (objective_map(raw + ε*raw_direction) - objective_map(raw - ε*raw_direction)) / (2ε)
         @test isapprox(directional, finite; atol=tol, rtol=tol)
     end
+
+    # Wider incoming sensitivities and metadata must still produce
+    # cotangents in the precision of the field and its source array.
+    proj64 = ProjEquiRect(; Ny=4, Nx=4, T=Float64, θspan=(0,π), φspan=(0,2π), storage=Array)
+    raw32 = zeros(ComplexF32, 4, 3)
+    field32 = CMBLensing.EquiRectAzFourier(raw32, proj64)
+    seed64 = fill(1.5 + 0.75im, size(raw32))
+    _, getter_back = Zygote.pullback(x -> x.arr, field32)
+    field_gradient, = getter_back(seed64)
+    @test eltype(field_gradient) === ComplexF32
+    @test field_gradient.arr ≈ ComplexF32.(seed64 ./ reshape([1,2,1], 1, :))
+
+    _, constructor_back = Zygote.pullback(x -> CMBLensing.EquiRectAzFourier(x, proj64), raw32)
+    seed_field64 = CMBLensing.EquiRectAzFourier(seed64, proj64)
+    raw_gradient, = constructor_back(seed_field64)
+    @test eltype(raw_gradient) === ComplexF32
+    @test raw_gradient ≈ ComplexF32.(seed64 .* reshape([1,2,1], 1, :))
 end
