@@ -1,4 +1,5 @@
 using CMBLensing, FFTW, LinearAlgebra, Random, Test, Zygote
+using ChainRulesCore: AbstractZero, ZeroTangent
 
 @testset "Lambert real/Fourier conversion adjoints" begin
     for T in (Float32, Float64), (Ny, Nx) in ((6,8), (7,8), (7,9))
@@ -57,5 +58,25 @@ using CMBLensing, FFTW, LinearAlgebra, Random, Test, Zygote
         @test isapprox(dot(gx,η),dot(w,Fourier(η));atol=3e-5,rtol=3e-5)
         @test xarr == xbefore
         @test warr == wbefore
+
+        # Direct pullbacks accept zero seeds and preserve both the input and
+        # mutable cotangent arrays, including a non-Hermitian Fourier seed.
+        mapseed = FlatMap(randn(rng,Float32,6,8),proj)
+        fourierseed = FlatFourier(randn(rng,ComplexF64,4,8),proj)
+        mapbefore, fourierbefore = copy(mapseed.arr), copy(fourierseed.arr)
+        for (convert, input, seed, inputbefore, seedbefore) in (
+            (Map, w, mapseed, wbefore, mapbefore),
+            (Fourier, x, fourierseed, xbefore, fourierbefore))
+            _, back = Zygote.pullback(convert,input)
+            for zero_seed in (nothing, ZeroTangent())
+                zero_result = back(zero_seed)
+                @test isnothing(zero_result) ||
+                      (zero_result isa Tuple && length(zero_result) == 1 &&
+                       (isnothing(only(zero_result)) || only(zero_result) isa AbstractZero))
+            end
+            back(seed)
+            @test input.arr == inputbefore
+            @test seed.arr == seedbefore
+        end
     end
 end
