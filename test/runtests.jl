@@ -310,6 +310,7 @@ end
 ##
 
 include("forwarddiff.jl")
+include("healpix_lambert_fft_gradient.jl")
 include("nonsymmetric_field_matrices.jl")
 include("field_matrix_det_gradient.jl")
 

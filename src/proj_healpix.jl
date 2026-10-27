@@ -200,17 +200,17 @@ For either projection direction, if the field is a QU or IQU field,
 polarization angles are rotated to be aligned with the local
 coordinates (sometimes called "polarization flattening").
 
-The projection interpolates the original map at the positions of the
-centers of the projected map pixels. `method` controls how this
-interpolation is done, and can be one of:
+`method` selects the projection algorithm:
 
 * `:bilinear` — Bilinear interpolation (default)
-* `:fft` — FFT-based interpolation, which uses a non-uniform FFT to
-  evaluate the discrete Fourier series of the field at arbitrary new
-  positions. Load the `NFFT` package first. GPU fields require NFFT 0.14's
-  GPUArrays extension or `CuNFFT` with NFFT 0.13.
-  Cartesian-to-Healpix projection with `method=:fft` is automatically
-  differentiable.
+* `:fft` — Cartesian-to-Healpix projection uses a non-uniform FFT to
+  evaluate the Cartesian field's discrete Fourier series and supports
+  automatic differentiation. A legacy scalar Healpix-to-Lambert FFT path
+  also supports differentiation and applies a rescaled array-level adjoint
+  of this transform; it does not generally preserve constant maps and is not
+  an interpolation or a reconstruction of the Healpix sky. Load the `NFFT`
+  package first. GPU fields require NFFT 0.14's GPUArrays extension or
+  `CuNFFT` with NFFT 0.13.
 
 `NFFT` is optional: install it first (for example, `import Pkg;
 Pkg.add("NFFT"); using NFFT`). CuNFFT 0.3.8 requires NFFT 0.13 and
@@ -245,7 +245,7 @@ function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:Healpi
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (Nside) = hpx_map
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
-    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
+    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map.arr[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
     FlatMap(reshape(splayed_pixels, Ny, Nx), cart_proj)
 end
 
