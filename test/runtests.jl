@@ -573,6 +573,7 @@ end;
 
 include("chains.jl")
 include("loess.jl")
+include("equirect_scalar_array_adjoint.jl")
 
 
 ##

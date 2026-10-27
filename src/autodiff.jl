@@ -46,6 +46,17 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{AzFourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* Δ.λ_rfft ./ Zfac(B(), metadata), nothing)
 end
+
+# EquiRect's scalar azimuthal transform is an orthonormal rFFT along
+# dimension 2. Unlike Lambert projections, its metadata does not store rFFT
+# degeneracies. Construct those weights in the storage backend of the field.
+function _equirect_az_rfft_weights(f::BaseField{AzFourier,<:ProjEquiRect})
+    weights = reshape(real(eltype(f)).(rfft_degeneracy_fac(f.Nx)), 1, :)
+    adapt(f.metadata.storage, weights)
+end
+@adjoint function (::Type{F})(arr::A, metadata::M) where {M<:ProjEquiRect,T,A<:AbstractArray{T},F<:BaseField{AzFourier}}
+    F(arr, metadata), Δ -> (Δ.arr .* _equirect_az_rfft_weights(Δ), nothing)
+end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
@@ -55,6 +66,9 @@ end
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft .* Zfac(B(), f.metadata), f.metadata),)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{AzFourier,<:ProjEquiRect}, ::Val{:arr})
+    getfield(f,:arr), Δ -> (BaseField{AzFourier}(Δ ./ _equirect_az_rfft_weights(f), f.metadata),)
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})
