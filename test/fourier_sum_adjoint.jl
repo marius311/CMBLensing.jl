@@ -22,6 +22,14 @@
         gcomplex = gradient(x -> real(complex(T(0.7), T(1.3)) * sum(x)), f)[1]
         @test dot(gcomplex, real_dir) ≈ T(11.2)
         @test dot(gcomplex, imag_dir) ≈ T(5.2)
+
+        _, sum_back = Zygote.pullback(sum, f)
+        for zero_seed in (nothing, CMBLensing.ChainRulesCore.ZeroTangent())
+            zero_back = sum_back(zero_seed)
+            @test isnothing(zero_back) ||
+                  (length(zero_back) == 1 &&
+                   (isnothing(zero_back[1]) || zero_back[1] isa CMBLensing.ChainRulesCore.AbstractZero))
+        end
     end
 
     # Metadata may be wider than the stored coefficients. The cotangent
