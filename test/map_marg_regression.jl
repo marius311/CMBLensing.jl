@@ -1,5 +1,5 @@
 using CMBLensing, LinearAlgebra, Random, Serialization, Test
-using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_wait, rmprocs
+using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_fetch, remotecall_wait, rmprocs
 
 @testset "MAP_marg and dataset transport" begin
     sim = load_sim(; Cℓ=CMBLensing._default_Cℓs(), pol=:I, T=Float64,
@@ -210,6 +210,21 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
                 @test calls[] == calls_before + 1
                 @test isapprox(worker_ϕ.arr, trace[1].ϕ.arr; rtol=1e-10, atol=1e-12)
                 @test isapprox(worker_trace[1].g.arr, trace[1].g.arr; rtol=1e-10, atol=1e-12)
+
+                # Check both the solver's default pool and a batched mapper;
+                # the latter may run multiple tasks on the same worker cache.
+                batched_pool = WorkerPool(workers)
+                batched_map(f, args...) = pmap(f, batched_pool, args...; batch_size=2)
+                for mapper in (nothing, batched_map)
+                    calls_before = calls[]
+                    mapper_kwargs = mapper === nothing ? (;) : (; pmap=mapper)
+                    distributed_ϕ, distributed_trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset;
+                        rng=MersenneTwister(12), ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1,
+                        progress=false, conjgrad_kwargs=(tol=1e-4, nsteps=100), mapper_kwargs...)
+                    @test calls[] == calls_before + 1
+                    @test isapprox(distributed_ϕ.arr, trace[1].ϕ.arr; rtol=1e-10, atol=1e-12)
+                    @test isapprox(distributed_trace[1].g.arr, trace[1].g.arr; rtol=1e-10, atol=1e-12)
+                end
 
                 function worker_fail_map(f, indices, data, starts)
                     remotecall_fetch(f, worker, first(indices), first(data), first(starts))
