@@ -325,24 +325,33 @@ end
 
 function LinearAlgebra.sqrt(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     if !isassigned(M.blocks_sqrt)
-        M.blocks_sqrt[] = blocks_sqrt = similar(M.blocks)
+        blocks_sqrt = similar(M.blocks)
         for i = 1:size(M.blocks,3)
             # use SVD since it works on both CPU/GPU
             U, S, V = svd(M.blocks[:,:,i])
             blocks_sqrt[:,:,i] .= U * Diagonal(real.(sqrt.(S))) * V'
         end
+        # Some wrappers allocate a different type with `similar`. Their
+        # results cannot be stored in Ref{typeof(M.blocks)}, so return the
+        # result without caching it instead of failing.
+        blocks_sqrt isa typeof(M.blocks) && (M.blocks_sqrt[] = blocks_sqrt)
+    else
+        blocks_sqrt = M.blocks_sqrt[]
     end
-    BlockDiagEquiRect{B}(M.blocks_sqrt[], M.proj)
+    BlockDiagEquiRect{B}(blocks_sqrt, M.proj)
 end
 
 function LinearAlgebra.pinv(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     if !isassigned(M.blocks_pinv)
-        M.blocks_pinv[] = blocks_pinv = similar(M.blocks)
+        blocks_pinv = similar(M.blocks)
         for i = 1:size(M.blocks,3)
             blocks_pinv[:,:,i] .= pinv(M.blocks[:,:,i])
         end
+        blocks_pinv isa typeof(M.blocks) && (M.blocks_pinv[] = blocks_pinv)
+    else
+        blocks_pinv = M.blocks_pinv[]
     end
-    BlockDiagEquiRect{B}(M.blocks_pinv[], M.proj)
+    BlockDiagEquiRect{B}(blocks_pinv, M.proj)
 end
 
 # logdet and logabsdet
