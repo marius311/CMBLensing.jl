@@ -176,6 +176,12 @@ end
 # the @! macro, which just rewrites @! x = f(y) to x = f!(x,y) for easier
 # reading. 
 
+# The derivative-basis vector is private scratch: every velocity evaluation
+# overwrites it before converting it to lensing basis. Projections may provide
+# a conversion that can consume that scratch without an extra copy.
+_lenseflow_scratch_to_map!(dst, src) = Ł!(dst, src)
+_lenseflow_scratch_to_map!(dst::FieldVector, src::FieldVector) = map(_lenseflow_scratch_to_map!, dst, src)
+
 function velocity(L::CachedLenseFlow, f₀::Field)
     function v!(v::Field, t::Real, f::Field)
         Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
@@ -183,7 +189,7 @@ function velocity(L::CachedLenseFlow, f₀::Field)
         
         @! Ðf  = Ð(f)
         @! Ð∇f = ∇ᵢ * Ðf
-        @! Ł∇f = Ł(Ð∇f)
+        Ł∇f = _lenseflow_scratch_to_map!(Ł∇f, Ð∇f)::typeof(Ł∇f)
         @! v   = p' * Ł∇f
     end
     return (v!, L.memŁf .= Ł(f₀))

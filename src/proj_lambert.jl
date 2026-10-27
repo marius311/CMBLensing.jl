@@ -297,6 +297,19 @@ IEBMap(f::LambertIQUFourier) = f |> IEBFourier |> IEBMap
 
 # in-place
 IQUMap(f′::LambertIQUMap, f::LambertIQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
+
+# LenseFlow supplies disposable Fourier scratch. Public field conversions
+# continue to preserve their inputs, and non-Array storage uses the normal path.
+for (Fmap, Ffourier) in ((:LambertMap, :LambertFourier), (:LambertQUMap, :LambertQUFourier), (:LambertIQUMap, :LambertIQUFourier))
+    @eval function _lenseflow_scratch_to_map!(dst::$Fmap, src::$Ffourier)
+        if dst.arr isa Array && src.arr isa Array && !Base.mightalias(dst.arr, src.arr)
+            m_irfft_scratch!(dst.arr, src.arr, (1,2))
+            dst
+        else
+            Ł!(dst, src)
+        end
+    end
+end
 IQUFourier(f′::LambertIQUFourier, f::LambertIQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
 
