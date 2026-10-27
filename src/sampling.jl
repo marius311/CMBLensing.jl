@@ -244,7 +244,7 @@ function sample_joint(
 
     # initialize chains
     states = map(copy, repeated(rundat, nchains))
-    if resume && (filename != nothing) && isfile(filename) && jldopen(io->haskey(io,"rundat"),filename,"r")
+    if !isnothing(resume) && resume && (filename != nothing) && isfile(filename) && jldopen(io->haskey(io,"rundat"),filename,"r")
         clobber_chain = false
         @info "Resuming chain at $filename"
         chunks_index = jldopen(filename,"r") do io
