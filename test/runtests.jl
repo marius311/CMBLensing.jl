@@ -965,4 +965,6 @@ end
 
 ##
 
+include("lenseflow_scratch_fft.jl")
+
 end
