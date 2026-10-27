@@ -720,6 +720,7 @@ end
 ##
 
 include("lenseflow_adaptation.jl")
+include("flow_constructor_adjoint.jl")
 
 @testset "Lensing" begin
     
