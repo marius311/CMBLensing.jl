@@ -157,14 +157,64 @@ end
     sum(ft), sum_fieldtuple_pullback
 end
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
-@adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*B1(g), real(T2)(Δ)*B2(f))
+_dot_basis_pullback(f::Field{B}, g::Field) where {B} = B(g)
+function _dot_basis_pullback(f::LambertField{B1}, g::LambertField{B2}) where {B1,B2}
+    if B1 <: SpatialBasis{Map} && B1 !== B2 && _mkl_cpu(f)
+        q = Fourier(B1())(g)
+        _mkl_cpu(q) && return B1(_mkl_rfft_transpose_input(q))
+    end
+    B1(g)
+end
+@adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*_dot_basis_pullback(f,g), real(T2)(Δ)*_dot_basis_pullback(g,f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
 # ℝᴺˣᴺ -> ℝ¹ 
 @adjoint logdet(L::ParamDependentOp, θ) = Zygote.pullback((L,θ)->logdet(L(θ)), L, θ)
 @adjoint logdet(L::DiagOp{F,T}) where {F<:Field, T} = logdet(L), Δ -> (real(T)(Δ) * Zfac(L) * pinv(L)',)
 
 # basis conversion
-@adjoint (::Type{B})(f::Field{B′}) where {B<:Basis, B′} = B(f), Δ -> (B′(Δ),)
+_basis_pullback(f::Field{B}, y, Δ) where {B} = B(Δ)
+
+# MKL's inverse real FFT accepts arbitrary half-plane storage, and on the
+# self-conjugate y rows it uses only the nonnegative x half.  Its transpose
+# therefore doubles those coefficients and zeros their negative partners.
+# Keep this correction on CPU MKL only; other backends retain their rules.
+function _mkl_irfft_transpose(g::LambertField{B}) where {B}
+    nh, nx = size(g.arr, 1), size(g.arr, 2)
+    row = reshape([i == 1 || (iseven(g.Ny) && i == nh) for i in 1:nh], nh, 1)
+    weights = reshape(real(eltype(g)).([j == 1 || (iseven(nx) && j == nx÷2+1) ? 1 : j <= cld(nx,2) ? 2 : 0 for j in 1:nx]), 1, nx)
+    BaseField{B}(g.arr .* ifelse.(row, weights, one(real(eltype(g)))), g.metadata)
+end
+
+# Conversely, the transpose of the forward real FFT uses the orthogonal
+# Hermitian projection before MKL's asymmetric inverse transform.
+function _mkl_rfft_transpose_input(g::LambertField{B}) where {B}
+    nh, nx = size(g.arr, 1), size(g.arr, 2)
+    row = reshape([i == 1 || (iseven(g.Ny) && i == nh) for i in 1:nh], nh, 1)
+    reflected = view(g.arr, :, [1; nx:-1:2], ntuple(_ -> Colon(), ndims(g.arr)-2)...)
+    half = real(eltype(g))(0.5)
+    BaseField{B}(ifelse.(row, half .* g.arr .+ half .* conj.(reflected), g.arr), g.metadata)
+end
+
+_mkl_cpu(f::BaseField) = fftw_provider() == "mkl" && _fft_arr_type(f.arr) <: Array
+
+function _basis_pullback(f::LambertField{B1}, y::LambertField{B2}, Δ::LambertField) where {B1<:SpatialBasis{Fourier},B2<:SpatialBasis{Map}}
+    _mkl_cpu(f) || return B1(Δ)
+    q = Fourier(B2(Δ))
+    _mkl_cpu(q) || return B1(Δ)
+    B1(_mkl_irfft_transpose(q))
+end
+
+function _basis_pullback(f::LambertField{B1}, y::LambertField{B2}, Δ::LambertField) where {B1<:SpatialBasis{Map},B2<:SpatialBasis{Fourier}}
+    _mkl_cpu(f) || return B1(Δ)
+    q = Fourier(B1())(Δ)
+    _mkl_cpu(q) || return B1(Δ)
+    B1(_mkl_rfft_transpose_input(q))
+end
+
+@adjoint function (::Type{B})(f::Field{B′}) where {B<:Basis, B′}
+    y = B(f)
+    y, Δ -> (_basis_pullback(f, y, Δ),)
+end
 
 # algebra
 @adjoint (+)(f::Field{B1}, g::Field{B2}) where {B1,B2} = f+g, Δ -> (B1(Δ), B2(Δ))

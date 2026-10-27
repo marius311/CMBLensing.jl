@@ -833,6 +833,7 @@ end
 @require CirculantCov="edf8e0bb-e88b-4581-a03e-dda99a63c493" begin
 
 include("equirect_adjoint.jl")
+include("lambert_fft_adjoint.jl")
 
 @testset "EquiRect" begin
 
