@@ -1,0 +1,12 @@
+pre.language-output {
+    background-color: white;
+}
+
+@font-face {
+    font-family: 'JuliaMono-Regular';
+    src: url("JuliaMono-Regular.ttf");
+}
+
+code, pre {
+  font-family: 'JuliaMono-Regular', Monaco, courier, monospace !important;
+}

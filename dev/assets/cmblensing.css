@@ -1,13 +1,12 @@
-pre.language-output {
-    background-color: white;
+code.language-output {
+    background-color: white !important;
 }
 
 @font-face {
-    font-family: 'DejaVuSansMono';
-    src: url("DejaVuSansMono.ttf");
+    font-family: 'JuliaMono-Regular';
+    src: url("JuliaMono-Regular.ttf");
 }
 
-pre, code, kbd {
-  font-family: 'DejaVuSansMono', Monaco, courier, monospace;
-  font-size: 0.90em;
+code, pre {
+  font-family: 'JuliaMono-Regular', Monaco, courier, monospace !important;
 }
