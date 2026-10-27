@@ -1,5 +1,7 @@
 using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
 
+field_diagonal_test_backend(arr) = CMBLensing.basetype(typeof(parent(arr)))
+
 @testset "field diagonal adaptation pullback" begin
     for T in (Float32, Float64), complex_data in (false, true), isview in (false, true)
         other = T === Float32 ? Float64 : Float32
@@ -17,8 +19,8 @@ using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
             output, back = Zygote.pullback(x -> adapt(target, x), input)
             cotangent = only(back(output))
             @test Array(diag(cotangent).arr) ≈ values
-            @test CMBLensing._fft_arr_type(diag(cotangent).arr) ===
-                CMBLensing._fft_arr_type(input_array)
+            @test field_diagonal_test_backend(diag(cotangent).arr) ===
+                field_diagonal_test_backend(input_array)
             @test Array(diag(input).arr) ≈ values
             @test Array(diag(output).arr) ≈ values
 
@@ -28,10 +30,10 @@ using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
             returned_seed = only(back(seed))
             @test eltype(diag(returned_seed).arr) === eltype(wider_values)
             @test Array(diag(returned_seed).arr) ≈ wider_values
-            @test CMBLensing._fft_arr_type(diag(returned_seed).arr) ===
-                CMBLensing._fft_arr_type(input_array)
-            @test CMBLensing._fft_arr_type(diag(returned_seed).metadata.ℓx) ===
-                CMBLensing._fft_arr_type(input_array)
+            @test field_diagonal_test_backend(diag(returned_seed).arr) ===
+                field_diagonal_test_backend(input_array)
+            @test field_diagonal_test_backend(diag(returned_seed).metadata.ℓx) ===
+                field_diagonal_test_backend(input_array)
             for zero in (nothing, CMBLensing.ChainRulesCore.ZeroTangent())
                 result = back(zero)
                 @test isnothing(result) || (length(result) == 1 &&

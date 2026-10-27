@@ -270,12 +270,12 @@ end
 
 # A field-backed diagonal operator is itself an AbstractArray, but its
 # wrapper type is not a storage backend. Move its cotangent back to the
-# backend of the underlying field array, as with the FFT plan selection.
+# backend of the field's underlying array, including ordinary array views.
 @adjoint function adapt(to, x::DiagOp{<:BaseField})
     adapted = adapt(to, x)
     function adapt_field_diagonal_pullback(Δ)
         Δ === nothing || Δ isa ChainRulesCore.AbstractZero ? (nothing, Δ) :
-            (nothing, adapt(_fft_arr_type(diag(x).arr), Δ))
+            (nothing, adapt(basetype(typeof(parent(diag(x).arr))), Δ))
     end
     adapted, adapt_field_diagonal_pullback
 end
