@@ -259,7 +259,10 @@ function sample_joint(
             saved_chains = read(io, "chunks_$(chunks_index-1)")
             length(saved_chains) == length(states) || throw(ArgumentError(
                 "Cannot resume $(length(states)) chains from a file containing $(length(saved_chains)) chains"))
-            merge!.(states, last.(saved_chains))
+            saved_states = last.(saved_chains)
+            all(s -> get(s, :step, nothing) == get(first(saved_states), :step, nothing), saved_states) ||
+                throw(ArgumentError("Cannot resume chains with different final steps"))
+            merge!.(states, saved_states)
             chunks_index
         end
         @unpack step = states[1]

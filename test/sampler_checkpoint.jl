@@ -208,6 +208,10 @@ using CMBLensing, LinearAlgebra, Random, Test
                 chain[1][:θ].shared == 42.0 && chain[1][:aux] == "shared" &&
                 chain[1][:aux_array] == [5.0] && chain[1][:logpdf] == 0.0, shared)
             @test all(chain -> haskey(chain[1], :ϕ) == !dropmaps, shared)
+            if !dropmaps
+                shared[1][1][:ϕ].arr[1] = 1
+                @test iszero(shared[2][1][:ϕ].arr[1])
+            end
         end
 
         # A scalar logpdf likewise must not hide a batched map, including
@@ -255,10 +259,17 @@ using CMBLensing, LinearAlgebra, Random, Test
             write(io, "chunks_1", [Any[Dict(:step=>1, :ϕ=>batch3),
                 Dict(:step=>2, :logpdf=>CMBLensing.batch(1.0, 2.0))]])
         end
+        discarded_conflict_file = joinpath(dir, "discarded-conflicting-sample.jld2")
+        CMBLensing.jldopen(discarded_conflict_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>CMBLensing.batch(1.0, 2.0)),
+                Dict(:step=>2, :ϕ=>batch3, :logpdf=>CMBLensing.batch(1.0, 2.0))]])
+        end
         for dropmaps in (false, true)
             @test_throws ArgumentError load_chains(conflict_file; dropmaps, progress=false)
             @test_throws ArgumentError load_chains(cross_conflict_file; dropmaps, progress=false)
             @test length(load_chains(cross_conflict_file; dropmaps, thin=2, progress=false)) == 3
+            @test_throws ArgumentError load_chains(discarded_conflict_file; dropmaps, progress=false)
+            @test length(load_chains(discarded_conflict_file; dropmaps, thin=2, progress=false)) == 2
         end
 
         # Reject differing numbers of persisted and requested chains before
@@ -280,6 +291,21 @@ using CMBLensing, LinearAlgebra, Random, Test
             sample_joint(plain_ds; counter_options..., filename=path, resume=false,
                 nsamps_per_chain=3, nchains=saved_count)
             before = read(path)
+            if saved_count == 2
+                rundat, chunk = CMBLensing.jldopen(path, "r") do io
+                    (read(io, "rundat"), read(io, "chunks_1"))
+                end
+                last(chunk[2])[:step] = 4
+                different_steps_file = joinpath(dir, "different-final-steps.jld2")
+                CMBLensing.jldopen(different_steps_file, "w") do io
+                    write(io, "rundat", rundat)
+                    write(io, "chunks_1", chunk)
+                end
+                different_steps_before = read(different_steps_file)
+                @test_throws ArgumentError sample_joint(plain_ds; counter_options...,
+                    filename=different_steps_file, resume=true, nsamps_per_chain=5, nchains=2)
+                @test read(different_steps_file) == different_steps_before
+            end
             @test_throws ArgumentError sample_joint(plain_ds; counter_options...,
                 filename=path, resume=true, nsamps_per_chain=4, nchains=requested_count)
             @test read(path) == before

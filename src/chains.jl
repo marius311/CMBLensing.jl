@@ -54,7 +54,7 @@ function load_chains(
 )
     # Keep only batch widths and map presence; dropmaps must release fields
     # before thinning and unbatching.
-    dropped_batch_hints = IdDict{Any,Int}()
+    dropped_batch_hints = IdDict{Any,Vector{Int}}()
     dropped_maps = IdDict{Any,Nothing}()
     chains = jldopen(filename) do io
         ks = keys(io)
@@ -73,10 +73,9 @@ function load_chains(
             if dropmaps
                 for chain in chunk, sample in chain
                     if unbatch
-                        marker = _sample_batch_marker(sample)
-                        if !isnothing(marker)
-                            dropped_batch_hints[sample] = batch_length(marker)
-                        end
+                        widths = Int[batch_length(v) for v in values(sample)
+                            if v isa Field && applicable(batch_length, v)]
+                        isempty(widths) || (dropped_batch_hints[sample] = widths)
                     end
                     if thin == :hasmaps && get(sample, :ϕ, nothing) isa Field
                         dropped_maps[sample] = nothing
@@ -174,51 +173,28 @@ cannot be inferred from the sample and it is treated as one chain.
 """
 unbatch(chain::Chain) = _unbatch(chain, nothing)
 
-function _sample_batch_marker(sample)
-    candidates = Any[]
-    logpdf = get(sample, :logpdf, nothing)
-    !(isnothing(logpdf) || ismissing(logpdf)) && push!(candidates, logpdf)
-    ϕ = get(sample, :ϕ, nothing)
-    ϕ isa Field && push!(candidates, ϕ)
+function _sample_batch_widths(sample)
+    widths = Int[]
     for v in values(sample)
-        v isa Union{BatchedReal,BatchedVal} && push!(candidates, v)
-        if v isa NamedTuple
+        if v isa Union{BatchedReal,BatchedVal} || (v isa Field && applicable(batch_length, v))
+            push!(widths, batch_length(v))
+        elseif v isa NamedTuple
             for component in values(v)
-                component isa Union{BatchedReal,BatchedVal} && push!(candidates, component)
+                component isa Union{BatchedReal,BatchedVal} && push!(widths, batch_length(component))
             end
         elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
-            append!(candidates, v)
+            append!(widths, batch_length.(v))
         end
     end
-    for v in values(sample)
-        v isa Field && push!(candidates, v)
-    end
-    # A singleton may be shared, but all non-singleton batches must agree.
-    marker = nothing
-    width = 1
-    for candidate in candidates
-        applicable(batch_length, candidate) || continue
-        n = batch_length(candidate)
-        if n > 1
-            (width == 1 || width == n) || throw(ArgumentError(
-                "Sample contains incompatible batch lengths $width and $n"))
-            width = n
-            marker = candidate
-        elseif isnothing(marker)
-            marker = candidate
-        end
-    end
-    marker
+    widths
 end
 
 function _unbatch(chain::Chain, batch_hints)
     isempty(chain) && return [chain]
     D = 1
     for sample in chain
-        marker = _sample_batch_marker(sample)
-        marker_width = isnothing(marker) ? 1 : batch_length(marker)
-        hint_width = isnothing(batch_hints) ? 1 : get(batch_hints, sample, 1)
-        for n in (marker_width, hint_width)
+        hint_widths = isnothing(batch_hints) ? () : get(batch_hints, sample, ())
+        for widths in (_sample_batch_widths(sample), hint_widths), n in widths
             n <= 1 && continue
             (D == 1 || D == n) || throw(ArgumentError(
                 "Chain contains incompatible batch lengths $D and $n"))
@@ -232,7 +208,7 @@ function _unbatch(chain::Chain, batch_hints)
                 if v isa Union{BatchedReal,BatchedVal}
                     k => batch_index(v, batch_length(v) == 1 ? 1 : I)
                 elseif v isa Union{FlatField,FieldTuple}
-                    k => (batch_length(v) == 1 ? v : batch_index(v, I))
+                    k => batch_index(v, batch_length(v) == 1 ? 1 : I)
                 elseif v isa NamedTuple
                     k => map(x -> (x isa Union{BatchedReal,BatchedVal} ?
                         batch_index(x, batch_length(x) == 1 ? 1 : I) : x), v)
