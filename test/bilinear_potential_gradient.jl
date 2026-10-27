@@ -150,6 +150,86 @@ bilinear_test_scalar(x) = x isa BatchedReal ? sum(unbatch(x)) : x
     end
 end
 
+@testset "BilinearLens Fourier source directions" begin
+    # With L fixed, its action on the source is linear. Compare its pullback
+    # to that exact action for unrestricted stored Fourier directions.
+    for T in (Float32,Float64), (Ny,Nx) in ((6,8),(7,9)), spin in (:scalar,:QU,:EB,:IQU,:IEB), shared in (false,true)
+        @testset "$T, $(Ny)×$(Nx), $spin, shared=$shared" begin
+            rng = MersenneTwister(81623+Ny+Nx)
+            proj = ProjLambert(;Ny,Nx,θpix=60*180/π,T)
+            scalar() = FlatMap(randn(rng,T,Ny,Nx),proj)
+            qu() = FlatQUMap(scalar().Ix,scalar().Ix,proj)
+            iqu() = FlatIQUMap(scalar().Ix,scalar().Ix,scalar().Ix,proj)
+            mapfield() = spin == :scalar ? scalar() : spin in (:QU,:EB) ? qu() : iqu()
+            tofourier(x) = spin == :EB ? EBFourier(x) : spin == :IEB ? IEBFourier(x) : Fourier(x)
+            L = BilinearLens(T(0.3)*scalar())
+            f = tofourier(mapfield())
+            g = shared ? batch(mapfield(),mapfield()) : mapfield()
+            f_before, g_before = copy(f.arr), copy(g.arr)
+            objective = x -> bilinear_test_scalar(dot(g,L*x))
+            f̄ = gradient(objective,f)[1]
+            @test batch_length(f̄)==1
+            @test f.arr == f_before
+            @test g.arr == g_before
+            directions = [typeof(f)(randn(rng,eltype(f),size(f.arr)...),proj)]
+            if spin == :scalar
+                rows = unique((1,Ny÷2+1))
+                cols = unique((1,2,Nx÷2+1,Nx))
+                for i in rows, j in cols, value in (one(Complex{T}),im*one(Complex{T}))
+                    a = zeros(Complex{T},size(f.arr))
+                    a[i,j] = value
+                    push!(directions,typeof(f)(a,proj))
+                end
+            end
+            for direction in directions
+                exact = bilinear_test_scalar(dot(g,L*direction))
+                @test isapprox(dot(f̄,direction),exact;atol=T==Float32 ? 3e-5 : 3e-12,rtol=T==Float32 ? 3e-5 : 3e-12)
+            end
+        end
+    end
+end
+
+@testset "BilinearLens zero-potential source identity" begin
+    rng=MersenneTwister(82311)
+    Ny,Nx=6,8
+    proj=ProjLambert(;Ny,Nx,θpix=60*180/π,T=Float64)
+    scalar()=FlatMap(randn(rng,Ny,Nx),proj)
+    qu()=FlatQUMap(scalar().Ix,scalar().Ix,proj)
+    iqu()=FlatIQUMap(scalar().Ix,scalar().Ix,scalar().Ix,proj)
+    L=BilinearLens(zero(scalar()))
+    for template in (Fourier(scalar()), QUFourier(qu()), EBFourier(qu()), IQUFourier(iqu()), IEBFourier(iqu()))
+        # Fully arbitrary coefficients intentionally need not be Hermitian.
+        f=typeof(template)(randn(rng,eltype(template),size(template.arr)...),proj)
+        seed=typeof(template)(randn(rng,eltype(template),size(template.arr)...),proj)
+        f_before,seed_before=copy(f.arr),copy(seed.arr)
+        result,back=Zygote.pullback(x->L*x,f)
+        f̄,=back(seed)
+        @test result === f
+        @test f̄.arr == seed_before
+        @test f.arr == f_before
+        @test seed.arr == seed_before
+    end
+end
+
+@testset "BilinearLens Fourier source with mixed storage precision" begin
+    rng=MersenneTwister(81970)
+    Ny,Nx=7,8
+    proj=ProjLambert(;Ny,Nx,θpix=60*180/π,T=Float64)
+    wide()=FlatMap(randn(rng,Ny,Nx),proj)
+    narrow()=FlatMap(randn(rng,Float32,Ny,Nx),proj)
+    L=BilinearLens(0.3wide())
+    f=Fourier(narrow())
+    g=batch(wide(),wide())
+    δ=typeof(f)(randn(rng,ComplexF32,size(f.arr)...),proj)
+    f_before,g_before=copy(f.arr),copy(g.arr)
+    objective=x->bilinear_test_scalar(dot(g,L*x))
+    f̄=gradient(objective,f)[1]
+    @test eltype(f̄) === ComplexF32
+    @test f.arr == f_before
+    @test g.arr == g_before
+    @test isapprox(dot(f̄,δ),bilinear_test_scalar(dot(g,L*δ));atol=1e-4,rtol=1e-4)
+end
+
 @testset "BilinearLens mixed storage precision" begin
     rng=MersenneTwister(31556)
     Ny,Nx=7,8

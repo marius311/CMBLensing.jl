@@ -225,17 +225,18 @@ end
 # y-frequency rows. Its adjoint under the field's weighted Fourier inner
 # product must therefore double those entries and zero their negative-x
 # partners. This also handles arbitrary complex Fourier input directions.
-function _bilinear_mkl_irfft_adjoint(f::LambertMap)
+function _bilinear_mkl_irfft_adjoint(f::FlatField)
     f̃ = Fourier(f)
-    a = f̃.arr
+    # Treat spin and any other trailing axes independently.
+    a = reshape(f̃.arr, size(f̃.arr,1), size(f̃.arr,2), :)
     Nx = f.Nx
     npairs = (Nx-1) ÷ 2
     rows = iseven(f.Ny) ? (1, size(a,1)) : (1,)
     for i in rows
-        @views a[i,2:(npairs+1)] .*= 2
-        @views a[i,(Nx-npairs+1):Nx] .= 0
-        a[i,1] = real(a[i,1])
-        iseven(Nx) && (a[i,Nx÷2+1] = real(a[i,Nx÷2+1]))
+        @views a[i,2:(npairs+1),:] .*= 2
+        @views a[i,(Nx-npairs+1):Nx,:] .= 0
+        @views a[i,1,:] .= real.(a[i,1,:])
+        iseven(Nx) && (@views a[i,Nx÷2+1,:] .= real.(a[i,Nx÷2+1,:]))
     end
     f̃
 end
@@ -250,6 +251,15 @@ function _bilinear_lens_pullback(Lϕ::BilinearLens, f::FlatField, Δ::Field)
         ∇' * contributions
     end
     f̄ = Lϕ' * Δ
+    if Lϕ.sparse_repr !== I && basis(f) <: SpatialBasis{Fourier} && _fft_arr_type(f̄.arr) <: Array && fftw_provider() == "mkl"
+        # An unbatched input may receive a batched cotangent. Reduce it while
+        # still in map space so that MKL need not plan a batched real FFT.
+        if batch_length(f) == 1 && batch_length(f̄) > 1
+            fmap = Ł(f)
+            f̄ = BaseField{basis(f̄)}(_svector_unbroadcast(fmap.arr, f̄.arr), f̄.metadata)
+        end
+        f̄ = _bilinear_mkl_irfft_adjoint(f̄)
+    end
     _svector_reduce_field(Lϕ.ϕ, ϕ̄), _svector_project_field(f, f̄)
 end
 function _bilinear_lens_pullback(Lϕ::BilinearLens, f::FieldTuple, Δ::FieldTuple)
