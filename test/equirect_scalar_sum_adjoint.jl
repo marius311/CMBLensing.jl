@@ -60,4 +60,16 @@
     for objective in (x -> real(sum(x)), x -> imag(sum(x)))
         @test eltype(only(Zygote.gradient(objective, f)).arr) === ComplexF32
     end
+
+    # A wider seed can overflow at weight-1 endpoints while its weight-2
+    # interior cotangent is still representable in the field's precision.
+    proj32 = ProjEquiRect(; Ny=3, Nx=4, T=Float32, θspan=(0.4,2.3), φspan=(0,2π))
+    narrow = adapt(storage, CMBLensing.BaseField{AzFourier}(zeros(ComplexF32, 3, 3), proj32))
+    _, back = Zygote.pullback(sum, narrow)
+    seed = 1.5 * Float64(floatmax(Float32))
+    for value in (complex(seed, 0), complex(0, seed))
+        grad = Array(only(back(value)).arr)
+        @test isfinite(real(grad[1,2])) && isfinite(imag(grad[1,2]))
+        @test grad[1,2] ≈ ComplexF32(value / 2)
+    end
 end

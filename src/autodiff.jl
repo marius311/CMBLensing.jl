@@ -176,7 +176,8 @@ end
     function sum_equirect_az_pullback(Δ)
         Δ = unthunk(Δ)
         (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return (nothing,)
-        seed = T <: Real ? T(real(Δ)) : T(Δ)
+        # Divide before storing so a wider seed can still yield finite values.
+        seed = T <: Real ? real(Δ) : Δ
         arr = similar(f.arr)
         arr .= seed ./ _equirect_az_rfft_weights(f)
         (BaseField{AzFourier}(arr, f.metadata),)
