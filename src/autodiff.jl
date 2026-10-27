@@ -110,7 +110,8 @@ end
 @adjoint function sum(f::BaseField{B,M,T}) where {B<:SpatialBasis{Fourier},M<:ProjLambert,T}
     function sum_fourier_pullback(Δ)
         seed = T <: Real ? T(real(Δ)) : T(Δ)
-        arr = fill!(similar(f.arr), seed) .* Zfac(B(), f.metadata) ./ f.λ_rfft
+        arr = similar(f.arr)
+        arr .= seed .* Zfac(B(), f.metadata) ./ f.λ_rfft
         (BaseField{B}(arr, f.metadata),)
     end
     sum(f), sum_fourier_pullback

@@ -23,4 +23,14 @@
         @test dot(gcomplex, real_dir) ≈ T(11.2)
         @test dot(gcomplex, imag_dir) ≈ T(5.2)
     end
+
+    # Metadata may be wider than the stored coefficients. The cotangent
+    # must keep the input storage precision rather than promote to Float64.
+    metadata64 = FlatMap(zeros(Float64, 4, 4)).metadata
+    f32 = CMBLensing.BaseField{Fourier}(zeros(ComplexF32, 3, 4), metadata64)
+    for objective in (x -> real(sum(x)), x -> imag(sum(x)))
+        gradient32 = gradient(objective, f32)[1]
+        @test eltype(gradient32) === ComplexF32
+        @test size(gradient32.arr) == size(f32.arr)
+    end
 end
