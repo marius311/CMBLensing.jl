@@ -369,7 +369,8 @@ LinearAlgebra.dot(a::EquiRectField, b::EquiRectField) = dot(Ł(a).arr, Ł(b).arr
 
 # needed by AD
 @uses_tullio function LinearAlgebra.dot(M₁::Adjoint{T,<:BlockDiagEquiRect{B}}, M₂::BlockDiagEquiRect{B}) where {T, B<:AzBasis}
-    (@tullio a[] := conj(M₁.parent.blocks[q,p,iₘ]) * M₂.blocks[p,q,iₘ])[]
+    # The conjugation performed by dot cancels that of the adjoint.
+    (@tullio a[] := M₁.parent.blocks[q,p,iₘ] * M₂.blocks[p,q,iₘ])[]
 end
 
 
