@@ -46,6 +46,23 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{AzFourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* Δ.λ_rfft ./ Zfac(B(), metadata), nothing)
 end
+
+# EquiRect's scalar azimuthal transform is an orthonormal rFFT along
+# dimension 2. Unlike Lambert projections, its metadata does not store rFFT
+# degeneracies. Construct those weights in the storage backend of the field.
+function _equirect_az_rfft_weights(f::BaseField{AzFourier,<:ProjEquiRect})
+    weights = reshape(real(eltype(f)).(rfft_degeneracy_fac(f.Nx)), 1, :)
+    adapt(f.metadata.storage, weights)
+end
+@adjoint function (::Type{F})(arr::A, metadata::M) where {M<:ProjEquiRect,T,A<:AbstractArray{T},F<:BaseField{AzFourier}}
+    field = F(arr, metadata)
+    function equirect_az_constructor_pullback(Δ)
+        arr_gradient = similar(arr)
+        arr_gradient .= Δ.arr .* _equirect_az_rfft_weights(field)
+        (arr_gradient, nothing)
+    end
+    field, equirect_az_constructor_pullback
+end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
@@ -55,6 +72,14 @@ end
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft .* Zfac(B(), f.metadata), f.metadata),)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{AzFourier,<:ProjEquiRect}, ::Val{:arr})
+    function equirect_az_array_pullback(Δ)
+        arr_gradient = similar(f.arr)
+        arr_gradient .= Δ ./ _equirect_az_rfft_weights(f)
+        (BaseField{AzFourier}(arr_gradient, f.metadata),)
+    end
+    getfield(f,:arr), equirect_az_array_pullback
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})
@@ -103,6 +128,34 @@ end
 
 # ℝᴺ -> ℝ¹ 
 @adjoint sum(f::Field{B,T}) where {B,T} = sum(f), Δ -> (real(T)(Δ) * one(f),)
+# `sum` sums the stored half-plane coefficients. Their field inner product
+# has an rFFT degeneracy weight and an FFT normalization, so the cotangent
+# is not a Fourier field filled with ones. Keep complex seeds for objectives
+# such as `imag(sum(f))`.
+@adjoint function sum(f::BaseField{B,M,T}) where {B<:SpatialBasis{Fourier},M<:ProjLambert,T}
+    function sum_fourier_pullback(Δ)
+        seed = T <: Real ? T(real(Δ)) : T(Δ)
+        arr = similar(f.arr)
+        arr .= seed .* Zfac(B(), f.metadata) ./ f.λ_rfft
+        (BaseField{B}(arr, f.metadata),)
+    end
+    sum(f), sum_fourier_pullback
+end
+# Each component's sum has its own storage and inner-product convention.
+# In particular, a Fourier component cannot use a field filled with ones.
+@adjoint function sum(ft::FieldTuple)
+    function sum_fieldtuple_pullback(Δ)
+        (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return (nothing,)
+        gradients = map(getfield(ft, :fs)) do component
+            value, back = Zygote.pullback(sum, component)
+            component_gradient, = back(ProjectTo(value)(Δ))
+            component_gradient === nothing || component_gradient isa ChainRulesCore.AbstractZero ?
+                zero(component) : component_gradient
+        end
+        (FieldTuple(gradients),)
+    end
+    sum(ft), sum_fieldtuple_pullback
+end
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 @adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*B1(g), real(T2)(Δ)*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)

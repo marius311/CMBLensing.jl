@@ -71,11 +71,15 @@ rng = StableRNG(4)
 
 has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
+include("fft_view_preservation.jl")
+
 ##
 
 @testset verbose=true "CMBLensing" begin
 
 include("svector_field_adjoint.jl")
+include("fourier_sum_adjoint.jl")
+include("fieldtuple_sum_adjoint.jl")
 
 ##
 
@@ -92,6 +96,8 @@ include("svector_field_adjoint.jl")
 end
 
 ##
+
+include("lambert_odd_width.jl")
 
 @testset "Flat" begin 
 
@@ -296,6 +302,7 @@ end
 ##
 
 include("forwarddiff.jl")
+include("nonsymmetric_field_matrices.jl")
 
 ##
 
@@ -573,6 +580,7 @@ end;
 
 include("chains.jl")
 include("loess.jl")
+include("equirect_scalar_array_adjoint.jl")
 
 
 ##
@@ -722,8 +730,11 @@ end
 ##
 
 include("lenseflow_adaptation.jl")
+include("flow_constructor_adjoint.jl")
 
 @testset "Lensing" begin
+
+    include("powerlens_antilensing.jl")
     
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
@@ -777,6 +788,7 @@ end
 
 include("lenseflow_adjoint.jl")
 include("map_joint.jl")
+include("equirect_odd_width.jl")
 
 ##
 
@@ -954,5 +966,7 @@ end
 
 
 ##
+
+include("lenseflow_scratch_fft.jl")
 
 end

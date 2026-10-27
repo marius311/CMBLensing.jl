@@ -25,6 +25,8 @@ function m_irfft(arr::AbstractArray{T,N}, d, dims) where {T,N}
 end
 m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T<:Real,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
 m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, size(dst)...), copy_if_fftw(arr))
+# Only for internal buffers that may be overwritten by the inverse transform.
+m_irfft_scratch!(dst, arr::Array{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(Array{real(T),N}, dims, size(dst)...), arr)
 m_fft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) * arr
 m_ifft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) \ arr
 m_fft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = mul!(dst, m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...), complex(arr))
@@ -40,8 +42,10 @@ end
 ChainRulesCore.@non_differentiable m_plan_fft(::Any, ::Any, ::Any...)
 ChainRulesCore.@non_differentiable m_plan_rfft(::Any, ::Any, ::Any...)
 # FFTW (but not MKL) destroys the input array for inplace inverse real
-# FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
-copy_if_fftw(x) = (x isa Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
+# FFTs, so we need a copy, including views backed by an Array. Identify the
+# backend in the same way as the FFT plan to avoid copying GPU storage.
+# See https://github.com/JuliaMath/FFTW.jl/issues/158.
+copy_if_fftw(x) = (_fft_arr_type(x) <: Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
 
 
 """

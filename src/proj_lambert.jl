@@ -67,7 +67,10 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
     sin2ϕ, cos2ϕ = adapt(storage, @. sin(2ϕ), cos(2ϕ))
     λ_rfft       = adapt(storage, T′.(rfft_degeneracy_fac(Ny)))
     if iseven(Ny)
-        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
+        # The Nyquist row must obey Hermitian symmetry. Odd widths have
+        # one more positive/negative pair; even widths have an unpaired
+        # Nyquist column instead.
+        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:((Nx+1)÷2)]
     end
 
     ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,λ_rfft,ℓmag,sin2ϕ,cos2ϕ)
@@ -297,6 +300,19 @@ IEBMap(f::LambertIQUFourier) = f |> IEBFourier |> IEBMap
 
 # in-place
 IQUMap(f′::LambertIQUMap, f::LambertIQUFourier) = (m_irfft!(f′.arr, f.arr, (1,2)); f′)
+
+# LenseFlow supplies disposable Fourier scratch. Public field conversions
+# continue to preserve their inputs, and non-Array storage uses the normal path.
+for (Fmap, Ffourier) in ((:LambertMap, :LambertFourier), (:LambertQUMap, :LambertQUFourier), (:LambertIQUMap, :LambertIQUFourier))
+    @eval function _lenseflow_scratch_to_map!(dst::$Fmap, src::$Ffourier)
+        if dst.arr isa Array && src.arr isa Array && !Base.mightalias(dst.arr, src.arr)
+            m_irfft_scratch!(dst.arr, src.arr, (1,2))
+            dst
+        else
+            Ł!(dst, src)
+        end
+    end
+end
 IQUFourier(f′::LambertIQUFourier, f::LambertIQUMap) = (m_rfft!(f′.arr, f.arr, (1,2)); f′)
 
 

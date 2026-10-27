@@ -163,7 +163,11 @@ function QUAzFourier(f::EquiRectQUMap)
     P_azfft = m_fft(P_map, 2) ./ T(√nφ)
     P_azfft_perm = similar(P_azfft, 2nθ, nφ÷2+1)
     P_azfft_perm[1:nθ,:] .= P_azfft[:,1:nφ÷2+1]
-    P_azfft_perm[nθ+1:end,:] .= conj.(P_azfft[:, [1; end:-1:nφ÷2+1]])
+    # Zero frequency is followed by the negative frequencies. For even
+    # widths the Nyquist frequency occurs in both halves; for odd widths
+    # the highest positive and negative frequencies are distinct.
+    negative_indices = [1; nφ:-1:(nφ - nφ÷2 + 1)]
+    P_azfft_perm[nθ+1:end,:] .= conj.(P_azfft[:, negative_indices])
     EquiRectQUAzFourier(P_azfft_perm, f.proj)
 end
 
@@ -172,7 +176,8 @@ function QUMap(f::EquiRectQUAzFourier)
     P_azfft_perm = f.arr
     P_azfft = similar(P_azfft_perm, nθ, nφ)
     P_azfft[:, 1:nφ÷2+1] .= P_azfft_perm[1:nθ,:]
-    P_azfft[:, [1; end:-1:nφ÷2+1]] .= conj(P_azfft_perm[nθ+1:end,:])
+    negative_indices = [1; nφ:-1:(nφ - nφ÷2 + 1)]
+    P_azfft[:, negative_indices] .= conj(P_azfft_perm[nθ+1:end,:])
     P_map = m_ifft(P_azfft, 2) .* T(√nφ)
     EquiRectQUMap(cat(real(P_map), imag(P_map), dims=3), f.proj)
 end
