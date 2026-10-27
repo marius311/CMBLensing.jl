@@ -45,6 +45,20 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
         end
         @test err isa ArgumentError && occursin(parameter, err.msg)
     end
+    for (options, parameter) in (((; nsteps=0.5), "nsteps"),
+                                 ((; nsteps_with_meanfield_update=0.5), "nsteps_with_meanfield_update"),
+                                 ((; Nsims=0.5), "Nsims"),
+                                 ((; nsteps=-1), "nsteps"),
+                                 ((; nsteps_with_meanfield_update=-1), "nsteps_with_meanfield_update"),
+                                 ((; Nsims=-1), "Nsims"))
+        err = try
+            MAP_marg((; test_amp=1.0), map_marg_test_dataset; options..., progress=false)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError && occursin(parameter, err.msg)
+    end
     zero_start = 0.3sim.ϕ
     zero_ϕ, zero_trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset;
         ϕstart=zero_start, nsteps=0, nsteps_with_meanfield_update=0, Nsims=0, progress=false)

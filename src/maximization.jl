@@ -325,7 +325,8 @@ end
 Compute the maximum a posteriori (i.e. "MAP") estimate of the marginal posterior,
 $\mathcal{P}(\phi,\theta\,|\,d)$.
 
-A solve with positive `nsteps` requires positive `Nsims` and
+`nsteps`, `Nsims`, and `nsteps_with_meanfield_update` must be nonnegative
+integers. A solve with positive `nsteps` requires positive `Nsims` and
 `nsteps_with_meanfield_update`, because no initial mean field is supplied.
 
 """
@@ -346,6 +347,9 @@ function MAP_marg(
     pmap = (myid() in workers() ? map : (f,args...) -> pmap(f, default_worker_pool(), args...)),
     aggressive_gc = false
 )
+    for (name, count) in (("nsteps", nsteps), ("nsteps_with_meanfield_update", nsteps_with_meanfield_update), ("Nsims", Nsims))
+        count isa Integer && count >= 0 || throw(ArgumentError("$name must be a nonnegative integer"))
+    end
     if nsteps > 0
         nsteps_with_meanfield_update > 0 || throw(ArgumentError("nsteps_with_meanfield_update must be positive when nsteps is positive"))
         Nsims > 0 || throw(ArgumentError("Nsims must be positive when nsteps is positive"))
