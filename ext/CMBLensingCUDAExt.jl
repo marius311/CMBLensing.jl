@@ -124,16 +124,10 @@ end
 
 # fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
 # A method ambiguity between Base.reshape and ComponentArrays.reshape for 0-dim arrays
-function Base.reshape(a::CuArray{T,M}, dims::Tuple{}) where {T,M}
-    if prod(dims) != length(a)
-        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $(size(a))"))
-    end
-  
-    if 0 == M && dims == size(a)
-        return a
-    end
-  
-    GPUArrays.derive(T, a, dims, 0)
+function Base.reshape(a::CuArray, dims::Tuple{})
+    # Dispatch to GPUArrays' reshape method rather than its private derive
+    # helper, whose signature differs between supported GPUArrays releases.
+    invoke(reshape, Tuple{GPUArrays.AbstractGPUArray, Tuple{Vararg{Int}}}, a, dims)
 end
 
 
