@@ -51,7 +51,10 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
     test_arr     = adapt(storage, Vector{T}())
     T′           = eltype(test_arr)
 
-    if @isdefined(CUDA) && CUDA.functional() && CUDA.runtime_version() >= v"11.5" && (Ny*Nx > 1024^2) && (test_arr isa CUDA.CuArray)
+    # Older CUDA releases expose toolkit_version() instead of runtime_version().
+    # Query the version only when this warning can apply to a GPU map.
+    if @isdefined(CUDA) && (test_arr isa CUDA.CuArray) && (Ny*Nx > 1024^2) && CUDA.functional() &&
+       (isdefined(CUDA, :runtime_version) ? CUDA.runtime_version() : CUDA.toolkit_version()) >= v"11.5"
         @warn("For maps with >1024² pixels, CUDA Toolkit >= 11.5 is known to have FFT instabilties, please downgrade.")
     end
 
