@@ -473,6 +473,10 @@ end
 
 ##
 
+include("map_marg_regression.jl")
+
+##
+
 @testset "BatchedReal" begin
 
     @testset "Nside = $Nside" for Nside in Nsides

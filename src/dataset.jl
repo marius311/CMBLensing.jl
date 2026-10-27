@@ -404,11 +404,12 @@ function Serialization.serialize(s::AbstractSerializer, ds::DataSet)
     hash_ds = hash(ds)
     original_hash = get(distributed_datasets.objid_hash, objectid(ds), nothing)
     name = get(inv(distributed_datasets.name_hash), hash_ds, nothing)
-    if name == original_hash == nothing
+    if original_hash === nothing
         Base.@invoke(Serialization.serialize(s::AbstractSerializer, ds::Any))
     elseif original_hash != hash_ds
         error("DataSet object has been modified since it was marked as distributed.")
     else
+        name === nothing && error("DataSet object is no longer marked as distributed.")
         hash(Base.eval(Main,name)) == hash_ds || error("Main.$name has been modified since it was marked as distributed.")
         Serialization.writetag(s.io, Serialization.OBJECT_TAG)
         Serialization.serialize(s, Val{:DataSet})
