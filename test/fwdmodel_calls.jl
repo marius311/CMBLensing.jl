@@ -7,6 +7,10 @@ using Test
 const Normal = CMBLensing.Distributions.Normal
 const loglikelihood = CMBLensing.Distributions.loglikelihood
 
+macro as_syntax(ex)
+    QuoteNode(ex)
+end
+
 module Children
 using CMBLensing
 const Normal = CMBLensing.Distributions.Normal
@@ -76,6 +80,22 @@ end
     value ← @. Base.sin(x)
 end
 
+@fwdmodel function quoted_call(; x)
+    expression ← :(Base.sin(x))
+end
+
+@fwdmodel function interpolated_model(; x)
+    expression ← :(1 + $(Children.child(2; x, offset=1)))
+end
+
+@fwdmodel function syntax_macro(; x)
+    expression ← @as_syntax Base.sin(x)
+end
+
+@fwdmodel function quoted_macro_interpolation(; x)
+    expression ← :(@inbounds $(Children.child(2; x, offset=1)))
+end
+
 @testset "Forward-model call expressions" begin
     expected_loglike = CMBLensing.Distributions.logpdf(Normal(2, 1), 3)
     for model in (qualified, splatted, indexed, dynamic_model)
@@ -112,6 +132,18 @@ end
     @test loglikelihood(broadcasted; x) == 0
     @test simulate(MersenneTwister(1), broadcast_macro; x).value ≈ sin.(x)
     @test loglikelihood(broadcast_macro; x) == 0
+
+    @test simulate(MersenneTwister(1), quoted_call; x=2).expression == :(Base.sin(x))
+    result = simulate(MersenneTwister(1), interpolated_model; x=3)
+    @test result.expression == :(1 + 7)
+    @test result.value == 7
+    @test loglikelihood(interpolated_model; x=3) ≈ expected_loglike
+    @test simulate(MersenneTwister(1), syntax_macro; x=2).expression == :(Base.sin(x))
+    result = simulate(MersenneTwister(1), quoted_macro_interpolation; x=3)
+    @test result.expression isa Expr && result.expression.head == :macrocall
+    @test result.expression.args[end] == 7
+    @test result.value == 7
+    @test loglikelihood(quoted_macro_interpolation; x=3) ≈ expected_loglike
 end
 
 end

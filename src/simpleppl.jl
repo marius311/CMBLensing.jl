@@ -11,10 +11,20 @@ macro fwdmodel(def)
     @capture(sdef[:name], (model_name_::_) | model_name_)
     maybe_local_var = [] # only "maybe" b/c the simple thing here is too conservative c.f. inner functions / let blocks
     @capture(sdef[:name], (var_::_)) && push!(maybe_local_var, var)
+
+    # Track quoted syntax and other macros when rewriting expression callees.
+    function walk_model(f, x, quote_depth=0, macro_depth=0)
+        if x isa Expr
+            depth = quote_depth + (x.head === :quote) - (x.head === Symbol('$') && quote_depth > 0)
+            macros = macro_depth + (x.head === :macrocall && quote_depth == 0)
+            x = Expr(x.head, (walk_model(f, arg, depth, macros) for arg in x.args)...)
+        end
+        f(x, quote_depth, macro_depth)
+    end
        
     # simulate
     rand_vars = []
-    body_simulate = postwalk(sdef[:body]) do x
+    body_simulate = walk_model(sdef[:body]) do x, quote_depth, macro_depth
         if @capture(x, ((vars__,) | var_) = rhs_)
             vars != nothing ? append!(maybe_local_var, vars) : push!(maybe_local_var, var)
         elseif @capture(x, var_ ~ dist_)
@@ -40,7 +50,7 @@ macro fwdmodel(def)
                 else
                     return :($is_simpleppl_model($f) ? $f($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $x)
                 end
-            elseif !(f isa Symbol)
+            elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
                 call_args, call_kwargs = gensym(:args), gensym(:kwargs)
                 return :((let $callee = $f
@@ -61,7 +71,7 @@ macro fwdmodel(def)
     def_simulate = combinedef(Dict(:name=>sdef[:name], :args=>args_simulate, :kwargs=>kwargs_simulate, :body=>body_simulate, :whereparams=>sdef[:whereparams]))
     
     # logpdf
-    body_logpdf = postwalk(sdef[:body]) do x
+    body_logpdf = walk_model(sdef[:body]) do x, quote_depth, macro_depth
         if @capture(x, var_ ~ dist_)
             return :(_logpdf[] += $logpdf($dist, $var); $var)
         elseif @capture(x, var_ ← rhs_)
@@ -76,7 +86,7 @@ macro fwdmodel(def)
                 else
                     return :($is_simpleppl_model($f) ? $f($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $x)
                 end
-            elseif !(f isa Symbol)
+            elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
                 call_args, call_kwargs = gensym(:args), gensym(:kwargs)
                 return :((let $callee = $f
