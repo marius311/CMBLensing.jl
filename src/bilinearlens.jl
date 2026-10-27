@@ -136,9 +136,11 @@ end
 # before returning zero. ForwardDiff's iszero behavior differs by version;
 # inspect primal values so a seeded zero never acquires a false derivative.
 function _bilinear_inverse_gmres(A, b, Pl)
-    # An abstract eltype can hide Dual values; retain the original solver's
-    # behavior instead of returning zero and discarding their derivatives.
-    isconcretetype(eltype(b)) || return gmres(A, b; Pl, maxiter=5)
+    # Abstract element or complex component types can hide Dual values;
+    # retain the solver's behavior rather than discard their derivatives.
+    T = eltype(b)
+    (isconcretetype(T) && (!(T <: Complex) || isconcretetype(real(T)))) ||
+        return gmres(A, b; Pl, maxiter=5)
     isdual = eltype(b) <: Union{Dual,Complex{<:Dual}}
     iszero_primal = isdual ?
         all(x -> _primal_iszero(real(x)) && _primal_iszero(imag(x)), b) : iszero(b)

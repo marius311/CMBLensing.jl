@@ -52,6 +52,9 @@ end
     hidden_duals = Real[ForwardDiff.Dual(0.0, 1.0) for _ in 1:8]
     @test_throws Exception CMBLensing._bilinear_inverse_gmres(
         Matrix{Float64}(I,8,8), hidden_duals, I)
+    hidden_complex_duals = Complex{Real}[Complex{Real}(ForwardDiff.Dual(0.0, 1.0), 0.0) for _ in 1:8]
+    @test_throws Exception CMBLensing._bilinear_inverse_gmres(
+        Matrix{Float64}(I,8,8), hidden_complex_duals, I)
 
     # Reverse-mode inverse gradients are still unsupported. A nonzero field
     # retains its pre-existing ForwardDiff behavior; zero potential remains
