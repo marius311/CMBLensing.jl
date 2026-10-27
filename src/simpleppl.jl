@@ -40,6 +40,14 @@ macro fwdmodel(def)
                 else
                     return :($is_simpleppl_model($f) ? $f($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $x)
                 end
+            elseif !(f isa Symbol)
+                callee = gensym(:callee)
+                return quote
+                    local $callee = $f
+                    $is_simpleppl_model($callee) ?
+                        $callee($(Simulate()), _vars, rng, $(args...); $(kwargs...)) :
+                        $callee($(args...); $(kwargs...))
+                end
             end
         end
         return x
@@ -67,6 +75,14 @@ macro fwdmodel(def)
                     end
                 else
                     return :($is_simpleppl_model($f) ? $f($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $x)
+                end
+            elseif !(f isa Symbol)
+                callee = gensym(:callee)
+                return quote
+                    local $callee = $f
+                    $is_simpleppl_model($callee) ?
+                        $callee($(Logpdf()), _logpdf, $(args...); $(kwargs...)) :
+                        $callee($(args...); $(kwargs...))
                 end
             end
         end
