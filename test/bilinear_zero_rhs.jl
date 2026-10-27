@@ -40,6 +40,14 @@ using CMBLensing, ForwardDiff, LinearAlgebra, Random, Test, Zygote
 end
 
 @testset "BilinearLens zero field precision and differentiation" begin
+    # Even when their action on the RHS is defined, rectangular matrices do
+    # not fit the existing solver's square, RHS-sized output buffers.
+    @test_throws DimensionMismatch CMBLensing._bilinear_inverse_gmres(ones(7,8),zeros(8),I)
+    @test_throws DimensionMismatch CMBLensing._bilinear_inverse_gmres(ones(8,7),zeros(8),ones(7,8))
+    @test_throws DimensionMismatch CMBLensing._bilinear_inverse_gmres(ones(8,8),zeros(8),ones(7,8))
+    @test_throws DimensionMismatch ForwardDiff.derivative(
+        t -> sum(CMBLensing._bilinear_inverse_gmres(ones(7,8),t*ones(8),I)), 0.0)
+
     # Reverse-mode inverse gradients are still unsupported. A nonzero field
     # retains its pre-existing ForwardDiff behavior; zero potential remains
     # the exact identity branch for field differentiation.

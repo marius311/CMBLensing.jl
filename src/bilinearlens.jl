@@ -136,10 +136,15 @@ end
 # before returning zero. ForwardDiff's iszero behavior differs by version;
 # inspect primal values so a seeded zero never acquires a false derivative.
 function _bilinear_inverse_gmres(A, b, Pl)
-    if eltype(b) <: Union{Dual,Complex{<:Dual}}
-        all(x -> _primal_iszero(real(x)) && _primal_iszero(imag(x)), b) &&
-            throw(ArgumentError("ForwardDiff through a zero BilinearLens inverse field is not supported"))
-    elseif iszero(b)
+    isdual = eltype(b) <: Union{Dual,Complex{<:Dual}}
+    iszero_primal = isdual ?
+        all(x -> _primal_iszero(real(x)) && _primal_iszero(imag(x)), b) : iszero(b)
+    if iszero_primal
+        dims = (length(b), length(b))
+        size(A) == dims || throw(DimensionMismatch("BilinearLens operator does not match field size"))
+        (Pl isa UniformScaling || size(Pl) == dims) ||
+            throw(DimensionMismatch("BilinearLens preconditioner does not match field size"))
+        isdual && throw(ArgumentError("ForwardDiff through a zero BilinearLens inverse field is not supported"))
         preconditioned = Pl*b
         iszero(preconditioned) && iszero(A*preconditioned) && return zero(b)
     end
