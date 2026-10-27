@@ -66,25 +66,25 @@ promote_rule(::Type{F}, ::Type{<:Scalar}) where {F<:Field} = F
 end
 
 @auto_adjoint function sqrt(A::SA) where {SA<:StaticMatrix{2,2,<:DiagOp}}
-    a, c, b, d = A[1,1], A[2,1], A[2,1], A[2,2]
+    a, c, b, d = A[1,1], A[2,1], A[1,2], A[2,2]
     s = sqrt(a*d-b*c)
     t = pinv(sqrt(a+(d+2s)))
     SA([t*(a+s) t*b; t*c t*(d+s)])
 end
 
 @auto_adjoint function det(A::StaticMatrix{2,2,<:DiagOp})
-    a, c, b, d = A[1,1], A[2,1], A[2,1], A[2,2]
+    a, c, b, d = A[1,1], A[2,1], A[1,2], A[2,2]
     a*d-b*c
 end
 
 @auto_adjoint function pinv(A::SA) where {SA<:StaticMatrix{2,2,<:DiagOp}}
-    a, c, b, d = A[1,1], A[2,1], A[2,1], A[2,2]
+    a, c, b, d = A[1,1], A[2,1], A[1,2], A[2,2]
     idet = pinv(a*d-b*c)
     SA([d*idet -(b*idet); -(c*idet) a*idet])
 end
 
 function pinv!(dst::StaticMatrix{2,2,<:DiagOp}, src::StaticMatrix{2,2,<:DiagOp})
-    a, c, b, d = src[1,1], src[2,1], src[2,1], src[2,2]
+    a, c, b, d = src[1,1], src[2,1], src[1,2], src[2,2]
     det⁻¹ = pinv(@. a*d-b*c)
     @. dst[1,1] =  det⁻¹ * d
     @. dst[1,2] = -det⁻¹ * b
