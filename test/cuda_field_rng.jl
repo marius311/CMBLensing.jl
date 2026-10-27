@@ -1,12 +1,12 @@
-using CMBLensing, CUDA, Adapt, LinearAlgebra, Random, Test
+using CMBLensing, CUDA, Adapt, GPUArrays, LinearAlgebra, Random, Test
 
 @testset "CUDA.RNG field dispatch" begin
     proj=ProjLambert(;Ny=8,Nx=8,θpix=60*180/π,T=Float32)
     map_cpu()=FlatMap(zeros(Float32,8,8),proj)
     map_gpu()=adapt(CuArray,map_cpu())
     # Some older CUDA releases do not provide a CPU-array randn! fallback.
-    # Julia itself has a generic method, so detect the CUDA implementation.
-    cpu_fallback = which(randn!, (CUDA.RNG, Matrix{Float32})).module === CUDA
+    # GPUArrays 12 defines it in GPUArrays instead of CUDA.
+    cpu_fallback = which(randn!, (CUDA.RNG, Matrix{Float32})).module in (CUDA, GPUArrays)
     if !cpu_fallback
         @info "Skipping CPU-backed CUDA.RNG checks: CUDA has no CPU-array randn! fallback"
         @test_skip cpu_fallback
