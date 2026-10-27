@@ -102,10 +102,10 @@ specified by:
 Healpix conversions currently use coordinate helpers with a half-pixel
 offset on regular EquiRect grids, and longitude handling has known seam
 limitations. For manually specified grids, coordinate helpers use dimensions
-and spans rather than the supplied centers; storage adaptation reconstructs
-the grid from those spans, and compatibility checks do not compare individual
-centers or edges. Area and azimuthal Fourier calculations assume uniformly
-spaced longitudes.
+and spans rather than the supplied centers, and compatibility checks do not
+compare individual centers or edges. Area and azimuthal Fourier calculations
+assume uniformly spaced longitudes. Storage adaptation preserves the stored
+coordinates and derived arrays, converting their element type when requested.
 
 """
 function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
@@ -609,19 +609,16 @@ end
 
 ### adapting
 
-# dont adapt the fields in proj, instead re-call into the memoized
-# ProjEquiRect so we always get back the singleton ProjEquiRect object
-# for the given set of parameters (helps reduce memory usage and
-# speed-up subsequent broadcasts which would otherwise not hit the
-# "===" branch of the "promote_*" methods)
-function adapt_structure(storage, proj::ProjEquiRect{T}) where {T}
-    # TODO: make sure these are consistent with any arguments that
-    # were added to the memoized constructor
-    @unpack Ny, Nx, θspan, φspan = proj
-    T′ = eltype(storage)
-    ProjEquiRect(;Ny, Nx, T=(T′==Any ? T : real(T′)), θspan, φspan, storage)
+# Preserve manual coordinates and derived arrays instead of rebuilding a
+# regular grid from the spans. Adapt determines the resulting precision.
+function adapt_structure(storage, proj::ProjEquiRect)
+    θ, φ, θedges, φedges, Ω, ℓx = map(x -> adapt(storage, x),
+        (proj.θ, proj.φ, proj.θedges, proj.φedges, proj.Ω, proj.ℓx))
+    T = real(eltype(θ))
+    ProjEquiRect{T,typeof(φ),typeof(ℓx)}(proj.Ny, proj.Nx,
+        proj.θspan, proj.φspan, θ, φ, θedges, φedges, Ω, ℓx, storage)
 end
-adapt_structure(::Nothing, proj::ProjEquiRect{T}) where {T} = proj
+adapt_structure(::Nothing, proj::ProjEquiRect) = proj
 
 
 hash(proj::ProjEquiRect, h::UInt64) = foldr(hash, (ProjEquiRect, proj.Ny, proj.Nx, proj.θspan, proj.φspan, proj.storage), init=h)
