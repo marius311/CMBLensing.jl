@@ -129,10 +129,15 @@ function CMBLensing._flow_solve(L::CuCachedLenseFlow,
     end
     state = L.odesolve.graphs.state::LenseFlowGraphs
     key = (typeof(v), first(ts) == L.t₀)
-    if haskey(state.entries, key)
-        entry = state.entries[key]
-        return isnothing(entry) ? L.odesolve(v(L, f)..., ts) : _replay_lenseflow(entry, CMBLensing._flow_initial_state(L, v, f))
+    if !haskey(state.entries, key)
+        # Promoted AD tangents can create one-off caches. Do not pay capture
+        # costs unless this particular integration workspace is reused.
+        state.entries[key] = :warmup
+        return L.odesolve(v(L, f)..., ts)
     end
+    entry = state.entries[key]
+    isnothing(entry) && return L.odesolve(v(L, f)..., ts)
+    entry !== :warmup && return _replay_lenseflow(entry, CMBLensing._flow_initial_state(L, v, f))
     F!, y₀ = v(L, f)
     entry = _capture_lenseflow(L, F!, y₀, ts)
     if isnothing(entry.exec)

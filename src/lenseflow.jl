@@ -17,8 +17,9 @@ log-determinant of the operation is zero independent of `ϕ`, in the
 limit of `n` high enough.
 
 Set `gpu_graphs=true` to reuse CUDA graphs for repeated lensing and gradient
-calls on dense Float32/Float64 Lambert fields. The first call captures each
-integration and is slower; subsequent calls reuse its device workspace.
+calls on dense Float32/Float64 Lambert fields. The first use runs ordinary
+RK4; reuse captures each integration, and later calls replay it. This avoids
+capture costs for one-off workspaces created by precision promotion.
 Use `LenseFlow(n; gpu_graphs=true)` as the `L` argument to `load_sim`.
 CPU fields and unsupported GPU layouts use ordinary RK4. As with other
 cached lensing workspaces, use a separate cache for each concurrent task.

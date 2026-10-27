@@ -43,6 +43,7 @@ end
         graph = precompute!!(LenseFlow(ϕ, 3; gpu_graphs=true), f)
         tol = T == Float32 ? 2e-5 : 2e-12
         for op in ops
+            op(graph, f) # Ordinary first use; retain the captured result below.
             first_result = op(graph, f)
             retained = Array(first_result.arr)
             @test retained ≈ Array(op(base, f).arr) rtol=tol atol=tol
@@ -51,7 +52,7 @@ end
         end
         @test !isnothing(graph.odesolve.graphs.state)
         @test length(graph.odesolve.graphs.state.entries) == 4
-        @test all(!isnothing(e) for e in values(graph.odesolve.graphs.state.entries))
+        @test all(e isa NamedTuple && !isnothing(e.exec) for e in values(graph.odesolve.graphs.state.entries))
 
         # A new potential updates coefficient VALUES in the retained buffers.
         graph(T(1.1)*ϕ); base(T(1.1)*ϕ)
@@ -66,13 +67,17 @@ end
             objective(L, ϕ, f) = sum(unbatch(dot(f, inverse ? L(ϕ)\f : L(ϕ)*f)))
             gb = Zygote.withgradient((ϕ,f) -> objective(base,ϕ,f), ϕ, f)
             gg = Zygote.withgradient((ϕ,f) -> objective(graph,ϕ,f), ϕ, f)
+            gg = Zygote.withgradient((ϕ,f) -> objective(graph,ϕ,f), ϕ, f)
             @test gg.val ≈ gb.val rtol=tol atol=tol
             for (a,b) in zip(gg.grad, gb.grad)
                 @test Array(a.arr) ≈ Array(b.arr) rtol=tol atol=tol
             end
+            retained = map(g -> Array(g.arr), gg.grad)
+            Zygote.withgradient((ϕ,f) -> objective(graph,ϕ,f), T(1.1)*ϕ, T(0.9)*f)
+            @test all(Array(g.arr) == old for (g,old) in zip(gg.grad,retained))
         end
         @test length(graph.odesolve.graphs.state.entries) == 6
-        @test all(!isnothing(e) for e in values(graph.odesolve.graphs.state.entries))
+        @test all(e isa NamedTuple && !isnothing(e.exec) for e in values(graph.odesolve.graphs.state.entries))
     end
 end
 
@@ -82,6 +87,7 @@ end
     graph = precompute!!(LenseFlow(ϕ, 3; gpu_graphs=true), f)
     graph*f
     owner = graph.odesolve.graphs.state
+    @test only(values(owner.entries)) === :warmup
     f64 = map(Float64, f)
     for α in (0.9f0,1.1f0,0.95f0)
         base(α*ϕ); graph(α*ϕ)
@@ -118,14 +124,17 @@ end
         @test graph.odesolve.graphs.state !== previous
     end)
 
+    graph*f; graph*f # Recapture on this task before copying live graph state.
     CUDA.synchronize()
     for copied in (adapt(CuArray, graph), deepcopy(graph))
         @test isnothing(copied.odesolve.graphs.state)
+        copied*f
         @test Array((copied*f).arr) ≈ Array((base*f).arr)
     end
     io = IOBuffer(); serialize(io, graph); seekstart(io)
     restored = deserialize(io)
     @test isnothing(restored.odesolve.graphs.state)
+    restored*f
     @test Array((restored*f).arr) ≈ Array((base*f).arr)
     cpu_graph = cpu(graph)
     @test isnothing(cpu_graph.odesolve.graphs.state)
@@ -143,6 +152,7 @@ end
     tasks = map(1:2) do i
         task = @async begin
             L = precompute!!(LenseFlow((i==1 ? 0.9 : 1.1)*ϕ,3;gpu_graphs=true), f)
+            y = L*f
             y = L*f
             CUDA.synchronize()
             entry = only(values(L.odesolve.graphs.state.entries))
@@ -175,6 +185,7 @@ end
     for inverse in (false,true)
         objective(α) = dot(f, inverse ? L(ϕ+α*direction)\f : L(ϕ+α*direction)*f)
         ad = gradient(objective, 0.0)[1]
+        ad = gradient(objective, 0.0)[1]
         h = 1e-3
         fd = (objective(h)-objective(-h))/(2h)
         @test abs(fd) > 1e-5
@@ -198,7 +209,7 @@ end
         graph = precompute!!(LenseFlow(CMBLensing.getϕ(base),3;gpu_graphs=true), f°)
         tol = T == Float32 ? 3e-5 : 1e-10
         retained = nothing
-        for α in (T(1),0.98,1.02)
+        for (i,α) in enumerate((T(1),0.98,1.02))
             xα = α*x
             ds.L = base
             vb = objective(xα)
@@ -214,7 +225,7 @@ end
                 a,b = getproperty(gg.grad[1],k), getproperty(gb.grad[1],k)
                 @test norm(a-b) <= tol*max(norm(b),eps(T))
             end
-            isnothing(retained) && (retained = (gg.grad[1],copy(gg.grad[1])))
+            i == 2 && (retained = (gg.grad[1],copy(gg.grad[1])))
         end
         @test norm(retained[1]-retained[2]) == 0
         @test norm(x-before) == 0
