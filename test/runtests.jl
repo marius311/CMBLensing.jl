@@ -28,6 +28,7 @@ using FiniteDifferences
 using ForwardDiff
 using LinearAlgebra
 using NFFT
+using OffsetArrays
 using Random
 using Requires
 using Serialization

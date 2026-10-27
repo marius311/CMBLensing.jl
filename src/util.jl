@@ -326,8 +326,15 @@ end
 # Loess 0.5 requires matching floating-point inputs and assumes at least
 # Float64 precision in its tree construction.
 function cmblensing_loess(x::AbstractArray, y::AbstractVector; kwargs...)
-    T = float(promote_type(Float64, eltype(x), eltype(y)))
-    Loess.loess(T.(x), T.(y); kwargs...)
+    T = promote_type(Float64, eltype(x), eltype(y))
+    # Arrays with abstract element types can still contain ordinary numbers.
+    if !isconcretetype(T)
+        T = mapreduce(typeof, promote_type, x; init=Float64)
+        T = mapreduce(typeof, promote_type, y; init=T)
+    end
+    T = float(T)
+    # Loess indexes from one, even when given arrays with offset axes.
+    Loess.loess(collect(T.(x)), collect(T.(y)); kwargs...)
 end
 
 
