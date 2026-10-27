@@ -52,19 +52,38 @@ function load_chains(
     burnin_chunks = 0,
     progress = true
 )
+    # Keep only batch widths and map presence; dropmaps must release fields
+    # before thinning and unbatching.
+    dropped_batch_hints = IdDict{Any,Vector{Int}}()
+    dropped_maps = IdDict{Any,Nothing}()
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
         chains = [[]]
         @showprogress (progress ? 1 : Inf) for (i,k) in enumerate(chunk_ks)
+            chunk = read(io,k)
             if i == 1
-                chains = read(io,k)
+                chains = chunk
             else
-                append!.(chains, read(io,k))
+                length(chunk) == length(chains) || throw(ArgumentError(
+                    "Chunk $k contains $(length(chunk)) chains, but previous chunks contain $(length(chains))"))
+                append!.(chains, chunk)
             end
             if dropmaps
-                map!(chain -> filter!.(((_,v),)->!(v isa Field), chain), chains, chains)
+                for chain in chunk, sample in chain
+                    if unbatch
+                        widths = Int[]
+                        for v in values(sample)
+                            v isa Field && _append_chain_batch_widths!(widths, v)
+                        end
+                        isempty(widths) || (dropped_batch_hints[sample] = widths)
+                    end
+                    if thin == :hasmaps && get(sample, :ϕ, nothing) isa Field
+                        dropped_maps[sample] = nothing
+                    end
+                    filter!(((_,v),)->!(v isa Field), sample)
+                end
             end
         end
         chains
@@ -72,7 +91,7 @@ function load_chains(
     if thin isa Int
         chains = [chain[burnin>=0 ? ((1+burnin):thin:end) : (end+(1+burnin):thin:end)] for chain in chains]
     elseif thin == :hasmaps
-        chains = [[samp for samp in chain[(1+burnin):end] if :ϕ in keys(samp)] for chain in chains]
+        chains = [[samp for samp in chain[(1+burnin):end] if haskey(samp, :ϕ) || haskey(dropped_maps, samp)] for chain in chains]
     elseif thin isa Function
         chains = [filter(thin,chain) for chain in chains]
     else
@@ -80,7 +99,11 @@ function load_chains(
     end
     chains = wrap_chains(chains)
     if unbatch
-        chains = CMBLensing.unbatch(chains)
+        if dropmaps && !isempty(dropped_batch_hints)
+            chains = Chains(mapreduce(chain -> _unbatch(chain, dropped_batch_hints), vcat, chains))
+        else
+            chains = CMBLensing.unbatch(chains)
+        end
     end
     return join ? Chain(reduce(vcat, chains)) : chains
 end
@@ -147,23 +170,67 @@ wrap_chains(chain::Vector) = Chain(chain)
     unbatch(chain::Chain)
 
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
+Batch widths are inferred from flat fields, batched values and arrays of batched
+values, including fields in a FieldTuple and batched values directly in a
+NamedTuple. A custom sample without these markers is treated as one chain.
 """
-function unbatch(chain::Chain)
+unbatch(chain::Chain) = _unbatch(chain, nothing)
+
+function _append_chain_batch_widths!(widths, v)
+    if v isa FieldTuple
+        for component in values(v.fs)
+            _append_chain_batch_widths!(widths, component)
+        end
+    elseif v isa Union{BatchedReal,BatchedVal} || (v isa FlatField && applicable(batch_length, v))
+        push!(widths, batch_length(v))
+    elseif v isa NamedTuple
+        for component in values(v)
+            component isa Union{BatchedReal,BatchedVal} && push!(widths, batch_length(component))
+        end
+    elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
+        for component in v
+            push!(widths, batch_length(component))
+        end
+    end
+    widths
+end
+
+function _unbatch_chain_value(v, I)
+    if v isa FieldTuple
+        FieldTuple(map(x -> _unbatch_chain_value(x, I), v.fs))
+    elseif v isa Union{BatchedReal,BatchedVal,FlatField}
+        batch_index(v, batch_length(v) == 1 ? 1 : I)
+    elseif v isa NamedTuple
+        map(x -> (x isa Union{BatchedReal,BatchedVal} ?
+            batch_index(x, batch_length(x) == 1 ? 1 : I) : x), v)
+    elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
+        map(x -> batch_index(x, batch_length(x) == 1 ? 1 : I), v)
+    else
+        v
+    end
+end
+
+function _unbatch(chain::Chain, batch_hints)
     isempty(chain) && return [chain]
-    D = batch_length(chain[end][:logpdf])
+    D = 1
+    for sample in chain
+        sample_widths = Int[]
+        for v in values(sample)
+            _append_chain_batch_widths!(sample_widths, v)
+        end
+        hint_widths = isnothing(batch_hints) ? () : get(batch_hints, sample, ())
+        for widths in (sample_widths, hint_widths), n in widths
+            n <= 1 && continue
+            (D == 1 || D == n) || throw(ArgumentError(
+                "Chain contains incompatible batch lengths $D and $n"))
+            D = n
+        end
+    end
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
-                if v isa Union{BatchedReal,FlatField}
-                    k => batch_index(v, I)
-                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:Union{BatchedReal,BatchedVal}}}
-                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ? batch_index(x,I) : x), v)
-                elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
-                    k => batch_index.(v, I)
-                else
-                    k => v
-                end
+                k => _unbatch_chain_value(v, I)
             end)
         end)
     end)
