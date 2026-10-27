@@ -141,6 +141,21 @@ end
     end
     sum(f), sum_fourier_pullback
 end
+# Each component's sum has its own storage and inner-product convention.
+# In particular, a Fourier component cannot use a field filled with ones.
+@adjoint function sum(ft::FieldTuple)
+    function sum_fieldtuple_pullback(Δ)
+        (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return (nothing,)
+        gradients = map(getfield(ft, :fs)) do component
+            value, back = Zygote.pullback(sum, component)
+            component_gradient, = back(ProjectTo(value)(Δ))
+            component_gradient === nothing || component_gradient isa ChainRulesCore.AbstractZero ?
+                zero(component) : component_gradient
+        end
+        (FieldTuple(gradients),)
+    end
+    sum(ft), sum_fieldtuple_pullback
+end
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 @adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*B1(g), real(T2)(Δ)*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
