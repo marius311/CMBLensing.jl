@@ -18,12 +18,12 @@ using Tullio
 # replacing the CPU methods during package precompilation.
 function Base.:*(M::BlockDiagEquiRect{B,T,P,A}, f::F) where {B<:AzBasis,T<:Real,P<:ProjEquiRect{T},A<:CUDA.AnyCuArray,F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj)
-    F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
+    CMBLensing.BaseField{B}(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
 function Base.:*(M::Adjoint{S,<:BlockDiagEquiRect{B,T,P,A}}, f::F) where {S,B<:AzBasis,T<:Real,P<:ProjEquiRect{T},A<:CUDA.AnyCuArray,F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj)
-    F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
+    CMBLensing.BaseField{B}(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
 
 function rrule(::typeof(*), M::BlockDiagEquiRect{B,T,P,A}, f::EquiRectField{B′}) where {B<:Basis,T<:Real,P<:ProjEquiRect{T},A<:CUDA.AnyCuArray,B′<:Basis}

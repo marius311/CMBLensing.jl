@@ -236,20 +236,20 @@ end
 
 # ## Linear Algebra: tullio accelerated (operator, field)
 
-# M * f
+# M * f. The result array can have different storage or element type than f.
 
 (*)(M::BlockDiagEquiRect{B}, f::EquiRectField) where {B<:Basis} = M * B(f)
 
 @uses_tullio function (*)(M::BlockDiagEquiRect{B}, f::F) where {B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.proj, f.proj) # ensure same projection
-    F(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
+    BaseField{B}(@tullio(Bf[p,iₘ] := M.blocks[p,q,iₘ] * f.arr[q,iₘ]), f.proj)
 end
 
 (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::EquiRectField) where {T, B<:Basis} = M * B(f)
 
 @uses_tullio function (*)(M::Adjoint{T,<:BlockDiagEquiRect{B}}, f::F) where {T, B<:AzBasis, F<:EquiRectField{B}}
     promote_metadata_strict(M.parent.proj, f.proj) # ensure same projection
-    F(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
+    BaseField{B}(@tullio(Bf[p,iₘ] := conj(M.parent.blocks[q,p,iₘ]) * f.arr[q,iₘ]), f.proj)
 end
 
 @uses_tullio function rrule(::typeof(*), M::BlockDiagEquiRect{B}, f::EquiRectField{B′}) where {B<:Basis, B′<:Basis}

@@ -88,6 +88,7 @@ if storage != Array
     include("cuda_zero_dim_reshape.jl")
     include("cuda_field_rng.jl")
     include("lambert_cuda_warning.jl")
+    include("equirect_block_gpu_field_output.jl")
 end
 
 ##
@@ -96,6 +97,7 @@ end
 
 include("svector_field_adjoint.jl")
 include("equirect_block_dot.jl")
+include("equirect_block_field_output.jl")
 include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
 include("field_diagonal_adapt_adjoint.jl")
