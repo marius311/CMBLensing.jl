@@ -103,6 +103,19 @@ end
 
 # ℝᴺ -> ℝ¹ 
 @adjoint sum(f::Field{B,T}) where {B,T} = sum(f), Δ -> (real(T)(Δ) * one(f),)
+# `sum` sums the stored half-plane coefficients. Their field inner product
+# has an rFFT degeneracy weight and an FFT normalization, so the cotangent
+# is not a Fourier field filled with ones. Keep complex seeds for objectives
+# such as `imag(sum(f))`.
+@adjoint function sum(f::BaseField{B,M,T}) where {B<:SpatialBasis{Fourier},M<:ProjLambert,T}
+    function sum_fourier_pullback(Δ)
+        seed = T <: Real ? T(real(Δ)) : T(Δ)
+        arr = similar(f.arr)
+        arr .= seed .* Zfac(B(), f.metadata) ./ f.λ_rfft
+        (BaseField{B}(arr, f.metadata),)
+    end
+    sum(f), sum_fourier_pullback
+end
 @adjoint norm(f::Field) = Zygote.pullback(f->sqrt(dot(f,f)), f)
 @adjoint dot(f::Field{B1,T1}, g::Field{B2,T2}) where {B1,B2,T1,T2} = dot(f,g), Δ -> (real(T1)(Δ)*B1(g), real(T2)(Δ)*B2(f))
 @adjoint (*)(f::Adjoint{<:Any,<:Field}, g::Field) = Zygote.pullback((f,g)->dot(f',g),f,g)
