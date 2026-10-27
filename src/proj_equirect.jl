@@ -359,8 +359,34 @@ function LinearAlgebra.logabsdet(M::BlockDiagEquiRect{B}) where {B<:AzBasis}
     M.logabsdet[]
 end
 
+function _block_logabsdet_cotangent(M::BlockDiagEquiRect{B,T}, value, Δ) where {B,T}
+    Δ = unthunk(Δ)
+    (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return nothing
+    Δl, Δs = unthunk.(Δ)
+    α = (Δl === nothing || Δl isa ChainRulesCore.AbstractZero) ? zero(T) : real(Δl)
+    # For z = tr(M⁻¹δM), the log-magnitude changes by real(z) and the
+    # complex sign changes by im*sign*imag(z).
+    # The phase part vanishes for real block entries.
+    β = (eltype(M.blocks) <: Real || Δs === nothing || Δs isa ChainRulesCore.AbstractZero) ?
+        zero(T) : imag(conj(value[2]) * Δs)
+    c = eltype(M.blocks) <: Real ? α : complex(α, β)
+    # Keep the adjoint-wrapped operator used by existing scalar pullbacks.
+    # A zero seed does not need the pseudoinverse, even at singular matrices.
+    blocks = if iszero(c)
+        zero.(M.blocks)
+    else
+        inverse_blocks = pinv(M).blocks
+        # Project after multiplying: an upstream seed can have higher
+        # precision even when the resulting block cotangent is representable.
+        scaled = similar(inverse_blocks)
+        scaled .= conj(c) .* inverse_blocks
+    end
+    BlockDiagEquiRect{B}(blocks, M.proj)'
+end
+
 @adjoint function LinearAlgebra.logabsdet(M::BlockDiagEquiRect)
-    logabsdet(M), Δ -> (Δ[1] * pinv(M)',)
+    value = logabsdet(M)
+    value, Δ -> (_block_logabsdet_cotangent(M, value, Δ),)
 end
 
 # dot products
