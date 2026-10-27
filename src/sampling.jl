@@ -337,7 +337,7 @@ function sample_joint(
 
     # A final partial chunk is not written by the periodic checkpoint above.
     # Keep it in memory as well, so the returned value remains available.
-    if filename != nothing && any(!isempty, chain_chunks)
+    if filename != nothing && any(chunk -> !isempty(chunk), chain_chunks)
         jldopen(filename, clobber_chain ? "w" : "a+") do io
             wsession = JLDWriteSession()
             haskey(io, "rundat") || write(io, "rundat", cpu(rundat))
