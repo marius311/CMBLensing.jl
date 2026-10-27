@@ -323,10 +323,12 @@ end
 @adjoint sum_dropdims(A::AbstractArray{T,N}) where {T,N} = sum_dropdims(A), Δ -> (fill!(similar(A),T(Δ)),)
 
 
-# for mixed eltype, which Loess stupidly does not support
-cmblensing_loess(x,y; kwargs...) = Loess.loess(x,y; kwargs...)
-cmblensing_loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
-    Loess.loess(collect.(zip(promote.(x,y)...))...; kwargs...)
+# Loess 0.5 requires matching floating-point inputs and assumes at least
+# Float64 precision in its tree construction.
+function cmblensing_loess(x::AbstractArray, y::AbstractVector; kwargs...)
+    T = float(promote_type(Float64, eltype(x), eltype(y)))
+    Loess.loess(T.(x), T.(y); kwargs...)
+end
 
 
 expnorm(x) = exp.(x .- maximum(x))

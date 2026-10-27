@@ -16,8 +16,11 @@
     spectrum = CMBLensing.Cℓs(xs, ys)
     smoothed = CMBLensing.smooth(spectrum; smoothing=1.0)
     @test smoothed.Cℓ ≈ ys
+    spectrum32 = CMBLensing.Cℓs(xs, Float32.(ys))
+    @test CMBLensing.smooth(spectrum32; smoothing=1.0).Cℓ ≈ Float32.(ys)
 
     samples, logpdf, _ = CMBLensing.grid_and_sample(x -> -x^2 / 2, range(-3, 3; length=41); nsamples=0, span=0.75)
     @test isempty(samples)
     @test isfinite(logpdf(0.0))
+    @test logpdf(0) ≈ logpdf(0.0)
 end
