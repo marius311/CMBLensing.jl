@@ -99,6 +99,13 @@ specified by:
 * A manual list of pixels centers and pixel edges, `θ`, `φ`, `θedges`,
   `φedges`.
 
+Healpix conversions currently use coordinate helpers with a half-pixel
+offset on regular EquiRect grids, and longitude handling has known seam
+limitations. For manually specified grids, storage adaptation reconstructs
+the grid from its spans, and compatibility checks compare dimensions and
+spans rather than individual centers and edges. Area and azimuthal Fourier
+calculations assume uniformly spaced longitudes.
+
 """
 function ProjEquiRect(; T=Float32, storage=Array, kwargs...)
 
