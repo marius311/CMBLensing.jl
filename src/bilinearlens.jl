@@ -30,8 +30,8 @@ end
 
 function BilinearLens(ϕ::FlatField{B1,M1,CT,AA}) where {B1,M1,CT,AA<:AbstractArray}
     
-    # if ϕ == 0 then just return identity operator
-    if norm(ϕ) == 0
+    # If the potential's primal value is zero, use the identity operator.
+    if _primal_iszero(norm(ϕ))
         return BilinearLens(ϕ,I,I)
     end
     

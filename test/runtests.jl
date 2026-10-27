@@ -25,7 +25,9 @@ using Adapt
 using FileIO
 using FFTW
 using FiniteDifferences
+using ForwardDiff
 using LinearAlgebra
+using NFFT
 using Random
 using Requires
 using Serialization
@@ -287,6 +289,10 @@ end
         @test all(x -> x ≈ 1, healpix[:][projector.hpx_idxs_in_patch])
     end
 end
+
+##
+
+include("forwarddiff.jl")
 
 ##
 
