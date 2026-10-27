@@ -248,21 +248,36 @@ ChainRulesCore._eltype_projectto(::Type{SA}) where {SA<:SArray} = ProjectTo{SA}(
 # Allow multiplication of SVector{2} (like from gradients) with Fields
 *(v::SVector{2, <:Real}, f::Field) = @SVector[v[1]*f, v[2]*f]
 
+# A plain scalar is shared by all batches; a BatchedReal has one value per
+# batch (or a single broadcast value). Project back to the original precision.
+_svector_coefficient_tangent(v::Real, δ::Real) = ProjectTo(v)(δ)
+_svector_coefficient_tangent(v::Real, δ::BatchedReal) = ProjectTo(v)(sum(δ.vals))
+_svector_coefficient_tangent(v::BatchedReal, δ::BatchedReal) = batch(Zygote.unbroadcast(v.vals, δ.vals))
+_svector_coefficient_tangent(v::BatchedReal, δ::Real) = batch(Zygote.unbroadcast(v.vals, [δ]))
+
+# Broadcasted scalar multiplication can expand an unbatched field. Reduce its
+# cotangent back to the input shape, precision, and basis.
+_svector_field_tangent(f::Field{B}, δ::Field) where {B} = B(δ)
+_svector_field_tangent(f::BaseField{B}, δ::BaseField) where {B} = Zygote.unbroadcast(f, B(δ))
+_svector_field_tangent(f::FieldTuple, δ::FieldTuple) = FieldTuple(map(_svector_field_tangent, getfield(f, :fs), getfield(δ, :fs)))
+_svector_field_tangent(f::Real, δ::Real) = _svector_coefficient_tangent(f, δ)
+_svector_field_tangent(f::AbstractArray, δ::AbstractArray) = Zygote.unbroadcast(f, δ)
+
 # Field tangents use the field inner product, even for Fourier storage.
-@adjoint function *(v::SVector{2, <:Real}, f::Field{B}) where {B}
+@adjoint function *(v::SVector{2, <:Real}, f::Field)
     result = v * f
     function svector_field_pullback(Δ)
         is_zero_tangent(x) = x === nothing || x isa ChainRulesCore.AbstractZero
         is_zero_tangent(Δ) && return (nothing, nothing)
         δ₁, δ₂ = Δ
-        v̄₁ = is_zero_tangent(δ₁) ? nothing : dot(f, δ₁)
-        v̄₂ = is_zero_tangent(δ₂) ? nothing : dot(f, δ₂)
+        v̄₁ = is_zero_tangent(δ₁) ? nothing : _svector_coefficient_tangent(v[1], dot(f, δ₁))
+        v̄₂ = is_zero_tangent(δ₂) ? nothing : _svector_coefficient_tangent(v[2], dot(f, δ₂))
         isnothing(v̄₁) && isnothing(v̄₂) && return (nothing, nothing)
-        v_grad = @SVector [isnothing(v̄₁) ? zero(v̄₂) : v̄₁,
-                           isnothing(v̄₂) ? zero(v̄₁) : v̄₂]
+        v_grad = @SVector [isnothing(v̄₁) ? zero(v[1]) : v̄₁,
+                           isnothing(v̄₂) ? zero(v[2]) : v̄₂]
         f̄₁ = is_zero_tangent(δ₁) ? nothing : v[1] * δ₁
         f̄₂ = is_zero_tangent(δ₂) ? nothing : v[2] * δ₂
-        return (v_grad, B(_plus_accum(f̄₁, f̄₂)))
+        return (v_grad, _svector_field_tangent(f, _plus_accum(f̄₁, f̄₂)))
     end
     return result, svector_field_pullback
 end
