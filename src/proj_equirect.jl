@@ -421,12 +421,17 @@ end
 
 function adapt_structure(storage, L::BlockDiagEquiRect{B}) where {B}
     blocks = adapt(storage, L.blocks)
+    proj = adapt(storage, L.proj)
+    # Factorizations and rank thresholds must be recomputed at the new precision.
+    if eltype(blocks) !== eltype(L.blocks)
+        return BlockDiagEquiRect{B}(blocks, proj)
+    end
     BlockDiagEquiRect{B}(
         blocks,
         isassigned(L.blocks_sqrt) ? Ref(adapt(storage, L.blocks_sqrt[])) : Ref{typeof(blocks)}(),
         isassigned(L.blocks_pinv) ? Ref(adapt(storage, L.blocks_pinv[])) : Ref{typeof(blocks)}(),
         L.logabsdet,
-        adapt(storage, L.proj)
+        proj
     )
 end
 
