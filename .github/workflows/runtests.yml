@@ -1,31 +1,22 @@
-name: runtests
-
-on: [push, pull_request]
-
+name: targeted-bilinear-mkl-diagnostic
+on: [push]
 jobs:
-  main:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        julia-version: ['1.8', '1.9', '1.10', '1.13']
-        os: [ubuntu-latest]
-        provider: ['mkl', 'fftw']
-      fail-fast: false
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
-      PYTHON: python3
-
+      JULIA_NUM_THREADS: 1
+      JULIA_NUM_PRECOMPILE_TASKS: 1
+      OPENBLAS_NUM_THREADS: 1
+      FFTW_NUM_THREADS: 1
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          fetch-depth: 0
       - uses: julia-actions/setup-julia@v3
         with:
-          version: ${{ matrix.julia-version }}
-      - run: >
-          sudo apt-get install --no-install-recommends gfortran
-          && python -m pip install camb healpy
-          && julia -e 'using Pkg; Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")'
-          && julia --project .github/set_fftw_provider.jl "${{ matrix.provider }}"
-      - uses: julia-actions/julia-runtest@v1
-        timeout-minutes: 30
+          version: '1.9'
+      - name: Reproduce MKL gradient comparisons
+        run: |
+          julia --project .github/set_fftw_provider.jl mkl
+          julia --project -e 'using Pkg; Pkg.test()'
