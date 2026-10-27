@@ -238,7 +238,10 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
                 flags = Cmd(["--startup-file=no", "--threads=1", "--project=$(dirname(Base.active_project()))"])
                 worker_env = ["JULIA_NUM_THREADS" => "1", "JULIA_NUM_PRECOMPILE_TASKS" => "1",
                               "OPENBLAS_NUM_THREADS" => "1", "FFTW_NUM_THREADS" => "1", "OMP_NUM_THREADS" => "1"]
-                append!(workers, addprocs(1; exeflags=flags, env=worker_env))
+                launch_worker() = withenv(worker_env...) do
+                    addprocs(1; exeflags=flags)
+                end
+                append!(workers, launch_worker())
                 worker = only(workers)
                 remotecall_wait(Core.eval, worker, Main, :(using CMBLensing, LinearAlgebra))
 
@@ -358,7 +361,7 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
 
                 # Removing an actual worker after its first job makes cache
                 # cleanup fail. The original mapper error must still escape.
-                append!(workers, addprocs(1; exeflags=flags, env=worker_env))
+                append!(workers, launch_worker())
                 worker = only(workers)
                 remotecall_wait(Core.eval, worker, Main, :(using CMBLensing, LinearAlgebra))
                 function removed_worker_map(f, indices, data, starts)
