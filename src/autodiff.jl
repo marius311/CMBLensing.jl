@@ -248,16 +248,21 @@ ChainRulesCore._eltype_projectto(::Type{SA}) where {SA<:SArray} = ProjectTo{SA}(
 # Allow multiplication of SVector{2} (like from gradients) with Fields
 *(v::SVector{2, <:Real}, f::Field) = @SVector[v[1]*f, v[2]*f]
 
-# Custom adjoint for SVector * Field to ensure proper gradient flow
-@adjoint function *(v::SVector{2, <:Real}, f::Field)
+# Field tangents use the field inner product, even for Fourier storage.
+@adjoint function *(v::SVector{2, <:Real}, f::Field{B}) where {B}
     result = v * f
     function svector_field_pullback(Δ)
-        # Δ should be SVector{2, <:Field} 
-        # Gradient w.r.t. v should be SVector{2, Real}
-        # Gradient w.r.t. f should be Field
-        v_grad = @SVector [sum(Δ[1]), sum(Δ[2])]
-        f_grad = v[1] * Δ[1] + v[2] * Δ[2]
-        return (v_grad, f_grad)
+        is_zero_tangent(x) = x === nothing || x isa ChainRulesCore.AbstractZero
+        is_zero_tangent(Δ) && return (nothing, nothing)
+        δ₁, δ₂ = Δ
+        v̄₁ = is_zero_tangent(δ₁) ? nothing : dot(f, δ₁)
+        v̄₂ = is_zero_tangent(δ₂) ? nothing : dot(f, δ₂)
+        isnothing(v̄₁) && isnothing(v̄₂) && return (nothing, nothing)
+        v_grad = @SVector [isnothing(v̄₁) ? zero(v̄₂) : v̄₁,
+                           isnothing(v̄₂) ? zero(v̄₁) : v̄₂]
+        f̄₁ = is_zero_tangent(δ₁) ? nothing : v[1] * δ₁
+        f̄₂ = is_zero_tangent(δ₂) ? nothing : v[2] * δ₂
+        return (v_grad, B(_plus_accum(f̄₁, f̄₂)))
     end
     return result, svector_field_pullback
 end

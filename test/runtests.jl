@@ -74,6 +74,8 @@ has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 @testset verbose=true "CMBLensing" begin
 
+include("svector_field_adjoint.jl")
+
 ##
 
 # basic printing sanity checks, which were super annoying to get right...
