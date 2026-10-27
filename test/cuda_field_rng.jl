@@ -4,7 +4,14 @@ using CMBLensing, CUDA, Adapt, LinearAlgebra, Random, Test
     proj=ProjLambert(;Ny=8,Nx=8,θpix=60*180/π,T=Float32)
     map_cpu()=FlatMap(zeros(Float32,8,8),proj)
     map_gpu()=adapt(CuArray,map_cpu())
-    for T in (Float32,Float64), usegpu in (false,true), polarized in (false,true)
+    # Some older CUDA releases do not provide a CPU-array randn! fallback.
+    # Julia itself has a generic method, so detect the CUDA implementation.
+    cpu_fallback = which(randn!, (CUDA.RNG, Matrix{Float32})).module === CUDA
+    if !cpu_fallback
+        @info "Skipping CPU-backed CUDA.RNG checks: CUDA has no CPU-array randn! fallback"
+        @test_skip cpu_fallback
+    end
+    for T in (Float32,Float64), usegpu in (cpu_fallback ? (false,true) : (true,)), polarized in (false,true)
         p=ProjLambert(;Ny=8,Nx=8,θpix=60*180/π,T)
         host=polarized ? FlatQUMap(zeros(T,8,8),zeros(T,8,8),p) : FlatMap(zeros(T,8,8),p)
         f=usegpu ? adapt(CuArray,host) : host
@@ -22,14 +29,16 @@ using CMBLensing, CUDA, Adapt, LinearAlgebra, Random, Test
     @test Array(out.arr) == Array(expected)
     @test Array(fourier.arr) == before
 
-    a,b=map_gpu(),map_cpu(); ft=FieldTuple(;a,b)
-    expected_a=similar(a.arr); expected_b=similar(b.arr)
-    r=CUDA.RNG(104); randn!(r,expected_a); randn!(r,expected_b)
-    out=randn!(CUDA.RNG(104),ft)
-    @test out isa FieldTuple
-    @test out.a === a && out.b === b
-    @test Array(a.arr) == Array(expected_a)
-    @test b.arr == expected_b
+    for heterogeneous in (cpu_fallback ? (false,true) : (false,))
+        a,b=map_gpu(),heterogeneous ? map_cpu() : map_gpu(); ft=FieldTuple(;a,b)
+        expected_a=similar(a.arr); expected_b=similar(b.arr)
+        r=CUDA.RNG(104); randn!(r,expected_a); randn!(r,expected_b)
+        out=randn!(CUDA.RNG(104),ft)
+        @test out isa FieldTuple
+        @test out.a === a && out.b === b
+        @test Array(a.arr) == Array(expected_a)
+        @test Array(b.arr) == Array(expected_b)
+    end
 
     d=map_gpu(); C=Diagonal(one(d)); ds=BaseDataSet(;d,Cf=C,Cn=C,Cϕ=C,D=I,G=I,L=(ϕ->I),Nϕ=C)
     sim=simulate(CUDA.RNG(105),ds)
