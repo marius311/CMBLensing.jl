@@ -303,14 +303,17 @@ end
 function _map_marg_close_registry(registry)
     state = take!(registry)
     close(registry)
+    cleanup_error = nothing
     for (worker, cache) in state.caches
         try
             remotecall_wait(_map_marg_close_worker_cache, worker, cache)
         catch err
-            # Keep a failed worker from masking the original solve error.
+            # Continue releasing the other workers even if one fails.
             @warn "Could not release MAP_marg worker cache" worker exception=(err, catch_backtrace())
+            isnothing(cleanup_error) && (cleanup_error = err)
         end
     end
+    cleanup_error === nothing || throw(cleanup_error)
     nothing
 end
 
