@@ -18,7 +18,9 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 CUDA = "3.4, 4, 5"
-Documenter = "1.1"
+# The deployment guard uses Documenter's internal publication hooks. Keep
+# the build on the tested minor until those hooks have been reviewed again.
+Documenter = "~1.19"
 IJulia = "1.31.1"
 # Keep this in sync with JuliaCall in the Dockerfile.
 PythonCall = "=0.9.26"
