@@ -23,11 +23,15 @@ using CMBLensing, Adapt, LinearAlgebra, Random, Test
         for sign in (-1, 1)
             op = sign == 1 ? lens : CMBLensing.antilensing(lens)
             reference = f0 .+ sign .* linear .+ quadratic
-            @test isapprox(Map(op*field).arr, reference; rtol=tol, atol=tol)
+            cpu_forward = Map(op*field)
+            @test eltype(cpu_forward.arr) === T
+            @test isapprox(cpu_forward.arr, reference; rtol=tol, atol=tol)
             if storage != Array
                 gpu_op = sign == 1 ? gpu_lens : CMBLensing.antilensing(gpu_lens)
                 gpu_field = adapt(storage,field)
-                @test isapprox(Array(Map(gpu_op*gpu_field).arr), reference; rtol=tol, atol=tol)
+                gpu_forward = Map(gpu_op*gpu_field)
+                @test eltype(gpu_forward.arr) === T
+                @test isapprox(Array(gpu_forward.arr), reference; rtol=tol, atol=tol)
                 @test isapprox(Array(Map(gpu_op'*gpu_field).arr), Map(op'*field).arr; rtol=tol, atol=tol)
             end
         end
