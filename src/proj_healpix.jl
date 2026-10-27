@@ -201,8 +201,8 @@ interpolation is done, and can be one of:
   Healpix projection. To make this mode available, you must load the
   `NFFT` package first. For GPU fields, you must also load `CuNFFT`.
   Projection with `method=:fft` is both GPU compatible and
-  automatically differentiable. A legacy Healpix-to-Lambert FFT path
-  applies a rescaled array-level adjoint of this transform; it does not
+  automatically differentiable. A legacy scalar Healpix-to-Lambert FFT
+  path applies a rescaled array-level adjoint of this transform; it does not
   generally preserve constant maps and is not an interpolation or a
   reconstruction of the Healpix sky.
 
