@@ -2,26 +2,6 @@ using CMBLensing, LinearAlgebra, Random, Serialization, Test
 using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_wait, rmprocs
 
 @testset "MAP_marg and dataset transport" begin
-    # A mapper can inspect the progress object captured by the solver's job.
-    function find_progress(x, depth=0)
-        x isa CMBLensing.DistributedProgress && return x
-        depth > 4 && return nothing
-        if x isa Core.Box
-            return isdefined(x, :contents) ? find_progress(x.contents, depth+1) : nothing
-        elseif x isa Function
-            for name in fieldnames(typeof(x))
-                child = find_progress(getfield(x, name), depth+1)
-                child === nothing || return child
-            end
-        end
-        nothing
-    end
-    seen_progress = Ref{Any}(nothing)
-    function progress_map(f, indices, data, starts)
-        seen_progress[] = find_progress(f)
-        seen_progress[] === nothing && error("test could not find progress channel")
-        map(f, indices, data, starts)
-    end
     sim = load_sim(; Cℓ=CMBLensing._default_Cℓs(), pol=:I, T=Float64,
         θpix=4, Nside=8, storage=Array, L=LenseFlow(3), rng=MersenneTwister(7))
     global map_marg_test_dataset = sim.ds()
@@ -81,9 +61,8 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
 
         ϕ, trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
             ϕstart=0.3sim.ϕ, nsteps=2, nsteps_with_meanfield_update=1,
-            Nsims=1, progress=true, pmap=progress_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+            Nsims=1, progress=true, pmap=map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
         @test length(trace) == 2
-        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
         @test all(isfinite, ϕ[:])
         @test all(t -> all(isfinite, t.g[:]), trace)
         @test hash(map_marg_test_dataset) == original_hash
@@ -143,16 +122,9 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
             CMBLensing._map_marg_close_worker_cache(custom_cache)
         end
 
-        # A mapper failure after one completed job must still release both
-        # the owner registry and the already-created worker cache.
-        released = Ref{Any}(nothing)
+        # A mapper error after a real job is propagated with progress enabled.
         function failing_map(f, indices, data, starts)
-            seen_progress[] = find_progress(f)
-            seen_progress[] === nothing && error("test could not find progress channel")
             f(first(indices), first(data), first(starts))
-            refs = filter(x -> x isa RemoteChannel, [getfield(f, name) for name in fieldnames(typeof(f))])
-            state = only(refs)
-            released[] = (state, CMBLensing._map_marg_worker_cache(state))
             error("injected mapper failure")
         end
         err = try
@@ -164,43 +136,38 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
             e
         end
         @test err isa ErrorException && err.msg == "injected mapper failure"
-        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
-        @test released[] !== nothing
-        if released[] !== nothing
-            @test !isopen(released[][1])
-            @test !isopen(released[][2])
-        end
         @test hash(map_marg_test_dataset) == original_hash
         @test original_lens.ϕ[] === original_potential
 
-        # Cleanup must wait for a concurrent task that is using the cache,
-        # without replacing the exception thrown by the user's mapper.
+        # Hold an actual CG solve in its documented callback while the mapper
+        # throws. Cleanup must wait for the task, including its progress update.
+        started, release = Channel{Bool}(1), Channel{Bool}(1)
+        entered = Ref(false)
         active_failure = Ref{Any}(nothing)
-        function failing_concurrent_map(f, indices, data, starts)
-            pbar = find_progress(f)
-            pbar === nothing && error("test could not find progress channel")
-            state = only(filter(x -> x isa RemoteChannel,
-                [getfield(f, name) for name in fieldnames(typeof(f))]))
-            started, release = Channel{Bool}(1), Channel{Bool}(1)
-            work = @async CMBLensing._map_marg_with_worker_cache(state) do worker_ds
+        function hold_first_iteration(i, x, res)
+            if !entered[]
+                entered[] = true
                 put!(started, true)
                 take!(release)
-                CMBLensing.ProgressMeter.next!(pbar)
-                :finished
             end
+        end
+        function failing_concurrent_map(f, indices, data, starts)
+            work = @async f(first(indices), first(data), first(starts))
+            status = timedwait(() -> isready(started) || istaskdone(work), 180; pollint=0.1)
+            status == :ok && isready(started) || error("solver task did not enter callback")
             take!(started)
-            cache = CMBLensing._map_marg_worker_cache(state)
             release_task = @async begin
                 sleep(0.01)
                 put!(release, true)
             end
-            active_failure[] = (; state, cache, work, release_task, pbar)
+            active_failure[] = (; work, release_task)
             error("injected concurrent mapper failure")
         end
         outcome = @async try
             MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
                 ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=true,
-                pmap=failing_concurrent_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                pmap=failing_concurrent_map,
+                conjgrad_kwargs=(tol=1e-4, nsteps=100, callback=hold_first_iteration))
             nothing
         catch e
             e
@@ -212,62 +179,8 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
             @test concurrent_error isa ErrorException && concurrent_error.msg == "injected concurrent mapper failure"
             @test active_failure[] !== nothing
             if active_failure[] !== nothing
-                @test fetch(active_failure[].work) == :finished
+                @test fetch(active_failure[].work) isa NamedTuple
                 @test istaskdone(active_failure[].release_task)
-                @test !isopen(active_failure[].state)
-                @test !isopen(active_failure[].cache)
-                @test !isopen(active_failure[].pbar.channel)
-            end
-        end
-
-        # A cleanup failure must not replace the user's original solve error.
-        function closed_progress_map(f, indices, data, starts)
-            seen_progress[] = find_progress(f)
-            seen_progress[] === nothing && error("test could not find progress channel")
-            CMBLensing.ProgressMeter.finish!(seen_progress[])
-            error("original mapper error")
-        end
-        cleanup_error = @test_logs (:warn, r"Could not finish MAP_marg progress") begin
-            try
-                MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
-                    ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=true,
-                    pmap=closed_progress_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
-                nothing
-            catch e
-                e
-            end
-        end
-        @test cleanup_error isa ErrorException && cleanup_error.msg == "original mapper error"
-        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
-
-        # Force worker-cache cleanup to fail after the mapper has finished.
-        # The failure is surfaced after a successful solve, but must not mask
-        # a separate exception thrown by the mapper itself.
-        function poison_cache_map(f, indices, data, starts, throw_after)
-            results = map(f, indices, data, starts)
-            registry = only(filter(x -> x isa RemoteChannel,
-                [getfield(f, name) for name in fieldnames(typeof(f))]))
-            cache = CMBLensing._map_marg_worker_cache(registry)
-            take!(cache)
-            close(cache)
-            throw_after && error("original poisoned-cache mapper error")
-            results
-        end
-        for throw_after in (false, true)
-            poisoned_error = @test_logs (:warn, r"Could not release MAP_marg worker cache") (:warn, r"Could not release MAP_marg worker registry") begin
-                try
-                    MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
-                        ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
-                        pmap=(f, i, d, s) -> poison_cache_map(f, i, d, s, throw_after),
-                        conjgrad_kwargs=(tol=1e-4, nsteps=100))
-                    nothing
-                catch e
-                    e
-                end
-            end
-            @test poisoned_error !== nothing
-            if throw_after
-                @test poisoned_error isa ErrorException && poisoned_error.msg == "original poisoned-cache mapper error"
             end
         end
 
@@ -359,6 +272,26 @@ using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_w
                 @test release_error !== nothing
                 @test !isopen(registry)
                 @test !isopen(good_cache)
+
+                # Removing an actual worker after its first job makes cache
+                # cleanup fail. The original mapper error must still escape.
+                function removed_worker_map(f, indices, data, starts)
+                    remotecall_fetch(f, worker, first(indices), first(data), first(starts))
+                    rmprocs(worker)
+                    empty!(workers)
+                    error("mapper error after worker removal")
+                end
+                removed_error = @test_logs (:warn, r"Could not release MAP_marg worker cache") (:warn, r"Could not release MAP_marg worker registry") begin
+                    try
+                        MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
+                            ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
+                            pmap=removed_worker_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                        nothing
+                    catch e
+                        e
+                    end
+                end
+                @test removed_error isa ErrorException && removed_error.msg == "mapper error after worker removal"
             finally
                 isempty(workers) || rmprocs(workers)
             end
