@@ -5,9 +5,15 @@ using CMBLensing
 
 if isdefined(Base, :get_extension)
     using CUDA
-    using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 else
     using ..CUDA
+end
+
+@static if isdefined(CUDA, :cuSPARSE)
+    using CUDA.cuSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+elseif isdefined(Base, :get_extension)
+    using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+else
     using ..CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 end
 
@@ -72,9 +78,12 @@ Adapt.adapt_structure(::Type{<:Array},   L::CuSparseMatrixCSR) = SparseMatrixCSC
 Adapt.adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
 Adapt.adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
-# some Random API which CUDA doesn't implement yet
-Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
-    cpu(randn!(rng, CUDA.CuVector{T}(undef,1)))[1]
+# Preserve the legacy workaround; CUDA 6 renamed the type and supplies its own
+# scalar methods.
+@static if !isdefined(CUDA, :cuRAND)
+    Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
+        cpu(randn!(rng, CUDA.CuVector{T}(undef,1)))[1]
+end
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator
