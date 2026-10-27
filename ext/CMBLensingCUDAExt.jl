@@ -72,6 +72,16 @@ Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
 Random.randn!(rng::MersenneTwister, A::CuArray) = 
     (A .= adapt(CuArray, randn!(rng, adapt(Array, A))))
 
+# CUDA.RNG also defines randn! for AbstractArray, which otherwise makes its
+# dispatch with field-specific randn! methods ambiguous. Delegate to the
+# existing field methods so their basis and mutation behavior is preserved.
+Random.randn!(rng::CUDA.RNG, f::BaseField{B}) where {B<:CMBLensing.SpatialBasis{Map}} =
+    invoke(Random.randn!, Tuple{AbstractRNG,typeof(f)}, rng, f)
+Random.randn!(rng::CUDA.RNG, f::BaseField{B}) where {B} =
+    invoke(Random.randn!, Tuple{AbstractRNG,typeof(f)}, rng, f)
+Random.randn!(rng::CUDA.RNG, f::FieldTuple) =
+    invoke(Random.randn!, Tuple{AbstractRNG,typeof(f)}, rng, f)
+
 
 """
     cuda_gc()
