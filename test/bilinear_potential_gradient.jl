@@ -8,7 +8,7 @@ using CMBLensing: BatchedReal
 @testset "BilinearLens potential pullback" begin
     # Points away from grid boundaries have a genuine derivative. Use random
     # samples to test the actual interpolation, rather than a spectral model.
-    for T in (Float32, Float64), (Ny,Nx) in ((6,8), (7,9), (7,8)), pol in (1,2), B in (Map,Fourier)
+    for T in (Float32, Float64), (Ny,Nx) in ((6,8), (7,9), (7,8), (6,9)), pol in (1,2), B in (Map,Fourier)
         @testset "$T, $(Ny)×$(Nx), polarization $pol, $B" begin
             rng = MersenneTwister(50123 + Ny + Nx + pol)
             proj = ProjLambert(;Ny,Nx,θpix=60*180/π,T)
@@ -72,7 +72,7 @@ end
 @testset "BilinearLens Fourier potential at the Nyquist row" begin
     # Test both real-map-derived and arbitrary stored complex directions.
     # The latter distinguish the inverse-FFT adjoints used by FFTW and MKL.
-    for T in (Float32, Float64), (Ny, Nx) in ((6,8), (7,8), (7,9))
+    for T in (Float32, Float64), (Ny, Nx) in ((6,8), (7,8), (7,9), (6,9))
         @testset "$T, $(Ny)×$(Nx)" begin
             rng = MersenneTwister(50124 + Ny + Nx)
             proj = ProjLambert(; Ny, Nx, θpix=60*180/π, T)
