@@ -234,6 +234,86 @@ end
 
 MAP_joint(θ, ds::NoLensingDataSet; kwargs...) = (argmaxf_logpdf(I, θ, ds; kwargs...), nothing)
 
+# A solve owns one small registry on its originating process. A worker gets a
+# private dataset only when it is first used; later tasks send a channel
+# reference rather than serializing its potentially large lens cache again.
+function _map_marg_new_registry(evaluated_ds)
+    registry = RemoteChannel(() -> Channel{Any}(1), myid())
+    # Keep a fresh, unregistered dataset object for by-value worker transport.
+    put!(registry, (; ds=copy(evaluated_ds), caches=Dict{Int,RemoteChannel}()))
+    registry
+end
+
+function _map_marg_builtin_cpu_lens(ds)
+    ds isa BaseDataSet || return false
+    L = ds.L
+    L isa CachedLenseFlow || return false
+    fields = (L.ϕ[], L.memŁf, L.memÐf, L.memŁϕ, L.memÐϕ,
+              L.memŁvf..., L.memÐvf..., L.memŁvϕ..., L.memÐvϕ...)
+    all(f -> f isa BaseField && f.arr isa Array, fields)
+end
+
+function _map_marg_new_worker_cache(evaluated_ds, origin)
+    # A deserialized built-in CPU lens is already private on a remote worker.
+    # Keep the conservative copy for local, custom, or non-Array storage.
+    local_ds = if myid() == origin || !_map_marg_builtin_cpu_lens(evaluated_ds)
+        local_copy = copy(evaluated_ds)
+        local_copy.L = deepcopy(local_copy.L)
+        local_copy
+    else
+        evaluated_ds
+    end
+    cache = RemoteChannel(() -> Channel{Any}(1), myid())
+    put!(cache, (; ds=local_ds, guard=ReentrantLock(), active=Ref(true)))
+    cache
+end
+
+function _map_marg_worker_cache(registry)
+    remotecall_fetch(registry.where, registry, myid()) do registry, worker
+        state = take!(registry)
+        try
+            get!(state.caches, worker) do
+                remotecall_fetch(_map_marg_new_worker_cache, worker, state.ds, registry.where)
+            end
+        finally
+            put!(registry, state)
+        end
+    end
+end
+
+function _map_marg_with_worker_cache(f, registry)
+    cache = _map_marg_worker_cache(registry)
+    entry = fetch(cache)
+    lock(entry.guard) do
+        entry.active[] || error("MAP_marg worker cache is closed")
+        f(entry.ds)
+    end
+end
+
+function _map_marg_close_worker_cache(cache)
+    entry = fetch(cache)
+    lock(entry.guard) do
+        entry.active[] = false
+        take!(cache)
+        close(cache)
+    end
+    nothing
+end
+
+function _map_marg_close_registry(registry)
+    state = take!(registry)
+    close(registry)
+    for (worker, cache) in state.caches
+        try
+            remotecall_wait(_map_marg_close_worker_cache, worker, cache)
+        catch err
+            # Keep a failed worker from masking the original solve error.
+            @warn "Could not release MAP_marg worker cache" worker exception=(err, catch_backtrace())
+        end
+    end
+    nothing
+end
+
 
 @doc doc"""
 
@@ -264,9 +344,11 @@ function MAP_marg(
     (mod(Nsims+1,nworkers()) == 0) || @warn "MAP_marg is most efficient when Nsims+1 is divisible by the number of workers." maxlog=1
     (ds.d.Nbatch == Nbatch == 1) || error("MAP_marg for batched fields not implemented")
 
-    dsθ = ds(θ)
+    dsθ = copy(ds(θ))
     dsθ.G = I # MAP_marg is invariant to G so avoid wasted computation
-    set_distributed_dataset(dsθ)
+    # The lensing operator may own mutable caches. Keep the caller's dataset
+    # (including any @distributed registration) unchanged during this solve.
+    dsθ.L = deepcopy(dsθ.L)
     @unpack Cϕ, Nϕ, d, Cf, Cn, L = dsθ
     Hϕ⁻¹ = pinv(pinv(Cϕ) + pinv(Nϕ))
     T = real(eltype(d))
@@ -283,61 +365,65 @@ function MAP_marg(
         ProgressMeter.update!(pbar)
     end
 
-    for step = 1:nsteps
+    registry = _map_marg_new_registry(dsθ)
+    try
+        for step = 1:nsteps
 
-        aggressive_gc && cuda_gc()
-
-        # generate simulated data for the current ϕ
-        Lϕ = L(ϕ)
-        _rng = copy(rng)
-        d_sims = map(1:Nsims) do _
-            simulate(_rng, dsθ; ϕ).d
-        end
-
-        # gradient of data and mean-field sims
-
-        function gMAP(Lϕ, dsθ, f_wf_prev, i)
-            f_wf, history = argmaxf_logpdf(
-                dsθ, 
-                (;ϕ, θ);
-                fstart = (isnothing(f_wf_prev) ? 0d : f_wf_prev),
-                conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
-            )
             aggressive_gc && cuda_gc()
-            g, = gradient(ϕ -> logpdf(dsθ; f=f_wf, ϕ, dsθ.d), getϕ(Lϕ))
-            progress && next!(pbar, showvalues=[
-                ("step", step),
-                ("α",    α),
-                ("CG ($(i==0 ? "data" : "sim $i"))", "$(length(history)) iterations"),
-            ])
-            (;g, f_wf, history)
+
+            # generate simulated data for the current ϕ
+            _rng = copy(rng)
+            d_sims = map(1:Nsims) do _
+                simulate(_rng, dsθ; ϕ).d
+            end
+
+            # gradient of data and mean-field sims
+
+            function gMAP(dsθ, f_wf_prev, i)
+                f_wf, history = argmaxf_logpdf(
+                    dsθ,
+                    (;ϕ, θ);
+                    fstart = (isnothing(f_wf_prev) ? 0 * dsθ.d : f_wf_prev),
+                    conjgrad_kwargs = (history_keys=(:i,:res), conjgrad_kwargs...)
+                )
+                aggressive_gc && cuda_gc()
+                g, = gradient(ϕ -> logpdf(dsθ; f=f_wf, ϕ, dsθ.d), ϕ)
+                progress && next!(pbar, showvalues=[
+                    ("step", step),
+                    ("α",    α),
+                    ("CG ($(i==0 ? "data" : "sim $i"))", "$(length(history)) iterations"),
+                ])
+                (;g, f_wf, history)
+            end
+
+            if step > nsteps_with_meanfield_update
+                gMAP_data = gMAP(dsθ, f_wf_prev, 0)
+                f_wf_prev = gMAP_data.f_wf
+            else
+                gMAP_data, gMAP_sims = peel(pmap(0:Nsims, [dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do i, d, f_wf_prev
+                    _map_marg_with_worker_cache(registry) do worker_ds
+                        gMAP(@set(worker_ds.d=d), f_wf_prev, i)
+                    end
+                end)
+                ḡ = mean(map(gMAP_sims) do gMAP
+                    mean(unbatch(gMAP.g))
+                end)
+                f_wf_sims_prev = getindex.(gMAP_sims,:f_wf)
+            end
+
+            # final total posterior gradient, including gradient of the prior
+            g = gMAP_data.g - ḡ - Cϕ\ϕ
+
+            # take step
+            ϕ += T(α) * Hϕ⁻¹ * g
+
+            push!(tr, (;step, g, ϕ))
+
         end
 
-        if step > nsteps_with_meanfield_update
-            gMAP_data = gMAP(Lϕ, dsθ, f_wf_prev, 0)
-            f_wf_prev = gMAP_data.f_wf
-        else
-            gMAP_data, gMAP_sims = peel(pmap(0:Nsims, [dsθ.d, d_sims...], [f_wf_prev, f_wf_sims_prev...]) do i, d, f_wf_prev
-                gMAP(Lϕ, @set(get_distributed_dataset().d=d), f_wf_prev, i)
-            end)
-            ḡ = mean(map(gMAP_sims) do gMAP
-                mean(unbatch(gMAP.g))
-            end)
-            f_wf_sims_prev = getindex.(gMAP_sims,:f_wf)
-        end
-    
-        # final total posterior gradient, including gradient of the prior
-        g = gMAP_data.g - ḡ - Cϕ\ϕ
-
-        # take step
-        ϕ += T(α) * Hϕ⁻¹ * g
-
-        push!(tr, (;step, g, ϕ))
-        
+        return ϕ, tr
+    finally
+        _map_marg_close_registry(registry)
     end
-
-    set_distributed_dataset(nothing) # free memory
-    
-    return ϕ, tr
 
 end
