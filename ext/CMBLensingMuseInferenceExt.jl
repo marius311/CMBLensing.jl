@@ -24,7 +24,7 @@ using Setfield
     parameterization = 0
     MAP_joint_kwargs = (;)
     θ_fixed = (;)
-    x = ds.d
+    x = ds isa CMBLensing.Mixed ? ds.ds.d : ds.d
     latent_vars = nothing
     autodiff = AD.HigherOrderBackend((AD.ForwardDiffBackend(), AD.ZygoteBackend()))
     transform_θ = identity
@@ -74,10 +74,11 @@ end
 
 function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:CMBLensing.Mixed}, d, zguess, θ; ∇z_logLike_atol=nothing)
     ds = prob.ds.ds
-    zguess = CMBLensing.unmix(ds; θ, zguess...)
+    θ = mergeθ(prob, θ)
+    zguess = CMBLensing.unmix(ds; zguess..., θ)
     Ωstart = delete(NamedTuple(zguess), :f)
-    MAP = MAP_joint(Base.get_extension(CMBLensing,:CMBLensingMuseInferenceExt).mergeθ(prob, θ), @set(ds.d=d), Ωstart; fstart=zguess.f, prob.MAP_joint_kwargs...)
-    MAP = CMBLensing.mix(ds; θ, MAP...)
+    MAP = MAP_joint(θ, @set(ds.d=d), Ωstart; fstart=zguess.f, prob.MAP_joint_kwargs...)
+    MAP = CMBLensing.mix(ds; MAP..., θ)
     LenseBasis(FieldTuple(;delete(MAP, (:history, :θ))...)), MAP.history
 end
 
