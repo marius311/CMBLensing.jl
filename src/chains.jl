@@ -52,6 +52,9 @@ function load_chains(
     burnin_chunks = 0,
     progress = true
 )
+    # Keep only the batch width when an initial-only sample has no logpdf:
+    # dropmaps must release its fields before thinning and unbatching.
+    dropped_batch_hints = IdDict{Any,Int}()
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
@@ -64,7 +67,16 @@ function load_chains(
                 append!.(chains, read(io,k))
             end
             if dropmaps
-                map!(chain -> filter!.(((_,v),)->!(v isa Field), chain), chains, chains)
+                for chain in chains, sample in chain
+                    if unbatch
+                        logpdf = get(sample, :logpdf, nothing)
+                        ϕ = get(sample, :ϕ, nothing)
+                        if (isnothing(logpdf) || ismissing(logpdf)) && ϕ isa Field
+                            dropped_batch_hints[sample] = batch_length(ϕ)
+                        end
+                    end
+                    filter!(((_,v),)->!(v isa Field), sample)
+                end
             end
         end
         chains
@@ -80,7 +92,12 @@ function load_chains(
     end
     chains = wrap_chains(chains)
     if unbatch
-        chains = CMBLensing.unbatch(chains)
+        if dropmaps && !isempty(dropped_batch_hints)
+            chains = Chains(mapreduce(chain -> _unbatch(chain,
+                isempty(chain) ? nothing : get(dropped_batch_hints, chain[end], nothing)), vcat, chains))
+        else
+            chains = CMBLensing.unbatch(chains)
+        end
     end
     return join ? Chain(reduce(vcat, chains)) : chains
 end
@@ -148,7 +165,9 @@ wrap_chains(chain::Vector) = Chain(chain)
 
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
 """
-function unbatch(chain::Chain)
+unbatch(chain::Chain) = _unbatch(chain, nothing)
+
+function _unbatch(chain::Chain, batch_hint)
     isempty(chain) && return [chain]
     # A freshly initialized one-sample chain has a potential but no logpdf.
     sample = chain[end]
@@ -156,7 +175,7 @@ function unbatch(chain::Chain)
     if isnothing(marker) || ismissing(marker)
         marker = get(sample, :ϕ, nothing)
     end
-    D = isnothing(marker) || ismissing(marker) ? 1 : batch_length(marker)
+    D = isnothing(marker) || ismissing(marker) ? something(batch_hint, 1) : batch_length(marker)
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp

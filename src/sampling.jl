@@ -152,6 +152,7 @@ Keyword arguments:
 * `nsavemaps = 1` — Number of steps in between saving maps into chain.
   When writing a file, the final sample also retains its maps so that the
   chain can be resumed, even when it falls between these intervals.
+  Each saved field is copied to keep later in-place updates from changing it.
 * `nburnin_always_accept = 0` — Number of steps at the beginning of
   the chain to always accept HMC steps regardless of integration
   error.
@@ -229,7 +230,8 @@ function sample_joint(
     function filter_for_saving(state, step)
         save_maps = step == 1 || (step % nsavemaps) == 0 ||
                     (filename != nothing && step == nsamps_per_chain)
-        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (save_maps || !isa(v,Field))))
+        # Saved maps must not share mutable arrays with subsequent Gibbs steps.
+        Dict(k=>(v isa Field ? copy(v) : v) for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (save_maps || !isa(v,Field))))
     end
 
     # validate arguments

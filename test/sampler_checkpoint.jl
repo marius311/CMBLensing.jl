@@ -51,8 +51,10 @@ using CMBLensing, Random, Test
         @test length(three[1]) == 3
         @test length(read_chunks(three_file)) == 1
         @test haskey(last(loaded(three_file)), :ϕ)
+        @test [first(sample[:ϕ].arr) for sample in loaded(three_file)] == Float32[0, 2, 3]
         memory_only = toy_sample(3)
         @test !haskey(last(memory_only[1]), :ϕ)
+        @test [first(sample[:ϕ].arr) for sample in memory_only[1][1:2]] == Float32[0, 2]
 
         # An exact periodic boundary is written once, with no extra chunk.
         four_file = joinpath(dir, "four.jld2")
@@ -113,6 +115,37 @@ using CMBLensing, Random, Test
         @test length(batched) == 2
         @test all(iszero, batched[1][1][:ϕ].arr)
         @test all(==(1f0), batched[2][1][:ϕ].arr)
+        dropped = load_chains(batch_file; dropmaps=true, progress=false)
+        @test length(dropped) == 2
+        @test all(chain -> length(chain) == 1 && !haskey(chain[1], :ϕ), dropped)
+        @test all(chain -> Set(keys(chain[1])) == Set([:step]), dropped)
+        @test length(load_chains(batch_file; dropmaps=true, join=true, progress=false)) == 2
+
+        # Thinning can select the initial no-logpdf sample even when later
+        # samples have one. Preserve each selected sample's own batch width.
+        batch3 = CMBLensing.batch(ϕ0, ϕ1, ϕ1)
+        thin_file = joinpath(dir, "initial-batched-thin.jld2")
+        CMBLensing.jldopen(thin_file, "w") do io
+            write(io, "chunks_1", [
+                Any[Dict(:step=>1, :ϕ=>batch_field),
+                    Dict(:step=>2, :logpdf=>CMBLensing.batch(Float32[2, 2]))],
+                Any[Dict(:step=>1, :ϕ=>batch3),
+                    Dict(:step=>2, :logpdf=>CMBLensing.batch(Float32[2, 2, 2]))],
+            ])
+        end
+        retained_thin = load_chains(thin_file; thin=2, progress=false)
+        @test length(retained_thin) == 5
+        @test all(chain -> length(chain) == 1 && haskey(chain[1], :ϕ), retained_thin)
+        dropped_thin = load_chains(thin_file; thin=2, dropmaps=true, progress=false)
+        @test length(dropped_thin) == 5
+        @test all(chain -> length(chain) == 1 && Set(keys(chain[1])) == Set([:step]), dropped_thin)
+        selected = load_chains(thin_file; thin=s -> s[:step] == 1,
+            dropmaps=true, join=true, progress=false)
+        @test length(selected) == 5 && all(s -> s[:step] == 1 && !haskey(s, :ϕ), selected)
+        unexpanded = load_chains(thin_file; thin=2, dropmaps=true, unbatch=false, progress=false)
+        @test length(unexpanded) == 2 && all(chain -> length(chain) == 1 && !haskey(chain[1], :ϕ), unexpanded)
+        only_maps = load_chains(thin_file; thin=:hasmaps, dropmaps=true, progress=false)
+        @test length(only_maps) == 2 && all(isempty, only_maps)
 
         batched_ds = copy(ds)
         batched_ds.d = CMBLensing.batch(ds.d, ds.d)
