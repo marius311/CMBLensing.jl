@@ -153,6 +153,16 @@ end
     expression ← :(@inbounds $(Children.child(2; x, offset=1)))
 end
 
+const macro_expansions = Ref(0)
+macro expansion_number()
+    macro_expansions[] += 1
+end
+
+@fwdmodel function macro_argument(; observed)
+    value ← Base.identity(@expansion_number)
+    observed ~ Normal(value, 1)
+end
+
 @testset "Forward-model call expressions" begin
     expected_loglike = CMBLensing.Distributions.logpdf(Normal(2, 1), 3)
     for model in (qualified, splatted, indexed, dynamic_model)
@@ -232,6 +242,10 @@ end
     @test result.expression.args[end] == 7
     @test result.value == 7
     @test loglikelihood(quoted_macro_interpolation; x=3) ≈ expected_loglike
+
+    @test macro_expansions[] == 2
+    @test simulate(MersenneTwister(1), macro_argument; observed=2).value == 1
+    @test loglikelihood(macro_argument; observed=2) ≈ CMBLensing.Distributions.logpdf(Normal(2, 1), 2)
 end
 
 end

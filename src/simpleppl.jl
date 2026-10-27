@@ -70,7 +70,7 @@ macro fwdmodel(def)
                 callee = gensym(:callee)
                 return quote
                     local $callee = $f
-                    $is_simpleppl_model($callee) ? $callee($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $callee($(args...); $(kwargs...))
+                    $callee(($is_simpleppl_model($callee) ? ($(Simulate()), _vars, rng) : ())..., $(args...); $(kwargs...))
                 end
             end
         end
@@ -104,7 +104,7 @@ macro fwdmodel(def)
                 callee = gensym(:callee)
                 return quote
                     local $callee = $f
-                    $is_simpleppl_model($callee) ? $callee($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $callee($(args...); $(kwargs...))
+                    $callee(($is_simpleppl_model($callee) ? ($(Logpdf()), _logpdf) : ())..., $(args...); $(kwargs...))
                 end
             end
         end
