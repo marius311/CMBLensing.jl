@@ -244,3 +244,18 @@ end
         @test ft̄.shared ≈ v[1] * f
     end
 end
+
+@testset "SVector times Healpix Field pullback" begin
+    pixels = collect(1.0:12.0)
+    weights1 = collect(12.0:-1.0:1.0)
+    weights2 = [(-1.0)^i * i for i in 1:12]
+    f, w1, w2 = HealpixMap.((pixels, weights1, weights2))
+    v = @SVector [1.5, -2.0]
+    _, back = Zygote.pullback(*, v, f)
+    v̄, f̄ = back(@SVector [w1, w2])
+    @test v̄ ≈ (@SVector [sum(pixels .* weights1), sum(pixels .* weights2)])
+    @test f̄ ≈ v[1] * w1 + v[2] * w2
+    v̄, f̄ = back(CMBLensing.SVector{2,Any}((w1, nothing)))
+    @test v̄ ≈ (@SVector [sum(pixels .* weights1), 0.0])
+    @test f̄ ≈ v[1] * w1
+end
