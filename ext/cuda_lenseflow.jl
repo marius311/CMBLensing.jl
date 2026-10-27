@@ -30,6 +30,14 @@ end
 
 const CuCachedLenseFlow = CachedLenseFlow{S,T,D,LP,DP,LF} where {S<:CMBLensing._GraphRK4Solver,T,D,LP,DP,LF<:CuBaseField}
 
+function CMBLensing._inplace_rfft_plan(arr::CuArray{T,N}, dims, sz...) where {T,N}
+    plans = get(task_local_storage(), :CMBLensing_graph_fft_plans, nothing)
+    if isnothing(plans)
+        return CMBLensing.m_plan_rfft(CMBLensing._fft_arr_type(arr){real(T),N}, dims, sz...)
+    end
+    plans[(real(eltype(arr)), dims, sz)]
+end
+
 mutable struct LenseFlowGraphs
     task::Task
     context::CUDA.CuContext
@@ -63,14 +71,20 @@ function _graph_supported(L)
     isdefined(CUDA, :capture) && isdefined(CUDA, :instantiate)
 end
 
-# Retain the plans as well as their buffers. In CUDA 5 graph launches do not
-# keep Julia objects alive, and FFT work areas must outlive every replay.
+# Each integration owns its FFT plans and work areas: the globally memoized
+# plans can be used by ordinary calls or another cache while a graph runs.
+# Retain them explicitly because CUDA 5 replay does not retain Julia objects.
 function _graph_fft_plans(L)
-    map((L.memŁf, L.memŁϕ)) do f
-        A = CMBLensing._fft_arr_type(f.arr)
-        p = CMBLensing.m_plan_rfft(A{eltype(f.arr),ndims(f.arr)}, (1,2), size(f.arr)...)
-        (p, inv(p))
+    plans = Dict{Any,Any}()
+    for f in (L.memŁf, L.memŁϕ)
+        key = (eltype(f.arr), (1,2), size(f.arr))
+        if !haskey(plans, key)
+            p = plan_rfft(similar(f.arr), (1,2))
+            inv(p) # Initialize the inverse before capture; p retains it.
+            plans[key] = p
+        end
     end
+    plans
 end
 
 function _capture_lenseflow(L, F!, y₀, (t₀,t₁))
@@ -83,9 +97,11 @@ function _capture_lenseflow(L, F!, y₀, (t₀,t₁))
         CMBLensing._rk4!(F!, y, work..., L.odesolve.nsteps, t₀, t₁)
     end
     plans = _graph_fft_plans(L)
-    run(); CUDA.synchronize(CUDA.stream())
-    run(); CUDA.synchronize(CUDA.stream())
-    graph = CUDA.capture(run; throw_error=false)
+    graph = task_local_storage(:CMBLensing_graph_fft_plans, plans) do
+        run(); CUDA.synchronize(CUDA.stream())
+        run(); CUDA.synchronize(CUDA.stream())
+        CUDA.capture(run; throw_error=false)
+    end
     # An unsupported capture can be declined by CUDA. The last warmup is an
     # ordinary, complete integration of the preserved input in that case.
     exec = isnothing(graph) ? nothing : CUDA.instantiate(graph)

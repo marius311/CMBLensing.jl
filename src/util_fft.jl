@@ -23,8 +23,11 @@ function m_irfft(arr::AbstractArray{T,N}, d, dims) where {T,N}
     @set! output_size[first(dims)] = d
     m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, output_size...) \ arr
 end
-m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T<:Real,N} = mul!(dst, m_plan_rfft(_fft_arr_type(arr){T,N}, dims, size(arr)...), arr)
-m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, size(dst)...), copy_if_fftw(arr))
+m_rfft!(dst, arr::AbstractArray{T,N}, dims) where {T<:Real,N} = mul!(dst, _inplace_rfft_plan(arr, dims, size(arr)...), arr)
+m_irfft!(dst, arr::AbstractArray{T,N}, dims) where {T,N} = ldiv!(dst, _inplace_rfft_plan(arr, dims, size(dst)...), copy_if_fftw(arr))
+# Captured GPU work needs plans with private scratch, rather than the globally
+# memoized plan buffers also used by ordinary FFT calls and other chains.
+_inplace_rfft_plan(arr::AbstractArray{T,N}, dims, sz...) where {T,N} = m_plan_rfft(_fft_arr_type(arr){real(T),N}, dims, sz...)
 # Only for internal buffers that may be overwritten by the inverse transform.
 m_irfft_scratch!(dst, arr::Array{T,N}, dims) where {T,N} = ldiv!(dst, m_plan_rfft(Array{real(T),N}, dims, size(dst)...), arr)
 m_fft(arr::AbstractArray{T,N}, dims) where {T,N} = m_plan_fft(_fft_arr_type(arr){complex(T),N}, dims, size(arr)...) * arr

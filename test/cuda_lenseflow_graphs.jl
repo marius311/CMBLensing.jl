@@ -132,6 +132,42 @@ end
     @test (cpu_graph*cpu(f)).arr ≈ Array((base*f).arr)
 end
 
+@testset "CUDA graphs have independent FFT workspaces" begin
+    ϕ, f = graph_test_fields(Float64, 32, 32, :P)
+    expected = [Array((LenseFlow(α*ϕ,3)*f).arr) for α in (0.9,1.1)]
+    CUDA.synchronize()
+    # Persistent tasks warm up in sequence, then enqueue work concurrently on
+    # separate streams. Their graphs must not share the global cuFFT scratch.
+    inputs = [Channel{Bool}(1) for _=1:2]
+    outputs = [Channel{Any}(1) for _=1:2]
+    tasks = map(1:2) do i
+        task = @async begin
+            L = precompute!!(LenseFlow((i==1 ? 0.9 : 1.1)*ϕ,3;gpu_graphs=true), f)
+            y = L*f
+            CUDA.synchronize()
+            entry = only(values(L.odesolve.graphs.state.entries))
+            put!(outputs[i], entry.plans)
+            while take!(inputs[i])
+                put!(outputs[i], L*f)
+            end
+        end
+        # Finish this task's capture before starting the other one.
+        plans = take!(outputs[i])
+        (task,plans)
+    end
+    plans1,plans2 = last.(tasks)
+    @test all(plans1[k] !== plans2[k] for k in keys(plans1))
+    for _=1:4
+        put!.(inputs,true)
+        ys = take!.(outputs)
+        for i=1:2
+            @test Array(ys[i].arr) ≈ expected[i] rtol=1e-12 atol=1e-12
+        end
+    end
+    put!.(inputs,false)
+    wait.(first.(tasks))
+end
+
 @testset "CUDA graph directional derivatives" begin
     ϕ, f = graph_test_fields(Float64, 16, 16, :P)
     direction = 0.7ϕ
