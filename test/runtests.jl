@@ -789,6 +789,7 @@ end
 
 include("lenseflow_adjoint.jl")
 include("map_joint.jl")
+include("sampler_map_start.jl")
 include("equirect_odd_width.jl")
 
 ##

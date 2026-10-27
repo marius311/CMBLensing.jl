@@ -144,38 +144,44 @@ end
     sample_joint(ds::DataSet; kwargs...)
 
 Sample the joint posterior, $\mathcal{P}(f,\phi,\theta\,|\,d)$. 
+The default Gibbs steps update `f` and `ϕ` while holding `θ` fixed after
+initialization. To sample a parameter, include `gibbs_sample_slice_θ!(name)`
+between `gibbs_mix!` and `gibbs_unmix!` in `gibbs_samplers`.
 
 Keyword arguments: 
 
 * `nsamps_per_chain` — The number of samples per chain.
-* `nchains = 1` — Number of chains in parallel.
+* `nchains = nworkers()` — Number of chains in parallel.
 * `nsavemaps = 1` — Number of steps in between saving maps into chain.
-* `nburnin_always_accept = 0` — Number of steps at the beginning of
-  the chain to always accept HMC steps regardless of integration
-  error.
-* `nburnin_fixθ = 0` — Number of steps at the beginning of the chain
-  before starting to sample `θ`.
-* `Nϕ = :qe` — Noise to use in the initial approximation to the
-  Hessian. Can give `:qe` to use the quadratic estimate noise.
-* `chains = nothing` — `nothing` to start a new chain; the return
-  value from a previous call to `sample_joint` to resume those chains;
-  `:resume` to resume chains from a file given by `filename`
-* `θrange` — Range and density to grid sample parameters as a
-  NamedTuple, e.g. `(Aϕ=range(0.7,1.3,length=20),)`. 
-* `θstart` — Starting values of parameters as a NamedTuple, e.g.
-  `(Aϕ=1.2,)`, or nothing to randomly sample from θrange
-* `ϕstart` — Starting `ϕ`, either a `Field` object, `:quasi_sample`,
-  or `:best_fit`
-* `metadata` — Does nothing, but is saved into the chain file
+* `filename = nothing` — Optional `.jld2` file for saving chain chunks.
+* `nfilewrite = 5` — Write a chunk during sampling at steps divisible by
+  this number; it must be a multiple of `nsavemaps`. The initial step is
+  not written on its own, and a final partial chunk is not written.
+* `resume = nothing` — If `filename` already exists, specify `true` to
+  resume from its last saved chunk or `false` to start a new chain.
+  With `nothing`, an existing file causes an error.
+* `storage = nothing` — Storage used for sampled variables. Gibbs steps use
+  `ds` as supplied: to sample on a GPU, construct a GPU-backed dataset (for
+  example with `load_sim(storage=CuArray)`) and use `storage=CuArray` here.
+* `θrange = (;)` — Ranges for randomly initializing parameters and for
+  configured parameter-sampling steps, e.g. `(Aϕ=range(0.7,1.3,length=20),)`.
+* `θstart = :prior` — Starting parameter values as a NamedTuple, e.g.
+  `(Aϕ=1.2,)`, or `:prior` to draw uniformly from `θrange`.
+* `ϕstart = :prior` — Starting `ϕ`, either a draw from its prior,
+  `0`, a `Field`, `:quasi_sample`, or `:best_fit`. The two MAP-based
+  starts use the dataset's `Nϕ` for the Hessian approximation.
+* `nburnin_always_accept = 10` — HMC steps with step number below this
+  value are always accepted regardless of integration error.
+* `metadata = nothing` — Does nothing, but is saved into the chain file.
 * `nhmc = 1` — Number of HMC passes per `ϕ` Gibbs step.
-* `symp_kwargs = fill((N=25, ϵ=0.01), nhmc)` — an array of NamedTupe
+* `symp_kwargs = fill((N=25, ϵ=0.01), nhmc)` — an array of NamedTuple
   kwargs to pass to [`symplectic_integrate`](@ref). E.g.
   `[(N=50,ϵ=0.1),(N=25,ϵ=0.01)]` would do 50 large steps then 25
   smaller steps per each Gibbs pass. If specified, `nhmc` is ignored.
-* `wf_kwargs` — Keyword arguments to pass to [`argmaxf_logpdf`](@ref) in
-  the Wiener Filter Gibbs step.
-* `MAP_kwargs` — Keyword arguments to pass to [`MAP_joint`](@ref) when
-  computing the starting point.
+* `conjgrad_kwargs = (tol=1e-1, nsteps=500)` — Keyword arguments for the
+  conjugate-gradient solve in the Wiener-filter Gibbs step.
+* `MAP_kwargs = (nsteps=40,)` — Keyword arguments to pass to
+  [`MAP_joint`](@ref) when computing the starting point.
 """
 function sample_joint(
     ds :: DataSet;
@@ -369,12 +375,16 @@ function gibbs_initialize_ϕ!(state, ds::DataSet)
             :prior     => simulate(ds.Cϕ(θ); Nbatch)
             0          => zero(diag(ds.Cϕ)) * batch(ones(Int,Nbatch)...)
             (_::Field) => ϕstart
-            (:quasi_sample|:best_fit) => MAP_joint(
-                adapt(storage, ds(θstart)), 
-                progress = (progress==:verbose ? :summary : false), 
-                Nϕ = adapt(storage,Nϕ),
-                quasi_sample = (ϕstart==:quasi_sample); MAP_kwargs...
-            ).ϕ
+            (:quasi_sample || :best_fit) => begin
+                @unpack storage, progress, MAP_kwargs = state
+                # Adapt the evaluated operators too, including for adaptors
+                # that change precision without changing the array type.
+                MAP_joint(
+                    θ, adapt(storage, ds(θ));
+                    progress = (progress==:verbose),
+                    quasi_sample = (ϕstart==:quasi_sample), MAP_kwargs...
+                ).ϕ
+            end
             _ => throw(ArgumentError(ϕstart))
         end
     end
