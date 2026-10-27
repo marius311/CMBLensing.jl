@@ -324,9 +324,9 @@ end
 
 
 # for mixed eltype, which Loess stupidly does not support
-cmblensing_loess(x,y; kwargs...) = Loess.loess(x,y, kwargs...)
+cmblensing_loess(x,y; kwargs...) = Loess.loess(x,y; kwargs...)
 cmblensing_loess(x::AbstractVector, y::AbstractVector; kwargs...) = 
-    loess(collect.(zip(promote.(x,y)...))...; kwargs...)
+    Loess.loess(collect.(zip(promote.(x,y)...))...; kwargs...)
 
 
 expnorm(x) = exp.(x .- maximum(x))

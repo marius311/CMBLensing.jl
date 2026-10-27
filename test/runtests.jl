@@ -569,6 +569,7 @@ end
 end;
 
 include("chains.jl")
+include("loess.jl")
 
 
 ##
