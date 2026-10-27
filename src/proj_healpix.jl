@@ -203,6 +203,10 @@ interpolation is done, and can be one of:
   Projection with `method=:fft` is both GPU compatible and
   automatically differentiable.
 
+`NFFT` is optional: install it first (for example, `import Pkg;
+Pkg.add("NFFT"); using NFFT`). CuNFFT 0.3.8 requires NFFT 0.13 and
+does not load with CUDA.jl 5.11.3.
+
 A pre-computation step can be cached by first doing, 
 
 ```julia

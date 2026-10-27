@@ -72,6 +72,7 @@ rng = StableRNG(4)
 has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("fft_view_preservation.jl")
+include("nfft_projector.jl")
 
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
