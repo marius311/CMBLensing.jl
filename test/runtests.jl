@@ -73,6 +73,10 @@ has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("fft_view_preservation.jl")
 
+if storage != Array
+    include("cuda_zero_dim_reshape.jl")
+end
+
 ##
 
 @testset verbose=true "CMBLensing" begin
@@ -790,6 +794,7 @@ end
 
 include("lenseflow_adjoint.jl")
 include("map_joint.jl")
+include("sampler_map_start.jl")
 include("equirect_odd_width.jl")
 
 ##

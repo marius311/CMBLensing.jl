@@ -28,4 +28,4 @@ jobs:
           && julia -e 'using Pkg; Pkg.add(url="https://github.com/EthanAnderes/CirculantCov.jl")'
           && julia --project .github/set_fftw_provider.jl "${{ matrix.provider }}"
       - uses: julia-actions/julia-runtest@v1
-        timeout-minutes: 30
+        timeout-minutes: 60
