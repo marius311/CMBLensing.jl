@@ -20,6 +20,14 @@ slower since it requires an iterative solve, here performed with the
 residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
 algorithm. 
 
+The potential gradient differentiates the interpolation weights. Bilinear
+interpolation is not generally differentiable at pixel boundaries, including
+zero deflection. At a boundary the pullback uses the derivative of the cell
+on the positive-index side in each coordinate.
+When an unbatched potential or input field is shared across a batch, its
+pullback sums the contributions from the batch. Evaluate batches separately
+when individual sensitivities are needed.
+
 """
 mutable struct BilinearLens{T,Φ<:Field{<:Any,T},S} <: ImplicitOp{T}
     ϕ :: Φ
@@ -162,10 +170,64 @@ end
 
 @adjoint BilinearLens(ϕ) = BilinearLens(ϕ), Δ -> (Δ,)
 
-@adjoint function *(Lϕ::BilinearLens, f::Field{B}) where {B}
+# Derivative of the same periodic, bilinear map used to construct sparse_repr.
+# A linear index includes spin and batch axes; the displacement field itself
+# is unbatched.
+@inline function _bilinear_lens_component(img, dx, dy, k, Δx, ::Val{D}) where D
+    Ny, Nx, Npol = size(img,1), size(img,2), size(img,3)
+    i = mod(k-1, Ny) + 1
+    j = mod(div(k-1, Ny), Nx) + 1
+    pol = mod(div(k-1, Ny*Nx), Npol) + 1
+    batch = div(k-1, Ny*Nx*Npol) + 1
+
+    y = i + dy[i,j]
+    x = j + dx[i,j]
+    iy, ix = floor(Int,y), floor(Int,x)
+    u, v = y-iy, x-ix
+    i0, i1 = mod(iy-1,Ny)+1, mod(iy,Ny)+1
+    j0, j1 = mod(ix-1,Nx)+1, mod(ix,Nx)+1
+    f00, f10 = img[i0,j0,pol,batch], img[i1,j0,pol,batch]
+    f01, f11 = img[i0,j1,pol,batch], img[i1,j1,pol,batch]
+    D == 1 ? ((1-u)*(f01-f00) + u*(f11-f10))/Δx :
+             ((1-v)*(f10-f00) + v*(f11-f01))/Δx
+end
+
+function _bilinear_lens_gradients(Lϕ::BilinearLens, f::Field)
+    Łf = Ł(f)
+    @unpack Δx = Lϕ.ϕ
+    dx, dy = getindex.((∇*Lϕ.ϕ)./Δx, :Ix)
+    gx, gy = similar(Łf), similar(Łf)
+    indices = reshape(Base.OneTo(length(Łf.arr)), size(Łf.arr))
+    broadcast!(_bilinear_lens_component, gx.arr, Ref(Łf.arr), Ref(dx), Ref(dy), indices, Ref(Δx), Ref(Val(1)))
+    broadcast!(_bilinear_lens_component, gy.arr, Ref(Łf.arr), Ref(dx), Ref(dy), indices, Ref(Δx), Ref(Val(2)))
+    @SVector[gx, gy]
+end
+
+# Reduce each component to the potential's shape before adding it. In
+# particular, the same potential is shared across all input field batches.
+function _bilinear_spin_dot(a::FlatField, b::FlatField)
+    # Broadcasting permits a shared input to receive a batched cotangent,
+    # or inputs and cotangents to have different storage precision.
+    product = a .* b
+    r = sum(product.arr; dims=3)
+    LambertMap(dropdims(r; dims=(ndims(r)==3 ? 3 : ())), product.metadata)
+end
+function _bilinear_lens_pullback(Lϕ::BilinearLens, f::FlatField, Δ::Field)
+    gradients = _bilinear_lens_gradients(Lϕ, f)
+    ϕ̄ = ∇' * map(g -> _bilinear_spin_dot(Ł(Δ), g), gradients)
+    f̄ = Lϕ' * Δ
+    _svector_reduce_field(Lϕ.ϕ, ϕ̄), _svector_project_field(f, f̄)
+end
+function _bilinear_lens_pullback(Lϕ::BilinearLens, f::FieldTuple, Δ::FieldTuple)
+    parts = map((x, y) -> _bilinear_lens_pullback(Lϕ, x, y), f.fs, Δ.fs)
+    reduce(+, map(first, values(parts))), FieldTuple(map(last, parts))
+end
+
+@adjoint function *(Lϕ::BilinearLens, f::Field)
     f̃ = Lϕ * f
     function back(Δ)
-        (∇' * (Ref(spin_adjoint(Ł(Δ))) .* Ł(∇*f̃))), B(Lϕ' * Δ)
+        ϕ̄, f̄ = _bilinear_lens_pullback(Lϕ, f, Δ)
+        _svector_project_field(Lϕ.ϕ, ϕ̄), f̄
     end
     f̃, back
 end
