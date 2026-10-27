@@ -153,10 +153,13 @@ Keyword arguments:
 * `nsamps_per_chain` — The number of samples per chain.
 * `nchains = nworkers()` — Number of chains in parallel.
 * `nsavemaps = 1` — Number of steps in between saving maps into chain.
+  When writing a file, the final sample also retains its maps so that the
+  chain can be resumed, even when it falls between these intervals.
+  Each saved field is copied to keep later in-place updates from changing it.
 * `filename = nothing` — Optional `.jld2` file for saving chain chunks.
 * `nfilewrite = 5` — Write a chunk during sampling at steps divisible by
-  this number; it must be a multiple of `nsavemaps`. The initial step is
-  not written on its own, and a final partial chunk is not written.
+  this number; it must be a multiple of `nsavemaps`. A final partial chunk,
+  including an initial-only chain, is also written when sampling completes.
 * `resume = nothing` — If `filename` already exists, specify `true` to
   resume from its last saved chunk or `false` to start a new chain.
   With `nothing`, an existing file causes an error.
@@ -233,7 +236,10 @@ function sample_joint(
     _adapt(storage, state) = Dict(k => (haskey(rundat,k) ? v : adapt(storage, v)) for (k,v) in state)
 
     function filter_for_saving(state, step)
-        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
+        save_maps = step == 1 || (step % nsavemaps) == 0 ||
+                    (filename != nothing && step == nsamps_per_chain)
+        # Saved maps must not share mutable arrays with subsequent Gibbs steps.
+        Dict(k=>(v isa Field ? copy(v) : v) for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (save_maps || !isa(v,Field))))
     end
 
     # validate arguments
@@ -258,7 +264,13 @@ function sample_joint(
         chunks_index = jldopen(filename,"r") do io
             chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")], init=0) + 1
             (chunks_index == 1) && error("Can't resume chain which contains no samples: $filename")
-            merge!.(states, last.(read(io, "chunks_$(chunks_index-1)")))
+            saved_chains = read(io, "chunks_$(chunks_index-1)")
+            length(saved_chains) == length(states) || throw(ArgumentError(
+                "Cannot resume $(length(states)) chains from a file containing $(length(saved_chains)) chains"))
+            saved_states = last.(saved_chains)
+            all(s -> get(s, :step, nothing) == get(first(saved_states), :step, nothing), saved_states) ||
+                throw(ArgumentError("Cannot resume chains with different final steps"))
+            merge!.(states, saved_states)
             chunks_index
         end
         @unpack step = states[1]
@@ -280,6 +292,7 @@ function sample_joint(
     end
     # for new chain, save initial state
     if chain_chunks == nothing 
+        setindex!.(states, step, :step)
         chain_chunks = [Any[filter_for_saving(state, step)] for state in states]
     end
 
@@ -336,6 +349,16 @@ function sample_joint(
             flush(stdout)
         end
 
+    end
+
+    # A final partial chunk is not written by the periodic checkpoint above.
+    # Keep it in memory as well, so the returned value remains available.
+    if filename != nothing && any(chunk -> !isempty(chunk), chain_chunks)
+        jldopen(filename, clobber_chain ? "w" : "a+") do io
+            wsession = JLDWriteSession()
+            haskey(io, "rundat") || write(io, "rundat", cpu(rundat))
+            write(io, "chunks_$chunks_index", chain_chunks, wsession)
+        end
     end
 
     Chains(chain_chunks)

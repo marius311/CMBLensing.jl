@@ -73,6 +73,7 @@ has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("fft_view_preservation.jl")
 include("nfft_projector.jl")
+include("fieldtuple_diagonal_adapt_adjoint.jl")
 
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
@@ -85,6 +86,7 @@ end
 include("svector_field_adjoint.jl")
 include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
+include("field_diagonal_adapt_adjoint.jl")
 
 ##
 
@@ -474,6 +476,10 @@ end
 
 ##
 
+include("map_marg_regression.jl")
+
+##
+
 @testset "BatchedReal" begin
 
     @testset "Nside = $Nside" for Nside in Nsides
@@ -555,6 +561,7 @@ end
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
     @test_throws MethodError ParamDependentOp((;x=1, y=1)->x*y*D)(2) # only Tuple unnamed arg is OK
 
+    include("param_dependent_device_adapt.jl")
 end
 
 ##
@@ -585,6 +592,7 @@ end
 end;
 
 include("chains.jl")
+include("sampler_checkpoint.jl")
 include("loess.jl")
 include("equirect_scalar_array_adjoint.jl")
 
@@ -741,6 +749,7 @@ include("flow_constructor_adjoint.jl")
 @testset "Lensing" begin
 
     include("powerlens_antilensing.jl")
+    include("powerlens_device.jl")
     
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total
