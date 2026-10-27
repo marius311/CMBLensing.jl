@@ -55,25 +55,31 @@ function load_chains(
     # Keep only the batch width when an initial-only sample has no logpdf:
     # dropmaps must release its fields before thinning and unbatching.
     dropped_batch_hints = IdDict{Any,Int}()
+    dropped_maps = IdDict{Any,Nothing}()
     chains = jldopen(filename) do io
         ks = keys(io)
         chunk_ks = sort([k for k in ks if startswith(k,"chunks_")], by=k->parse(Int,k[8:end]))
         chunk_ks = chunk_ks[burnin_chunks>=0 ? (burnin_chunks+1:end) : (end+burnin_chunks+1:end)]
         chains = [[]]
         @showprogress (progress ? 1 : Inf) for (i,k) in enumerate(chunk_ks)
+            chunk = read(io,k)
             if i == 1
-                chains = read(io,k)
+                chains = chunk
             else
-                append!.(chains, read(io,k))
+                length(chunk) == length(chains) || throw(ArgumentError(
+                    "Chunk $k contains $(length(chunk)) chains, but previous chunks contain $(length(chains))"))
+                append!.(chains, chunk)
             end
             if dropmaps
                 for chain in chains, sample in chain
                     if unbatch
-                        logpdf = get(sample, :logpdf, nothing)
-                        ϕ = get(sample, :ϕ, nothing)
-                        if (isnothing(logpdf) || ismissing(logpdf)) && ϕ isa Field
-                            dropped_batch_hints[sample] = batch_length(ϕ)
+                        marker = _sample_batch_marker(sample)
+                        if marker isa Field
+                            dropped_batch_hints[sample] = batch_length(marker)
                         end
+                    end
+                    if thin == :hasmaps && get(sample, :ϕ, nothing) isa Field
+                        dropped_maps[sample] = nothing
                     end
                     filter!(((_,v),)->!(v isa Field), sample)
                 end
@@ -84,7 +90,7 @@ function load_chains(
     if thin isa Int
         chains = [chain[burnin>=0 ? ((1+burnin):thin:end) : (end+(1+burnin):thin:end)] for chain in chains]
     elseif thin == :hasmaps
-        chains = [[samp for samp in chain[(1+burnin):end] if :ϕ in keys(samp)] for chain in chains]
+        chains = [[samp for samp in chain[(1+burnin):end] if haskey(samp, :ϕ) || haskey(dropped_maps, samp)] for chain in chains]
     elseif thin isa Function
         chains = [filter(thin,chain) for chain in chains]
     else
@@ -164,25 +170,44 @@ wrap_chains(chain::Vector) = Chain(chain)
     unbatch(chain::Chain)
 
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
+If a custom sample contains no batch-bearing field or value, its batch length
+cannot be inferred from the sample and it is treated as one chain.
 """
 unbatch(chain::Chain) = _unbatch(chain, nothing)
+
+function _sample_batch_marker(sample)
+    marker = get(sample, :logpdf, nothing)
+    if !(isnothing(marker) || ismissing(marker))
+        return marker
+    end
+    ϕ = get(sample, :ϕ, nothing)
+    ϕ isa Field && return ϕ
+    for v in values(sample)
+        v isa Union{BatchedReal,BatchedVal} && return v
+        if v isa NamedTuple
+            for component in values(v)
+                component isa Union{BatchedReal,BatchedVal} && return component
+            end
+        end
+    end
+    for v in values(sample)
+        v isa Field && return v
+    end
+    nothing
+end
 
 function _unbatch(chain::Chain, batch_hint)
     isempty(chain) && return [chain]
     # A freshly initialized one-sample chain has a potential but no logpdf.
-    sample = chain[end]
-    marker = get(sample, :logpdf, nothing)
-    if isnothing(marker) || ismissing(marker)
-        marker = get(sample, :ϕ, nothing)
-    end
+    marker = _sample_batch_marker(chain[end])
     D = isnothing(marker) || ismissing(marker) ? something(batch_hint, 1) : batch_length(marker)
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
-                if v isa Union{BatchedReal,FlatField}
+                if v isa Union{BatchedReal,BatchedVal,FlatField}
                     k => batch_index(v, I)
-                elseif v isa NamedTuple{<:Any, <:NTuple{<:Any,<:Union{BatchedReal,BatchedVal}}}
+                elseif v isa NamedTuple
                     k => map(x -> (x isa Union{BatchedReal,BatchedVal} ? batch_index(x,I) : x), v)
                 elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
                     k => batch_index.(v, I)

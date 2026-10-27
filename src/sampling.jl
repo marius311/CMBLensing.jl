@@ -256,7 +256,10 @@ function sample_joint(
         chunks_index = jldopen(filename,"r") do io
             chunks_index = maximum([parse(Int,k[8:end]) for k in keys(io) if startswith(k,"chunks_")], init=0) + 1
             (chunks_index == 1) && error("Can't resume chain which contains no samples: $filename")
-            merge!.(states, last.(read(io, "chunks_$(chunks_index-1)")))
+            saved_chains = read(io, "chunks_$(chunks_index-1)")
+            length(saved_chains) == length(states) || throw(ArgumentError(
+                "Cannot resume $(length(states)) chains from a file containing $(length(saved_chains)) chains"))
+            merge!.(states, last.(saved_chains))
             chunks_index
         end
         @unpack step = states[1]

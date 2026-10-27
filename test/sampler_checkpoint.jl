@@ -1,4 +1,4 @@
-using CMBLensing, Random, Test
+using CMBLensing, LinearAlgebra, Random, Test
 
 @testset "sample_joint final checkpoint" begin
     (; ds) = load_sim(; Cℓ=CMBLensing._default_Cℓs(), pol=:I, T=Float32,
@@ -145,7 +145,11 @@ using CMBLensing, Random, Test
         unexpanded = load_chains(thin_file; thin=2, dropmaps=true, unbatch=false, progress=false)
         @test length(unexpanded) == 2 && all(chain -> length(chain) == 1 && !haskey(chain[1], :ϕ), unexpanded)
         only_maps = load_chains(thin_file; thin=:hasmaps, dropmaps=true, progress=false)
-        @test length(only_maps) == 2 && all(isempty, only_maps)
+        @test length(only_maps) == 5
+        @test all(chain -> length(chain) == 1 && Set(keys(chain[1])) == Set([:step]), only_maps)
+        only_maps_retained = load_chains(thin_file; thin=:hasmaps, progress=false)
+        @test length(only_maps_retained) == 5
+        @test all(chain -> length(chain) == 1 && haskey(chain[1], :ϕ), only_maps_retained)
 
         batched_ds = copy(ds)
         batched_ds.d = CMBLensing.batch(ds.d, ds.d)
@@ -156,6 +160,74 @@ using CMBLensing, Random, Test
         batched_actual = load_chains(batch_actual_file; progress=false)
         @test length(batched_actual) == 2
         @test all(chain -> length(chain) == 1 && chain[1][:step] == 1, batched_actual)
+
+        # A custom initializer can save batched parameters without a map or
+        # logpdf. Split batched components and retain ordinary components.
+        plain_ds = CMBLensing.NoLensingDataSet(; d=FlatMap(zeros(2,2)), Cf=I, Cn=I)
+        plain_batch_ds = CMBLensing.NoLensingDataSet(;
+            d=CMBLensing.batch(plain_ds.d, plain_ds.d), Cf=I, Cn=I)
+        initialize_parameters!(state, _) =
+            (state[:θ] = (A=CMBLensing.batch(10.0, 20.0), fixed=1.0))
+        parameters_file = joinpath(dir, "initial-parameters-batched.jld2")
+        sample_joint(plain_batch_ds; nsamps_per_chain=1, nchains=1, pmap=map,
+            filename=parameters_file, resume=false, storage=Array, progress=false,
+            gibbs_initializers=[initialize_parameters!], gibbs_samplers=[])
+        for dropmaps in (false, true)
+            parameters = load_chains(parameters_file; dropmaps, thin=2, progress=false)
+            @test length(parameters) == 2
+            @test [chain[1][:θ].A for chain in parameters] == [10.0, 20.0]
+            @test all(chain -> chain[1][:θ].fixed == 1.0 &&
+                !haskey(chain[1], :ϕ) && !haskey(chain[1], :logpdf), parameters)
+            @test length(load_chains(parameters_file; dropmaps, join=true, progress=false)) == 2
+        end
+        @test length(load_chains(parameters_file; unbatch=false, progress=false)) == 1
+
+        # Reject differing numbers of persisted and requested chains before
+        # merging their states; equal counts retain their individual histories.
+        nextid = Ref(0)
+        function initialize_counter!(state, _)
+            if !haskey(state, :counter)
+                nextid[] += 1
+                state[:counter] = 10 * nextid[]
+            end
+        end
+        count!(state, _) = (state[:counter] += state[:step])
+        counter_options = (; pmap=map, storage=Array, progress=false,
+            nfilewrite=4, nsavemaps=1, gibbs_initializers=[initialize_counter!],
+            gibbs_samplers=[count!])
+        for (saved_count, requested_count) in ((1, 2), (2, 1))
+            path = joinpath(dir, "chain-count-$saved_count.jld2")
+            nextid[] = 0
+            sample_joint(plain_ds; counter_options..., filename=path, resume=false,
+                nsamps_per_chain=3, nchains=saved_count)
+            before = read(path)
+            @test_throws ArgumentError sample_joint(plain_ds; counter_options...,
+                filename=path, resume=true, nsamps_per_chain=4, nchains=requested_count)
+            @test read(path) == before
+            sample_joint(plain_ds; counter_options..., filename=path, resume=true,
+                nsamps_per_chain=4, nchains=saved_count)
+            counts = load_chains(path; progress=false, unbatch=false)
+            @test [[s[:counter] for s in chain] for chain in counts] ==
+                [10*i .+ [0, 2, 5, 9] for i in 1:saved_count]
+        end
+
+        # A malformed older file must not broadcast singleton chunks over
+        # multiple chains. Unequal sample counts within two chains are fine.
+        for (first_count, second_count) in ((1, 2), (2, 1))
+            path = joinpath(dir, "bad-chunks-$first_count-$second_count.jld2")
+            CMBLensing.jldopen(path, "w") do io
+                write(io, "chunks_1", [Any[Dict(:step=>1)] for _ in 1:first_count])
+                write(io, "chunks_2", [Any[Dict(:step=>2)] for _ in 1:second_count])
+            end
+            @test_throws ArgumentError load_chains(path; progress=false, unbatch=false)
+        end
+        unequal_file = joinpath(dir, "unequal-samples.jld2")
+        CMBLensing.jldopen(unequal_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1)], Any[Dict(:step=>1), Dict(:step=>2)]])
+            write(io, "chunks_2", [Any[Dict(:step=>2)], Any[Dict(:step=>3)]])
+        end
+        unequal = load_chains(unequal_file; progress=false, unbatch=false)
+        @test [[s[:step] for s in chain] for chain in unequal] == [[1,2], [1,2,3]]
 
         # Also exercise actual Gibbs stages, not just the deterministic file
         # fixture, through a write and an off-boundary resume.
