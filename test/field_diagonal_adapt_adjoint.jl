@@ -9,10 +9,8 @@ using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
         projection = ProjLambert(; Ny=8, Nx=8, θpix=4, T)
         other_projection = ProjLambert(; Ny=8, Nx=8, θpix=4, T=other)
         cpu = FlatFourier(values, projection)
-        cases = [(cpu, Array)]
-        if storage != Array
-            push!(cases, (cpu, storage), (adapt(storage, cpu), Array))
-        end
+        cases = storage == Array ? ((cpu, Array),) :
+            ((cpu, Array), (cpu, storage), (adapt(storage, cpu), Array))
         for (field, target) in cases
             input_array = isview ? view(field.arr, :, :) : field.arr
             input = Diagonal(CMBLensing.BaseField{Fourier}(input_array, field.metadata))
@@ -30,6 +28,10 @@ using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
             returned_seed = only(back(seed))
             @test eltype(diag(returned_seed).arr) === eltype(wider_values)
             @test Array(diag(returned_seed).arr) ≈ wider_values
+            @test CMBLensing._fft_arr_type(diag(returned_seed).arr) ===
+                CMBLensing._fft_arr_type(input_array)
+            @test CMBLensing._fft_arr_type(diag(returned_seed).metadata.ℓx) ===
+                CMBLensing._fft_arr_type(input_array)
             for zero in (nothing, CMBLensing.ChainRulesCore.ZeroTangent())
                 result = back(zero)
                 @test isnothing(result) || (length(result) == 1 &&
@@ -60,4 +62,9 @@ using CMBLensing, Adapt, LinearAlgebra, Test, Zygote
     # The generic raw-array adaptation rule remains in use.
     raw = reshape(collect(1.0:12.0), 3, 4)
     @test gradient(a -> sum(adapt(Array, a*raw)), 1.5)[1] ≈ sum(raw)
+    if storage != Array
+        gpu_raw = adapt(storage, raw)
+        @test gradient(a -> sum(adapt(storage, a*raw)), 1.5)[1] ≈ sum(raw)
+        @test gradient(a -> sum(adapt(Array, a*gpu_raw)), 1.5)[1] ≈ sum(raw)
+    end
 end
