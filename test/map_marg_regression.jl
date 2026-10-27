@@ -1,5 +1,5 @@
 using CMBLensing, LinearAlgebra, Random, Serialization, Test
-using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_fetch, remotecall_wait, rmprocs
+using Distributed: ProcessExitedException, RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_fetch, remotecall_wait, rmprocs
 
 @testset "MAP_marg and dataset transport" begin
     sim = load_sim(; Cℓ=CMBLensing._default_Cℓs(), pol=:I, T=Float64,
@@ -357,7 +357,7 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
                         e
                     end
                 end
-                @test success_cleanup_error !== nothing
+                @test success_cleanup_error isa ProcessExitedException && success_cleanup_error.worker_id == worker
 
                 # Removing an actual worker after its first job makes cache
                 # cleanup fail. The original mapper error must still escape.
