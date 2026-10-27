@@ -94,6 +94,8 @@ end
 
 ##
 
+include("lambert_odd_width.jl")
+
 @testset "Flat" begin 
 
     Ny,Nx = Nside = first(Nsides)
