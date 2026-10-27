@@ -135,7 +135,7 @@ function grid_and_sample(logpdf::Callable, range::NamedTuple{S,<:NTuple{1}}; kwa
 end
 
 # allow more convenient evaluation of Loess-interpolated functions
-(m::Loess.LoessModel)(x) = Loess.predict(m,x)
+(m::Loess.LoessModel)(x) = Loess.predict(m, eltype(m.xs).(x))
 
 
 
