@@ -125,9 +125,9 @@ end
 # fix for https://github.com/jonniedie/ComponentArrays.jl/issues/193
 # A method ambiguity between Base.reshape and ComponentArrays.reshape for 0-dim arrays
 function Base.reshape(a::CuArray, dims::Tuple{})
-    # Dispatch to GPUArrays' reshape method rather than its private derive
-    # helper, whose signature differs between supported GPUArrays releases.
-    invoke(reshape, Tuple{GPUArrays.AbstractGPUArray, Tuple{Vararg{Int}}}, a, dims)
+    # Call the CUDA or GPUArrays reshape method, depending on the version,
+    # without relying on their private array-construction helpers.
+    invoke(reshape, Tuple{CuArray, Tuple{Vararg{Int}}}, a, dims)
 end
 
 
