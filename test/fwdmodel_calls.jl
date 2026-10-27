@@ -1,8 +1,10 @@
 module FwdModelCallTests
 
 using CMBLensing
+using ForwardDiff
 using Random
 using Test
+using Zygote
 
 const Normal = CMBLensing.Distributions.Normal
 const loglikelihood = CMBLensing.Distributions.loglikelihood
@@ -24,6 +26,17 @@ end
     x ~ Normal(2, 1)
     value ← f(x)
 end
+end
+
+struct ParameterizedChild{T}
+    mean::T
+end
+@fwdmodel function (child::ParameterizedChild)(; x)
+    x ~ Normal(child.mean, 1)
+end
+
+@fwdmodel function captured_child(container; x)
+    container.model(; x)
 end
 
 @fwdmodel function qualified(; x)
@@ -104,6 +117,14 @@ end
         @test result.value == 7
         @test loglikelihood(model; x=3) ≈ expected_loglike
     end
+    for model in (qualified, splatted, indexed, model_do)
+        likelihood(x) = loglikelihood(model; x)
+        @test ForwardDiff.derivative(likelihood, 3.0) ≈ -1
+        @test Zygote.gradient(likelihood, 3.0)[1] ≈ -1
+    end
+    likelihood_with_mean(mean) = loglikelihood(captured_child, (; model=ParameterizedChild(mean)); x=3.0)
+    @test ForwardDiff.derivative(likelihood_with_mean, 2.0) ≈ 1
+    @test Zygote.gradient(likelihood_with_mean, 2.0)[1] ≈ 1
     model_lookups[] = 0
     simulate(MersenneTwister(1), dynamic_model; x=3)
     @test model_lookups[] == 1

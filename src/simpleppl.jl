@@ -4,6 +4,12 @@ struct Logpdf end
 
 is_simpleppl_model(f) = false
 
+struct _BoundModelCall{F,S<:Tuple}
+    model::F
+    state::S
+end
+(call::_BoundModelCall)(args...; kwargs...) = call.model(call.state..., args...; kwargs...)
+
 macro fwdmodel(def)
     sdef = splitdef(def)
 
@@ -52,10 +58,9 @@ macro fwdmodel(def)
                 end
             elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
-                call_args, call_kwargs = gensym(:args), gensym(:kwargs)
                 return :((let $callee = $f
                     $is_simpleppl_model($callee) ?
-                        (($call_args...; $call_kwargs...) -> $callee($(Simulate()), _vars, rng, $call_args...; $call_kwargs...)) :
+                        $_BoundModelCall($callee, ($(Simulate()), _vars, rng)) :
                         $callee
                 end)($(args...); $(kwargs...)))
             end
@@ -88,10 +93,9 @@ macro fwdmodel(def)
                 end
             elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
-                call_args, call_kwargs = gensym(:args), gensym(:kwargs)
                 return :((let $callee = $f
                     $is_simpleppl_model($callee) ?
-                        (($call_args...; $call_kwargs...) -> $callee($(Logpdf()), _logpdf, $call_args...; $call_kwargs...)) :
+                        $_BoundModelCall($callee, ($(Logpdf()), _logpdf)) :
                         $callee
                 end)($(args...); $(kwargs...)))
             end
