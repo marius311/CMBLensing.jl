@@ -6,6 +6,7 @@ MuseInference integration and run its focused tests:
 ```sh
 julia --project=test/muse -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'
 julia --project=test/muse test/muse_mixed_parameters.jl
+julia --project=test/muse test/muse_mixed_simulation.jl
 ```
 
 This environment was tested with Julia 1.8.5 and 1.10.10 and MuseInference
