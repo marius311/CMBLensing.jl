@@ -36,6 +36,16 @@ function BlockDiagEquiRect{B}(
     BlockDiagEquiRect{B,T,P,A}(blocks, blocks_sqrt, blocks_pinv, logabsdet, proj)
 end
 
+"""
+    AzFourier
+
+Azimuthal Fourier basis for real EquiRect maps, stored as an rFFT
+half-spectrum along the second dimension. Field-valued gradients use the
+real-map inner product: imaginary zero-frequency components, and imaginary
+Nyquist components when `Nx` is even, are not independent field directions.
+For objectives that treat these packed entries as independent variables,
+perform the differentiated arithmetic directly on arrays.
+"""
 struct AzFourier <: S0Basis end
 const  QUAzFourier = Basis2Prod{    𝐐𝐔, AzFourier }
 const IQUAzFourier = Basis3Prod{ 𝐈, 𝐐𝐔, AzFourier }
