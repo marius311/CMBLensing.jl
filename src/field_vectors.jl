@@ -74,7 +74,13 @@ end
 
 @auto_adjoint function det(A::StaticMatrix{2,2,<:DiagOp})
     a, c, b, d = A[1,1], A[2,1], A[1,2], A[2,2]
-    a*d-b*c
+    # Mixed bases form lazy operator compositions rather than a single
+    # diagonal field. Keep that behavior for those matrices.
+    if basis(diag(a)) === basis(diag(b)) === basis(diag(c)) === basis(diag(d))
+        Diagonal(diag(a) .* diag(d) - diag(b) .* diag(c))
+    else
+        a*d-b*c
+    end
 end
 
 @auto_adjoint function pinv(A::SA) where {SA<:StaticMatrix{2,2,<:DiagOp}}
