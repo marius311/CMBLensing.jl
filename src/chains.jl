@@ -176,41 +176,51 @@ cannot be inferred from the sample and it is treated as one chain.
 unbatch(chain::Chain) = _unbatch(chain, nothing)
 
 function _sample_batch_marker(sample)
-    marker = get(sample, :logpdf, nothing)
-    if !(isnothing(marker) || ismissing(marker))
-        return marker
-    end
+    candidates = Any[]
+    logpdf = get(sample, :logpdf, nothing)
+    !(isnothing(logpdf) || ismissing(logpdf)) && push!(candidates, logpdf)
     ϕ = get(sample, :ϕ, nothing)
-    ϕ isa Field && return ϕ
+    ϕ isa Field && push!(candidates, ϕ)
     for v in values(sample)
-        v isa Union{BatchedReal,BatchedVal} && return v
+        v isa Union{BatchedReal,BatchedVal} && push!(candidates, v)
         if v isa NamedTuple
             for component in values(v)
-                component isa Union{BatchedReal,BatchedVal} && return component
+                component isa Union{BatchedReal,BatchedVal} && push!(candidates, component)
             end
         end
     end
     for v in values(sample)
-        v isa Field && return v
+        v isa Field && push!(candidates, v)
     end
-    nothing
+    # A shared unbatched field or scalar likelihood must not hide another
+    # saved value whose batch has more than one element.
+    marker = nothing
+    for candidate in candidates
+        applicable(batch_length, candidate) || continue
+        isnothing(marker) && (marker = candidate)
+        batch_length(candidate) > 1 && return candidate
+    end
+    marker
 end
 
 function _unbatch(chain::Chain, batch_hint)
     isempty(chain) && return [chain]
     # A freshly initialized one-sample chain has a potential but no logpdf.
     marker = _sample_batch_marker(chain[end])
-    D = isnothing(marker) || ismissing(marker) ? something(batch_hint, 1) : batch_length(marker)
+    D = max(isnothing(marker) ? 1 : batch_length(marker), something(batch_hint, 1))
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
-                if v isa Union{BatchedReal,BatchedVal,FlatField}
-                    k => batch_index(v, I)
+                if v isa Union{BatchedReal,BatchedVal}
+                    k => batch_index(v, batch_length(v) == 1 ? 1 : I)
+                elseif v isa Union{FlatField,FieldTuple}
+                    k => (batch_length(v) == 1 ? v : batch_index(v, I))
                 elseif v isa NamedTuple
-                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ? batch_index(x,I) : x), v)
+                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ?
+                        batch_index(x, batch_length(x) == 1 ? 1 : I) : x), v)
                 elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
-                    k => batch_index.(v, I)
+                    k => map(x -> batch_index(x, batch_length(x) == 1 ? 1 : I), v)
                 else
                     k => v
                 end

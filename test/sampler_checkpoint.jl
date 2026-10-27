@@ -182,6 +182,43 @@ using CMBLensing, LinearAlgebra, Random, Test
         end
         @test length(load_chains(parameters_file; unbatch=false, progress=false)) == 1
 
+        # A shared map and scalar likelihood do not hide the batch in θ.
+        # Singleton batched values are shared across all expanded chains.
+        function initialize_shared!(state, _)
+            state[:ϕ] = FlatMap(zeros(2,2))
+            state[:logpdf] = 0.0
+            state[:θ] = (A=CMBLensing.batch(10.0, 20.0), fixed=1.0,
+                shared=CMBLensing.batch([42.0]))
+            state[:aux] = CMBLensing.batch(["shared"])
+            state[:aux_array] = [CMBLensing.batch([5.0])]
+        end
+        shared_file = joinpath(dir, "initial-shared-map.jld2")
+        sample_joint(plain_batch_ds; nsamps_per_chain=1, nchains=1, pmap=map,
+            filename=shared_file, resume=false, storage=Array, progress=false,
+            gibbs_initializers=[initialize_shared!], gibbs_samplers=[])
+        for dropmaps in (false, true)
+            shared = load_chains(shared_file; dropmaps, progress=false)
+            @test length(shared) == 2
+            @test [chain[1][:θ].A for chain in shared] == [10.0, 20.0]
+            @test all(chain -> chain[1][:θ].fixed == 1.0 &&
+                chain[1][:θ].shared == 42.0 && chain[1][:aux] == "shared" &&
+                chain[1][:aux_array] == [5.0] && chain[1][:logpdf] == 0.0, shared)
+            @test all(chain -> haskey(chain[1], :ϕ) == !dropmaps, shared)
+        end
+
+        # A scalar logpdf likewise must not hide a batched map, including
+        # after that map is dropped from the returned sample.
+        scalar_logpdf_file = joinpath(dir, "initial-scalar-logpdf.jld2")
+        CMBLensing.jldopen(scalar_logpdf_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :ϕ=>batch_field, :logpdf=>0f0)]])
+        end
+        for dropmaps in (false, true)
+            scalar_logpdf = load_chains(scalar_logpdf_file; dropmaps, progress=false)
+            @test length(scalar_logpdf) == 2
+            @test all(chain -> chain[1][:logpdf] == 0f0 && haskey(chain[1], :ϕ) == !dropmaps,
+                scalar_logpdf)
+        end
+
         # Reject differing numbers of persisted and requested chains before
         # merging their states; equal counts retain their individual histories.
         nextid = Ref(0)
