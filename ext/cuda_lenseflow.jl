@@ -28,7 +28,8 @@ function _spin_mul_kernel!(dst, a, b, plane, nspin)
     nothing
 end
 
-const CuCachedLenseFlow = CachedLenseFlow{S,T,D,LP,DP,LF} where {S<:CMBLensing._GraphRK4Solver,T,D,LP,DP,LF<:CuBaseField}
+const CuCachedLenseFlow = CachedLenseFlow{S,T,D,LP,DP,LF,DF} where {
+    S<:CMBLensing._GraphRK4Solver,T,D<:Diagonal,LP<:Field,DP<:Field,LF<:CuBaseField,DF<:Field}
 
 function CMBLensing._inplace_rfft_plan(arr::CuArray{T,N}, dims, sz...) where {T,N}
     plans = get(task_local_storage(), :CMBLensing_graph_fft_plans, nothing)
@@ -46,7 +47,7 @@ mutable struct LenseFlowGraphs
     entries::Dict{Tuple{DataType,Bool},Any}
 end
 
-function CMBLensing._lenseflow_prepare!(L::CuCachedLenseFlow)
+function CMBLensing._lenseflow_prepare!(L::CachedLenseFlow{<:CMBLensing._GraphRK4Solver})
     state = L.odesolve.graphs.state
     if state isa LenseFlowGraphs &&
        (state.task !== current_task() || state.context != CUDA.context() || state.stream != CUDA.stream())
