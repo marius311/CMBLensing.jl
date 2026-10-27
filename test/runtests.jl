@@ -599,6 +599,7 @@ include("equirect_scalar_array_adjoint.jl")
 ##
 
 include("bilinear_potential_gradient.jl")
+include("bilinear_zero_rhs.jl")
 
 @testset "Zygote" begin
 

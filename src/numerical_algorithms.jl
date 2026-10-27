@@ -194,6 +194,15 @@ function gmres(A, b; Pl=I, maxiter)
     
     n = maxiter
     T = promote_op(matprod, eltype(A), eltype(b))
+
+    # All Krylov columns vanish for a zero right-hand side, so the QR solve
+    # is singular. ForwardDiff's iszero ignores dual partials; returning zero
+    # for a seeded zero input would silently invent a field gradient.
+    if iszero(b)
+        eltype(b) <: Union{Dual,Complex{<:Dual}} &&
+            throw(ArgumentError("ForwardDiff through a zero GMRES right-hand side is not supported"))
+        return fill!(similar(b, T), zero(T))
+    end
     
     # build Krylov matrix K = [(Pl*A)*b (Pl*A)²*b ...]
     K = similar(b, T, length(b), n+1)
