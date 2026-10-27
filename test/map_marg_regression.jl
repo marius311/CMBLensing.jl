@@ -110,6 +110,43 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
         @test !isopen(registry)
         @test !isopen(cache)
 
+        # Registry closure waits for an active cache user.  Closing the
+        # registry channel is an observable signal that cleanup has started.
+        registry = CMBLensing._map_marg_new_registry(map_marg_test_dataset)
+        cache = CMBLensing._map_marg_worker_cache(registry)
+        started, release = Channel{Bool}(1), Channel{Bool}(1)
+        work = @async CMBLensing._map_marg_with_worker_cache(registry) do _
+            put!(started, true)
+            take!(release)
+        end
+        cleanup = nothing
+        try
+            ready = timedwait(() -> isready(started) || istaskdone(work), 180; pollint=0.1)
+            @test ready == :ok && isready(started)
+            if isready(started)
+                take!(started)
+                cleanup = @async CMBLensing._map_marg_close_registry(registry)
+                begun = timedwait(() -> !isopen(registry) || istaskdone(cleanup), 180; pollint=0.1)
+                @test begun == :ok && !isopen(registry)
+                @test !istaskdone(cleanup) && isopen(cache)
+            end
+        finally
+            put!(release, true)
+        end
+        @test timedwait(() -> istaskdone(work), 180; pollint=0.1) == :ok
+        if istaskdone(work)
+            @test fetch(work) === true
+        end
+        if cleanup !== nothing
+            @test timedwait(() -> istaskdone(cleanup), 180; pollint=0.1) == :ok
+            if istaskdone(cleanup)
+                fetch(cleanup)
+                @test !isopen(cache)
+            end
+        else
+            CMBLensing._map_marg_close_registry(registry)
+        end
+
         # Unknown lens types take the conservative copy path even when the
         # cache is initialized away from the dataset's originating process.
         custom = copy(map_marg_test_dataset)
@@ -141,7 +178,7 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
 
         # Hold an actual CG solve in its documented callback while the mapper
         # throws. Cleanup must wait for the task, including its progress update.
-        started, release = Channel{Bool}(1), Channel{Bool}(1)
+        started, release, mapper_ready = Channel{Bool}(1), Channel{Bool}(1), Channel{Bool}(1)
         entered = Ref(false)
         active_failure = Ref{Any}(nothing)
         function hold_first_iteration(i, x, res)
@@ -156,11 +193,8 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
             status = timedwait(() -> isready(started) || istaskdone(work), 180; pollint=0.1)
             status == :ok && isready(started) || error("solver task did not enter callback")
             take!(started)
-            release_task = @async begin
-                sleep(0.01)
-                put!(release, true)
-            end
-            active_failure[] = (; work, release_task)
+            active_failure[] = work
+            put!(mapper_ready, true)
             error("injected concurrent mapper failure")
         end
         outcome = @async try
@@ -172,6 +206,16 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
         catch e
             e
         end
+        try
+            ready = timedwait(() -> isready(mapper_ready) || istaskdone(outcome), 180; pollint=0.1)
+            @test ready == :ok && isready(mapper_ready)
+            if isready(mapper_ready)
+                take!(mapper_ready)
+                @test active_failure[] !== nothing && !istaskdone(active_failure[])
+            end
+        finally
+            put!(release, true)
+        end
         status = timedwait(() -> istaskdone(outcome), 180; pollint=0.1)
         @test status == :ok
         if status == :ok
@@ -179,8 +223,10 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
             @test concurrent_error isa ErrorException && concurrent_error.msg == "injected concurrent mapper failure"
             @test active_failure[] !== nothing
             if active_failure[] !== nothing
-                @test fetch(active_failure[].work) isa NamedTuple
-                @test istaskdone(active_failure[].release_task)
+                @test istaskdone(active_failure[])
+                if istaskdone(active_failure[])
+                    @test fetch(active_failure[]) isa NamedTuple
+                end
             end
         end
 
@@ -288,8 +334,33 @@ using Distributed: RemoteChannel, WorkerPool, addprocs, myid, pmap, remotecall_f
                 @test !isopen(registry)
                 @test !isopen(good_cache)
 
+                # A mapper can finish normally after its worker disappears;
+                # the subsequent cache-cleanup failure must be surfaced.
+                function removed_after_success_map(f, indices, data, starts)
+                    results = map(indices, data, starts) do i, d, start
+                        remotecall_fetch(f, worker, i, d, start)
+                    end
+                    rmprocs(worker)
+                    empty!(workers)
+                    results
+                end
+                success_cleanup_error = @test_logs (:warn, r"Could not release MAP_marg worker cache") (:warn, r"Could not release MAP_marg worker registry") begin
+                    try
+                        MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
+                            ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
+                            pmap=removed_after_success_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                        nothing
+                    catch e
+                        e
+                    end
+                end
+                @test success_cleanup_error !== nothing
+
                 # Removing an actual worker after its first job makes cache
                 # cleanup fail. The original mapper error must still escape.
+                append!(workers, addprocs(1; exeflags=flags, env=worker_env))
+                worker = only(workers)
+                remotecall_wait(Core.eval, worker, Main, :(using CMBLensing, LinearAlgebra))
                 function removed_worker_map(f, indices, data, starts)
                     remotecall_fetch(f, worker, first(indices), first(data), first(starts))
                     rmprocs(worker)
