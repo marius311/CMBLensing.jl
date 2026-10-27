@@ -212,9 +212,43 @@ function _bilinear_spin_dot(a::FlatField, b::FlatField)
     r = sum(product.arr; dims=3)
     LambertMap(dropdims(r; dims=(ndims(r)==3 ? 3 : ())), product.metadata)
 end
+
+# The potential is unbatched. Sum the map-space contributions before taking
+# their divergence: differentiation is linear, and this avoids requiring a
+# batched FFT for a quantity that will be reduced immediately afterwards.
+function _bilinear_sum_batch(f::LambertMap)
+    ndims(f.arr) == 4 || return f
+    LambertMap(dropdims(sum(f.arr; dims=4); dims=(3,4)), f.metadata)
+end
+
+# MKL's inverse real FFT reads only the positive-x half of its self-conjugate
+# y-frequency rows. Its adjoint under the field's weighted Fourier inner
+# product must therefore double those entries and zero their negative-x
+# partners. This also handles arbitrary complex Fourier input directions.
+function _bilinear_mkl_irfft_adjoint(f::LambertMap)
+    f̃ = Fourier(f)
+    a = f̃.arr
+    Nx = f.Nx
+    npairs = (Nx-1) ÷ 2
+    rows = iseven(f.Ny) ? (1, size(a,1)) : (1,)
+    for i in rows
+        @views a[i,2:(npairs+1)] .*= 2
+        @views a[i,(Nx-npairs+1):Nx] .= 0
+        a[i,1] = real(a[i,1])
+        iseven(Nx) && (a[i,Nx÷2+1] = real(a[i,Nx÷2+1]))
+    end
+    f̃
+end
+
 function _bilinear_lens_pullback(Lϕ::BilinearLens, f::FlatField, Δ::Field)
     gradients = _bilinear_lens_gradients(Lϕ, f)
-    ϕ̄ = ∇' * map(g -> _bilinear_spin_dot(Ł(Δ), g), gradients)
+    ŁΔ = Ł(Δ)
+    contributions = map(g -> _bilinear_sum_batch(_bilinear_spin_dot(ŁΔ, g)), gradients)
+    ϕ̄ = if Lϕ.ϕ isa FlatFourier && _fft_arr_type(ŁΔ.arr) <: Array && fftw_provider() == "mkl"
+        ∇' * map(_bilinear_mkl_irfft_adjoint, contributions)
+    else
+        ∇' * contributions
+    end
     f̄ = Lϕ' * Δ
     _svector_reduce_field(Lϕ.ϕ, ϕ̄), _svector_project_field(f, f̄)
 end

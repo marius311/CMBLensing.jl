@@ -8,26 +8,28 @@ using CMBLensing: BatchedReal
 @testset "BilinearLens potential pullback" begin
     # Points away from grid boundaries have a genuine derivative. Use random
     # samples to test the actual interpolation, rather than a spectral model.
-    for T in (Float32, Float64), (Ny,Nx) in ((6,8), (7,9)), pol in (1,2), B in (Map,Fourier)
-        rng = MersenneTwister(50123 + Ny + Nx + pol)
-        proj = ProjLambert(;Ny,Nx,θpix=60*180/π,T)
-        scalar() = FlatMap(randn(rng,T,Ny,Nx), proj)
-        polarized() = FlatQUMap(scalar().Ix, scalar().Ix, proj)
-        ϕ, η = B(T(0.35)*scalar()), B(T(0.05)*scalar())
-        f = B(pol == 1 ? scalar() : polarized())
-        g = B(pol == 1 ? scalar() : polarized())
-        δ = B(pol == 1 ? scalar() : polarized())
-        dx,dy = getindex.((∇*ϕ)./proj.Δx, :Ix)
-        gap = minimum(minimum(abs.(d .- round.(d))) for d in (dx,dy))
-        h = T == Float32 ? T(1e-3) : T(1e-5)
-        direction = getindex.((∇*η)./proj.Δx, :Ix)
-        @test gap > h * maximum(maximum(abs.(d)) for d in direction)
-        objective = a -> dot(g, BilinearLens(ϕ+a*η) * (f+a*δ))
-        gradϕ, gradf = gradient((p,x) -> dot(g, BilinearLens(p)*x), ϕ, f)
-        reverse = dot(gradϕ,η) + dot(gradf,δ)
-        finite = (objective(h)-objective(-h))/(2h)
-        @test isapprox(reverse, finite; atol=T == Float32 ? 4e-3 : 2e-8, rtol=T == Float32 ? 4e-3 : 2e-8)
-        @test gradf ≈ B(BilinearLens(ϕ)'*g)
+    for T in (Float32, Float64), (Ny,Nx) in ((6,8), (7,9), (7,8)), pol in (1,2), B in (Map,Fourier)
+        @testset "$T, $(Ny)×$(Nx), polarization $pol, $B" begin
+            rng = MersenneTwister(50123 + Ny + Nx + pol)
+            proj = ProjLambert(;Ny,Nx,θpix=60*180/π,T)
+            scalar() = FlatMap(randn(rng,T,Ny,Nx), proj)
+            polarized() = FlatQUMap(scalar().Ix, scalar().Ix, proj)
+            ϕ, η = B(T(0.35)*scalar()), B(T(0.05)*scalar())
+            f = B(pol == 1 ? scalar() : polarized())
+            g = B(pol == 1 ? scalar() : polarized())
+            δ = B(pol == 1 ? scalar() : polarized())
+            dx,dy = getindex.((∇*ϕ)./proj.Δx, :Ix)
+            gap = minimum(minimum(abs.(d .- round.(d))) for d in (dx,dy))
+            h = T == Float32 ? T(1e-3) : T(1e-5)
+            direction = getindex.((∇*η)./proj.Δx, :Ix)
+            @test gap > h * maximum(maximum(abs.(d)) for d in direction)
+            objective = a -> dot(g, BilinearLens(ϕ+a*η) * (f+a*δ))
+            gradϕ, gradf = gradient((p,x) -> dot(g, BilinearLens(p)*x), ϕ, f)
+            reverse = dot(gradϕ,η) + dot(gradf,δ)
+            finite = (objective(h)-objective(-h))/(2h)
+            @test isapprox(reverse, finite; atol=T == Float32 ? 4e-3 : 2e-8, rtol=T == Float32 ? 4e-3 : 2e-8)
+            @test gradf ≈ B(BilinearLens(ϕ)'*g)
+        end
     end
 
     # A locally affine map supplies an independent analytic check of axis,
@@ -63,47 +65,88 @@ using CMBLensing: BatchedReal
     @test abs(right-left) > 0.1
 end
 
+@testset "BilinearLens Fourier potential at the Nyquist row" begin
+    # Test both real-map-derived and arbitrary stored complex directions.
+    # The latter distinguish the inverse-FFT adjoints used by FFTW and MKL.
+    for T in (Float32, Float64), (Ny, Nx) in ((6,8), (7,8), (7,9))
+        @testset "$T, $(Ny)×$(Nx)" begin
+            rng = MersenneTwister(50124 + Ny + Nx)
+            proj = ProjLambert(; Ny, Nx, θpix=60*180/π, T)
+            scalar() = FlatMap(randn(rng,T,Ny,Nx), proj)
+            ϕ, η = Fourier(T(0.35)*scalar()), Fourier(T(0.05)*scalar())
+            f, g = scalar(), scalar()
+            h = T == Float32 ? T(1e-3) : T(1e-5)
+            dx, dy = getindex.((∇*ϕ)./proj.Δx, :Ix)
+            gap = minimum(minimum(abs.(d .- round.(d))) for d in (dx,dy))
+            objective = p -> dot(g, BilinearLens(p)*f)
+            ϕ̄ = gradient(objective, ϕ)[1]
+            mapϕ̄ = gradient(objective, Map(ϕ))[1]
+            @test isapprox(dot(ϕ̄,η), dot(mapϕ̄,Map(η)); atol=T == Float32 ? 5e-4 : 2e-11, rtol=T == Float32 ? 5e-4 : 2e-11)
+
+            directions = [η]
+            # The first and last y-frequency rows, positive and negative x
+            # frequencies, and fully self-conjugate corners, including imaginary
+            # directions, all have distinct inverse-real-FFT behavior.
+            rows = unique((1, Ny÷2+1))
+            cols = unique((1, 2, Nx÷2+1, Nx÷2+2, Nx))
+            for i in rows, j in cols, value in (one(Complex{T}), im*one(Complex{T}))
+                a = zeros(Complex{T}, Ny÷2+1, Nx)
+                a[i,j] = value
+                push!(directions, FlatFourier(a, proj))
+            end
+            for direction in directions
+                dη = getindex.((∇*direction)./proj.Δx, :Ix)
+                @test gap > h * maximum(maximum(abs.(d)) for d in dη)
+                finite = (objective(ϕ+h*direction)-objective(ϕ-h*direction))/(2h)
+                @test isapprox(dot(ϕ̄,direction), finite; atol=T == Float32 ? 4e-3 : 2e-8, rtol=T == Float32 ? 4e-3 : 2e-8)
+            end
+        end
+    end
+end
+
 bilinear_test_scalar(x) = x isa BatchedReal ? sum(unbatch(x)) : x
 @testset "BilinearLens shared potential, batches and tuples" begin
     for mode in (:batch, :tuple, :named_tuple, :tuple_batch, :named_tuple_batch, :broadcast_cotangent)
-        rng=MersenneTwister(51262)
-        Ny,Nx=7,8
-        proj=ProjLambert(;Ny,Nx,θpix=60*180/π,T=Float64)
-        scalar()=FlatMap(randn(rng,Ny,Nx),proj)
-        polar()=FlatIQUMap(scalar().Ix,scalar().Ix,scalar().Ix,proj)
-        batched=mode in (:batch,:tuple_batch,:named_tuple_batch)
-        maybe_batch(fn) = batched ? batch(fn(),fn()) : fn()
-        f1,g1,δ1 = maybe_batch(scalar),maybe_batch(scalar),maybe_batch(scalar)
-        if mode in (:tuple,:named_tuple,:tuple_batch,:named_tuple_batch)
-            f2,g2,δ2=maybe_batch(polar),maybe_batch(polar),maybe_batch(polar)
-            named=mode in (:named_tuple,:named_tuple_batch)
-            f=named ? FieldTuple(;scalar=f1,polar=f2) : FieldTuple(f1,f2)
-            g=named ? FieldTuple(;scalar=g1,polar=g2) : FieldTuple(g1,g2)
-            δ=named ? FieldTuple(;scalar=δ1,polar=δ2) : FieldTuple(δ1,δ2)
-        elseif mode == :broadcast_cotangent
-            f,δ=f1,δ1
-            g=batch(scalar(),scalar())
-        else
-            f,g,δ=f1,g1,δ1
+        @testset "$mode" begin
+            rng=MersenneTwister(51262)
+            Ny,Nx=7,8
+            proj=ProjLambert(;Ny,Nx,θpix=60*180/π,T=Float64)
+            scalar()=FlatMap(randn(rng,Ny,Nx),proj)
+            polar()=FlatIQUMap(scalar().Ix,scalar().Ix,scalar().Ix,proj)
+            batched=mode in (:batch,:tuple_batch,:named_tuple_batch)
+            maybe_batch(fn) = batched ? batch(fn(),fn()) : fn()
+            f1,g1,δ1 = maybe_batch(scalar),maybe_batch(scalar),maybe_batch(scalar)
+            if mode in (:tuple,:named_tuple,:tuple_batch,:named_tuple_batch)
+                f2,g2,δ2=maybe_batch(polar),maybe_batch(polar),maybe_batch(polar)
+                named=mode in (:named_tuple,:named_tuple_batch)
+                f=named ? FieldTuple(;scalar=f1,polar=f2) : FieldTuple(f1,f2)
+                g=named ? FieldTuple(;scalar=g1,polar=g2) : FieldTuple(g1,g2)
+                δ=named ? FieldTuple(;scalar=δ1,polar=δ2) : FieldTuple(δ1,δ2)
+            elseif mode == :broadcast_cotangent
+                f,δ=f1,δ1
+                g=batch(scalar(),scalar())
+            else
+                f,g,δ=f1,g1,δ1
+            end
+            ϕ,η=0.3scalar(),0.03scalar()
+            dx,dy=getindex.((∇*ϕ)./proj.Δx,:Ix)
+            dη=getindex.((∇*η)./proj.Δx,:Ix)
+            gap=minimum(minimum(abs.(d .- round.(d))) for d in (dx,dy))
+            h=1e-5
+            @test gap > h*maximum(maximum(abs.(d)) for d in dη)
+            objective = (p,x) -> bilinear_test_scalar(dot(g,BilinearLens(p)*x))
+            ϕbar,fbar=gradient(objective,ϕ,f)
+            finiteϕ=(objective(ϕ+h*η,f)-objective(ϕ-h*η,f))/(2h)
+            finitef=(objective(ϕ,f+h*δ)-objective(ϕ,f-h*δ))/(2h)
+            projectedϕ=dot(ϕbar,η)
+            projectedf=bilinear_test_scalar(dot(fbar,δ))
+            αbar=gradient(a -> objective(ϕ+a*η,f),0.0)[1]
+            @test batch_length(ϕbar)==1
+            @test batch_length(fbar)==batch_length(f)
+            @test isapprox(projectedϕ,finiteϕ;atol=2e-8,rtol=2e-8)
+            @test isapprox(αbar,finiteϕ;atol=2e-8,rtol=2e-8)
+            @test isapprox(projectedf,finitef;atol=2e-8,rtol=2e-8)
         end
-        ϕ,η=0.3scalar(),0.03scalar()
-        dx,dy=getindex.((∇*ϕ)./proj.Δx,:Ix)
-        dη=getindex.((∇*η)./proj.Δx,:Ix)
-        gap=minimum(minimum(abs.(d .- round.(d))) for d in (dx,dy))
-        h=1e-5
-        @test gap > h*maximum(maximum(abs.(d)) for d in dη)
-        objective = (p,x) -> bilinear_test_scalar(dot(g,BilinearLens(p)*x))
-        ϕbar,fbar=gradient(objective,ϕ,f)
-        finiteϕ=(objective(ϕ+h*η,f)-objective(ϕ-h*η,f))/(2h)
-        finitef=(objective(ϕ,f+h*δ)-objective(ϕ,f-h*δ))/(2h)
-        projectedϕ=dot(ϕbar,η)
-        projectedf=bilinear_test_scalar(dot(fbar,δ))
-        αbar=gradient(a -> objective(ϕ+a*η,f),0.0)[1]
-        @test batch_length(ϕbar)==1
-        @test batch_length(fbar)==batch_length(f)
-        @test isapprox(projectedϕ,finiteϕ;atol=2e-8,rtol=2e-8)
-        @test isapprox(αbar,finiteϕ;atol=2e-8,rtol=2e-8)
-        @test isapprox(projectedf,finitef;atol=2e-8,rtol=2e-8)
     end
 end
 
