@@ -116,7 +116,10 @@ function unmix(ds::DataSet; f°, ϕ°, θ=(;), Ω...)
     (; f, ϕ, θ, Ω...)
 end
 
-simulate(rng::AbstractRNG, mds::Mixed{<:DataSet}; Ω...) = mix(mds.ds; simulate(rng, mds.ds; Ω...)...)
+function simulate(rng::AbstractRNG, mds::Mixed{<:DataSet}; Ω...)
+    sim = simulate(rng, mds.ds; Ω...)
+    haskey(Ω, :θ) ? mix(mds.ds; sim..., θ=Ω[:θ]) : mix(mds.ds; sim...)
+end
 
 
 ## preconditioning

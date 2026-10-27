@@ -57,7 +57,7 @@ function MuseInference.sample_x_z(prob::CMBLensingMuseProblem, rng::AbstractRNG,
     sim = simulate(rng, prob.ds_for_sims, θ = mergeθ(prob, θ))
     if prob.latent_vars == nothing
         # this is a guess which might not work for everything necessarily
-        z = LenseBasis(FieldTuple(delete(sim, (:f̃, :d, :μ))) )
+        z = LenseBasis(FieldTuple(delete(sim, (:f̃, :d, :μ, :θ))) )
     else
         z = LenseBasis(FieldTuple(select(sim, prob.latent_vars)))
     end
