@@ -268,6 +268,18 @@ end
 # somewhere, find them...
 @adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(basetype(A), Δ))
 
+# A field-backed diagonal operator is itself an AbstractArray, but its
+# wrapper type is not a storage backend. Move its cotangent back to the
+# backend of the underlying field array, as with the FFT plan selection.
+@adjoint function adapt(to, x::DiagOp{<:BaseField})
+    adapted = adapt(to, x)
+    function adapt_field_diagonal_pullback(Δ)
+        Δ === nothing || Δ isa ChainRulesCore.AbstractZero ? (nothing, Δ) :
+            (nothing, adapt(_fft_arr_type(diag(x).arr), Δ))
+    end
+    adapted, adapt_field_diagonal_pullback
+end
+
 # finite difference Hessian using Zygote gradients
 # todo: delete, just use FiniteDifferences
 function hessian(f, xs::Vector; ε=1f-3)

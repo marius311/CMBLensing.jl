@@ -84,6 +84,7 @@ end
 include("svector_field_adjoint.jl")
 include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
+include("field_diagonal_adapt_adjoint.jl")
 
 ##
 
