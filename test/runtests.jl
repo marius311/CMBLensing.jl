@@ -77,6 +77,7 @@ include("nfft_projector.jl")
 include("nfft_cpu_adaptor.jl")
 include("fieldtuple_diagonal_adapt_adjoint.jl")
 include("equirect_adaptation.jl")
+include("equirect_block_adaptation.jl")
 
 if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
     include("cuda_curand_scalar.jl")
