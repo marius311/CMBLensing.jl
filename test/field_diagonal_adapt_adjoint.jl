@@ -59,7 +59,7 @@ field_diagonal_test_backend(arr) = CMBLensing.basetype(typeof(parent(arr)))
     @test !(parent(cpu_nested) isa DenseArray)
     cpu_field = CMBLensing.BaseField{Map}(cpu_nested,template.metadata)
     if storage == Array
-        nested_cases = ((cpu_field,Array,Array),)
+        nested_cases = ((cpu_field,Array,Array,cpu_buffer,copy(cpu_buffer)),)
     else
         gpu_template = adapt(storage,template)
         gpu_flat = vec(gpu_template.arr)
@@ -67,11 +67,11 @@ field_diagonal_test_backend(arr) = CMBLensing.basetype(typeof(parent(arr)))
         gpu_nested = PermutedDimsArray(view(gpu_buffer,1:2:8,1:2:8),(2,1))
         @test !(parent(gpu_nested) isa DenseArray)
         gpu_field = CMBLensing.BaseField{Map}(gpu_nested,gpu_template.metadata)
-        nested_cases = ((cpu_field,storage,Array),(gpu_field,Array,storage))
+        nested_cases = ((cpu_field,storage,Array,cpu_buffer,copy(cpu_buffer)),
+                        (gpu_field,Array,storage,gpu_buffer,Array(gpu_buffer)))
     end
-    for (field,target,backend) in nested_cases
+    for (field,target,backend,backing,original) in nested_cases
         input = Diagonal(field)
-        original = Array(field.arr)
         _,back = Zygote.pullback(x->adapt(target,x),input)
         seed = adapt(target,Diagonal(FlatMap(reshape(Float64.(16:-1:1)./20,4,4))))
         seed_values = Array(diag(seed).arr)
@@ -80,7 +80,7 @@ field_diagonal_test_backend(arr) = CMBLensing.basetype(typeof(parent(arr)))
         @test field_diagonal_test_backend(returned.metadata.ℓx) === backend
         @test eltype(returned.arr) === Float64
         @test Array(returned.arr) ≈ seed_values
-        @test Array(field.arr) == original
+        @test Array(backing) == original
         @test Array(diag(seed).arr) == seed_values
     end
 
