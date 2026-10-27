@@ -1,0 +1,9 @@
+[deps]
+CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
+ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MuseInference = "43b88160-90c7-4f71-933b-9d65205cd921"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+MuseInference = "0.2.2"
