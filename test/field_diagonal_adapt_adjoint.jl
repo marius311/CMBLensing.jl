@@ -51,6 +51,51 @@ field_diagonal_test_backend(arr) = CMBLensing.basetype(typeof(parent(arr)))
         end
     end
 
+    # Backing arrays can contain more than one wrapper.  In particular, a
+    # noncontiguous GPU view may sit under a PermutedDimsArray.
+    template = FlatMap(reshape(Float32.(1:16)./10,4,4))
+    cpu_buffer = vcat(vec(template.arr),vec(template.arr))
+    cpu_nested = reshape(view(reshape(view(cpu_buffer,1:16),2,8),:,1:8),4,4)
+    @test !(parent(cpu_nested) isa DenseArray)
+    cpu_field = CMBLensing.BaseField{Map}(cpu_nested,template.metadata)
+    if storage == Array
+        nested_cases = ((cpu_field,Array,Array),)
+    else
+        gpu_template = adapt(storage,template)
+        gpu_flat = vec(gpu_template.arr)
+        gpu_buffer = reshape(vcat(gpu_flat,gpu_flat,gpu_flat,gpu_flat),8,8)
+        gpu_nested = PermutedDimsArray(view(gpu_buffer,1:2:8,1:2:8),(2,1))
+        @test !(parent(gpu_nested) isa DenseArray)
+        gpu_field = CMBLensing.BaseField{Map}(gpu_nested,gpu_template.metadata)
+        nested_cases = ((cpu_field,storage,Array),(gpu_field,Array,storage))
+    end
+    for (field,target,backend) in nested_cases
+        input = Diagonal(field)
+        original = Array(field.arr)
+        _,back = Zygote.pullback(x->adapt(target,x),input)
+        seed = adapt(target,Diagonal(FlatMap(reshape(Float64.(16:-1:1)./20,4,4))))
+        seed_values = Array(diag(seed).arr)
+        returned = diag(only(back(seed)))
+        @test field_diagonal_test_backend(returned.arr) === backend
+        @test field_diagonal_test_backend(returned.metadata.ℓx) === backend
+        @test eltype(returned.arr) === Float64
+        @test Array(returned.arr) ≈ seed_values
+        @test Array(field.arr) == original
+        @test Array(diag(seed).arr) == seed_values
+    end
+
+    # An unrecognized wrapper retains the prior one-parent fallback.
+    unknown = transpose(cpu_nested)
+    unknown_input = Diagonal(CMBLensing.BaseField{Map}(unknown,template.metadata))
+    for target in (storage == Array ? (Array,) : (Array,storage))
+        _,back = Zygote.pullback(x->adapt(target,x),unknown_input)
+        seed = adapt(target,Diagonal(FlatMap(ones(Float64,4,4))))
+        expected = diag(adapt(CMBLensing.basetype(typeof(parent(unknown))),seed))
+        returned = diag(only(back(seed)))
+        @test field_diagonal_test_backend(returned.arr) === field_diagonal_test_backend(expected.arr)
+        @test Array(returned.arr) == Array(expected.arr)
+    end
+
     # A FieldTuple can hold components with different element types and bases;
     # it must continue using its existing adaptation rule.
     tuplefield = FieldTuple(; map=FlatMap(ones(Float32,4,4)),

@@ -268,14 +268,26 @@ end
 # somewhere, find them...
 @adjoint adapt(to, x::A) where {A<:AbstractArray} = adapt(to, x), Δ -> (nothing, adapt(basetype(A), Δ))
 
+# Find storage through the standard array wrappers that can nest around it.
+# Other wrappers keep the previous adaptation behavior.
+_field_adapt_storage_root(x) = nothing
+_field_adapt_storage_root(x::DenseArray) = x
+_field_adapt_storage_root(x::Union{SubArray,Base.ReshapedArray,Base.PermutedDimsArray}) =
+    _field_adapt_storage_root(parent(x))
+
 # A field-backed diagonal operator is itself an AbstractArray, but its
 # wrapper type is not a storage backend. Move its cotangent back to the
-# backend of the field's underlying array, including ordinary array views.
+# backend of the field's underlying array.
 @adjoint function adapt(to, x::DiagOp{<:BaseField})
     adapted = adapt(to, x)
     function adapt_field_diagonal_pullback(Δ)
-        Δ === nothing || Δ isa ChainRulesCore.AbstractZero ? (nothing, Δ) :
-            (nothing, adapt(basetype(typeof(parent(diag(x).arr))), Δ))
+        if Δ === nothing || Δ isa ChainRulesCore.AbstractZero
+            return (nothing, Δ)
+        end
+        arr = diag(x).arr
+        root = _field_adapt_storage_root(arr)
+        backend = basetype(typeof(root === nothing ? parent(arr) : root))
+        (nothing, adapt(backend, Δ))
     end
     adapted, adapt_field_diagonal_pullback
 end
