@@ -9,17 +9,24 @@ struct OutOfPlaceRK4Solver <: ODESolver
 end
 
 function (solver::RK4Solver)(F!::Function, y₀, (t₀, t₁)::Pair)
-    h, h½, h⅙ = (t₁-t₀)/solver.nsteps ./ (1,2,6)
     y = copy(y₀)
     k₁, k₂, k₃, k₄, y′ = @repeated(similar(y₀),5)
-    for t in range(t₀, stop=t₁, length=solver.nsteps+1)[1:end-1]
+    _rk4!(F!, y, k₁, k₂, k₃, k₄, y′, solver.nsteps, t₀, t₁)
+    map(unsafe_free!, (k₁, k₂, k₃, k₄, y′))
+    return y
+end
+
+# Shared by ordinary integration and CUDA graph replay. All device storage is
+# supplied by the caller, and the RK4 arithmetic is identical on both paths.
+function _rk4!(F!, y, k₁, k₂, k₃, k₄, y′, nsteps, t₀, t₁)
+    h, h½, h⅙ = (t₁-t₀)/nsteps ./ (1,2,6)
+    for t in range(t₀, stop=t₁, length=nsteps+1)[1:end-1]
         @! k₁ = F(t, y)
         @! k₂ = F(t + h½, (@. y′ = y + h½*k₁))
         @! k₃ = F(t + h½, (@. y′ = y + h½*k₂))
         @! k₄ = F(t + h,  (@. y′ = y + h*k₃))
         @. y += h*(k₁ + 2(k₂ + k₃) + k₄)/6
     end
-    map(unsafe_free!, (k₁, k₂, k₃, k₄, y′))
     return y
 end
 

@@ -39,10 +39,18 @@ dot(D::DiagOp{<:Field{B}}, f::Field) where {B} = conj(D.diag) .* B(f)
 adjoint(L::FieldOrOpMatrix) = @SMatrix[L[1,1]' L[2,1]'; L[1,2]' L[2,2]']
 
 # eventually replace having to do this by hand with Cassette-based solution
-mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector) = 
-    ((@. f = v[1].diag * w[1] + v[2].diag * w[2]); f)
-mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, x::Diagonal, w::FieldVector) = 
-    ((@. f = x.diag * (v[1].diag * w[1] + v[2].diag * w[2])); f)
+function mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, w::FieldVector)
+    # Indexing the Adjoint first materializes conjugated diagonal fields.
+    # Fuse conjugation into the output broadcast, including for complex data.
+    a, b = parent(v)
+    @. f = conj(a.diag) * w[1] + conj(b.diag) * w[2]
+    f
+end
+function mul!(f::Field, v::FieldOrOpRowVector{<:Diagonal}, x::Diagonal, w::FieldVector)
+    a, b = parent(v)
+    @. f = x.diag * (conj(a.diag) * w[1] + conj(b.diag) * w[2])
+    f
+end
 mul!(v::FieldOrOpVector{<:Diagonal}, M::FieldOrOpMatrix{<:Diagonal}, w::FieldOrOpVector{<:Diagonal}) = 
     ((@. v[1].diag = M[1,1].diag*w[1].diag + M[1,2].diag*w[2].diag); (@. v[2].diag = M[2,1].diag*w[1].diag + M[2,2].diag*w[2].diag); v)
 mul!(v::FieldVector, M::FieldOrOpMatrix{<:Diagonal}, w::FieldVector) = 

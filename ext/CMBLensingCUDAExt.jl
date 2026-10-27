@@ -33,6 +33,8 @@ using Zygote
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
+include("cuda_lenseflow.jl")
+
 function CMBLensing._warn_lambert_cuda_fft(::CuArray, Ny, Nx)
     # Older CUDA releases expose toolkit_version() instead of runtime_version().
     if Ny*Nx > 1024^2 && CUDA.functional() &&
