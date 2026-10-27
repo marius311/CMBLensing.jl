@@ -46,6 +46,23 @@ end
 @adjoint function (::Type{F})(arr::A, metadata::M) where {B<:SpatialBasis{AzFourier},M<:Proj,T,A<:AbstractArray{T},F<:BaseField{B}}
     F(arr, metadata), Δ -> (Δ.arr .* Δ.λ_rfft ./ Zfac(B(), metadata), nothing)
 end
+
+# EquiRect's scalar azimuthal transform is an orthonormal rFFT along
+# dimension 2. Unlike Lambert projections, its metadata does not store rFFT
+# degeneracies. Construct those weights in the storage backend of the field.
+function _equirect_az_rfft_weights(f::BaseField{AzFourier,<:ProjEquiRect})
+    weights = reshape(real(eltype(f)).(rfft_degeneracy_fac(f.Nx)), 1, :)
+    adapt(f.metadata.storage, weights)
+end
+@adjoint function (::Type{F})(arr::A, metadata::M) where {M<:ProjEquiRect,T,A<:AbstractArray{T},F<:BaseField{AzFourier}}
+    field = F(arr, metadata)
+    function equirect_az_constructor_pullback(Δ)
+        arr_gradient = similar(arr)
+        arr_gradient .= Δ.arr .* _equirect_az_rfft_weights(field)
+        (arr_gradient, nothing)
+    end
+    field, equirect_az_constructor_pullback
+end
 # the factors here need to cancel the ones in the corresponding constructors above
 @adjoint function Zygote.literal_getproperty(f::BaseField{B}, ::Val{:arr}) where {B<:SpatialBasis{Map}}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ, f.metadata),)
@@ -55,6 +72,14 @@ end
 end
 @adjoint function Zygote.literal_getproperty(f::BaseField{B,M,T}, ::Val{:arr}) where {B<:SpatialBasis{AzFourier},M,T}
     getfield(f,:arr), Δ -> (BaseField{B}(Δ ./ f.λ_rfft .* Zfac(B(), f.metadata), f.metadata),)
+end
+@adjoint function Zygote.literal_getproperty(f::BaseField{AzFourier,<:ProjEquiRect}, ::Val{:arr})
+    function equirect_az_array_pullback(Δ)
+        arr_gradient = similar(f.arr)
+        arr_gradient .= Δ ./ _equirect_az_rfft_weights(f)
+        (BaseField{AzFourier}(arr_gradient, f.metadata),)
+    end
+    getfield(f,:arr), equirect_az_array_pullback
 end
 # needed to preserve field type for sub-component property getters
 @adjoint function Zygote.getproperty(f::BaseField, k::Union{typeof.(Val.((:I,:Q,:U,:E,:B,:P,:IP)))...})
