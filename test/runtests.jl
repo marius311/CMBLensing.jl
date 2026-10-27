@@ -77,6 +77,7 @@ has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("svector_field_adjoint.jl")
 include("fourier_sum_adjoint.jl")
+include("fieldtuple_sum_adjoint.jl")
 
 ##
 
