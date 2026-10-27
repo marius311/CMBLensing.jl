@@ -550,6 +550,7 @@ end
     @test ParamDependentOp((;x=1, y=1)->x*y*D)((x=2,y=2)) ≈ 4D # tuple calling form
     @test_throws MethodError ParamDependentOp((;x=1, y=1)->x*y*D)(2) # only Tuple unnamed arg is OK
 
+    include("param_dependent_device_adapt.jl")
 end
 
 ##

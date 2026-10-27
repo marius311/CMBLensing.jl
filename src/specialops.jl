@@ -319,7 +319,9 @@ function (L::ParamDependentOp)(θ::NamedTuple)
         # to GPU here
         storage = get_storage(L.op)
         Lθ = L.recompute_function(;θ...)
-        basetype(storage) == basetype(get_storage(Lθ)) ? Lθ : adapt(storage, Lθ)
+        # Transfer to the same backend without fixing the rank or element type;
+        # fields and their projection metadata can have different ranks/types.
+        basetype(storage) == basetype(get_storage(Lθ)) ? Lθ : adapt(basetype(storage), Lθ)
     else
         L.op
     end
