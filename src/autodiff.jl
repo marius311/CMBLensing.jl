@@ -171,6 +171,18 @@ end
     end
     sum(f), sum_fourier_pullback
 end
+
+@adjoint function sum(f::BaseField{AzFourier,M,T}) where {M<:ProjEquiRect,T}
+    function sum_equirect_az_pullback(Δ)
+        Δ = unthunk(Δ)
+        (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return (nothing,)
+        seed = T <: Real ? T(real(Δ)) : T(Δ)
+        arr = similar(f.arr)
+        arr .= seed ./ _equirect_az_rfft_weights(f)
+        (BaseField{AzFourier}(arr, f.metadata),)
+    end
+    sum(f), sum_equirect_az_pullback
+end
 # Each component's sum has its own storage and inner-product convention.
 # In particular, a Fourier component cannot use a field filled with ones.
 @adjoint function sum(ft::FieldTuple)

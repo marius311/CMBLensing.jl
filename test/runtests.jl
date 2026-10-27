@@ -96,6 +96,7 @@ end
 include("svector_field_adjoint.jl")
 include("equirect_block_dot.jl")
 include("fourier_sum_adjoint.jl")
+include("equirect_scalar_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
 include("field_diagonal_adapt_adjoint.jl")
 include("mixed_simulation_parameters.jl")
