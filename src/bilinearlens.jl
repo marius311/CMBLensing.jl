@@ -132,14 +132,29 @@ function *(Lϕ::Adjoint{<:Any,<:BilinearLens}, f::FlatField)
     f̃
 end
 
+# A zero field gives a singular Krylov/QR problem. Preserve errors and
+# nonfinite results from invalid operators by checking both matrix actions
+# before returning zero. ForwardDiff's iszero behavior differs by version;
+# inspect primal values so a seeded zero never acquires a false derivative.
+function _bilinear_inverse_gmres(A, b, Pl)
+    if eltype(b) <: Union{Dual,Complex{<:Dual}}
+        all(x -> _primal_iszero(real(x)) && _primal_iszero(imag(x)), b) &&
+            throw(ArgumentError("ForwardDiff through a zero BilinearLens inverse field is not supported"))
+    elseif iszero(b)
+        preconditioned = Pl*b
+        iszero(preconditioned) && iszero(A*preconditioned) && return zero(b)
+    end
+    gmres(A, b; Pl, maxiter=5)
+end
+
 function \(Lϕ::BilinearLens, f̃::FlatField)
     Lϕ.sparse_repr===I && return f̃
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
     for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
-        @views(f.arr[:,:,pol,batch][:]) .= gmres(
+        @views(f.arr[:,:,pol,batch][:]) .= _bilinear_inverse_gmres(
             Lϕ.sparse_repr, @views(Łf̃.arr[:,:,pol,batch][:]),
-            Pl = get_anti_lensing_sparse_repr!(Lϕ), maxiter = 5
+            get_anti_lensing_sparse_repr!(Lϕ)
         )
     end
     f
@@ -150,9 +165,9 @@ function \(Lϕ::Adjoint{<:Any,<:BilinearLens}, f̃::FlatField)
     Łf̃ = Ł(f̃)
     f = similar(Łf̃)
     for batch in 1:size(f.arr,4), pol in 1:size(f.arr,3)
-        @views(f.arr[:,:,pol,batch][:]) .= gmres(
+        @views(f.arr[:,:,pol,batch][:]) .= _bilinear_inverse_gmres(
             parent(Lϕ).sparse_repr', @views(Łf̃.arr[:,:,pol,batch][:]),
-            Pl = get_anti_lensing_sparse_repr!(parent(Lϕ))', maxiter = 5
+            get_anti_lensing_sparse_repr!(parent(Lϕ))'
         )
     end
     f
