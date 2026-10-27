@@ -4,12 +4,6 @@ struct Logpdf end
 
 is_simpleppl_model(f) = false
 
-struct _BoundModelCall{F,S<:Tuple}
-    model::F
-    state::S
-end
-(call::_BoundModelCall)(args...; kwargs...) = call.model(call.state..., args...; kwargs...)
-
 macro fwdmodel(def)
     sdef = splitdef(def)
 
@@ -23,7 +17,23 @@ macro fwdmodel(def)
         if x isa Expr
             depth = quote_depth + (x.head === :quote) - (x.head === Symbol('$') && quote_depth > 0)
             macros = macro_depth + (x.head === :macrocall && quote_depth == 0)
-            x = Expr(x.head, (walk_model(f, arg, depth, macros) for arg in x.args)...)
+            if x.head === :do && quote_depth == 0 && macro_depth == 0 &&
+               length(x.args) == 2 && x.args[1] isa Expr && x.args[1].head === :call &&
+               !isempty(x.args[1].args) && !(x.args[1].args[1] isa Symbol)
+                # Preserve the original traversal order: callee and call
+                # arguments precede the callback during macro rewriting.
+                call, callback = x.args
+                call = Expr(:call, (walk_model(f, arg, depth, macros) for arg in call.args)...)
+                callback = walk_model(f, callback, depth, macros)
+                args = call.args[2:end]
+                has_kwargs = !isempty(args) && isexpr(first(args), :parameters)
+                kw = has_kwargs ? (first(args),) : ()
+                pos = has_kwargs ? args[2:end] : args
+                lowered = Expr(:call, call.args[1], kw..., callback, pos...)
+                return f(lowered, quote_depth, macro_depth)
+            else
+                x = Expr(x.head, (walk_model(f, arg, depth, macros) for arg in x.args)...)
+            end
         end
         f(x, quote_depth, macro_depth)
     end
@@ -58,11 +68,10 @@ macro fwdmodel(def)
                 end
             elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
-                return :((let $callee = $f
-                    $is_simpleppl_model($callee) ?
-                        $_BoundModelCall($callee, ($(Simulate()), _vars, rng)) :
-                        $callee
-                end)($(args...); $(kwargs...)))
+                return quote
+                    local $callee = $f
+                    $is_simpleppl_model($callee) ? $callee($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $callee($(args...); $(kwargs...))
+                end
             end
         end
         return x
@@ -93,11 +102,10 @@ macro fwdmodel(def)
                 end
             elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
                 callee = gensym(:callee)
-                return :((let $callee = $f
-                    $is_simpleppl_model($callee) ?
-                        $_BoundModelCall($callee, ($(Logpdf()), _logpdf)) :
-                        $callee
-                end)($(args...); $(kwargs...)))
+                return quote
+                    local $callee = $f
+                    $is_simpleppl_model($callee) ? $callee($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $callee($(args...); $(kwargs...))
+                end
             end
         end
         return x

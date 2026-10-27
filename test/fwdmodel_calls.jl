@@ -26,6 +26,14 @@ end
     x ~ Normal(2, 1)
     value ← f(x)
 end
+
+@fwdmodel function ordered_child(f, x; scale)
+    value ← f(x) * scale
+end
+
+@fwdmodel function double(; x)
+    doubled ← 2 * x
+end
 end
 
 struct ParameterizedChild{T}
@@ -81,6 +89,42 @@ end
 @fwdmodel function model_do(; x)
     Children.child_with_callback(; x) do value
         2 * value
+    end
+end
+
+@fwdmodel function argument_scope(; obs)
+    first ← Base.identity(begin positional = 3; positional end)
+    second ← Base.round(2.345; digits=begin precision = 1; precision end)
+    third ← Base.map(begin items = 1:3; items end) do i
+        2 * i
+    end
+    marker ← positional + precision + sum(items)
+    obs ~ Normal(marker, 1)
+end
+
+const call_events = Symbol[]
+positions() = (push!(call_events, :pos); (3,))
+keywords() = (push!(call_events, :kw); (; scale=4))
+callback(x) = (push!(call_events, :callback); x + 2)
+plain_callee() = (push!(call_events, :callee); (f, x; scale) -> (push!(call_events, :body); f(x) * scale))
+model_callee() = (push!(call_events, :callee); Children.ordered_child)
+
+@fwdmodel function ordered_plain_do()
+    value ← plain_callee()(positions()...; keywords()...) do x
+        callback(x)
+    end
+end
+
+@fwdmodel function ordered_model_do()
+    model_callee()(positions()...; keywords()...) do x
+        callback(x)
+    end
+end
+
+const transform = sin
+@fwdmodel function do_traversal_order(; x)
+    output ← Base.map(begin transform = Children.double; [x] end) do value
+        transform(; x=value)
     end
 end
 
@@ -145,6 +189,29 @@ end
     @test result.x == 3
     @test result.value == 6
     @test loglikelihood(model_do; x=3) ≈ expected_loglike
+
+    result = simulate(MersenneTwister(1), argument_scope; obs=10.5)
+    @test result.marker == 10
+    @test loglikelihood(argument_scope; obs=10.5) ≈ CMBLensing.Distributions.logpdf(Normal(10, 1), 10.5)
+
+    empty!(call_events)
+    direct = plain_callee()(positions()...; keywords()...) do x
+        callback(x)
+    end
+    plain_order = copy(call_events)
+    @test direct == 20
+    for (model, order) in ((ordered_plain_do, plain_order), (ordered_model_do, [:callee, :pos, :kw, :callback]))
+        empty!(call_events)
+        @test simulate(MersenneTwister(1), model).value == 20
+        @test call_events == order
+        empty!(call_events)
+        @test loglikelihood(model) == 0
+        @test call_events == order
+    end
+    result = simulate(MersenneTwister(1), do_traversal_order; x=3)
+    @test result.output == [6]
+    @test result.doubled == 6
+    @test loglikelihood(do_traversal_order; x=3) == 0
 
     x = [0.0, 1.0, 2.0]
     result = simulate(MersenneTwister(1), broadcasted; x)
