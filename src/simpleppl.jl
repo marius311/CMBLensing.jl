@@ -4,6 +4,39 @@ struct Logpdf end
 
 is_simpleppl_model(f) = false
 
+"""
+    @fwdmodel function model(...)
+        ...
+    end
+
+Define a forward model using `~` for stochastic variables and `←` for derived
+variables.
+
+When differentiating a likelihood with Zygote, contributions from nested
+models called inside a `map` or `foreach` callback may be missing if the
+callback result does not contribute to the likelihood. The likelihood value
+can be correct while the gradient is `nothing` or incomplete. For a small CPU
+collection, an explicit loop is one alternative:
+
+```julia
+using CMBLensing, Distributions, Zygote
+
+@fwdmodel function example_child(value)
+    value ~ Normal(2, 1)
+end
+
+@fwdmodel function example_model(; x)
+    for value in (x, 2x)
+        example_child(value)
+    end
+end
+
+Zygote.gradient(x -> loglikelihood(example_model; x), 3.0)[1]  # -9.0
+```
+
+Check gradients for your model and backend against ForwardDiff or finite
+differences. This example does not establish a GPU workaround.
+"""
 macro fwdmodel(def)
     sdef = splitdef(def)
 
@@ -11,10 +44,36 @@ macro fwdmodel(def)
     @capture(sdef[:name], (model_name_::_) | model_name_)
     maybe_local_var = [] # only "maybe" b/c the simple thing here is too conservative c.f. inner functions / let blocks
     @capture(sdef[:name], (var_::_)) && push!(maybe_local_var, var)
+
+    # Track quoted syntax and other macros when rewriting expression callees.
+    function walk_model(f, x, quote_depth=0, macro_depth=0)
+        if x isa Expr
+            depth = quote_depth + (x.head === :quote) - (x.head === Symbol('$') && quote_depth > 0)
+            macros = macro_depth + (x.head === :macrocall && quote_depth == 0)
+            if x.head === :do && quote_depth == 0 && macro_depth == 0 &&
+               length(x.args) == 2 && x.args[1] isa Expr && x.args[1].head === :call &&
+               !isempty(x.args[1].args) && !(x.args[1].args[1] isa Symbol)
+                # Preserve the original traversal order: callee and call
+                # arguments precede the callback during macro rewriting.
+                call, callback = x.args
+                call = Expr(:call, (walk_model(f, arg, depth, macros) for arg in call.args)...)
+                callback = walk_model(f, callback, depth, macros)
+                args = call.args[2:end]
+                has_kwargs = !isempty(args) && isexpr(first(args), :parameters)
+                kw = has_kwargs ? (first(args),) : ()
+                pos = has_kwargs ? args[2:end] : args
+                lowered = Expr(:call, call.args[1], kw..., callback, pos...)
+                return f(lowered, quote_depth, macro_depth)
+            else
+                x = Expr(x.head, (walk_model(f, arg, depth, macros) for arg in x.args)...)
+            end
+        end
+        f(x, quote_depth, macro_depth)
+    end
        
     # simulate
     rand_vars = []
-    body_simulate = postwalk(sdef[:body]) do x
+    body_simulate = walk_model(sdef[:body]) do x, quote_depth, macro_depth
         if @capture(x, ((vars__,) | var_) = rhs_)
             vars != nothing ? append!(maybe_local_var, vars) : push!(maybe_local_var, var)
         elseif @capture(x, var_ ~ dist_)
@@ -40,6 +99,12 @@ macro fwdmodel(def)
                 else
                     return :($is_simpleppl_model($f) ? $f($(Simulate()), _vars, rng, $(args...); $(kwargs...)) : $x)
                 end
+            elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
+                callee = gensym(:callee)
+                return quote
+                    local $callee = $f
+                    $callee(($is_simpleppl_model($callee) ? ($(Simulate()), _vars, rng) : ())..., $(args...); $(kwargs...))
+                end
             end
         end
         return x
@@ -53,7 +118,7 @@ macro fwdmodel(def)
     def_simulate = combinedef(Dict(:name=>sdef[:name], :args=>args_simulate, :kwargs=>kwargs_simulate, :body=>body_simulate, :whereparams=>sdef[:whereparams]))
     
     # logpdf
-    body_logpdf = postwalk(sdef[:body]) do x
+    body_logpdf = walk_model(sdef[:body]) do x, quote_depth, macro_depth
         if @capture(x, var_ ~ dist_)
             return :(_logpdf[] += $logpdf($dist, $var); $var)
         elseif @capture(x, var_ ← rhs_)
@@ -67,6 +132,12 @@ macro fwdmodel(def)
                     end
                 else
                     return :($is_simpleppl_model($f) ? $f($(Logpdf()), _logpdf, $(args...); $(kwargs...)) : $x)
+                end
+            elseif quote_depth == 0 && macro_depth == 0 && !(f isa Symbol)
+                callee = gensym(:callee)
+                return quote
+                    local $callee = $f
+                    $callee(($is_simpleppl_model($callee) ? ($(Logpdf()), _logpdf) : ())..., $(args...); $(kwargs...))
                 end
             end
         end

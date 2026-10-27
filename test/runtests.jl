@@ -72,11 +72,14 @@ rng = StableRNG(4)
 has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("fft_view_preservation.jl")
+include("fwdmodel_calls.jl")
 include("nfft_projector.jl")
+include("nfft_cpu_adaptor.jl")
 include("fieldtuple_diagonal_adapt_adjoint.jl")
 
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
+    include("cuda_field_rng.jl")
     include("lambert_cuda_warning.jl")
 end
 
@@ -88,6 +91,7 @@ include("svector_field_adjoint.jl")
 include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
 include("field_diagonal_adapt_adjoint.jl")
+include("mixed_simulation_parameters.jl")
 
 ##
 

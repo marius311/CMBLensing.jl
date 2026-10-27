@@ -140,6 +140,16 @@ end
 
 # some NFFT stuff needed for method=:fft projections
 cu_nfft_loaded = false
+function native_nfft_gpu_loaded(nodes)
+    @static if isdefined(Base, :get_extension)
+        nodes isa GPUArrays.AbstractGPUArray || return false
+        @isdefined(NFFT) && isdefined(NFFT, :NFFTBackend) || return false
+        !isnothing(Base.get_extension(NFFT, :NFFTGPUArraysExt)) || return false
+        NFFT.AbstractNFFTs.active_backend() isa NFFT.NFFTBackend
+    else
+        false
+    end
+end
 @init @require NFFT="efe261a4-0d2b-5849-be55-fc731d526b0d" begin
     using .NFFT: plan_nfft, AbstractNFFTPlan
     Zygote.@adjoint function *(plan::Union{Adjoint{<:Any,<:AbstractNFFTPlan}, AbstractNFFTPlan}, x::AbstractArray{T}) where {T}
@@ -190,25 +200,22 @@ For either projection direction, if the field is a QU or IQU field,
 polarization angles are rotated to be aligned with the local
 coordinates (sometimes called "polarization flattening").
 
-The projection interpolates the original map at the positions of the
-centers of the projected map pixels. `method` controls how this
-interpolation is done, and can be one of:
+`method` selects the projection algorithm:
 
 * `:bilinear` — Bilinear interpolation (default)
-* `:fft` — FFT-based interpolation, which uses a non-uniform FFT to
-  evaluate the discrete Fourier series of the field at arbitrary new
-  positions. This is currently implemented only for cartesian to
-  Healpix projection. To make this mode available, you must load the
-  `NFFT` package first. For GPU fields, you must also load `CuNFFT`.
-  Projection with `method=:fft` is both GPU compatible and
-  automatically differentiable. A legacy scalar Healpix-to-Lambert FFT
-  path applies a rescaled array-level adjoint of this transform; it does not
-  generally preserve constant maps and is not an interpolation or a
-  reconstruction of the Healpix sky.
+* `:fft` — Cartesian-to-Healpix projection uses a non-uniform FFT to
+  evaluate the Cartesian field's discrete Fourier series and supports
+  automatic differentiation. A legacy scalar Healpix-to-Lambert FFT path
+  also supports differentiation and applies a rescaled array-level adjoint
+  of this transform; it does not generally preserve constant maps and is not
+  an interpolation or a reconstruction of the Healpix sky. Load the `NFFT`
+  package first. GPU fields require NFFT 0.14's GPUArrays extension or
+  `CuNFFT` with NFFT 0.13.
 
 `NFFT` is optional: install it first (for example, `import Pkg;
 Pkg.add("NFFT"); using NFFT`). CuNFFT 0.3.8 requires NFFT 0.13 and
-does not load with CUDA.jl 5.11.3.
+does not load with CUDA.jl 5.11.3. With NFFT 0.14, if another NFFT
+backend is active, select NFFT with `NFFT.activate!()`.
 
 A pre-computation step can be cached by first doing, 
 
@@ -278,14 +285,15 @@ function Projector((hpx_proj,cart_proj)::Pair{<:ProjHealpix,<:CartesianProj}; me
 
     if method == :fft
         @isdefined(plan_nfft) || error("Load the `NFFT` package to make `method=:fft` available.")
-        (storage isa Type && storage <: Array) || cu_nfft_loaded || error("Load the `CuNFFT` package to make `method=:fft` available on GPU.")
         # ij indices mapped to [-0.5,0.5] and in the format NFFT wants
         # them for 1) a cartesian grid and 2) where the healpix
         # pixel centers fall in this grid
         nfft_ijs_grid  = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for i=1:Ny, j=1:Nx]))
         nfft_ijs       = adapt(storage, reduce(hcat, [[T((i-Ny÷2-1)/Ny), T((j-Nx÷2-1)/Nx)] for (i,j) in zip(is, js) if 1 <= i <= Ny && 1 <= j <= Nx]))
+        nfft_ijs isa Array || cu_nfft_loaded || native_nfft_gpu_loaded(nfft_ijs) ||
+            error("Load `CuNFFT` with NFFT 0.13, or load NFFT 0.14's GPUArrays extension and select NFFT with `NFFT.activate!()`, to make `method=:fft` available on GPU.")
         # two plans needed for FFT resampling
-        arr_type = typeof(nfft_ijs)
+        arr_type = basetype(typeof(nfft_ijs))
         nfft_plan_grid = plan_nfft(arr_type, nfft_ijs_grid, (Ny, Nx))
         nfft_plan      = plan_nfft(arr_type, nfft_ijs, (Ny, Nx))
     else
