@@ -42,7 +42,8 @@ function *(L::PowerLens, f::Field)
     Ðf = Ð(f)
     f̃ = copy(Ł(f))
     for n in 1:L.order, (a,b) in zip(0:n,n:-1:0)
-        @. f̃ += L.∇1ϕᵖ[a] * L.∇2ϕᵖ[b] * $(Ł(∇[1]^a * ∇[2]^b * Ðf)) / factorial(a) / factorial(b)
+        facta, factb = factorial(a), factorial(b)
+        @. f̃ += L.∇1ϕᵖ[a] * L.∇2ϕᵖ[b] * $(Ł(∇[1]^a * ∇[2]^b * Ðf)) / facta / factb
     end
     f̃
 end
