@@ -27,6 +27,15 @@ using Zygote
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
 
+function CMBLensing._warn_lambert_cuda_fft(::CuArray, Ny, Nx)
+    # Older CUDA releases expose toolkit_version() instead of runtime_version().
+    if Ny*Nx > 1024^2 && CUDA.functional() &&
+       (isdefined(CUDA, :runtime_version) ? CUDA.runtime_version() : CUDA.toolkit_version()) >= v"11.5"
+        @warn("In 2022, CMBLensing warned about FFT instabilities for maps larger than 1024² pixels with CUDA Toolkit 11.5 or later. " *
+              "Whether this affects your toolkit is unknown; check FFT results.")
+    end
+end
+
 # printing
 CMBLensing.typealias(::Type{CuArray{T,N}}) where {T,N} = "CuArray{$T,$N}"
 Base.print_array(io::IO, X::Diagonal{<:Any,<:CuBaseField}) = Base.print_array(io, cpu(X))
