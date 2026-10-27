@@ -197,9 +197,8 @@ interpolation is done, and can be one of:
 * `:bilinear` — Bilinear interpolation (default)
 * `:fft` — FFT-based interpolation, which uses a non-uniform FFT to
   evaluate the discrete Fourier series of the field at arbitrary new
-  positions. This is currently implemented only for cartesian to
-  Healpix projection. To make this mode available, you must load the
-  `NFFT` package first. For GPU fields, you must also load `CuNFFT`.
+  positions in either projection direction. To make this mode available,
+  load the `NFFT` package first. For GPU fields, also load `CuNFFT`.
   Projection with `method=:fft` is both GPU compatible and
   automatically differentiable.
 
@@ -231,8 +230,8 @@ function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:Healpi
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (Nside) = hpx_map
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
-    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
-    FlatMap(reshape(splayed_pixels, Ny, Nx), cart_proj)
+    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map.arr[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
+    BaseMap(reshape(splayed_pixels, Ny, Nx), cart_proj)
 end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap,<:CartesianProj})
@@ -242,7 +241,7 @@ function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixQUMap
     U = project(projector, Ł(hpx_map).U => cart_proj).arr
     Q_flat = @. Q * cos(2ψpol) - U * sin(2ψpol)
     U_flat = @. U * cos(2ψpol) + Q * sin(2ψpol)
-    FlatQUMap(cat(Q_flat, U_flat, dims=3), cart_proj)
+    BaseQUMap(cat(Q_flat, U_flat, dims=3), cart_proj)
 end
 
 function project(projector::Projector, (hpx_map, cart_proj)::Pair{<:HealpixIQUMap,<:CartesianProj})

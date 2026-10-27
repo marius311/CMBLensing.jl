@@ -306,6 +306,7 @@ end
 ##
 
 include("forwarddiff.jl")
+include("healpix_fft_projection.jl")
 include("nonsymmetric_field_matrices.jl")
 include("field_matrix_det_gradient.jl")
 
