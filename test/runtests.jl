@@ -580,6 +580,7 @@ end
 end;
 
 include("chains.jl")
+include("sampler_checkpoint.jl")
 include("loess.jl")
 include("equirect_scalar_array_adjoint.jl")
 

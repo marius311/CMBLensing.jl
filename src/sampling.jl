@@ -150,6 +150,8 @@ Keyword arguments:
 * `nsamps_per_chain` — The number of samples per chain.
 * `nchains = 1` — Number of chains in parallel.
 * `nsavemaps = 1` — Number of steps in between saving maps into chain.
+  When writing a file, the final sample also retains its maps so that the
+  chain can be resumed, even when it falls between these intervals.
 * `nburnin_always_accept = 0` — Number of steps at the beginning of
   the chain to always accept HMC steps regardless of integration
   error.
@@ -225,7 +227,9 @@ function sample_joint(
     _adapt(storage, state) = Dict(k => (haskey(rundat,k) ? v : adapt(storage, v)) for (k,v) in state)
 
     function filter_for_saving(state, step)
-        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (step == 1 || (step % nsavemaps) == 0 || !isa(v,Field))))
+        save_maps = step == 1 || (step % nsavemaps) == 0 ||
+                    (filename != nothing && step == nsamps_per_chain)
+        Dict(k=>v for (k,v) in state if (!(haskey(rundat,k)) && !(k in (:pbar_dict, :timer, :Ω)) && (save_maps || !isa(v,Field))))
     end
 
     # validate arguments
@@ -272,6 +276,7 @@ function sample_joint(
     end
     # for new chain, save initial state
     if chain_chunks == nothing 
+        setindex!.(states, step, :step)
         chain_chunks = [Any[filter_for_saving(state, step)] for state in states]
     end
 
@@ -328,6 +333,16 @@ function sample_joint(
             flush(stdout)
         end
 
+    end
+
+    # A final partial chunk is not written by the periodic checkpoint above.
+    # Keep it in memory as well, so the returned value remains available.
+    if filename != nothing && any(!isempty, chain_chunks)
+        jldopen(filename, clobber_chain ? "w" : "a+") do io
+            wsession = JLDWriteSession()
+            haskey(io, "rundat") || write(io, "rundat", cpu(rundat))
+            write(io, "chunks_$chunks_index", chain_chunks, wsession)
+        end
     end
 
     Chains(chain_chunks)

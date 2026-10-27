@@ -150,7 +150,13 @@ Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields.
 """
 function unbatch(chain::Chain)
     isempty(chain) && return [chain]
-    D = batch_length(chain[end][:logpdf])
+    # A freshly initialized one-sample chain has a potential but no logpdf.
+    sample = chain[end]
+    marker = get(sample, :logpdf, nothing)
+    if isnothing(marker) || ismissing(marker)
+        marker = get(sample, :ϕ, nothing)
+    end
+    D = isnothing(marker) || ismissing(marker) ? 1 : batch_length(marker)
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp
