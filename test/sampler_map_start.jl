@@ -20,8 +20,11 @@ Adapt.adapt_storage(::SamplerStartFloat32, x::Array{ComplexF64}) = ComplexF32.(x
         evaluations[] += 1
         original_Cϕ((; Aϕ))
     end)
-    # The posterior's prior also receives the actual initialized parameters.
-    ds.logprior = (; θ, _...) -> zero(θ.Aϕ)
+    # The posterior's prior must receive the actual initialized parameters.
+    ds.logprior = function (; θ, _...)
+        θ.Aϕ == 1.3 || error("wrong parameters passed to the prior")
+        zero(θ.Aϕ)
+    end
     storage = SamplerStartFloat32()
     θ = (Aϕ=1.3,)
     map_kwargs = (; nsteps=1, αmax=1, conjgrad_kwargs=(tol=1e-4, nsteps=100))
@@ -59,6 +62,13 @@ Adapt.adapt_storage(::SamplerStartFloat32, x::Array{ComplexF64}) = ComplexF32.(x
     @test all(isfinite, state[:ϕ][:])
     @test norm(state[:ϕ] - expected_quasi) ≈ 0 atol=1e-6 * norm(expected_quasi)
     @test norm(expected_quasi - expected) > 0
+
+    # Explicit MAP options take precedence over the selected starting mode.
+    override = Dict{Symbol,Any}(:ϕstart=>:quasi_sample, :θ=>θ, :Ω=>(;),
+        :nchains=>1, :Nbatch=>(), :storage=>storage, :progress=>false,
+        :MAP_kwargs=>merge(map_kwargs, (; quasi_sample=false)))
+    CMBLensing.gibbs_initialize_ϕ!(override, ds)
+    @test norm(override[:ϕ] - expected) ≈ 0 atol=1e-6 * norm(expected)
 
     # A resumed state already has a ϕ and does not need MAP-only options.
     resumed = Dict{Symbol,Any}(:ϕstart=>:best_fit, :θ=>θ, :Ω=>(;),

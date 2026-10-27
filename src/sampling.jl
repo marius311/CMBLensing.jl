@@ -181,7 +181,9 @@ Keyword arguments:
 * `conjgrad_kwargs = (tol=1e-1, nsteps=500)` — Keyword arguments for the
   conjugate-gradient solve in the Wiener-filter Gibbs step.
 * `MAP_kwargs = (nsteps=40,)` — Keyword arguments to pass to
-  [`MAP_joint`](@ref) when computing the starting point.
+  [`MAP_joint`](@ref) when computing the starting point. These override
+  the `progress` and `quasi_sample` values derived from the sampler options;
+  for example, `quasi_sample` can be an RNG for reproducible quasi-samples.
 """
 function sample_joint(
     ds :: DataSet;
