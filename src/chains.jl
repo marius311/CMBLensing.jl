@@ -52,8 +52,8 @@ function load_chains(
     burnin_chunks = 0,
     progress = true
 )
-    # Keep only the batch width when an initial-only sample has no logpdf:
-    # dropmaps must release its fields before thinning and unbatching.
+    # Keep only batch widths and map presence; dropmaps must release fields
+    # before thinning and unbatching.
     dropped_batch_hints = IdDict{Any,Int}()
     dropped_maps = IdDict{Any,Nothing}()
     chains = jldopen(filename) do io
@@ -71,10 +71,10 @@ function load_chains(
                 append!.(chains, chunk)
             end
             if dropmaps
-                for chain in chains, sample in chain
+                for chain in chunk, sample in chain
                     if unbatch
                         marker = _sample_batch_marker(sample)
-                        if marker isa Field
+                        if !isnothing(marker)
                             dropped_batch_hints[sample] = batch_length(marker)
                         end
                     end
@@ -99,8 +99,7 @@ function load_chains(
     chains = wrap_chains(chains)
     if unbatch
         if dropmaps && !isempty(dropped_batch_hints)
-            chains = Chains(mapreduce(chain -> _unbatch(chain,
-                isempty(chain) ? nothing : get(dropped_batch_hints, chain[end], nothing)), vcat, chains))
+            chains = Chains(mapreduce(chain -> _unbatch(chain, dropped_batch_hints), vcat, chains))
         else
             chains = CMBLensing.unbatch(chains)
         end
@@ -187,27 +186,45 @@ function _sample_batch_marker(sample)
             for component in values(v)
                 component isa Union{BatchedReal,BatchedVal} && push!(candidates, component)
             end
+        elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
+            append!(candidates, v)
         end
     end
     for v in values(sample)
         v isa Field && push!(candidates, v)
     end
-    # A shared unbatched field or scalar likelihood must not hide another
-    # saved value whose batch has more than one element.
+    # A singleton may be shared, but all non-singleton batches must agree.
     marker = nothing
+    width = 1
     for candidate in candidates
         applicable(batch_length, candidate) || continue
-        isnothing(marker) && (marker = candidate)
-        batch_length(candidate) > 1 && return candidate
+        n = batch_length(candidate)
+        if n > 1
+            (width == 1 || width == n) || throw(ArgumentError(
+                "Sample contains incompatible batch lengths $width and $n"))
+            width = n
+            marker = candidate
+        elseif isnothing(marker)
+            marker = candidate
+        end
     end
     marker
 end
 
-function _unbatch(chain::Chain, batch_hint)
+function _unbatch(chain::Chain, batch_hints)
     isempty(chain) && return [chain]
-    # A freshly initialized one-sample chain has a potential but no logpdf.
-    marker = _sample_batch_marker(chain[end])
-    D = max(isnothing(marker) ? 1 : batch_length(marker), something(batch_hint, 1))
+    D = 1
+    for sample in chain
+        marker = _sample_batch_marker(sample)
+        marker_width = isnothing(marker) ? 1 : batch_length(marker)
+        hint_width = isnothing(batch_hints) ? 1 : get(batch_hints, sample, 1)
+        for n in (marker_width, hint_width)
+            n <= 1 && continue
+            (D == 1 || D == n) || throw(ArgumentError(
+                "Chain contains incompatible batch lengths $D and $n"))
+            D = n
+        end
+    end
     (D==1) && return [chain]
     Chains(map(1:D) do I
         Chain(map(chain) do samp

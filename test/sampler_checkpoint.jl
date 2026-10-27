@@ -73,6 +73,10 @@ using CMBLensing, LinearAlgebra, Random, Test
         @test length(read_chunks(five_file)) == 2
         @test [sample[:step] for sample in loaded(five_file)] == 1:5
         @test all(==(5f0), last(loaded(five_file))[:ϕ].arr)
+        five_maps = load_chains(five_file; thin=:hasmaps, dropmaps=true,
+            unbatch=false, progress=false)
+        @test [sample[:step] for sample in only(five_maps)] == [1, 2, 4, 5]
+        @test all(sample -> !haskey(sample, :ϕ), only(five_maps))
         toy_sample(5; filename=five_file, resume=true)
         @test length(read_chunks(five_file)) == 2
         empty!(seen)
@@ -217,6 +221,44 @@ using CMBLensing, LinearAlgebra, Random, Test
             @test length(scalar_logpdf) == 2
             @test all(chain -> chain[1][:logpdf] == 0f0 && haskey(chain[1], :ϕ) == !dropmaps,
                 scalar_logpdf)
+        end
+
+        # Arrays of batched values also convey width, and all non-singleton
+        # values within and across selected samples must agree.
+        array_file = joinpath(dir, "initial-array-batch.jld2")
+        CMBLensing.jldopen(array_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :params=>[
+                CMBLensing.batch(10.0, 20.0), CMBLensing.batch(30.0, 40.0)])]])
+        end
+        array_chains = load_chains(array_file; progress=false)
+        @test length(array_chains) == 2
+        @test [chain[1][:params] for chain in array_chains] == [[10.0, 30.0], [20.0, 40.0]]
+
+        tuple_file = joinpath(dir, "initial-field-tuple-batch.jld2")
+        CMBLensing.jldopen(tuple_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1,
+                :other=>CMBLensing.FieldTuple(batch_field, batch_field))]])
+        end
+        tuple_chains = load_chains(tuple_file; progress=false)
+        @test length(tuple_chains) == 2
+        @test all(iszero, tuple_chains[1][1][:other].fs[1].arr)
+        @test all(==(1f0), tuple_chains[2][1][:other].fs[1].arr)
+        @test length(load_chains(tuple_file; dropmaps=true, progress=false)) == 2
+
+        conflict_file = joinpath(dir, "incompatible-sample-batches.jld2")
+        CMBLensing.jldopen(conflict_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :ϕ=>batch3,
+                :logpdf=>CMBLensing.batch(1.0, 2.0))]])
+        end
+        cross_conflict_file = joinpath(dir, "incompatible-chain-batches.jld2")
+        CMBLensing.jldopen(cross_conflict_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :ϕ=>batch3),
+                Dict(:step=>2, :logpdf=>CMBLensing.batch(1.0, 2.0))]])
+        end
+        for dropmaps in (false, true)
+            @test_throws ArgumentError load_chains(conflict_file; dropmaps, progress=false)
+            @test_throws ArgumentError load_chains(cross_conflict_file; dropmaps, progress=false)
+            @test length(load_chains(cross_conflict_file; dropmaps, thin=2, progress=false)) == 3
         end
 
         # Reject differing numbers of persisted and requested chains before
