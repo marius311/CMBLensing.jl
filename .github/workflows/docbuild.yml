@@ -3,10 +3,16 @@ name: docbuild
 on:
   push:
     branches: ['master']
+    tags: ['v*.*.*']
   pull_request:
+  # TagBot's GITHUB_TOKEN does not trigger push workflows. After TagBot creates
+  # a release, a maintainer can run `gh workflow run docbuild.yml --ref vX.Y.Z`.
+  # The tag's commit must include this workflow and the deployment guard.
+  workflow_dispatch:
     
 jobs:
   main:
+    if: github.event_name != 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps: 
       - name: checkout

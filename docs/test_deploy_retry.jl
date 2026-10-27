@@ -115,14 +115,16 @@ fi
     return (; remote, writer, source, source_remote, source_advance, sha, hooks, config, state)
 end
 
-function with_fixture(f, fixture; mode, competing_file = "", preview = true, sha = fixture.sha, number = 2, next_sha = "", target = "")
-    ref = preview ? "refs/pull/102/merge" : "refs/heads/master"
+function with_fixture(f, fixture; mode, competing_file = "", preview = true, sha = fixture.sha,
+                      number = 2, next_sha = "", target = "", tag = nothing, event = nothing)
+    ref = tag === nothing ? (preview ? "refs/pull/102/merge" : "refs/heads/master") : "refs/tags/$tag"
+    event = event === nothing ? (preview ? "pull_request" : "push") : event
     withenv(
         "GIT_CONFIG_GLOBAL" => fixture.config, "GIT_CONFIG_NOSYSTEM" => "1",
         "GIT_TERMINAL_PROMPT" => "0", "DOCS_TEST_MODE" => mode,
         "DOCS_TEST_STATE" => fixture.state, "DOCS_TEST_WRITER" => fixture.writer,
         "DOCS_TEST_COMPETING_FILE" => competing_file,
-        "GITHUB_EVENT_NAME" => preview ? "pull_request" : "push",
+        "GITHUB_EVENT_NAME" => event,
         "GITHUB_REF" => ref,
         "GITHUB_SHA" => sha, "GITHUB_RUN_NUMBER" => string(number),
         "DOCS_TEST_SOURCE_REMOTE" => fixture.source_remote, "DOCS_TEST_SOURCE_REF" => ref,
@@ -130,6 +132,16 @@ function with_fixture(f, fixture; mode, competing_file = "", preview = true, sha
     ) do
         f()
     end
+end
+
+function create_tag(fixture, tag; annotated = false)
+    if annotated
+        run(`$git -C $(fixture.source) tag -a $tag -m $tag`)
+    else
+        run(`$git -C $(fixture.source) tag $tag`)
+    end
+    run(`$git -C $(fixture.source) push -q origin refs/tags/$tag`)
+    return readchomp(`$git -C $(fixture.source) rev-parse refs/tags/$tag`)
 end
 
 function local_deploy(fixture, folder; preview, max_attempts = 4)
@@ -177,6 +189,160 @@ function capture_errors(f)
         flush(output)
         seekstart(output)
         read(output, String)
+    end
+end
+
+@testset "version tag documentation" begin
+    # Documenter accepts both tag push and manual dispatch events. Check the
+    # actual deploy decision as well as the guarded local deployment.
+    for (annotated, event, event_is_tag_object) in [
+        (false, "push", false), (true, "push", false),
+        (true, "push", true), (true, "workflow_dispatch", false),
+    ]
+        mktempdir() do dir
+            setup = fixture(dir)
+            tag = "v1.2.3"
+            tag_object = create_tag(setup, tag; annotated)
+            sha = event_is_tag_object ? tag_object : setup.sha
+            attempts, deploy = local_deploy(setup, tag; preview = false)
+            with_fixture(setup; mode = "none", preview = false, tag, event, sha) do
+                withenv("GITHUB_REPOSITORY" => "marius311/CMBLensing.jl",
+                        "GITHUB_ACTOR" => "tester", "GITHUB_TOKEN" => "dummy") do
+                    decision = Documenter.deploy_folder(Documenter.GitHubActions();
+                        repo = "github.com/marius311/CMBLensing.jl.git", devbranch = "master",
+                        push_preview = true, devurl = "dev")
+                    @test decision.all_ok
+                    @test decision.subfolder == tag
+                end
+                deploy()
+            end
+            @test attempts[] == 1
+            @test remote_file(setup, "$tag/index.html") == "new docs"
+            @test remote_file(setup, "$tag/.docbuild-provenance") == "v1\nrefs/tags/$tag\n$(setup.sha)\n2\n"
+            @test remote_file(setup, "stable") == tag
+        end
+    end
+
+    # The guard accepts complete version tags only, avoiding ambiguous paths
+    # such as build-metadata tags that Documenter strips from the folder name.
+    mktempdir() do dir
+        setup = fixture(dir)
+        for (tag, valid) in [("v1.2.3", true), ("v1.2.3-rc.1", true),
+                             ("v1.2", false), ("v1.2.3+4", false), ("v1.2.3-..", false)]
+            with_fixture(setup; mode = "none", preview = false, tag) do
+                if valid
+                    @test github_doc_build().folder == tag
+                else
+                    @test_throws ErrorException github_doc_build()
+                end
+            end
+        end
+        with_fixture(setup; mode = "none", preview = false, event = "workflow_dispatch") do
+            @test_throws ErrorException github_doc_build()
+        end
+    end
+
+    for annotated in (false, true), change in (:deleted, :moved)
+        mktempdir() do dir
+            setup = fixture(dir)
+            tag = "v1.2.3"
+            tag_object = create_tag(setup, tag; annotated)
+            next_sha = next_source_commit(setup)
+            ref = "refs/tags/$tag"
+            if change == :deleted
+                run(`$git --git-dir=$(setup.source_remote) update-ref -d $ref`)
+            else
+                run(`$git --git-dir=$(setup.source_remote) update-ref $ref $next_sha`)
+            end
+            attempts, deploy = local_deploy(setup, tag; preview = false)
+            messages = capture_errors() do
+                with_fixture(setup; mode = "none", preview = false, tag, sha = tag_object) do
+                    @test_throws ErrorException deploy()
+                end
+            end
+            @test attempts[] == 1
+            @test occursin(change == :deleted ? "Could not verify the current documentation source ref" : "source ref has changed", messages)
+            @test !remote_has(setup, "$tag/index.html")
+        end
+    end
+
+    # A valid tag does not authorize publishing from a different checkout.
+    mktempdir() do dir
+        setup = fixture(dir)
+        tag = "v1.2.3"
+        tag_object = create_tag(setup, tag; annotated = true)
+        next_source_commit(setup)
+        run(`$git -C $(setup.source) fetch -q origin refs/heads/candidate`)
+        run(`$git -C $(setup.source) checkout -q --detach FETCH_HEAD`)
+        attempts, deploy = local_deploy(setup, tag; preview = false)
+        messages = capture_errors() do
+            with_fixture(setup; mode = "none", preview = false, tag, sha = tag_object) do
+                @test_throws ErrorException deploy()
+            end
+        end
+        @test attempts[] == 1
+        @test occursin("checkout does not match GITHUB_SHA", messages)
+        @test !remote_has(setup, "$tag/index.html")
+    end
+
+    # If GitHub supplied an annotated tag object, replacing that object must
+    # fail even when the replacement still points to the same commit.
+    mktempdir() do dir
+        setup = fixture(dir)
+        tag = "v1.2.3"
+        old_object = create_tag(setup, tag; annotated = true)
+        run(`$git -C $(setup.source) tag -f -a $tag -m replacement`)
+        run(`$git -C $(setup.source) push -q -f origin refs/tags/$tag`)
+        attempts, deploy = local_deploy(setup, tag; preview = false)
+        messages = capture_errors() do
+            with_fixture(setup; mode = "none", preview = false, tag, sha = old_object) do
+                @test_throws ErrorException deploy()
+            end
+        end
+        @test attempts[] == 1
+        @test occursin("source ref has changed", messages)
+        @test !remote_has(setup, "$tag/index.html")
+    end
+
+    # A second version arrives after the first publisher fetched gh-pages.
+    # Retrying must retain both versions and regenerate the stable selector.
+    mktempdir() do dir
+        setup = fixture(dir)
+        tag = "v1.2.3"
+        create_tag(setup, tag; annotated = true)
+        attempts, deploy = local_deploy(setup, tag; preview = false)
+        messages = capture_errors() do
+            with_fixture(setup; mode = "once", preview = false, tag,
+                         competing_file = "v3.0.0/index.html") do
+                deploy()
+            end
+        end
+        @test attempts[] == 2
+        @test occursin("(stale info)", messages)
+        @test remote_file(setup, "$tag/index.html") == "new docs"
+        @test remote_file(setup, "v3.0.0/index.html") == "other publisher 1"
+        @test remote_file(setup, "stable") == "v3.0.0"
+        @test occursin("v1.2", remote_file(setup, "versions.js"))
+        @test occursin("v3.0", remote_file(setup, "versions.js"))
+    end
+
+    # An older run cannot overwrite a newer publication of the same version.
+    mktempdir() do dir
+        setup = fixture(dir)
+        tag = "v1.2.3"
+        create_tag(setup, tag)
+        newer_sha = setup.sha
+        attempts, deploy = local_deploy(setup, tag; preview = false)
+        messages = capture_errors() do
+            with_fixture(setup; mode = "samepath", preview = false, tag,
+                         next_sha = newer_sha, target = tag) do
+                @test_throws ErrorException deploy()
+            end
+        end
+        @test attempts[] == 2
+        @test occursin("newer workflow run", messages)
+        @test remote_file(setup, "$tag/index.html") == "newer docs"
+        @test remote_file(setup, "$tag/.docbuild-provenance") == "v1\nrefs/tags/$tag\n$newer_sha\n3\n"
     end
 end
 
@@ -306,7 +472,7 @@ end
             withenv("GIT_TEST_ASSUME_DIFFERENT_OWNER" => "1") do
                 git_with_ownership_check = Documenter.git()
                 @test !success(pipeline(`$git_with_ownership_check -C $(setup.source) rev-parse HEAD`; stdout = devnull, stderr = devnull))
-                @test isnothing(verify_doc_source(setup.source, github_doc_build()))
+                @test verify_doc_source(setup.source, github_doc_build()) == setup.sha
             end
         end
     end
