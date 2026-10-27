@@ -201,7 +201,10 @@ interpolation is done, and can be one of:
   Healpix projection. To make this mode available, you must load the
   `NFFT` package first. For GPU fields, you must also load `CuNFFT`.
   Projection with `method=:fft` is both GPU compatible and
-  automatically differentiable.
+  automatically differentiable. A legacy Healpix-to-Lambert FFT path
+  applies a rescaled array-level adjoint of this transform; it does not
+  generally preserve constant maps and is not an interpolation or a
+  reconstruction of the Healpix sky.
 
 A pre-computation step can be cached by first doing, 
 
@@ -231,7 +234,7 @@ function project(projector::Projector{:fft}, (hpx_map, cart_proj)::Pair{<:Healpi
     @unpack (Ny, Nx, T) = cart_proj
     @unpack (Nside) = hpx_map
     @unpack (nfft_plan, nfft_plan_grid, hpx_idxs_in_patch) = projector
-    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
+    splayed_pixels = real.(nfft_plan_grid * (adjoint(nfft_plan) * complex(ensure_dense(hpx_map.arr[hpx_idxs_in_patch])))) ./ (length(hpx_idxs_in_patch))
     FlatMap(reshape(splayed_pixels, Ny, Nx), cart_proj)
 end
 
