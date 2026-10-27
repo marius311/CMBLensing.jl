@@ -72,6 +72,7 @@ rng = StableRNG(4)
 has_batched_fft = (FFTW.fftw_provider != "mkl") || (storage != Array)
 
 include("fft_view_preservation.jl")
+include("nfft_projector.jl")
 include("fieldtuple_diagonal_adapt_adjoint.jl")
 
 if storage != Array

@@ -206,6 +206,10 @@ interpolation is done, and can be one of:
   generally preserve constant maps and is not an interpolation or a
   reconstruction of the Healpix sky.
 
+`NFFT` is optional: install it first (for example, `import Pkg;
+Pkg.add("NFFT"); using NFFT`). CuNFFT 0.3.8 requires NFFT 0.13 and
+does not load with CUDA.jl 5.11.3.
+
 A pre-computation step can be cached by first doing, 
 
 ```julia
