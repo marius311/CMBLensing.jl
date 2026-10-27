@@ -577,6 +577,8 @@ include("loess.jl")
 
 ##
 
+include("bilinear_potential_gradient.jl")
+
 @testset "Zygote" begin
 
     @testset "Nside = $Nside" for Nside in Nsides
