@@ -75,10 +75,10 @@ end
 function MuseInference.ẑ_at_θ(prob::CMBLensingMuseProblem{<:CMBLensing.Mixed}, d, zguess, θ; ∇z_logLike_atol=nothing)
     ds = prob.ds.ds
     θ = mergeθ(prob, θ)
-    zguess = CMBLensing.unmix(ds; θ, zguess...)
+    zguess = CMBLensing.unmix(ds; zguess..., θ)
     Ωstart = delete(NamedTuple(zguess), :f)
     MAP = MAP_joint(θ, @set(ds.d=d), Ωstart; fstart=zguess.f, prob.MAP_joint_kwargs...)
-    MAP = CMBLensing.mix(ds; θ, MAP...)
+    MAP = CMBLensing.mix(ds; MAP..., θ)
     LenseBasis(FieldTuple(;delete(MAP, (:history, :θ))...)), MAP.history
 end
 
