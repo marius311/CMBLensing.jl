@@ -108,7 +108,7 @@ RUN jupytext --to notebook *.md \
     done
 
 ## prepare for building documentation
-COPY --chown=1000 docs/make.jl docs/index.html docs/documenter.tpl $HOME/CMBLensing/docs/
+COPY --chown=1000 docs/make.jl docs/deploy_with_retry.jl docs/test_deploy_retry.jl docs/index.html docs/documenter.tpl $HOME/CMBLensing/docs/
 COPY --chown=1000 docs/src-staging $HOME/CMBLensing/docs/src-staging
 COPY --chown=1000 README.md $HOME/CMBLensing/
 # shortens array output in Julia notebooks

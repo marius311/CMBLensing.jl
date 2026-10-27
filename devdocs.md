@@ -24,7 +24,13 @@ retest("filter", dry=false, verbose=2)
 
 ### Other
 
-The Github Actions workflow will build documentation for master and for all tags and PRs. It pushes these to the `gh-pages` branch of CMBLensing.jl which is then hosted at [cosmicmar.com/CMBLensing.jl](https://cosmicmar.com/CMBLensing.jl)
+The `docbuild` GitHub Actions workflow builds documentation for pushes to master and pull requests. It publishes to the `gh-pages` branch, which is hosted at [cosmicmar.com/CMBLensing.jl](https://cosmicmar.com/CMBLensing.jl).
+
+The documentation deployment records the GitHub ref, source commit, and workflow run number in each published path. Before publishing, it verifies the exact current master or PR merge ref and checks that a newer run has not already published that path. A concurrent update to `gh-pages` is protected by Git's lease and is retried with a fresh fetch, up to four attempts. If the source ref is unavailable or has changed, the job fails instead of publishing; use a build of the current ref after access is restored.
+
+Existing paths without a provenance file are bootstrapped on their first successful publication after the live source check. During that transition, an older run of the identical source commit cannot be distinguished from a newer unmarked publication. **Reruns of workflows from commits before this guard was added do not run the guard at all and can still overwrite newer documentation.** Prefer a new build using the current workflow; preventing historical workflows from pushing requires enforcement outside this repository's new workflow.
+
+The local deployment tests run in the documentation CI container and use temporary Git repositories. With the documentation environment installed, run them separately with `julia --project=docs docs/test_deploy_retry.jl`.
 
 All MyBinder links point to the `gh-pages` branch of CMBLensing.jl. MyBinder uses the `Dockerfile` in the root folder of this branch which is a symlink pointing to `stable/Dockerfile`, and `stable/` is itself a symlink managed by Documenter.jl made to point at the most recent tagged version. This means MyBinder links from any version of the documentation will always point to the most recent stable tagged vesion (ideally they would point to whatever version the documenation itself was, but that's harder to set up).
 

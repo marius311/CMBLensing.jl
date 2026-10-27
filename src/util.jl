@@ -1,6 +1,11 @@
 
 versionof(pkg::Module) = Pkg.dependencies()[Base.PkgId(pkg).uuid].version
 
+# Use the primal value when choosing a branch that is deliberately discrete.
+# ForwardDiff 1 considers partials in iszero; recurse through nested duals.
+_primal_iszero(x::Real) = iszero(x)
+_primal_iszero(x::Dual) = _primal_iszero(value(x))
+
 """ 
 Return the type's fields as a tuple
 """
