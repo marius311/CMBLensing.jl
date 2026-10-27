@@ -775,6 +775,7 @@ end
 
 include("lenseflow_adjoint.jl")
 include("map_joint.jl")
+include("equirect_odd_width.jl")
 
 ##
 
