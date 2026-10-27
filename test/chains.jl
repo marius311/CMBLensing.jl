@@ -121,15 +121,18 @@ end
     @test [state[:counter] for state in chain[1]] == [1, 2]
 
     mktempdir() do dir
-        path = joinpath(dir, "chain.jld2")
-        jldopen(path, "w") do io
-            write(io, "rundat", Dict())
-            write(io, "chunks_1", [Any[Dict(:step => 1, :counter => 7)]])
+        restart_path = joinpath(dir, "restart.jld2")
+        resume_path = joinpath(dir, "resume.jld2")
+        for path in (restart_path, resume_path)
+            jldopen(path, "w") do io
+                write(io, "rundat", Dict())
+                write(io, "chunks_1", [Any[Dict(:step => 1, :counter => 7)]])
+            end
         end
-        @test_throws ErrorException sample_joint(ds; options..., filename=path)
-        restarted = sample_joint(ds; options..., filename=path, resume=false)
+        @test_throws ErrorException sample_joint(ds; options..., filename=restart_path)
+        restarted = sample_joint(ds; options..., filename=restart_path, resume=false)
         @test [state[:counter] for state in restarted[1]] == [1, 2]
-        resumed = sample_joint(ds; options..., filename=path, resume=true)
+        resumed = sample_joint(ds; options..., filename=resume_path, resume=true)
         @test [state[:counter] for state in resumed[1]] == [8]
     end
 end
