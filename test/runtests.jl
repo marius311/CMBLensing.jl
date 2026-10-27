@@ -731,6 +731,8 @@ include("lenseflow_adaptation.jl")
 include("flow_constructor_adjoint.jl")
 
 @testset "Lensing" begin
+
+    include("powerlens_antilensing.jl")
     
     local f, ϕ, Lϕ
     Cℓ = camb().unlensed_total

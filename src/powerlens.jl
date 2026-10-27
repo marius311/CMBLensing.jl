@@ -34,7 +34,7 @@ end
 Create a `PowerLens` operator that lenses by `-ϕ` instead. 
 """
 function antilensing(L::PowerLens)
-    PowerLens(N, (Dict(p=>∇iϕᵖ*(-1)^p for (p,∇iϕᵖ)=coeffs) for coeffs=(L.∇1ϕᵖ,L.∇1ϕᵖ))...)
+    PowerLens(L.order, (Dict(p=>∇iϕᵖ*(-1)^p for (p,∇iϕᵖ)=coeffs) for coeffs=(L.∇1ϕᵖ,L.∇2ϕᵖ))...)
 end
 
 function *(L::PowerLens, f::Field)
