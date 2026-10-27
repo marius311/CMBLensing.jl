@@ -148,6 +148,11 @@ The default Gibbs steps update `f` and `ϕ` while holding `θ` fixed after
 initialization. To sample a parameter, include `gibbs_sample_slice_θ!(name)`
 between `gibbs_mix!` and `gibbs_unmix!` in `gibbs_samplers`.
 
+When sampling on worker processes, the dataset may be sent repeatedly. If
+an identical, unchanged dataset is already defined in `Main` on every worker,
+`CMBLensing.@distributed ds` can avoid those repeated transfers. See the
+`CMBLensing.@distributed` docstring for the setup and matching requirements.
+
 Keyword arguments: 
 
 * `nsamps_per_chain` — The number of samples per chain.
