@@ -77,7 +77,6 @@ include("nfft_projector.jl")
 include("nfft_cpu_adaptor.jl")
 include("fieldtuple_diagonal_adapt_adjoint.jl")
 include("equirect_adaptation.jl")
-include("equirect_block_dot.jl")
 
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
@@ -90,6 +89,7 @@ end
 @testset verbose=true "CMBLensing" begin
 
 include("svector_field_adjoint.jl")
+include("equirect_block_dot.jl")
 include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
 include("field_diagonal_adapt_adjoint.jl")
