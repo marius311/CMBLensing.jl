@@ -107,6 +107,36 @@ end
     getproperty(f,Val(k)), fieldtuple_getproperty_pullback
 end
 
+# A FieldTuple may mix devices and precisions, so return each component to
+# the backend of its own input storage. Keep the generic adaptation behavior
+# for fields without explicit array storage and other component types.
+_fieldtuple_adapt_cotangent(x, Δ) = adapt(Diagonal, Δ)
+_fieldtuple_adapt_cotangent(x::Field, Δ) = adapt(Diagonal, Δ)
+function _fieldtuple_adapt_cotangent(x::AbstractArray, Δ)
+    root = _field_adapt_storage_root(x)
+    root === nothing ? adapt(Diagonal, Δ) : adapt(basetype(typeof(root)), Δ)
+end
+function _fieldtuple_adapt_cotangent(x::BaseField, Δ)
+    arr = x.arr
+    root = _field_adapt_storage_root(arr)
+    adapt(basetype(typeof(root === nothing ? parent(arr) : root)), Δ)
+end
+function _fieldtuple_adapt_cotangent(x::FieldTuple, Δ::FieldTuple)
+    xs, δs = getfield(x, :fs), getfield(Δ, :fs)
+    keys(xs) == keys(δs) || return adapt(Diagonal, Δ)
+    FieldTuple(map(_fieldtuple_adapt_cotangent, xs, δs))
+end
+
+@adjoint function adapt(to, x::DiagOp{<:FieldTuple})
+    adapted = adapt(to, x)
+    function adapt_fieldtuple_diagonal_pullback(Δ)
+        (Δ === nothing || Δ isa ChainRulesCore.AbstractZero) && return (nothing, Δ)
+        Δ isa DiagOp{<:FieldTuple} || return (nothing, adapt(Diagonal, Δ))
+        (nothing, Diagonal(_fieldtuple_adapt_cotangent(diag(x), diag(Δ))))
+    end
+    adapted, adapt_fieldtuple_diagonal_pullback
+end
+
 # BatchedReals
 @adjoint Zygote.literal_getproperty(br::BatchedReal, ::Val{:vals}) = getfield(br,:vals), Δ -> (batch(real.(Δ)),)
 
