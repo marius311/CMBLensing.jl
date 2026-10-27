@@ -3,8 +3,11 @@
         # MKL's CPU FFT backend does not support this batched transform.
         nbatch == 2 && FFTW.fftw_provider == "mkl" && continue
         proj = ProjEquiRect(; Ny=4, Nx=nx, T, θspan=(0,π), φspan=(0,2π), storage=Array)
-        vals = reshape(T.(sin.(1:4nx*nbatch)), 4, nx, 1, nbatch)
-        dir = reshape(T.(cos.(1:4nx*nbatch)), 4, nx, 1, nbatch)
+        # Use a 2-D singleton layout; MKL failed to plan the previous
+        # rank-4 singleton fixture in CI.
+        shape = nbatch == 1 ? (4, nx) : (4, nx, 1, nbatch)
+        vals = reshape(T.(sin.(1:4nx*nbatch)), shape)
+        dir = reshape(T.(cos.(1:4nx*nbatch)), shape)
         f = CMBLensing.EquiRectMap(vals, proj)
         h = CMBLensing.EquiRectMap(dir, proj)
         az = CMBLensing.AzFourier(f)
