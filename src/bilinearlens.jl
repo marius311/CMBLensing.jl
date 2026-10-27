@@ -6,19 +6,18 @@ export BilinearLens
     BilinearLens(ϕ)
 
 `BilinearLens` is a lensing operator that computes lensing with
-bilinear interpolation. The action of the operator, as well as its
-adjoint, inverse, inverse-adjoint, and gradient w.r.t. `ϕ` can all be
-computed. The log-determinant of the operation is non-zero and can't
-be computed. 
+bilinear interpolation. Its action, adjoint, approximate inverse, and
+approximate inverse-adjoint can be computed. A gradient with respect to `ϕ`
+is implemented for the forward action; reverse-mode differentiation through
+the inverse and inverse-adjoint is not currently supported. The
+log-determinant of the operation is non-zero and can't be computed.
 
 Internally, `BilinearLens` forms a sparse matrix with the
 interpolation weights, which can be applied and adjoint-ed extremely
 fast (e.g. at least an order of magnitude faster than
 [`LenseFlow`](@ref)). Inverse and inverse-adjoint lensing is somewhat
-slower since it requires an iterative solve, here performed with the
-[preconditioned generalized minimal
-residual](https://en.wikipedia.org/wiki/Generalized_minimal_residual_method)
-algorithm. 
+slower since it uses five fixed steps of a preconditioned Krylov
+least-squares solver. These approximate solves are not guaranteed to converge.
 
 The potential gradient differentiates the interpolation weights. Bilinear
 interpolation is not generally differentiable at pixel boundaries, including
