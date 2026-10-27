@@ -114,6 +114,16 @@ using CMBLensing, Random, Test
         @test all(iszero, batched[1][1][:ϕ].arr)
         @test all(==(1f0), batched[2][1][:ϕ].arr)
 
+        batched_ds = copy(ds)
+        batched_ds.d = CMBLensing.batch(ds.d, ds.d)
+        batch_actual_file = joinpath(dir, "actual-initial-batched.jld2")
+        sample_joint(batched_ds; nsamps_per_chain=1, nchains=1, pmap=map,
+            filename=batch_actual_file, resume=false, nfilewrite=4, nsavemaps=2,
+            progress=false, ϕstart=0, θstart=(;), storage=Array)
+        batched_actual = load_chains(batch_actual_file; progress=false)
+        @test length(batched_actual) == 2
+        @test all(chain -> length(chain) == 1 && chain[1][:step] == 1, batched_actual)
+
         # Also exercise actual Gibbs stages, not just the deterministic file
         # fixture, through a write and an off-boundary resume.
         actual_file = joinpath(dir, "actual.jld2")
