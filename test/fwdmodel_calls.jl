@@ -15,6 +15,11 @@ const Normal = CMBLensing.Distributions.Normal
     x ~ Normal(2, 1)
     value ← scale * x + offset
 end
+
+@fwdmodel function child_with_callback(f; x)
+    x ~ Normal(2, 1)
+    value ← f(x)
+end
 end
 
 @fwdmodel function qualified(; x)
@@ -50,9 +55,25 @@ end
     value ← choose_plain()(x; scale=2)
 end
 
+@fwdmodel function ordinary_do(; x)
+    value ← Base.map(1:3) do i
+        i * x
+    end
+end
+
+@fwdmodel function model_do(; x)
+    Children.child_with_callback(; x) do value
+        2 * value
+    end
+end
+
 @fwdmodel function broadcasted(; x)
     value ← x .^ 2 .+ Base.sin.(x)
     total ← Base.sum(value)
+end
+
+@fwdmodel function broadcast_macro(; x)
+    value ← @. Base.sin(x)
 end
 
 @testset "Forward-model call expressions" begin
@@ -77,11 +98,20 @@ end
     @test loglikelihood(dynamic_plain; x=3) == 0
     @test plain_lookups[] == 1
 
+    @test simulate(MersenneTwister(1), ordinary_do; x=2).value == [2, 4, 6]
+    @test loglikelihood(ordinary_do; x=2) == 0
+    result = simulate(MersenneTwister(1), model_do; x=3)
+    @test result.x == 3
+    @test result.value == 6
+    @test loglikelihood(model_do; x=3) ≈ expected_loglike
+
     x = [0.0, 1.0, 2.0]
     result = simulate(MersenneTwister(1), broadcasted; x)
     @test result.value ≈ x .^ 2 .+ sin.(x)
     @test result.total ≈ sum(result.value)
     @test loglikelihood(broadcasted; x) == 0
+    @test simulate(MersenneTwister(1), broadcast_macro; x).value ≈ sin.(x)
+    @test loglikelihood(broadcast_macro; x) == 0
 end
 
 end
