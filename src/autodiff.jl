@@ -248,16 +248,76 @@ ChainRulesCore._eltype_projectto(::Type{SA}) where {SA<:SArray} = ProjectTo{SA}(
 # Allow multiplication of SVector{2} (like from gradients) with Fields
 *(v::SVector{2, <:Real}, f::Field) = @SVector[v[1]*f, v[2]*f]
 
-# Custom adjoint for SVector * Field to ensure proper gradient flow
+# Reduce broadcast dimensions without narrowing precision. Contributions must
+# be added before projection, so cancellation is not lost to early rounding.
+function _svector_unbroadcast(x::AbstractArray, δ::AbstractArray)
+    if length(x) == length(δ)
+        reshape(δ, size(x))
+    else
+        dims = ntuple(d -> size(x, d) == 1 ? d : ndims(δ) + 1, ndims(δ))
+        reshape(sum(δ; dims=dims), size(x))
+    end
+end
+
+# A plain scalar is shared by all batches; a BatchedReal has one value per
+# batch (or a single broadcast value).
+_svector_reduce_coefficient(v::Real, δ::Real) = δ
+_svector_reduce_coefficient(v::Real, δ::BatchedReal) = sum(δ.vals)
+_svector_reduce_coefficient(v::BatchedReal, δ::BatchedReal) = batch(_svector_unbroadcast(v.vals, δ.vals))
+_svector_reduce_coefficient(v::BatchedReal, δ::Real) = batch(_svector_unbroadcast(v.vals, [δ]))
+_svector_project_coefficient(v::Real, δ::Real) = ProjectTo(v)(δ)
+_svector_project_coefficient(v::BatchedReal, δ::BatchedReal) = batch(ProjectTo(v.vals)(δ.vals))
+
+# EquiRect's dot reduces all array dimensions; preserve the batch dimension
+# here so scalar and BatchedReal coefficients can be projected independently.
+_svector_field_dot(f, δ) = dot(f, δ)
+function _svector_field_dot(f::EquiRectField, δ::EquiRectField)
+    z = conj.(Ł(f)) .* Ł(δ)
+    batch(sum_dropdims(real.(z.arr), dims=nonbatch_dims(z)))
+end
+_svector_coefficient_field_tangent(v::Real, f, δ) = _svector_reduce_coefficient(v, _svector_field_dot(f, δ))
+function _svector_coefficient_field_tangent(v::Real, f::FieldTuple, δ::FieldTuple)
+    f′, δ′ = promote(f, δ)
+    # Components may have different batch sizes; reduce each to the
+    # coefficient's shape before adding their contributions.
+    reduce(+, map((x, y) -> _svector_coefficient_field_tangent(v, x, y),
+                  getfield(f′, :fs), getfield(δ′, :fs)); init=0)
+end
+
+# Broadcasted scalar multiplication can expand an unbatched field. Reduce
+# each branch to the input shape and basis, then project precision after adding.
+_svector_reduce_field(f::Field{B}, δ::Field) where {B} = B(δ)
+function _svector_reduce_field(f::BaseField{B}, δ::BaseField) where {B}
+    δ′ = B(δ)
+    BaseField{B}(_svector_unbroadcast(f.arr, δ′.arr), δ′.metadata)
+end
+_svector_reduce_field(f::FieldTuple, δ::FieldTuple) = FieldTuple(map(_svector_reduce_field, getfield(f, :fs), getfield(δ, :fs)))
+_svector_reduce_field(f::Real, δ::Real) = _svector_reduce_coefficient(f, δ)
+_svector_reduce_field(f::AbstractArray, δ::AbstractArray) = _svector_unbroadcast(f, δ)
+
+_svector_project_field(f::Field{B}, δ::Field) where {B} = B(δ)
+_svector_project_field(f::BaseField{B}, δ::BaseField) where {B} = Zygote.unbroadcast(f, B(δ))
+_svector_project_field(f::FieldTuple, δ::FieldTuple) = FieldTuple(map(_svector_project_field, getfield(f, :fs), getfield(δ, :fs)))
+_svector_project_field(f::Real, δ::Real) = _svector_project_coefficient(f, δ)
+_svector_project_field(f::AbstractArray, δ::AbstractArray) = ProjectTo(f)(δ)
+
+# Field tangents use the field inner product, even for Fourier storage.
 @adjoint function *(v::SVector{2, <:Real}, f::Field)
     result = v * f
     function svector_field_pullback(Δ)
-        # Δ should be SVector{2, <:Field} 
-        # Gradient w.r.t. v should be SVector{2, Real}
-        # Gradient w.r.t. f should be Field
-        v_grad = @SVector [sum(Δ[1]), sum(Δ[2])]
-        f_grad = v[1] * Δ[1] + v[2] * Δ[2]
-        return (v_grad, f_grad)
+        is_zero_tangent(x) = x === nothing || x isa ChainRulesCore.AbstractZero
+        is_zero_tangent(Δ) && return (nothing, nothing)
+        δ₁, δ₂ = Δ
+        v̄₁ = is_zero_tangent(δ₁) ? nothing : _svector_coefficient_field_tangent(v[1], f, δ₁)
+        v̄₂ = is_zero_tangent(δ₂) ? nothing : _svector_coefficient_field_tangent(v[2], f, δ₂)
+        isnothing(v̄₁) && isnothing(v̄₂) && return (nothing, nothing)
+        v̄₁ = isnothing(v̄₁) ? zero(v[1]) : _svector_project_coefficient(v[1], v̄₁)
+        v̄₂ = isnothing(v̄₂) ? zero(v[2]) : _svector_project_coefficient(v[2], v̄₂)
+        v_grad = SVector{2,typejoin(typeof(v̄₁), typeof(v̄₂))}((v̄₁, v̄₂))
+        # Reduce each branch before adding: their output batch sizes may differ.
+        f̄₁ = is_zero_tangent(δ₁) ? nothing : _svector_reduce_field(f, v[1] * δ₁)
+        f̄₂ = is_zero_tangent(δ₂) ? nothing : _svector_reduce_field(f, v[2] * δ₂)
+        return (v_grad, _svector_project_field(f, _plus_accum(f̄₁, f̄₂)))
     end
     return result, svector_field_pullback
 end
