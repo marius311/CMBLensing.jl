@@ -88,6 +88,7 @@ if storage != Array
     include("cuda_zero_dim_reshape.jl")
     include("cuda_field_rng.jl")
     include("lambert_cuda_warning.jl")
+    include("equirect_block_gpu_field_output.jl")
 end
 
 ##
