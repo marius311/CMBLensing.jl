@@ -360,13 +360,14 @@ function MAP_marg(
 
     tr = []
 
-    if progress
-        pbar = DistributedProgress(nsteps_with_meanfield_update*Nsims + nsteps, 0.1, "MAP_marg: ")
-        ProgressMeter.update!(pbar)
-    end
-
     registry = _map_marg_new_registry(dsθ)
+    pbar = nothing
+    solve_failed = false
     try
+        if progress
+            pbar = DistributedProgress(nsteps_with_meanfield_update*Nsims + nsteps, 0.1, "MAP_marg: ")
+            ProgressMeter.update!(pbar)
+        end
         for step = 1:nsteps
 
             aggressive_gc && cuda_gc()
@@ -422,8 +423,30 @@ function MAP_marg(
         end
 
         return ϕ, tr
+    catch
+        solve_failed = true
+        rethrow()
     finally
-        _map_marg_close_registry(registry)
+        # Workers may still be reporting progress while their cache drains.
+        # Release those workers before closing the progress channel.
+        cleanup_error = nothing
+        try
+            _map_marg_close_registry(registry)
+        catch err
+            @warn "Could not release MAP_marg worker registry" exception=(err, catch_backtrace())
+            cleanup_error = err
+        end
+        if pbar !== nothing
+            try
+                ProgressMeter.finish!(pbar)
+            catch err
+                @warn "Could not finish MAP_marg progress" exception=(err, catch_backtrace())
+                isnothing(cleanup_error) && (cleanup_error = err)
+            end
+        end
+        # Preserve an exception from the solve, but surface cleanup failures
+        # when the solve itself succeeded.
+        !solve_failed && cleanup_error !== nothing && throw(cleanup_error)
     end
 
 end

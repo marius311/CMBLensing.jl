@@ -2,6 +2,26 @@ using CMBLensing, LinearAlgebra, Random, Serialization, Test
 using Distributed: RemoteChannel, myid
 
 @testset "MAP_marg and dataset transport" begin
+    # A mapper can inspect the progress object captured by the solver's job.
+    function find_progress(x, depth=0)
+        x isa CMBLensing.DistributedProgress && return x
+        depth > 4 && return nothing
+        if x isa Core.Box
+            return isdefined(x, :contents) ? find_progress(x.contents, depth+1) : nothing
+        elseif x isa Function
+            for name in fieldnames(typeof(x))
+                child = find_progress(getfield(x, name), depth+1)
+                child === nothing || return child
+            end
+        end
+        nothing
+    end
+    seen_progress = Ref{Any}(nothing)
+    function progress_map(f, indices, data, starts)
+        seen_progress[] = find_progress(f)
+        seen_progress[] === nothing && error("test could not find progress channel")
+        map(f, indices, data, starts)
+    end
     sim = load_sim(; Cℓ=CMBLensing._default_Cℓs(), pol=:I, T=Float64,
         θpix=4, Nside=8, storage=Array, L=LenseFlow(3), rng=MersenneTwister(7))
     global map_marg_test_dataset = sim.ds()
@@ -33,8 +53,9 @@ using Distributed: RemoteChannel, myid
 
         ϕ, trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
             ϕstart=0.3sim.ϕ, nsteps=2, nsteps_with_meanfield_update=1,
-            Nsims=1, progress=false, pmap=map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+            Nsims=1, progress=true, pmap=progress_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
         @test length(trace) == 2
+        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
         @test all(isfinite, ϕ[:])
         @test all(t -> all(isfinite, t.g[:]), trace)
         @test hash(map_marg_test_dataset) == original_hash
@@ -98,6 +119,8 @@ using Distributed: RemoteChannel, myid
         # the owner registry and the already-created worker cache.
         released = Ref{Any}(nothing)
         function failing_map(f, indices, data, starts)
+            seen_progress[] = find_progress(f)
+            seen_progress[] === nothing && error("test could not find progress channel")
             f(first(indices), first(data), first(starts))
             refs = filter(x -> x isa RemoteChannel, [getfield(f, name) for name in fieldnames(typeof(f))])
             state = only(refs)
@@ -106,13 +129,14 @@ using Distributed: RemoteChannel, myid
         end
         err = try
             MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
-                ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
+                ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=true,
                 pmap=failing_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
             nothing
         catch e
             e
         end
         @test err isa ErrorException && err.msg == "injected mapper failure"
+        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
         @test released[] !== nothing
         if released[] !== nothing
             @test !isopen(released[][1])
@@ -125,12 +149,15 @@ using Distributed: RemoteChannel, myid
         # without replacing the exception thrown by the user's mapper.
         active_failure = Ref{Any}(nothing)
         function failing_concurrent_map(f, indices, data, starts)
+            pbar = find_progress(f)
+            pbar === nothing && error("test could not find progress channel")
             state = only(filter(x -> x isa RemoteChannel,
                 [getfield(f, name) for name in fieldnames(typeof(f))]))
             started, release = Channel{Bool}(1), Channel{Bool}(1)
             work = @async CMBLensing._map_marg_with_worker_cache(state) do worker_ds
                 put!(started, true)
                 take!(release)
+                CMBLensing.ProgressMeter.next!(pbar)
                 :finished
             end
             take!(started)
@@ -139,12 +166,12 @@ using Distributed: RemoteChannel, myid
                 sleep(0.01)
                 put!(release, true)
             end
-            active_failure[] = (; state, cache, work, release_task)
+            active_failure[] = (; state, cache, work, release_task, pbar)
             error("injected concurrent mapper failure")
         end
         outcome = @async try
             MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
-                ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
+                ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=true,
                 pmap=failing_concurrent_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
             nothing
         catch e
@@ -161,8 +188,29 @@ using Distributed: RemoteChannel, myid
                 @test istaskdone(active_failure[].release_task)
                 @test !isopen(active_failure[].state)
                 @test !isopen(active_failure[].cache)
+                @test !isopen(active_failure[].pbar.channel)
             end
         end
+
+        # A cleanup failure must not replace the user's original solve error.
+        function closed_progress_map(f, indices, data, starts)
+            seen_progress[] = find_progress(f)
+            seen_progress[] === nothing && error("test could not find progress channel")
+            CMBLensing.ProgressMeter.finish!(seen_progress[])
+            error("original mapper error")
+        end
+        cleanup_error = @test_logs (:warn, r"Could not finish MAP_marg progress") begin
+            try
+                MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
+                    ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=true,
+                    pmap=closed_progress_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                nothing
+            catch e
+                e
+            end
+        end
+        @test cleanup_error isa ErrorException && cleanup_error.msg == "original mapper error"
+        @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
     finally
         delete!(CMBLensing.distributed_datasets.name_hash, :map_marg_test_dataset)
         delete!(CMBLensing.distributed_datasets.objid_hash, objectid(map_marg_test_dataset))
