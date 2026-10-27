@@ -35,4 +35,24 @@ using CMBLensing, MuseInference, ComponentArrays, LinearAlgebra, Test
             @test length(history) == nsteps
         end
     end
+
+    # A starting guess may contain stale parameter metadata. Check which
+    # parameters the real unmix/MAP/mix path uses: a round trip alone would
+    # hide the error when both transformations use the same stale value.
+    seen_scales = Float64[]
+    traced_D = ParamDependentOp((; fixed_scale=1.0, _...)->
+        (push!(seen_scales, fixed_scale); fixed_scale*C))
+    traced_ds = BaseDataSet(; d, Cf=C, Cn=C, Cϕ=C, D=traced_D, G=I, L=(ϕ->I), Nϕ=C)
+    full = (fixed_scale=2.5, unused=0.7)
+    initial = CMBLensing.mix(traced_ds; f=f0, ϕ=ϕ0, θ=full)
+    guess = (; f°=initial.f°, ϕ°=initial.ϕ°, θ=(fixed_scale=9.0, unused=0.7))
+    prob = CMBLensingMuseProblem(CMBLensing.Mixed(traced_ds); θ_fixed=(fixed_scale=2.5,),
+        MAP_joint_kwargs=(nsteps=0, progress=false))
+    empty!(seen_scales)
+    result, history = MuseInference.ẑ_at_θ(prob, d, guess, (unused=0.7,))
+    @test !isempty(seen_scales)
+    @test all(==(2.5), seen_scales)
+    @test Array(Map(result.f°).arr) ≈ Array(Map(initial.f°).arr) rtol=1e-12 atol=1e-12
+    @test !haskey(result, :θ)
+    @test isempty(history)
 end
