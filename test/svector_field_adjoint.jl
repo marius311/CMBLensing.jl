@@ -123,12 +123,30 @@ end
         @test ft̄.first ≈ B(expected_shared)
         @test ft̄.second ≈ B(-1.5w1_map + 6w2_map)
 
+        # Tuple components may themselves have different batch sizes.
+        ft_mixed = FieldTuple(; batched=fb, shared=f)
+        _, back = Zygote.pullback(*, v, ft_mixed)
+        v̄, ft̄ = back(CMBLensing.SVector{2,Any}((ft_mixed, nothing)))
+        @test v̄[1] ≈ 6sum(abs2, pixels)
+        @test ft̄.batched ≈ v[1] * fb
+        @test ft̄.shared ≈ v[1] * f
+
         # The two coefficients may have different batch behavior.
         vmixed = CMBLensing.SVector{2,Real}((1.5, batch([-2.0, 3.0])))
         _, back = Zygote.pullback(*, vmixed, fb)
         v̄, _ = back(seed)
         @test v̄[1] ≈ sum(perbatch1)
         @test unbatch(v̄[2]) ≈ perbatch2
+
+        # One output can be batched while the other remains unbatched. The
+        # second contribution must be added once, after each branch is reduced.
+        vmixed = CMBLensing.SVector{2,Real}((batch([2.0, 3.0]), 5.0))
+        _, back = Zygote.pullback(*, vmixed, f)
+        seed = CMBLensing.SVector{2,Any}((B(batch(one(f_map), one(f_map))), B(2one(f_map))))
+        v̄, f̄ = back(seed)
+        @test unbatch(v̄[1]) ≈ fill(sum(pixels), 2)
+        @test v̄[2] ≈ 2sum(pixels)
+        @test f̄ ≈ B(15one(f_map))
 
         # The cotangent's storage precision is projected back to the input.
         f32 = B(maybegpu(FlatMap(Float32.(pixels))))
@@ -138,5 +156,91 @@ end
         @test eltype(v̄) == Float32
         @test eltype(f̄) == eltype(f32)
         @test Map(f̄).arr ≈ Float32.(1.5weights1 - 2weights2)
+
+        # Sum branches before projecting to the field's lower precision.
+        ones32 = B(maybegpu(FlatMap(ones(Float32, 4, 4))))
+        ones64_map = maybegpu(FlatMap(ones(Float64, 4, 4)))
+        vcancel = @SVector [16777217.0, -16777216.0]
+        _, back = Zygote.pullback(*, vcancel, ones32)
+        _, f̄ = back(@SVector [ones64_map, ones64_map])
+        @test eltype(f̄) == eltype(ones32)
+        @test Map(f̄).arr ≈ ones(Float32, 4, 4)
+
+        # Likewise, sum FieldTuple components before projecting a scalar
+        # coefficient's gradient to Float32.
+        ft_cancel = FieldTuple(; first=ones32, second=ones32)
+        dplus = maybegpu(FlatMap(fill(16777217.0 / 16, 4, 4)))
+        dminus = maybegpu(FlatMap(fill(-16777216.0 / 16, 4, 4)))
+        d_cancel = FieldTuple(; first=dplus, second=dminus)
+        _, back = Zygote.pullback(*, (@SVector [1.0f0, 0.0f0]), ft_cancel)
+        v̄, _ = back(CMBLensing.SVector{2,Any}((d_cancel, nothing)))
+        @test v̄[1] === 1.0f0
+
+        # Preserve each scalar precision for a heterogeneous coefficient vector.
+        vmixed_precision = CMBLensing.SVector{2,Real}((1.5f0, -2.0))
+        _, back = Zygote.pullback(*, vmixed_precision, f)
+        v̄, _ = back(@SVector [w1_map, w2_map])
+        @test v̄[1] isa Float32
+        @test v̄[2] isa Float64
+    end
+end
+
+@testset "SVector times EquiRect Field pullback" begin
+    pixels = [1.0 2.0 -1.0 3.0; -3.0 4.0 0.5 -2.0;
+              2.5 -1.5 3.5 1.0; 0.25 -4.0 2.0 5.0]
+    weights1 = [3.0 -2.0 1.5 0.5; 1.0 0.5 -2.0 3.0;
+                -1.0 2.0 0.25 -3.0; 4.0 1.0 -0.5 2.0]
+    weights2 = [-1.0 4.0 0.5 -2.5; 2.0 -3.0 1.0 0.25;
+                3.0 -0.5 2.0 1.0; -2.0 3.5 -1.0 0.5]
+    proj = ProjEquiRect(; Ny=4, Nx=4, T=Float64, θspan=(0, π), φspan=(0, 2π), storage)
+    f_map = CMBLensing.EquiRectMap(maybegpu(pixels), proj)
+    w1_map = CMBLensing.EquiRectMap(maybegpu(weights1), proj)
+    w2_map = CMBLensing.EquiRectMap(maybegpu(weights2), proj)
+    fieldbatch(x, y) = CMBLensing.EquiRectMap(cat(reshape(x.arr, 4,4,1,1), reshape(y.arr, 4,4,1,1); dims=4), proj)
+    fb_map = fieldbatch(f_map, 2f_map)
+    w1b_map = fieldbatch(w1_map, w2_map)
+    w2b_map = fieldbatch(2w2_map, -w1_map)
+    v = @SVector [1.5, -2.0]
+    vb = @SVector [batch([1.5, -0.5]), batch([-2.0, 3.0])]
+    d1 = [sum(pixels .* weights1), sum(pixels .* weights2)]
+    d2 = [2sum(pixels .* weights2), -sum(pixels .* weights1)]
+
+    for B in (Map, CMBLensing.AzFourier)
+        B == CMBLensing.AzFourier && !has_batched_fft && continue
+        f, fb, w1b, w2b = B.((f_map, fb_map, w1b_map, w2b_map))
+        seed = @SVector [w1b, w2b]
+
+        # Plain coefficients sum the two pixel-space inner products.
+        _, back = Zygote.pullback(*, v, fb)
+        v̄, f̄ = back(seed)
+        @test v̄ ≈ (@SVector [d1[1] + 2d1[2], d2[1] + 2d2[2]])
+        @test f̄ ≈ v[1] * w1b + v[2] * w2b
+
+        # Per-batch coefficients retain each inner product, even when the
+        # input field itself is shared across the batches.
+        _, back = Zygote.pullback(*, vb, f)
+        v̄, f̄ = back(seed)
+        @test unbatch(v̄[1]) ≈ d1
+        @test unbatch(v̄[2]) ≈ d2
+        @test size(f̄.arr) == size(f.arr)
+        @test f̄ ≈ B(1.5w1_map - 4.5w2_map - 3w1_map)
+
+        # A tuple containing EquiRect fields must also retain per-batch dots.
+        ft = FieldTuple(; first=f, second=f)
+        w1t = FieldTuple(; first=w1b, second=w2b)
+        w2t = FieldTuple(; first=w2b, second=w1b)
+        _, back = Zygote.pullback(*, vb, ft)
+        v̄, ft̄ = back(@SVector [w1t, w2t])
+        @test unbatch(v̄[1]) ≈ d1 + d2
+        @test unbatch(v̄[2]) ≈ d1 + d2
+        @test ft̄.first ≈ B(1.5w1_map - 4.5w2_map - 3w1_map)
+        @test ft̄.second ≈ B(-1.5w1_map + 6w2_map)
+
+        ft_mixed = FieldTuple(; batched=fb, shared=f)
+        _, back = Zygote.pullback(*, v, ft_mixed)
+        v̄, ft̄ = back(CMBLensing.SVector{2,Any}((ft_mixed, nothing)))
+        @test v̄[1] ≈ 6sum(abs2, pixels)
+        @test ft̄.batched ≈ v[1] * fb
+        @test ft̄.shared ≈ v[1] * f
     end
 end
