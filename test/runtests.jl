@@ -79,6 +79,7 @@ include("fieldtuple_diagonal_adapt_adjoint.jl")
 
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
+    include("cuda_field_rng.jl")
 end
 
 ##
