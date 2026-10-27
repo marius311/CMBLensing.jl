@@ -1,5 +1,5 @@
 using CMBLensing, LinearAlgebra, Random, Serialization, Test
-using Distributed: RemoteChannel, myid
+using Distributed: RemoteChannel, addprocs, myid, remotecall_fetch, remotecall_wait, rmprocs
 
 @testset "MAP_marg and dataset transport" begin
     # A mapper can inspect the progress object captured by the solver's job.
@@ -211,6 +211,76 @@ using Distributed: RemoteChannel, myid
         end
         @test cleanup_error isa ErrorException && cleanup_error.msg == "original mapper error"
         @test seen_progress[] !== nothing && !isopen(seen_progress[].channel)
+
+        @testset "actual worker transport and cleanup" begin
+            workers = Int[]
+            try
+                # Use the active Pkg.test environment and avoid starting a
+                # worker with the host's full default thread count.
+                flags = Cmd(["--startup-file=no", "--threads=1", "--project=$(dirname(Base.active_project()))"])
+                worker_env = ["JULIA_NUM_THREADS" => "1", "JULIA_NUM_PRECOMPILE_TASKS" => "1",
+                              "OPENBLAS_NUM_THREADS" => "1", "FFTW_NUM_THREADS" => "1", "OMP_NUM_THREADS" => "1"]
+                append!(workers, addprocs(1; exeflags=flags, env=worker_env))
+                worker = only(workers)
+                remotecall_wait(Core.eval, worker, Main, :(using CMBLensing, LinearAlgebra))
+
+                # Dispatch both jobs to the worker and record its cache after
+                # each, while preserving the mapper's result order.
+                caches = RemoteChannel[]
+                worker_cf = Float64[]
+                registry_ref = Ref{Any}(nothing)
+                function worker_map(f, indices, data, starts)
+                    registry = only(filter(x -> x isa RemoteChannel,
+                        [getfield(f, name) for name in fieldnames(typeof(f))]))
+                    registry_ref[] = registry
+                    map(indices, data, starts) do i, d, start
+                        result = remotecall_fetch(f, worker, i, d, start)
+                        cache = fetch(registry).caches[worker]
+                        push!(caches, cache)
+                        push!(worker_cf, remotecall_fetch(worker, cache) do c
+                            sum(real.(diag(fetch(c).ds.Cf).arr))
+                        end)
+                        result
+                    end
+                end
+                calls_before = calls[]
+                worker_ϕ, worker_trace = MAP_marg((; test_amp=1.0), map_marg_test_dataset;
+                    rng=MersenneTwister(12), ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1,
+                    progress=false, pmap=worker_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                @test calls[] == calls_before + 1
+                @test length(caches) == 2 && caches[1] == caches[2]
+                @test length(worker_cf) == 2 && all(x -> isapprox(x, sum(real.(diag(base_cf).arr))), worker_cf)
+                @test isapprox(worker_ϕ.arr, trace[1].ϕ.arr; rtol=1e-10, atol=1e-12)
+                @test isapprox(worker_trace[1].g.arr, trace[1].g.arr; rtol=1e-10, atol=1e-12)
+                @test registry_ref[] !== nothing && !isopen(registry_ref[])
+                @test length(caches) == 2 && !isopen(caches[1])
+
+                failed_state = Ref{Any}(nothing)
+                function worker_fail_map(f, indices, data, starts)
+                    registry = only(filter(x -> x isa RemoteChannel,
+                        [getfield(f, name) for name in fieldnames(typeof(f))]))
+                    remotecall_fetch(worker, registry) do r
+                        CMBLensing._map_marg_with_worker_cache(r) do ds
+                            sum(real.(diag(ds.Cf).arr))
+                        end
+                    end
+                    failed_state[] = (registry, fetch(registry).caches[worker])
+                    error("injected worker mapper failure")
+                end
+                failure = try
+                    MAP_marg((; test_amp=1.0), map_marg_test_dataset; rng=MersenneTwister(12),
+                        ϕstart=0.3sim.ϕ, nsteps=1, Nsims=1, progress=false,
+                        pmap=worker_fail_map, conjgrad_kwargs=(tol=1e-4, nsteps=100))
+                    nothing
+                catch e
+                    e
+                end
+                @test failure isa ErrorException && failure.msg == "injected worker mapper failure"
+                @test failed_state[] !== nothing && !isopen(failed_state[][1]) && !isopen(failed_state[][2])
+            finally
+                isempty(workers) || rmprocs(workers)
+            end
+        end
     finally
         delete!(CMBLensing.distributed_datasets.name_hash, :map_marg_test_dataset)
         delete!(CMBLensing.distributed_datasets.objid_hash, objectid(map_marg_test_dataset))
