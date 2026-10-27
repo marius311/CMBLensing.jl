@@ -40,8 +40,10 @@ end
 ChainRulesCore.@non_differentiable m_plan_fft(::Any, ::Any, ::Any...)
 ChainRulesCore.@non_differentiable m_plan_rfft(::Any, ::Any, ::Any...)
 # FFTW (but not MKL) destroys the input array for inplace inverse real
-# FFTs, so we need a copy. see https://github.com/JuliaMath/FFTW.jl/issues/158
-copy_if_fftw(x) = (x isa Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
+# FFTs, so we need a copy, including views backed by an Array. Identify the
+# backend in the same way as the FFT plan to avoid copying GPU storage.
+# See https://github.com/JuliaMath/FFTW.jl/issues/158.
+copy_if_fftw(x) = (_fft_arr_type(x) <: Array && FFTW.fftw_provider == "fftw") ? copy(x) : x
 
 
 """
