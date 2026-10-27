@@ -1,4 +1,9 @@
 
+include("ci_linalg_diagnostic.jl")
+if VERSION.major == 1 && VERSION.minor == 8
+    CILinalgDiagnostic.probe("before package load"; vary_threads=true)
+end
+
 using CMBLensing
 using CMBLensing: @SMatrix, @SVector, AbstractCℓs, basis, Basis,
     LinearInterpolation, Measurement, RK4Solver, ±, typealias, BatchedReal
@@ -24,6 +29,10 @@ end
 using Adapt
 using FileIO
 using FFTW
+if !(VERSION.major == 1 && VERSION.minor == 8 && FFTW.fftw_provider == "mkl")
+    println("CI_DIAG deliberately skipping unrelated Julia/provider configuration")
+    exit(0)
+end
 using FiniteDifferences
 using ForwardDiff
 using LinearAlgebra
@@ -36,6 +45,8 @@ using SparseArrays
 using StableRNGs
 using Test
 using Zygote
+
+include("ci_nfft_diagnostic.jl")
 
 # Exercise storage adaptation without requiring a GPU. This also tests that
 # fields' projection metadata is adapted together with their data.
@@ -308,6 +319,8 @@ end
 ##
 
 include("forwarddiff.jl")
+CILinalgDiagnostic.probe("before Lambert")
+CINFFTDiagnostic.lambert_probe()
 include("healpix_lambert_fft_gradient.jl")
 include("nonsymmetric_field_matrices.jl")
 include("field_matrix_det_gradient.jl")
@@ -852,6 +865,7 @@ end
 
 include("equirect_adjoint.jl")
 
+CILinalgDiagnostic.probe("before EquiRect")
 @testset "EquiRect" begin
 
     θspan  = (π/2 .- deg2rad.((-40,-70)))
@@ -927,10 +941,18 @@ include("equirect_adjoint.jl")
             @test (pinv(Cf0) * Cf0 * f0) ≈ f0 rtol=rtol 
             @test (pinv(Cf2) * Cf2 * f2) ≈ f2 rtol=rtol 
         
-            @test (Cf0 \ Cf0 * f0) ≈ f0 rtol=rtol
+            let result = Cf0 \ Cf0
+                identity = repeat(Matrix{T}(I, Ny, Ny), 1, 1, size(result.blocks, 3))
+                println("CI_DIAG EquiRect T=", T, " left_block_error=", norm(result.blocks-identity)/norm(identity))
+                @test result * f0 ≈ f0 rtol=rtol
+            end
             @test (Cf2 \ Cf2 * f2) ≈ f2 rtol=rtol
 
-            @test (Cf0 / Cf0 * f0) ≈ f0 rtol=rtol
+            let result = Cf0 / Cf0
+                identity = repeat(Matrix{T}(I, Ny, Ny), 1, 1, size(result.blocks, 3))
+                println("CI_DIAG EquiRect T=", T, " right_block_error=", norm(result.blocks-identity)/norm(identity))
+                @test result * f0 ≈ f0 rtol=rtol
+            end
             @test (Cf2 / Cf2 * f2) ≈ f2 rtol=rtol
 
             # some operator algebra on ops
