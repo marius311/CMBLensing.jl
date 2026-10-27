@@ -1,5 +1,6 @@
 using CMBLensing
 using CMBLensing: jldopen
+using LinearAlgebra
 using Test
 
 @testset "load_chains" begin
@@ -106,5 +107,29 @@ using Test
             @test batch_index.(joined[:step], 1) == [1, 2, 101, 102]
             @test batch_index.(joined[:step], 2) == [11, 12, 111, 112]
         end
+    end
+end
+
+@testset "sample_joint resume" begin
+    ds = CMBLensing.NoLensingDataSet(; d=FlatMap(zeros(2,2)), Cf=I, Cn=I)
+    initialize! = (state, _) -> get!(state, :counter, 1)
+    sample! = (state, _) -> (state[:counter] += 1)
+    options = (; nsamps_per_chain=2, nchains=1, pmap=map, storage=Array,
+        gibbs_initializers=[initialize!], gibbs_samplers=[sample!], progress=false)
+
+    chain = sample_joint(ds; options...)
+    @test [state[:counter] for state in chain[1]] == [1, 2]
+
+    mktempdir() do dir
+        path = joinpath(dir, "chain.jld2")
+        jldopen(path, "w") do io
+            write(io, "rundat", Dict())
+            write(io, "chunks_1", [Any[Dict(:step => 1, :counter => 7)]])
+        end
+        @test_throws ErrorException sample_joint(ds; options..., filename=path)
+        restarted = sample_joint(ds; options..., filename=path, resume=false)
+        @test [state[:counter] for state in restarted[1]] == [1, 2]
+        resumed = sample_joint(ds; options..., filename=path, resume=true)
+        @test [state[:counter] for state in resumed[1]] == [8]
     end
 end
