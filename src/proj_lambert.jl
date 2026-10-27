@@ -67,7 +67,10 @@ ProjLambert(;Ny, Nx, θpix=1, rotator=(0,90,0), T=Float32, storage=Array) =
     sin2ϕ, cos2ϕ = adapt(storage, @. sin(2ϕ), cos(2ϕ))
     λ_rfft       = adapt(storage, T′.(rfft_degeneracy_fac(Ny)))
     if iseven(Ny)
-        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:Nx÷2]
+        # The Nyquist row must obey Hermitian symmetry. Odd widths have
+        # one more positive/negative pair; even widths have an unpaired
+        # Nyquist column instead.
+        sin2ϕ[end, end:-1:(Nx÷2+2)] .= sin2ϕ[end, 2:((Nx+1)÷2)]
     end
 
     ProjLambert(Ny,Nx,θpix,rotator,storage,Δx,Ωpix,nyquist,Δℓx,Δℓy,ℓy,ℓx,λ_rfft,ℓmag,sin2ϕ,cos2ϕ)
