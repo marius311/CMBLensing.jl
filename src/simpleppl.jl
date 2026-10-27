@@ -4,6 +4,39 @@ struct Logpdf end
 
 is_simpleppl_model(f) = false
 
+"""
+    @fwdmodel function model(...)
+        ...
+    end
+
+Define a forward model using `~` for stochastic variables and `←` for derived
+variables.
+
+When differentiating a likelihood with Zygote, contributions from nested
+models called inside a `map` or `foreach` callback may be missing if the
+callback result does not contribute to the likelihood. The likelihood value
+can be correct while the gradient is `nothing` or incomplete. For a small CPU
+collection, an explicit loop is one alternative:
+
+```julia
+using CMBLensing, Distributions, Zygote
+
+@fwdmodel function example_child(value)
+    value ~ Normal(2, 1)
+end
+
+@fwdmodel function example_model(; x)
+    for value in (x, 2x)
+        example_child(value)
+    end
+end
+
+Zygote.gradient(x -> loglikelihood(example_model; x), 3.0)[1]  # -9.0
+```
+
+Check gradients for your model and backend against ForwardDiff or finite
+differences. This example does not establish a GPU workaround.
+"""
 macro fwdmodel(def)
     sdef = splitdef(def)
 
