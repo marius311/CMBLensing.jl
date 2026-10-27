@@ -5,9 +5,15 @@ using CMBLensing
 
 if isdefined(Base, :get_extension)
     using CUDA
-    using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 else
     using ..CUDA
+end
+
+@static if isdefined(CUDA, :cuSPARSE)
+    using CUDA.cuSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+elseif isdefined(Base, :get_extension)
+    using CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
+else
     using ..CUDA.CUSPARSE: CuSparseMatrix, CuSparseMatrixCSR, CuSparseMatrixCOO
 end
 
@@ -26,6 +32,15 @@ using StaticArrays
 using Zygote
 
 const CuBaseField{B,M,T,A<:CuArray} = BaseField{B,M,T,A}
+
+function CMBLensing._warn_lambert_cuda_fft(::CuArray, Ny, Nx)
+    # Older CUDA releases expose toolkit_version() instead of runtime_version().
+    if Ny*Nx > 1024^2 && CUDA.functional() &&
+       (isdefined(CUDA, :runtime_version) ? CUDA.runtime_version() : CUDA.toolkit_version()) >= v"11.5"
+        @warn("In 2022, CMBLensing warned about FFT instabilities for maps larger than 1024² pixels with CUDA Toolkit 11.5 or later. " *
+              "Whether this affects your toolkit is unknown; check FFT results.")
+    end
+end
 
 # printing
 CMBLensing.typealias(::Type{CuArray{T,N}}) where {T,N} = "CuArray{$T,$N}"
@@ -63,9 +78,12 @@ Adapt.adapt_structure(::Type{<:Array},   L::CuSparseMatrixCSR) = SparseMatrixCSC
 Adapt.adapt_structure(::Type{<:CuArray}, L::CuSparseMatrixCSR) = L
 Adapt.adapt_structure(::Type{<:Array},   L::SparseMatrixCSC)   = L
 
-# some Random API which CUDA doesn't implement yet
-Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) = 
-    cpu(randn!(rng, CUDA.CuVector{T}(undef,1)))[1]
+# Preserve the legacy workaround; CUDA 6 renamed the type and supplies its own
+# scalar methods.
+@static if !isdefined(CUDA, :cuRAND)
+    Random.randn(rng::CUDA.CURAND.RNG, T::Random.BitFloatType) =
+        cpu(randn!(rng, CUDA.CuVector{T}(undef,1)))[1]
+end
 
 # perhaps minor type-piracy, but this lets us simulate into a CuArray using the
 # CPU random number generator

@@ -79,9 +79,14 @@ include("fieldtuple_diagonal_adapt_adjoint.jl")
 include("equirect_adaptation.jl")
 include("equirect_block_adaptation.jl")
 
+if !haskey(ENV, "JULIA_CMBLENSING_TEST_CPU")
+    include("cuda_curand_scalar.jl")
+end
+
 if storage != Array
     include("cuda_zero_dim_reshape.jl")
     include("cuda_field_rng.jl")
+    include("lambert_cuda_warning.jl")
 end
 
 ##
