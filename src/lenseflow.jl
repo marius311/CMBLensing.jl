@@ -6,7 +6,7 @@ abstract type LenseFlowOp{S<:ODESolver,T} <: FlowOpWithAdjoint{T} end
 # precomputed quantities and preallocated memory needed to do the lense.
 
 """
-    LenseFlow(ϕ, [n=7])
+    LenseFlow(ϕ, [n=7]; gpu_graphs=false)
 
 `LenseFlow` is the ODE-based lensing algorithm from [Millea, Anderes,
 & Wandelt, 2019](https://arxiv.org/abs/1708.06753). The number of
@@ -15,6 +15,13 @@ operator, as well as its adjoint, inverse, inverse-adjoint, and
 gradient of any of these w.r.t. `ϕ` can all be computed. The
 log-determinant of the operation is zero independent of `ϕ`, in the
 limit of `n` high enough.
+
+Set `gpu_graphs=true` to reuse CUDA graphs for repeated lensing and gradient
+calls on dense Float32/Float64 Lambert fields. The first call captures each
+integration and is slower; subsequent calls reuse its device workspace.
+Use `LenseFlow(n; gpu_graphs=true)` as the `L` argument to `load_sim`.
+CPU fields and unsupported GPU layouts use ordinary RK4. As with other
+cached lensing workspaces, use a separate cache for each concurrent task.
 """
 struct LenseFlow{S<:ODESolver,T} <: LenseFlowOp{S,T}
     ϕ :: Field
@@ -26,8 +33,44 @@ struct LenseFlow{S<:ODESolver,T} <: LenseFlowOp{S,T}
         new{S,rT}(ϕ, odesolve, rT(0), rT(1))
     end
 end
-LenseFlow(ϕ::Field, nsteps::Int=7) = LenseFlow(ϕ, RK4Solver(nsteps), 0, 1)
-LenseFlow(nsteps::Int) = ϕ -> LenseFlow(ϕ, nsteps)
+LenseFlow(ϕ::Field, nsteps::Int=7; gpu_graphs::Bool=false) = LenseFlow(ϕ, _lenseflow_solver(nsteps, Val(gpu_graphs)), 0, 1)
+function LenseFlow(nsteps::Int; gpu_graphs::Bool=false)
+    mode = Val(gpu_graphs)
+    ϕ -> LenseFlow(ϕ, _lenseflow_solver(nsteps, mode), 0, 1)
+end
+
+# Each precomputed operator gets its own ephemeral solver workspace. Precision
+# promotion and adaptation must never reuse graphs of another cache's buffers.
+mutable struct _LenseFlowGraphCache
+    state::Any
+end
+_LenseFlowGraphCache() = _LenseFlowGraphCache(nothing)
+
+# CUDA handles and captured pointers cannot cross process/checkpoint boundaries.
+# Serialize the empty workspace marker and capture lazily after loading.
+function Serialization.serialize(s::AbstractSerializer, ::_LenseFlowGraphCache)
+    Serialization.writetag(s.io, Serialization.OBJECT_TAG)
+    Serialization.serialize(s, _LenseFlowGraphCache)
+end
+Serialization.deserialize(::AbstractSerializer, ::Type{_LenseFlowGraphCache}) = _LenseFlowGraphCache()
+JLD2.writeas(::Type{_LenseFlowGraphCache}) = Nothing
+JLD2.wconvert(::Type{Nothing}, ::_LenseFlowGraphCache) = nothing
+JLD2.rconvert(::Type{_LenseFlowGraphCache}, ::Nothing) = _LenseFlowGraphCache()
+Base.deepcopy_internal(::_LenseFlowGraphCache, ::IdDict) = _LenseFlowGraphCache()
+
+# Keep the existing RK4Solver and CachedLenseFlow layouts unchanged, including
+# for old checkpoints. Only the opt-in solver owns a disposable graph cache.
+struct _GraphRK4Solver <: ODESolver
+    nsteps::Int
+    graphs::_LenseFlowGraphCache
+end
+_GraphRK4Solver(nsteps::Int) = _GraphRK4Solver(nsteps, _LenseFlowGraphCache())
+(solver::_GraphRK4Solver)(F!, y₀, ts) = RK4Solver(solver.nsteps)(F!, y₀, ts)
+const _LenseFlowRK4Solver = Union{RK4Solver,_GraphRK4Solver}
+_lenseflow_solver(n, ::Val{false}) = RK4Solver(n)
+_lenseflow_solver(n, ::Val{true}) = _GraphRK4Solver(n)
+_fresh_lenseflow_solver(solver::ODESolver) = solver
+_fresh_lenseflow_solver(solver::_GraphRK4Solver) = _GraphRK4Solver(solver.nsteps)
 
 
 struct CachedLenseFlow{S<:ODESolver, T, D<:Diagonal, ŁΦ<:Field, ÐΦ<:Field, ŁF<:Field, ÐF<:Field} <: LenseFlowOp{S, T}
@@ -81,7 +124,7 @@ hash(L::LenseFlowOp, h::UInt64) = foldr(hash, (typeof(L), getϕ(L)), init=h)
 # half-step when time arithmetic rounds. Preserve the nominal entries and
 # bind only missing stage keys to them, in both integration directions.
 _lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, ::ODESolver) = nothing
-function _lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, solver::RK4Solver)
+function _lenseflow_bind_stage_aliases!(p, M⁻¹, t₀, t₁, solver::_LenseFlowRK4Solver)
     nsteps = solver.nsteps
     τs = τ.(range(t₀, stop=t₁, length=2nsteps+1))
     nominal = Set(τs)
@@ -108,10 +151,11 @@ function _lenseflow_cache_dicts(Łϕ, t₀, t₁, nsteps)
     p, M⁻¹
 end
 
-function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
+function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:_LenseFlowRK4Solver, T}
     
     @unpack (ϕ, t₀, t₁, odesolve) = Lϕ
     @unpack nsteps = odesolve
+    odesolve = _fresh_lenseflow_solver(odesolve)
     
     # p & M precomputed matrix elements will use exactly same type as ϕ
     Łϕ, Ðϕ = Ł(ϕ), Ð(ϕ)
@@ -136,8 +180,12 @@ function precompute!!(Lϕ::LenseFlow{S,T}, f) where {S<:RK4Solver, T}
     return precompute!(cLϕ)
 end
 
+_lenseflow_prepare!(L::CachedLenseFlow) = nothing
+_lenseflow_layout_compatible(L::CachedLenseFlow, f) = true
+
 function precompute!!(Lϕ::CachedLenseFlow, f)
-    if real(eltype(f)) == real(eltype(Lϕ.memŁf))
+    _lenseflow_prepare!(Lϕ)
+    if real(eltype(f)) == real(eltype(Lϕ.memŁf)) && _lenseflow_layout_compatible(Lϕ, f)
         if Lϕ.needs_precompute[]
             precompute!(Lϕ)
             Lϕ.needs_precompute[] = false
@@ -182,6 +230,12 @@ end
 _lenseflow_scratch_to_map!(dst, src) = Ł!(dst, src)
 _lenseflow_scratch_to_map!(dst::FieldVector, src::FieldVector) = map(_lenseflow_scratch_to_map!, dst, src)
 
+_flow_initial_state(L::CachedLenseFlow, ::typeof(velocity), f::Field) = (L.memŁf .= Ł(f))
+_flow_initial_state(L::CachedLenseFlow, ::typeof(velocityᴴ), f::Field) = (L.memÐf .= Ð(f))
+function _flow_initial_state(L::CachedLenseFlow, ::typeof(negδvelocityᴴ), (f,δf)::FieldTuple)
+    FieldTuple(L.memŁf .= Ł(f), L.memÐf .= Ð(δf), fill!(L.memÐϕ, zero(eltype(L.memÐϕ))))
+end
+
 function velocity(L::CachedLenseFlow, f₀::Field)
     function v!(v::Field, t::Real, f::Field)
         Ðf, Ð∇f, Ł∇f = L.memÐf, L.memÐvf,  L.memŁvf
@@ -192,7 +246,7 @@ function velocity(L::CachedLenseFlow, f₀::Field)
         Ł∇f = _lenseflow_scratch_to_map!(Ł∇f, Ð∇f)::typeof(Ł∇f)
         @! v   = p' * Ł∇f
     end
-    return (v!, L.memŁf .= Ł(f₀))
+    return (v!, _flow_initial_state(L, velocity, f₀))
 end
 
 function velocityᴴ(L::CachedLenseFlow, f₀::Field)
@@ -205,7 +259,7 @@ function velocityᴴ(L::CachedLenseFlow, f₀::Field)
         @! Ð_Łf_p = Ð(Łf_p)
         @! v = -∇ᵢ' * Ð_Łf_p
     end
-    return (v!, L.memÐf .= Ð(f₀))
+    return (v!, _flow_initial_state(L, velocityᴴ, f₀))
 end
 
 function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
@@ -246,12 +300,12 @@ function negδvelocityᴴ(L::CachedLenseFlow, (f₀, δf₀)::FieldTuple)
     
     end
     
-    return (v!, FieldTuple(L.memŁf .= Ł(f₀), L.memÐf .= Ð(δf₀), L.memÐϕ .= Ð(zero(getϕ(L)))))
+    return (v!, _flow_initial_state(L, negδvelocityᴴ, FieldTuple(f₀, δf₀)))
     
 end
 
 # adapting storage
-adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), Lϕ.odesolve, Lϕ.t₀, Lϕ.t₁)
+adapt_structure(storage, Lϕ::LenseFlow) = LenseFlow(adapt(storage, Lϕ.ϕ), _fresh_lenseflow_solver(Lϕ.odesolve), Lϕ.t₀, Lϕ.t₁)
 function adapt_structure(storage, Lϕ::CachedLenseFlow)
     # Adapt may reuse storage (e.g. Array -> Array), but distinct caches must
     # not share mutable fields: recomputing one would corrupt the other.
@@ -295,7 +349,7 @@ function adapt_structure(storage, Lϕ::CachedLenseFlow)
     end
     CachedLenseFlow(
         Ref{Any}(ϕ), Ref(!reuse),
-        Lϕ.odesolve, t₀, t₁,
+        _fresh_lenseflow_solver(Lϕ.odesolve), t₀, t₁,
         p, M⁻¹,
         _adapt(Lϕ.memŁf), _adapt(Lϕ.memÐf), _adapt.(Lϕ.memŁvf), _adapt.(Lϕ.memÐvf),
         _adapt(Lϕ.memŁϕ), _adapt(Lϕ.memÐϕ), _adapt.(Lϕ.memŁvϕ), _adapt.(Lϕ.memÐvϕ)

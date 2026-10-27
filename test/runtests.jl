@@ -88,6 +88,7 @@ if storage != Array
     include("cuda_zero_dim_reshape.jl")
     include("cuda_field_rng.jl")
     include("lambert_cuda_warning.jl")
+    include("cuda_lenseflow_graphs.jl")
 end
 
 ##
@@ -100,6 +101,7 @@ include("fourier_sum_adjoint.jl")
 include("fieldtuple_sum_adjoint.jl")
 include("field_diagonal_adapt_adjoint.jl")
 include("mixed_simulation_parameters.jl")
+include("lenseflow_workspace.jl")
 
 ##
 

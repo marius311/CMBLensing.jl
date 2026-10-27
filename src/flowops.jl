@@ -7,11 +7,15 @@ function velocity end
 function velocityᴴ end
 function negδvelocityᴴ end
 
+# Backends may reuse an integration workspace, given the actual precomputed
+# operator (also on promoted-precision pullbacks).
+_flow_solve(L::FlowOp, v, f, ts) = L.odesolve(v(L, f)..., ts)
+
 # define integrations for L*f, L'*f, L\f, and L'\f
-*(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₀ => Lϕ.t₁)
-*(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ'.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ'.t₁ => Lϕ'.t₀)
-\(Lϕ::                FlowOp,  f::Field) = @⌛ Lϕ.odesolve( velocity(precompute!!(Lϕ,  f), f)..., Lϕ.t₁ => Lϕ.t₀)
-\(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ Lϕ'.odesolve(velocityᴴ(precompute!!(Lϕ', f), f)..., Lϕ'.t₀ => Lϕ'.t₁)
+*(Lϕ::                FlowOp,  f::Field) = @⌛ _flow_solve(precompute!!(Lϕ,  f), velocity,  f, Lϕ.t₀ => Lϕ.t₁)
+*(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ _flow_solve(precompute!!(Lϕ', f), velocityᴴ, f, Lϕ'.t₁ => Lϕ'.t₀)
+\(Lϕ::                FlowOp,  f::Field) = @⌛ _flow_solve(precompute!!(Lϕ,  f), velocity,  f, Lϕ.t₁ => Lϕ.t₀)
+\(Lϕ::Adjoint{<:Any,<:FlowOp}, f::Field) = @⌛ _flow_solve(precompute!!(Lϕ', f), velocityᴴ, f, Lϕ'.t₀ => Lϕ'.t₁)
 
 
 @adjoint (::Type{L})(ϕ, args...) where {L<:FlowOp} = L(ϕ, args...), Δ -> (Δ, map(_->nothing, args)...)
@@ -45,7 +49,7 @@ function negδvelocityᴴ end
         if :ϕ in get(task_local_storage(), :AD_constants, ())
             nothing, B(Lϕ_back' * Δ)
         else
-            (_, δf, δϕ) = @⌛ Lϕ.odesolve(negδvelocityᴴ(Lϕ_back, FieldTuple(f̃, Δ))..., Lϕ.t₁ => Lϕ.t₀)
+            (_, δf, δϕ) = @⌛ _flow_solve(Lϕ_back, negδvelocityᴴ, FieldTuple(f̃, Δ), Lϕ.t₁ => Lϕ.t₀)
             δϕ, B(δf)
         end
     end
@@ -60,7 +64,7 @@ end
         if :ϕ in get(task_local_storage(), :AD_constants, ())
             nothing, B(Lϕ_back' \ Δ)
         else
-            (_, δf, δϕ) = @⌛ Lϕ.odesolve(negδvelocityᴴ(Lϕ_back, FieldTuple(f, Δ))..., Lϕ.t₀ => Lϕ.t₁)
+            (_, δf, δϕ) = @⌛ _flow_solve(Lϕ_back, negδvelocityᴴ, FieldTuple(f, Δ), Lϕ.t₀ => Lϕ.t₁)
             δϕ, B(δf)
         end
     end

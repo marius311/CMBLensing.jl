@@ -126,3 +126,21 @@ Once cached, it's faster and less memory intensive to repeatedly apply the opera
 ```
 
 Note that this documentation is generated on limited-performance cloud servers. Actual benchmarks are likely much faster locally or on a cluster, and yet (much) faster on [GPU](06_gpu.md).
+
+For repeated CUDA likelihood and gradient evaluations, opt in to graph replay
+with `LenseFlow(ϕ, 7; gpu_graphs=true)`. Retain the result of
+`precompute!!(LenseFlow(ϕ, 7; gpu_graphs=true), f)` between calls, or pass
+`L=LenseFlow(7; gpu_graphs=true)` to `load_sim`. The ordinary RK4 path remains
+the default. Graph replay uses the same integration steps and arithmetic.
+
+Graph replay supports dense Float32 and Float64 Lambert scalar, QU, and IQU
+fields, including batches. Other layouts and CPU fields use ordinary RK4.
+Each integration direction captures on first use, so warm both the likelihood
+and its gradient before timing with `CUDA.@sync`. Graphs retain device
+workspaces and use more memory in exchange for fewer host launches. Results
+and gradients own their output storage and can be retained across later calls.
+
+Use a separate cached operator for each concurrent task or chain. A sequential
+change of CUDA task or stream synchronizes the previous work and rebuilds the
+graphs. Adaptation and checkpoint loading also start with an empty graph cache;
+device pointers and executable graphs are never saved in checkpoints.

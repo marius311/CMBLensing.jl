@@ -436,14 +436,31 @@ end
 
 
 ### spin adjoints
+# Rebuild the workspace when batch width, spin, geometry, potential precision,
+# or storage changes. A graph must not replay against a merely same-typed cache.
+function _lenseflow_layout_compatible(L::CachedLenseFlow{<:_GraphRK4Solver}, f::LambertField)
+    ϕ = getϕ(L)
+    coefficient = L.p[τ(L.t₀)][1].diag
+    L.memŁf isa LambertField && ϕ isa LambertField &&
+    Ł(basis(f)()) === basis(L.memŁf) &&
+    strict_compatible_metadata(L.memŁf, f) &&
+    strict_compatible_metadata(coefficient, ϕ) &&
+    max(batch_length(f), batch_length(ϕ)) == batch_length(L.memŁf) &&
+    batch_length(ϕ) == batch_length(coefficient) &&
+    real(eltype(ϕ)) === real(eltype(coefficient)) &&
+    _fft_arr_type(f.arr) === _fft_arr_type(L.memŁf.arr) &&
+    _fft_arr_type(ϕ.arr) === _fft_arr_type(coefficient.arr)
+end
+
 function *(a::SpinAdjoint{F}, b::F) where {B<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}},F<:LambertField{B}}
     r = sum(a.f.arr .* b.arr, dims=3)
     LambertMap(dropdims(r, dims=(ndims(r)==3 ? 3 : ())), get_metadata_strict(a, b))
 end
 function mul!(dst::LambertMap, a::SpinAdjoint{F}, b::F) where {F<:LambertField{<:Union{Map,Basis2Prod{<:Any,Map},Basis3Prod{<:Any,<:Any,Map}}}}
-    dst.arr .= reshape(sum(a.f.arr .* b.arr, dims=3), size(dst.arr))
+    _lambert_spin_mul!(dst.arr, a.f.arr, b.arr)
     dst
 end
+_lambert_spin_mul!(dst, a, b) = (dst .= reshape(sum(a .* b, dims=3), size(dst)); dst)
 
 
 
