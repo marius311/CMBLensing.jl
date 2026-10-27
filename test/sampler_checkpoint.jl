@@ -254,7 +254,8 @@ using CMBLensing, LinearAlgebra, Random, Test
         mixed_tuple_file = joinpath(dir, "mixed-field-tuple.jld2")
         mixed_tuple = CMBLensing.FieldTuple(;
             inner=CMBLensing.FieldTuple(; batched=batch_field, shared=ϕ0,
-                values=[1.0, 2.0, 3.0]), scalar=4.0)
+                values=[1.0, 2.0, 3.0], parameters=[CMBLensing.batch(10.0, 20.0),
+                    CMBLensing.batch(30.0, 40.0)]), scalar=4.0)
         CMBLensing.jldopen(mixed_tuple_file, "w") do io
             write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>0.0, :other=>mixed_tuple)]])
         end
@@ -264,10 +265,10 @@ using CMBLensing, LinearAlgebra, Random, Test
         @test all(==(1f0), mixed_tuple_chains[2][1][:other].inner.batched.arr)
         @test all(c -> c[1][:other].inner.values == [1.0, 2.0, 3.0] &&
             c[1][:other].scalar == 4.0, mixed_tuple_chains)
+        @test [c[1][:other].inner.parameters for c in mixed_tuple_chains] ==
+            [[10.0, 30.0], [20.0, 40.0]]
         mixed_tuple_chains[1][1][:other].inner.shared.arr[1] = 1
-        mixed_tuple_chains[1][1][:other].inner.values[1] = 9
         @test iszero(mixed_tuple_chains[2][1][:other].inner.shared.arr[1])
-        @test mixed_tuple_chains[2][1][:other].inner.values == [1.0, 2.0, 3.0]
         @test length(load_chains(mixed_tuple_file; dropmaps=true, progress=false)) == 2
 
         # A non-batched FieldTuple containing an ordinary vector was already

@@ -170,8 +170,9 @@ wrap_chains(chain::Vector) = Chain(chain)
     unbatch(chain::Chain)
 
 Convert a chain of batch-length-`D` fields to `D` chains of unbatched fields. 
-If a custom sample contains no batch-bearing field or value, its batch length
-cannot be inferred from the sample and it is treated as one chain.
+Batch widths are inferred from flat fields, batched values and arrays of batched
+values, including fields in a FieldTuple and batched values directly in a
+NamedTuple. A custom sample without these markers is treated as one chain.
 """
 unbatch(chain::Chain) = _unbatch(chain, nothing)
 
@@ -180,26 +181,33 @@ function _append_chain_batch_widths!(widths, v)
         for component in values(v.fs)
             _append_chain_batch_widths!(widths, component)
         end
-    elseif v isa Union{BatchedReal,BatchedVal} || (v isa Field && applicable(batch_length, v))
+    elseif v isa Union{BatchedReal,BatchedVal} || (v isa FlatField && applicable(batch_length, v))
         push!(widths, batch_length(v))
-    elseif v isa Union{NamedTuple,AbstractArray{<:Union{BatchedReal,BatchedVal}}}
+    elseif v isa NamedTuple
+        for component in values(v)
+            component isa Union{BatchedReal,BatchedVal} && push!(widths, batch_length(component))
+        end
+    elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
         for component in v
-            _append_chain_batch_widths!(widths, component)
+            push!(widths, batch_length(component))
         end
     end
     widths
 end
 
-function _unbatch_fieldtuple(ft::FieldTuple, I)
-    FieldTuple(map(ft.fs) do component
-        if component isa FieldTuple
-            _unbatch_fieldtuple(component, I)
-        elseif component isa Union{BatchedReal,BatchedVal,FlatField}
-            batch_index(component, batch_length(component) == 1 ? 1 : I)
-        else
-            copy(component)
-        end
-    end)
+function _unbatch_chain_value(v, I)
+    if v isa FieldTuple
+        FieldTuple(map(x -> _unbatch_chain_value(x, I), v.fs))
+    elseif v isa Union{BatchedReal,BatchedVal,FlatField}
+        batch_index(v, batch_length(v) == 1 ? 1 : I)
+    elseif v isa NamedTuple
+        map(x -> (x isa Union{BatchedReal,BatchedVal} ?
+            batch_index(x, batch_length(x) == 1 ? 1 : I) : x), v)
+    elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
+        map(x -> batch_index(x, batch_length(x) == 1 ? 1 : I), v)
+    else
+        v
+    end
 end
 
 function _unbatch(chain::Chain, batch_hints)
@@ -222,20 +230,7 @@ function _unbatch(chain::Chain, batch_hints)
     Chains(map(1:D) do I
         Chain(map(chain) do samp
             Dict(map(collect(samp)) do (k,v)
-                if v isa Union{BatchedReal,BatchedVal}
-                    k => batch_index(v, batch_length(v) == 1 ? 1 : I)
-                elseif v isa FieldTuple
-                    k => _unbatch_fieldtuple(v, I)
-                elseif v isa FlatField
-                    k => batch_index(v, batch_length(v) == 1 ? 1 : I)
-                elseif v isa NamedTuple
-                    k => map(x -> (x isa Union{BatchedReal,BatchedVal} ?
-                        batch_index(x, batch_length(x) == 1 ? 1 : I) : x), v)
-                elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
-                    k => map(x -> batch_index(x, batch_length(x) == 1 ? 1 : I), v)
-                else
-                    k => v
-                end
+                k => _unbatch_chain_value(v, I)
             end)
         end)
     end)
