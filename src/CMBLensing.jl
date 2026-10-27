@@ -175,6 +175,13 @@ include("autodiff.jl")
     @require PythonPlot    = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9" include("../ext/CMBLensingPythonPlotExt.jl")
     @require PythonCall    = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d" include("../ext/CMBLensingPythonCallExt.jl")
 end
+
+# These kernels need both modules bound when @tullio expands. Register the
+# dual trigger once at runtime; this also avoids recursively precompiling a
+# sibling extension while CUDA itself is loading.
+@init @require CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba" begin
+    @require KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c" include("../ext/CMBLensingCUDAEquiRectExt.jl")
+end
 # some stubs filled in by extensions
 function animate end
 function pyimport end
