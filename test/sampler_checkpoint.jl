@@ -249,6 +249,40 @@ using CMBLensing, LinearAlgebra, Random, Test
         @test all(==(1f0), tuple_chains[2][1][:other].fs[1].arr)
         @test length(load_chains(tuple_file; dropmaps=true, progress=false)) == 2
 
+        # FieldTuple also supports ordinary scalar/vector components and
+        # nested tuples; these are not batch dimensions.
+        mixed_tuple_file = joinpath(dir, "mixed-field-tuple.jld2")
+        mixed_tuple = CMBLensing.FieldTuple(;
+            inner=CMBLensing.FieldTuple(; batched=batch_field, shared=ϕ0,
+                values=[1.0, 2.0, 3.0]), scalar=4.0)
+        CMBLensing.jldopen(mixed_tuple_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>0.0, :other=>mixed_tuple)]])
+        end
+        mixed_tuple_chains = load_chains(mixed_tuple_file; progress=false)
+        @test length(mixed_tuple_chains) == 2
+        @test all(iszero, mixed_tuple_chains[1][1][:other].inner.batched.arr)
+        @test all(==(1f0), mixed_tuple_chains[2][1][:other].inner.batched.arr)
+        @test all(c -> c[1][:other].inner.values == [1.0, 2.0, 3.0] &&
+            c[1][:other].scalar == 4.0, mixed_tuple_chains)
+        mixed_tuple_chains[1][1][:other].inner.shared.arr[1] = 1
+        mixed_tuple_chains[1][1][:other].inner.values[1] = 9
+        @test iszero(mixed_tuple_chains[2][1][:other].inner.shared.arr[1])
+        @test mixed_tuple_chains[2][1][:other].inner.values == [1.0, 2.0, 3.0]
+        @test length(load_chains(mixed_tuple_file; dropmaps=true, progress=false)) == 2
+
+        # A non-batched FieldTuple containing an ordinary vector was already
+        # valid in a saved sample and must still load with or without maps.
+        single_tuple_file = joinpath(dir, "single-field-tuple.jld2")
+        single_tuple = CMBLensing.FieldTuple(; f=ϕ0, θ=[1.0, 2.0, 3.0])
+        CMBLensing.jldopen(single_tuple_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>0.0, :other=>single_tuple)]])
+        end
+        single_tuple_chains = load_chains(single_tuple_file; progress=false)
+        @test length(single_tuple_chains) == 1
+        @test single_tuple_chains[1][1][:other].θ == [1.0, 2.0, 3.0]
+        single_tuple_dropped = load_chains(single_tuple_file; dropmaps=true, progress=false)
+        @test length(single_tuple_dropped) == 1 && !haskey(single_tuple_dropped[1][1], :other)
+
         conflict_file = joinpath(dir, "incompatible-sample-batches.jld2")
         CMBLensing.jldopen(conflict_file, "w") do io
             write(io, "chunks_1", [Any[Dict(:step=>1, :ϕ=>batch3,
@@ -264,12 +298,20 @@ using CMBLensing, LinearAlgebra, Random, Test
             write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>CMBLensing.batch(1.0, 2.0)),
                 Dict(:step=>2, :ϕ=>batch3, :logpdf=>CMBLensing.batch(1.0, 2.0))]])
         end
+        discarded_tuple_file = joinpath(dir, "discarded-conflicting-field-tuple.jld2")
+        conflicting_tuple = CMBLensing.FieldTuple(; a=batch_field, b=batch3)
+        CMBLensing.jldopen(discarded_tuple_file, "w") do io
+            write(io, "chunks_1", [Any[Dict(:step=>1, :logpdf=>CMBLensing.batch(1.0, 2.0)),
+                Dict(:step=>2, :other=>conflicting_tuple)]])
+        end
         for dropmaps in (false, true)
             @test_throws ArgumentError load_chains(conflict_file; dropmaps, progress=false)
             @test_throws ArgumentError load_chains(cross_conflict_file; dropmaps, progress=false)
             @test length(load_chains(cross_conflict_file; dropmaps, thin=2, progress=false)) == 3
             @test_throws ArgumentError load_chains(discarded_conflict_file; dropmaps, progress=false)
             @test length(load_chains(discarded_conflict_file; dropmaps, thin=2, progress=false)) == 2
+            @test_throws ArgumentError load_chains(discarded_tuple_file; dropmaps, progress=false)
+            @test length(load_chains(discarded_tuple_file; dropmaps, thin=2, progress=false)) == 2
         end
 
         # Reject differing numbers of persisted and requested chains before

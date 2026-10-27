@@ -73,8 +73,10 @@ function load_chains(
             if dropmaps
                 for chain in chunk, sample in chain
                     if unbatch
-                        widths = Int[batch_length(v) for v in values(sample)
-                            if v isa Field && applicable(batch_length, v)]
+                        widths = Int[]
+                        for v in values(sample)
+                            v isa Field && _append_chain_batch_widths!(widths, v)
+                        end
                         isempty(widths) || (dropped_batch_hints[sample] = widths)
                     end
                     if thin == :hasmaps && get(sample, :ϕ, nothing) isa Field
@@ -173,28 +175,43 @@ cannot be inferred from the sample and it is treated as one chain.
 """
 unbatch(chain::Chain) = _unbatch(chain, nothing)
 
-function _sample_batch_widths(sample)
-    widths = Int[]
-    for v in values(sample)
-        if v isa Union{BatchedReal,BatchedVal} || (v isa Field && applicable(batch_length, v))
-            push!(widths, batch_length(v))
-        elseif v isa NamedTuple
-            for component in values(v)
-                component isa Union{BatchedReal,BatchedVal} && push!(widths, batch_length(component))
-            end
-        elseif v isa AbstractArray{<:Union{BatchedReal,BatchedVal}}
-            append!(widths, batch_length.(v))
+function _append_chain_batch_widths!(widths, v)
+    if v isa FieldTuple
+        for component in values(v.fs)
+            _append_chain_batch_widths!(widths, component)
+        end
+    elseif v isa Union{BatchedReal,BatchedVal} || (v isa Field && applicable(batch_length, v))
+        push!(widths, batch_length(v))
+    elseif v isa Union{NamedTuple,AbstractArray{<:Union{BatchedReal,BatchedVal}}}
+        for component in v
+            _append_chain_batch_widths!(widths, component)
         end
     end
     widths
+end
+
+function _unbatch_fieldtuple(ft::FieldTuple, I)
+    FieldTuple(map(ft.fs) do component
+        if component isa FieldTuple
+            _unbatch_fieldtuple(component, I)
+        elseif component isa Union{BatchedReal,BatchedVal,FlatField}
+            batch_index(component, batch_length(component) == 1 ? 1 : I)
+        else
+            copy(component)
+        end
+    end)
 end
 
 function _unbatch(chain::Chain, batch_hints)
     isempty(chain) && return [chain]
     D = 1
     for sample in chain
+        sample_widths = Int[]
+        for v in values(sample)
+            _append_chain_batch_widths!(sample_widths, v)
+        end
         hint_widths = isnothing(batch_hints) ? () : get(batch_hints, sample, ())
-        for widths in (_sample_batch_widths(sample), hint_widths), n in widths
+        for widths in (sample_widths, hint_widths), n in widths
             n <= 1 && continue
             (D == 1 || D == n) || throw(ArgumentError(
                 "Chain contains incompatible batch lengths $D and $n"))
@@ -207,7 +224,9 @@ function _unbatch(chain::Chain, batch_hints)
             Dict(map(collect(samp)) do (k,v)
                 if v isa Union{BatchedReal,BatchedVal}
                     k => batch_index(v, batch_length(v) == 1 ? 1 : I)
-                elseif v isa Union{FlatField,FieldTuple}
+                elseif v isa FieldTuple
+                    k => _unbatch_fieldtuple(v, I)
+                elseif v isa FlatField
                     k => batch_index(v, batch_length(v) == 1 ? 1 : I)
                 elseif v isa NamedTuple
                     k => map(x -> (x isa Union{BatchedReal,BatchedVal} ?
